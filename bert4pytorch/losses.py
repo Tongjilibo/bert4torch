@@ -1,0 +1,90 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class FocalLoss(nn.Module):
+    '''Multi-class Focal loss implementation'''
+    def __init__(self, gamma=2, weight=None,ignore_index=-100):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.weight = weight
+        self.ignore_index=ignore_index
+
+    def forward(self, input, target):
+        """
+        input: [N, C]
+        target: [N, ]
+        """
+        logpt = F.log_softmax(input, dim=1)
+        pt = torch.exp(logpt)
+        logpt = (1-pt)**self.gamma * logpt
+        loss = F.nll_loss(logpt, target, self.weight,ignore_index=self.ignore_index)
+        return loss
+
+
+class LabelSmoothingCrossEntropy(nn.Module):
+    def __init__(self, eps=0.1, reduction='mean',ignore_index=-100):
+        super(LabelSmoothingCrossEntropy, self).__init__()
+        self.eps = eps
+        self.reduction = reduction
+        self.ignore_index = ignore_index
+
+    def forward(self, output, target):
+        c = output.size()[-1]
+        log_preds = F.log_softmax(output, dim=-1)
+        if self.reduction=='sum':
+            loss = -log_preds.sum()
+        else:
+            loss = -log_preds.sum(dim=-1)
+            if self.reduction=='mean':
+                loss = loss.mean()
+        return loss*self.eps/c + (1-self.eps) * F.nll_loss(log_preds, target, reduction=self.reduction,
+                                                           ignore_index=self.ignore_index)
+
+
+class MultilabelCategoricalCrossentropy(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    def forward(self, y_pred, y_true):
+        """[summary]
+
+        Args:
+            y_true ([Tensor]): [btz, ner_vocab_size, seq_len, seq_len]
+            y_pred ([Tensor]): [btz, ner_vocab_size, seq_len, seq_len]
+        """
+        y_true = y_true.view(y_true.shape[0]*y_true.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
+        y_pred = y_pred.view(y_pred.shape[0]*y_pred.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
+
+        y_pred = (1-2*y_true) * y_pred
+        y_pred_pos = y_pred - (1-y_true) * 1e12
+        y_pred_neg = y_pred - y_true * 1e12
+
+        y_pred_pos = torch.cat([y_pred_pos, torch.zeros(y_pred_pos.shape[0], 1, device=y_pred_pos.device)], dim=-1)
+        y_pred_neg = torch.cat([y_pred_neg, torch.zeros(y_pred_neg.shape[0], 1, device=y_pred_neg.device)], dim=-1)
+        loss = torch.sum(torch.logsumexp(y_pred_pos, 1) + torch.logsumexp(y_pred_neg, 1)) / y_pred_neg.shape[0]
+        return loss
+
+
+class ContrastiveLoss(nn.Module):
+    def __init__(self, margin=0.5, size_average=True, online=False):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
+        self.size_average = size_average
+        self.online = online
+
+    def forward(self, distances, labels, pos_id=1, neg_id=0):
+        if not self.online:
+            losses = 0.5 * (labels.float() * distances.pow(2) + (1 - labels).float() * F.relu(self.margin - distances).pow(2))
+            return losses.mean() if self.size_average else losses.sum()
+        else:
+            negs = distances[labels == neg_id]
+            poss = distances[labels == pos_id]
+
+            # select hard positive and hard negative pairs
+            negative_pairs = negs[negs < (poss.max() if len(poss) > 1 else negs.mean())]
+            positive_pairs = poss[poss > (negs.min() if len(negs) > 1 else poss.mean())]
+            
+            positive_loss = positive_pairs.pow(2).sum()
+            negative_loss = F.relu(self.margin - negative_pairs).pow(2).sum()
+            return positive_loss + negative_loss
