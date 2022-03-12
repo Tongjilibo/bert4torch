@@ -2,7 +2,6 @@
 # global_pointer用来做实体识别
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
 # 博客：https://kexue.fm/archives/8373
-# 适用于Keras 2.3.1
 
 import numpy as np
 import json
