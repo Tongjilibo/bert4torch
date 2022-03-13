@@ -108,9 +108,7 @@ def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
 
 
 def insert_arguments(**arguments):
-    """
-        装饰器，为类方法增加参数
-       （主要用于类的__init__方法）
+    """装饰器，为类方法增加参数（主要用于类的__init__方法）
     """
     def actual_decorator(func):
         def new_func(self, *args, **kwargs):
@@ -118,6 +116,24 @@ def insert_arguments(**arguments):
                 if k in kwargs:
                     v = kwargs.pop(k)
                 setattr(self, k, v)
+            return func(self, *args, **kwargs)
+
+        return new_func
+
+    return actual_decorator
+
+
+def delete_arguments(*arguments):
+    """装饰器，为类方法删除参数（主要用于类的__init__方法）
+    """
+    def actual_decorator(func):
+        def new_func(self, *args, **kwargs):
+            for k in arguments:
+                if k in kwargs:
+                    raise TypeError(
+                        '%s got an unexpected keyword argument \'%s\'' %
+                        (self.__class__.__name__, k)
+                    )
             return func(self, *args, **kwargs)
 
         return new_func

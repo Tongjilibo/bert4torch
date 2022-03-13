@@ -3,8 +3,8 @@ import torch.nn as nn
 import copy
 import json
 from itertools import cycle
-from bert4pytorch.layers import LayerNorm, activations, BertEmbeddings, BertLayer, Identity
-from bert4pytorch.snippets import ProgbarLogger, metric_mapping, search_layer
+from bert4pytorch.layers import LayerNorm, activations, BertEmbeddings, BertLayer, Identity, activations
+from bert4pytorch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
 
 class BaseModel(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -707,6 +707,7 @@ class NEZHA(BERT):
                             conditional_size=self.conditional_size, **config)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
+
 class RoFormer(BERT):
     """旋转式位置编码的BERT模型
     链接：https://kexue.fm/archives/8265
@@ -720,9 +721,58 @@ class RoFormer(BERT):
                             conditional_size=self.conditional_size, **config)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
+
+class ELECTRA(BERT):
+    """Google推出的ELECTRA模型
+    链接：https://arxiv.org/abs/2003.10555
+    """
+    @insert_arguments(with_discriminator=False)
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, max_position, **kwargs):
+        super(ELECTRA, self).__init__(max_position, **kwargs)
+        if self.with_discriminator:
+            self.dense = nn.Linear(self.hidden_size, self.hidden_size)
+            self.dense_act = activations[self.hidden_act]
+            self.dense_prediction = nn.Linear(self.hidden_size, 1)
+            self.dense_prediction_act = nn.Sigmoid() if self.with_discriminator is True else self.with_discriminator
+
+    def apply_final_layers(self, inputs):
+        hidden_states = super().apply_final_layers(inputs)  # 仅有hidden_state一项输出
+        if self.with_discriminator:
+            logit = self.dense_act(self.dense(hidden_states))
+            return [hidden_states, self.dense_prediction_act(self.dense_prediction(logit))]
+        else:
+            return hidden_states
+
+    def load_variable(self, state_dict, name):
+        """加载单个变量的函数
+        """
+        variable = state_dict[name]
+        if name in {'electra.embeddings.word_embeddings.weight'}:
+            return self.load_embeddings(variable)
+        elif name == 'electra.embeddings.position_embeddings.weight':
+            return self.load_pos_embeddings(variable)
+        else:
+            return variable
+
+    def variable_mapping(self):
+        mapping = super(ELECTRA, self).variable_mapping(prefix='electra')
+        mapping.update({'dense.weight': 'discriminator_predictions.dense.weight', 
+                        'dense.bias': 'discriminator_predictions.dense.bias',
+                        'dense_prediction.weight': 'discriminator_predictions.dense_prediction.weight',
+                        'dense_prediction.biad': 'discriminator_predictions.dense_prediction.bias'}
+                        )
+        for del_key in ['pooler.weight', 'pooler.bias', 'nsp.weight', 'nsp.bias', 'mlmDense.weight', 'mlmDense.bias', 
+                        'mlmLayerNorm.weight', 'mlmLayerNorm.bias', 'mlmBias', 'mlmDecoder.weight', 'mlmDecoder.bias']:
+            del mapping[del_key]
+
+        return mapping
+
+
 class Transformer(BERT):
     '''encoder-decoder结构
     '''
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
         self.src_vocab_size = kwargs.get('src_vocab_size') or self.vocab_size
@@ -940,12 +990,13 @@ def build_transformer_model(
         'albert_unshared': ALBERT_Unshared,
         'nezha': NEZHA,
         'roformer': RoFormer,
+        'electra': ELECTRA,
         'transformer': Transformer,
         'bart': BART
     }
 
     if isinstance(model, str):  # string表示使用自带的模型
-        MODEL = models[model]
+        MODEL = models[model.lower()]
     elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
         MODEL = model
     else:

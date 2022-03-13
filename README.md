@@ -7,7 +7,7 @@
   
 
 ## 背景
-- 参考苏神的[bert4keras](https://github.com/bojone/bert4keras)
+- 用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)
 - 初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
 ## 功能
@@ -18,9 +18,9 @@
 
 ### 现在已经实现
 
-- 加载bert、roberta、albert、nezha、bart、RoFormer模型进行fintune
+- 加载bert、roberta、albert、nezha、bart、RoFormer、ELECTRA模型进行fintune
 - 对抗训练
 
 ### 未来将实现
-- Transformer-XL、XLnet、T5、GPT、ELECTRA等其他网络架构
+- Transformer-XL、XLnet、T5、GPT等其他网络架构
 - 前沿的各类模型idea实现

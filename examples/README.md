@@ -25,6 +25,7 @@
 - [task_sentiment_classification_hierarchical_position.py](https://github.com/Tongjilibo/bert4pytorch/blob/master/examples/task_sentiment_classification_hierarchical_position.py)：任务例子，情感分类任务，层次分解位置编码做长文本的初始化
 - [task_sentiment_classification_nezha.py](https://github.com/Tongjilibo/bert4pytorch/blob/master/examples/task_sentiment_classification_nezha.py)：任务例子，情感分类任务，加载nezha模型
 - [task_sentiment_classification_roformer.py](https://github.com/Tongjilibo/bert4pytorch/blob/master/examples/task_sentiment_classification_roformer.py)：任务例子，情感分类任务，roformer
+- [task_sentiment_classification_electra.py](https://github.com/Tongjilibo/bert4pytorch/blob/master/examples/task_sentiment_classification_electra.py)：任务例子，情感分类任务，加载electra权重
 
 ### 文本生成
 - [task_seq2seq_autotitle.py](https://github.com/Tongjilibo/bert4pytorch/blob/master/examples/task_seq2seq_autotitle.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
