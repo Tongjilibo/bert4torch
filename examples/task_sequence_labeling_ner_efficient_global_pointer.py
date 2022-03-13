@@ -13,6 +13,8 @@ import torch.optim as optim
 from bert4pytorch.snippets import sequence_padding, Callback, get_sinusoid_encoding_table, ListDataset
 from bert4pytorch.tokenizers import Tokenizer
 from bert4pytorch.losses import MultilabelCategoricalCrossentropy
+from bert4pytorch.layers import RoPEPositionEncoding
+
 
 maxlen = 512
 batch_size = 6
@@ -74,13 +76,14 @@ valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
         self.p_dense = nn.Linear(768, ner_head_size * 2)
         self.q_dense = nn.Linear(ner_head_size * 2, ner_vocab_size * 2)
         self.RoPE = True
-
+        if self.RoPE:
+            self.position_embedding = RoPEPositionEncoding(maxlen, ner_head_size)
 
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
@@ -89,16 +92,11 @@ class Model(BaseModel):
 
         # ROPE编码
         if self.RoPE:
-            btz, seq_len, _ = sequence_output.shape
-            pos_ids = get_sinusoid_encoding_table(seq_len, ner_head_size).unsqueeze(0).expand(btz, -1, -1).to(sequence_output.device)  # [btz, seq_len, hdsz]
-            cos_pos = pos_ids[:, :, 1::2].repeat(1, 1, 2)
-            sin_pos = pos_ids[:, :, ::2].repeat(1, 1, 2)
-            qw2 = torch.cat([-qw[:, :, 1::2], qw[:, :, ::2]], dim=-1)
-            qw = qw * cos_pos + qw2 * sin_pos
-            kw2 = torch.cat([-kw[:, :, 1::2], kw[:, :, ::2]], dim=-1)
-            kw = kw * cos_pos + kw2 * sin_pos
+            qw = self.position_embedding(qw)
+            kw = self.position_embedding(kw)
 
         logits = torch.einsum('bmd,bnd->bmn', qw, kw) / ner_head_size**0.5  # [btz, seq_len, seq_len]
+        btz, seq_len = token_ids.shape[:2]
         bias = self.q_dense(sequence_output).reshape(btz, seq_len, ner_vocab_size, 2).transpose(1, 2) / 2  # [btz, ner_vocab_size, seq_len, 2]
         logits = logits.unsqueeze(1) + bias[:, :, :, :1] + bias[:, :, :, 1:].transpose(2, 3)
 

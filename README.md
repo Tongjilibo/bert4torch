@@ -18,9 +18,9 @@
 
 ### 现在已经实现
 
-- 加载bert、roberta、albert、nezha、bart模型进行fintune
+- 加载bert、roberta、albert、nezha、bart、RoFormer模型进行fintune
 - 对抗训练
 
 ### 未来将实现
-- Transformer-XL、XLnet、T5、GPT、ELECTRA、RoFormer等其他网络架构
+- Transformer-XL、XLnet、T5、GPT、ELECTRA等其他网络架构
 - 前沿的各类模型idea实现

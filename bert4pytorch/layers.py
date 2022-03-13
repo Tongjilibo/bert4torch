@@ -1,4 +1,5 @@
 import imp
+from turtle import forward
 from gevent import config
 import torch
 import torch.nn as nn
@@ -79,9 +80,11 @@ class MultiHeadAttentionLayer(nn.Module):
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
 
         if self.p_bias == 'typical_relative':
-            self.relative_positions_encoding = RelativePositionsEncoding(length=kwargs.get('max_position_embeddings'),
-                                                                     depth=self.attention_head_size,
+            self.relative_positions_encoding = RelativePositionsEncoding(max_position=kwargs.get('max_position_embeddings'),
+                                                                     embedding_size=self.attention_head_size,
                                                                      max_relative_position=kwargs.get('max_relative_position'))
+        elif self.p_bias == 'rotary':
+            self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position_embeddings'), embedding_size=self.attention_head_size)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -102,7 +105,6 @@ class MultiHeadAttentionLayer(nn.Module):
         else:
             mixed_key_layer = self.k(hidden_states)
             mixed_value_layer = self.v(hidden_states)
-
         # mixed_query_layer shape: [batch_size, query_len, hidden_size]
         # mixed_query_layer shape: [batch_size, key_len, hidden_size]
         # mixed_query_layer shape: [batch_size, value_len, hidden_size]
@@ -110,10 +112,13 @@ class MultiHeadAttentionLayer(nn.Module):
         query_layer = self.transpose_for_scores(mixed_query_layer)
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
-
         # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+
+        if self.p_bias == 'rotary':
+            query_layer = self.relative_positions_encoding(query_layer)
+            key_layer = self.relative_positions_encoding(key_layer)
 
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
@@ -320,30 +325,71 @@ class Identity(nn.Module):
 
 # nezha相对位置编码
 class RelativePositionsEncoding(nn.Module):
-    def __init__(self, length, depth, max_relative_position=127):
+    """相对位置编码
+    来自论文：https://arxiv.org/abs/1803.02155
+    """
+    def __init__(self, max_position, embedding_size, max_relative_position=127):
         super(RelativePositionsEncoding, self).__init__()
         # 生成相对位置矩阵
         vocab_size = max_relative_position * 2 + 1
-        range_vec = torch.arange(length)
+        range_vec = torch.arange(max_position)
         distance_mat = range_vec[None, :] - range_vec[:, None]  # 列数-行数
         distance_mat_clipped = torch.clamp(distance_mat, -max_relative_position, max_relative_position)
         final_mat = distance_mat_clipped + max_relative_position
 
         # sinusoid_encoding编码的位置矩阵
-        embeddings_table = get_sinusoid_encoding_table(vocab_size, depth)
+        embeddings_table = get_sinusoid_encoding_table(vocab_size, embedding_size)
 
         # 老的实现方式
         # flat_relative_positions_matrix = final_mat.view(-1)
         # one_hot_relative_positions_matrix = torch.nn.functional.one_hot(flat_relative_positions_matrix, num_classes=vocab_size).float()
-        # positions_encoding = torch.matmul(one_hot_relative_positions_matrix, embeddings_table)
+        # position_embeddings = torch.matmul(one_hot_relative_positions_matrix, embeddings_table)
         # my_shape = list(final_mat.size())
-        # my_shape.append(depth)
-        # positions_encoding = positions_encoding.view(my_shape)
+        # my_shape.append(embedding_size)
+        # position_embeddings = position_embeddings.view(my_shape)
 
-        positions_encoding = torch.take_along_dim(embeddings_table, final_mat.flatten().unsqueeze(1), dim=0)
-        positions_encoding = positions_encoding.reshape(*final_mat.shape, embeddings_table.shape[-1])  # [seq_len, seq_len, hdsz]
-        self.register_buffer('positions_encoding', positions_encoding)
-        # self.post = nn.Embedding.from_pretrained(positions_encoding, freeze=True)
+        position_embeddings = torch.take_along_dim(embeddings_table, final_mat.flatten().unsqueeze(1), dim=0)
+        position_embeddings = position_embeddings.reshape(*final_mat.shape, embeddings_table.shape[-1])  # [seq_len, seq_len, hdsz]
+        self.register_buffer('position_embeddings', position_embeddings)
+        # self.post = nn.Embedding.from_pretrained(position_embeddings, freeze=True)
 
     def forward(self, length):
-        return self.positions_encoding[:length, :length, :]
+        return self.position_embeddings[:length, :length, :]
+
+
+class SinusoidalPositionEncoding(nn.Module):
+    """定义Sin-Cos位置Embedding
+    """
+    def __init__(self, max_position, embedding_size):
+        super(SinusoidalPositionEncoding, self).__init__()
+        position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size), freeze=True)
+        self.register_buffer('position_embeddings', position_embeddings)
+
+    def forward(self, position_ids):
+        return self.position_embeddings(position_ids)
+
+class RoPEPositionEncoding(nn.Module):
+    """旋转式位置编码: https://kexue.fm/archives/8265
+    """
+    def __init__(self, max_position, embedding_size):
+        super(RoPEPositionEncoding, self).__init__()
+        position_embeddings = get_sinusoid_encoding_table(max_position, embedding_size)  # [seq_len, hdsz]
+        cos_position = position_embeddings[:, 1::2].repeat(1, 2)
+        sin_position = position_embeddings[:, ::2].repeat(1, 2)
+        self.register_buffer('cos_position', cos_position)
+        self.register_buffer('sin_position', sin_position)
+    
+    def forward(self, qw, seq_len_dim=1):
+        dim = len(qw.shape)
+        assert (dim >= 2) and (dim <= 4), 'Input units should >= 2 dims(seq_len and hdsz) and usually <= 4 dims'
+        seq_len = qw.shape[seq_len_dim]
+
+        if dim == 2:
+            qw2 = torch.cat([-qw[:, 1::2], qw[:, ::2]], dim=-1)
+            return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
+        if dim == 3:
+            qw2 = torch.cat([-qw[:, :, 1::2], qw[:, :, ::2]], dim=-1)
+            return qw * self.cos_position[:seq_len].unsqueeze(0) + qw2 * self.sin_position[:seq_len].unsqueeze(0)
+        else:
+            qw2 = torch.cat([-qw[:, :, :, 1::2], qw[:, :, :, ::2]], dim=-1)
+            return qw * self.cos_position[:seq_len].unsqueeze(0).unsqueeze(2) + qw2 * self.sin_position[:seq_len].unsqueeze(0).unsqueeze(2)

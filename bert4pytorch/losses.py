@@ -44,6 +44,12 @@ class LabelSmoothingCrossEntropy(nn.Module):
 
 
 class MultilabelCategoricalCrossentropy(nn.Module):
+    """多标签分类的交叉熵
+    说明：y_true和y_pred的shape一致，y_true的元素非0即1， 1表示对应的类为目标类，0表示对应的类为非目标类。
+    警告：请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax！预测
+         阶段则输出y_pred大于0的类。如有疑问，请仔细阅读并理解本文。
+    参考：https://kexue.fm/archives/7359
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, y_pred, y_true):
@@ -67,6 +73,9 @@ class MultilabelCategoricalCrossentropy(nn.Module):
 
 
 class ContrastiveLoss(nn.Module):
+    """对比损失：减小正例之间的距离，增大正例和反例之间的距离，labels * distance_matrix.pow(2) + (1-labels)*F.relu(margin-distance_matrix).pow(2)
+    https://www.sbert.net/docs/package_reference/losses.html
+    """
     def __init__(self, margin=0.5, size_average=True, online=False):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin

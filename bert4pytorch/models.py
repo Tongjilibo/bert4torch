@@ -281,7 +281,7 @@ class BERT_BASE(BaseModel):
             if old_key in state_dict:
                 state_dict_new[new_key] = self.load_variable(state_dict, old_key)
             else:
-                print(f'[WARNIMG] {old_key} not found in the model chpt file')
+                print(f'[WARNIMG] {old_key} not found in the model file')
         del state_dict
 
         # 将ckpt的权重load到模型结构中
@@ -702,10 +702,23 @@ class NEZHA(BERT):
         super(NEZHA, self).__init__(*args, **kwargs)
         # 通过max_position=0控制在embedding阶段无位置编码
         self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
-        config = {'p_bias': 'typical_relative', 'max_position_embeddings': kwargs.get('max_position_embeddings'), 'max_relative_position': kwargs.get('max_relative_position')}
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size, **config)
+        config = {'p_bias': 'typical_relative', 'max_position_embeddings': self.max_position, 'max_relative_position': kwargs.get('max_relative_position')}
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+                            conditional_size=self.conditional_size, **config)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
+class RoFormer(BERT):
+    """旋转式位置编码的BERT模型
+    链接：https://kexue.fm/archives/8265
+    """
+    def __init__(self, *args, **kwargs):
+        super(RoFormer, self).__init__(*args, **kwargs)
+        # 通过max_position=0控制在embedding阶段无位置编码
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
+        config = {'p_bias': 'rotary', 'max_position_embeddings': self.max_position}
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+                            conditional_size=self.conditional_size, **config)
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
 class Transformer(BERT):
     '''encoder-decoder结构
@@ -926,6 +939,7 @@ def build_transformer_model(
         'albert': ALBERT,
         'albert_unshared': ALBERT_Unshared,
         'nezha': NEZHA,
+        'roformer': RoFormer,
         'transformer': Transformer,
         'bart': BART
     }
