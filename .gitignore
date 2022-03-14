@@ -7,3 +7,7 @@ datasets/
 summary/
 .idea
 .vscode/launch.json
+.pypirc
+bert4torch.egg-info/
+build/
+dist/

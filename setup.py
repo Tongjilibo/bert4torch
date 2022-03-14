@@ -10,6 +10,6 @@ setup(
     license='MIT Licence',
     url='https://github.com/Tongjilibo/bert4torch',
     author='Tongjilibo',
-    install_requires=['torch>1.0', 'math'],
+    install_requires=['torch>1.0', 'numpy>=1.17'],
     packages=find_packages()
 )
