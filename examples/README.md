@@ -1,4 +1,4 @@
-## 简介
+## example简介
 ### 基础测试
 - [basic_extract_features.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_extract_features.py)：基础测试，测试BERT对句子的编码序列。
 - [basic_gibbs_sampling_via_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_gibbs_sampling_via_mlm.py)：基础测试，利用BERT+Gibbs采样进行文本随机生成，参考[这里](https://kexue.fm/archives/8119)。
@@ -48,3 +48,6 @@
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
 - [task_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_language_model.py)：任务例子，加载BERT的预训练权重做无条件语言模型，效果上等价于GPT。
 - [task_relation_extraction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_relation_extraction.py)：任务例子，结合BERT以及自行设计的“半指针-半标注”结构来做[关系抽取](https://kexue.fm/archives/7161)。
+
+## 用到的数据集
+- 后续补充
