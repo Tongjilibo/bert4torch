@@ -5,15 +5,15 @@
 
 import numpy as np
 import json
-from bert4pytorch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader, Dataset
 import torch.nn as nn
 import torch.optim as optim
-from bert4pytorch.snippets import sequence_padding, Callback, get_sinusoid_encoding_table, ListDataset
-from bert4pytorch.tokenizers import Tokenizer
-from bert4pytorch.losses import MultilabelCategoricalCrossentropy
-from bert4pytorch.layers import RoPEPositionEncoding
+from bert4torch.snippets import sequence_padding, Callback, get_sinusoid_encoding_table, ListDataset
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.losses import MultilabelCategoricalCrossentropy
+from bert4torch.layers import RoPEPositionEncoding
 from tqdm import tqdm
 
 maxlen = 512

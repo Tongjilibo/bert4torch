@@ -5,10 +5,10 @@
 # (Accuracy=0.7282149325820084  F1=0.8207266829447049   Final=0.7744708077633566)
 
 import json, os
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer, load_vocab
-from bert4pytorch.snippets import sequence_padding, text_segmentate
-from bert4pytorch.snippets import AutoRegressiveDecoder, Callback, ListDataset
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 from tqdm import tqdm
 import torch
 from torchinfo import summary
@@ -32,7 +32,7 @@ dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def process_data():
-    if os.path.exists('E:/Github/bert4pytorch/examples/datasets/qa/train_data.json'):
+    if os.path.exists('E:/Github/bert4torch/examples/datasets/qa/train_data.json'):
         return
 
     # 标注数据
@@ -50,8 +50,8 @@ def process_data():
     train_data.extend(train_data)
     train_data.extend(webqa_data)  # 将SogouQA和WebQA按2:1的比例混合
 
-    json.dump(train_data, open('E:/Github/bert4pytorch/examples/datasets/qa/train_data.json', 'w', encoding='utf-8'), indent=4)
-    json.dump(valid_data, open('E:/Github/bert4pytorch/examples/datasets/qa/valid_data.json', 'w', encoding='utf-8'), indent=4)
+    json.dump(train_data, open('E:/Github/bert4torch/examples/datasets/qa/train_data.json', 'w', encoding='utf-8'), indent=4)
+    json.dump(valid_data, open('E:/Github/bert4torch/examples/datasets/qa/valid_data.json', 'w', encoding='utf-8'), indent=4)
 
 process_data()
 
@@ -103,9 +103,9 @@ def collate_fn(batch):
     batch_a_token_ids = torch.tensor(sequence_padding(batch_a_token_ids, max_a_len), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], batch_a_token_ids
 
-train_dataloader = DataLoader(MyDataset('E:/Github/bert4pytorch/examples/datasets/qa/train_data.json'), 
+train_dataloader = DataLoader(MyDataset('E:/Github/bert4torch/examples/datasets/qa/train_data.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('E:/Github/bert4pytorch/examples/datasets/qa/valid_data.json')
+valid_dataset = MyDataset('E:/Github/bert4torch/examples/datasets/qa/valid_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 model = build_transformer_model(

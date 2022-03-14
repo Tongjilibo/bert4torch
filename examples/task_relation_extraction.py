@@ -9,11 +9,11 @@
 
 import json
 import numpy as np
-from bert4pytorch.layers import LayerNorm
-from bert4pytorch.tokenizers import Tokenizer
-from bert4pytorch.models import build_transformer_model, BaseModel
-from bert4pytorch.optimizers import ExponentialMovingAverage
-from bert4pytorch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.layers import LayerNorm
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.optimizers import ExponentialMovingAverage
+from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, Dataset

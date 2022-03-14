@@ -4,11 +4,11 @@
 
 from turtle import st
 from task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
-from bert4pytorch.snippets import Callback
+from bert4torch.snippets import Callback
 import torch.optim as optim
 import torch
 import torch.nn as nn
-from bert4pytorch.models import build_transformer_model
+from bert4torch.models import build_transformer_model
 
 
 train_token_ids, train_embeddings = [], []

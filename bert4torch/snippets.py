@@ -4,7 +4,6 @@
 import unicodedata
 import six
 import numpy as np
-from sympy import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
 import time

@@ -2,15 +2,15 @@
 # bert做Seq2Seq任务，采用encoder-decoder方案
 # 训练时候收敛较慢，比unilm方案慢不少
 
-from bert4pytorch.models import build_transformer_model, BaseModel
-from bert4pytorch.tokenizers import Tokenizer, load_vocab
-from bert4pytorch.snippets import sequence_padding, text_segmentate
-from bert4pytorch.snippets import AutoRegressiveDecoder, Callback
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import AutoRegressiveDecoder, Callback
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from bert4pytorch.snippets import ListDataset
+from bert4torch.snippets import ListDataset
 import glob
 
 torch.manual_seed(1234)

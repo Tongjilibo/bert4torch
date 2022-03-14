@@ -3,9 +3,9 @@
 # loss: MultiNegativeRankingLoss, 和simcse一样，以batch中其他样本作为负样本
 
 import enum
-from bert4pytorch.tokenizers import Tokenizer
-from bert4pytorch.models import build_transformer_model, BaseModel
-from bert4pytorch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.snippets import sequence_padding, Callback, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim

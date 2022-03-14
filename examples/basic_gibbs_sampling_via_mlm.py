@@ -3,8 +3,8 @@
 
 from tqdm import tqdm
 import numpy as np
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer
 import torch
 import torch.nn as nn
 

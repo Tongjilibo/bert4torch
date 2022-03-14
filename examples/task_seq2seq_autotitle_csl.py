@@ -5,10 +5,10 @@
 # 补充了评测指标bleu、rouge-1、rouge-2、rouge-l
 
 import json, os
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer, load_vocab
-from bert4pytorch.snippets import sequence_padding, text_segmentate
-from bert4pytorch.snippets import AutoRegressiveDecoder, Callback, ListDataset
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 from tqdm import tqdm
 import torch
 from torchinfo import summary

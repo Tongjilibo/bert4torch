@@ -2,10 +2,10 @@
 # bert做Seq2Seq任务，采用UNILM方案
 # 介绍链接：https://kexue.fm/archives/6933
 
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer, load_vocab
-from bert4pytorch.snippets import sequence_padding, text_segmentate
-from bert4pytorch.snippets import AutoRegressiveDecoder, Callback, ListDataset
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 import torch
 from torchinfo import summary
 import torch.nn as nn

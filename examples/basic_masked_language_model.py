@@ -1,8 +1,8 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：mlm预测
 
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径

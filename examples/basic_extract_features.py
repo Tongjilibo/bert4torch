@@ -2,8 +2,8 @@
 # 测试代码可用性: 提取特征
 
 import torch
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer
 
 root_model_path = "F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12"
 vocab_path = root_model_path + "/vocab.txt"

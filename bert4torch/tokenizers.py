@@ -6,10 +6,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
-import os
 import unicodedata
 from io import open
-from bert4pytorch.snippets import truncate_sequences, is_string, lowercase_and_normalize
+from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize
 import re
 import six
 

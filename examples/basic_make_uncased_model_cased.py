@@ -2,8 +2,8 @@
 # 通过简单修改词表，使得不区分大小写的模型有区分大小写的能力
 # 基本思路：将英文单词大写化后添加到词表中，并修改模型Embedding层
 
-from bert4pytorch.models import build_transformer_model
-from bert4pytorch.tokenizers import Tokenizer, load_vocab
+from bert4torch.models import build_transformer_model
+from bert4torch.tokenizers import Tokenizer, load_vocab
 import torch
 
 root_model_path = "F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12"

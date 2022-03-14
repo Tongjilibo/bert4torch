@@ -6,13 +6,13 @@
 # 适用于Keras 2.3.1
 
 import json
-from bert4pytorch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader, Dataset
 import torch.nn as nn
 import torch.optim as optim
-from bert4pytorch.snippets import sequence_padding, Callback, ListDataset
-from bert4pytorch.tokenizers import Tokenizer
+from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.tokenizers import Tokenizer
 from tqdm import tqdm
 from torchinfo import summary
 

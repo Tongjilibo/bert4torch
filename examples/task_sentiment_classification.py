@@ -3,9 +3,9 @@
 # val_acc: 0.887071, test_acc: 0.870320
 
 import numpy as np
-from bert4pytorch.tokenizers import Tokenizer
-from bert4pytorch.models import build_transformer_model, BaseModel
-from bert4pytorch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim

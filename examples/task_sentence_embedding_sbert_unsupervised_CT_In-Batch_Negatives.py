@@ -2,9 +2,9 @@
 # 语义相似度任务-无监督：训练集为网上pretrain数据, dev集为sts-b
 # loss: 其实就是SimCSE，只是用了两个模型而已 
 
-from bert4pytorch.tokenizers import Tokenizer
-from bert4pytorch.models import build_transformer_model, BaseModel
-from bert4pytorch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.snippets import sequence_padding, Callback, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim

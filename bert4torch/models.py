@@ -3,8 +3,8 @@ import torch.nn as nn
 import copy
 import json
 from itertools import cycle
-from bert4pytorch.layers import LayerNorm, activations, BertEmbeddings, BertLayer, Identity, activations
-from bert4pytorch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
+from bert4torch.layers import LayerNorm, activations, BertEmbeddings, BertLayer, Identity, activations
+from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
 
 class BaseModel(nn.Module):
     def __init__(self, *args, **kwargs):

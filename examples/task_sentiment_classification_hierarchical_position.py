@@ -2,9 +2,9 @@
 # 情感分类例子，超长文本采用hierarchical_position层次分解位置编码，spaces.ac.cn/archives/7947
 
 import numpy as np
-from bert4pytorch.tokenizers import Tokenizer
-from bert4pytorch.models import build_transformer_model, BaseModel
-from bert4pytorch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim

@@ -1,11 +1,8 @@
-import imp
-from turtle import forward
-from gevent import config
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
-from bert4pytorch.snippets import get_sinusoid_encoding_table
+from bert4torch.snippets import get_sinusoid_encoding_table
 
 
 def gelu(x):
