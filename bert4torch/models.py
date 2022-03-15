@@ -3,8 +3,10 @@ import torch.nn as nn
 import copy
 import json
 from itertools import cycle
-from bert4torch.layers import LayerNorm, activations, BertEmbeddings, BertLayer, Identity, activations
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity
 from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
+from bert4torch.activations import get_activation
+
 
 class BaseModel(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -273,16 +275,25 @@ class BERT_BASE(BaseModel):
         """根据mapping从checkpoint加载权重
         """
         # 加载模型文件
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        file_state_dict = torch.load(checkpoint, map_location='cpu')
         mapping = mapping or self.variable_mapping()
 
         state_dict_new ={}
+        parameters_set = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         for new_key, old_key in mapping.items():
-            if old_key in state_dict:
-                state_dict_new[new_key] = self.load_variable(state_dict, old_key)
-            else:
-                print(f'[WARNIMG] {old_key} not found in the model file')
-        del state_dict
+            if new_key not in self.state_dict():
+                continue
+            if old_key in file_state_dict: # mapping中包含，且模型结构中有
+                state_dict_new[new_key] = self.load_variable(file_state_dict, old_key)
+            elif old_key not in file_state_dict: # mapping中不包含，但模型结构中有
+                print(f'[WARNIMG] {old_key} not found in pretrain models')
+            if new_key in parameters_set:
+                parameters_set.remove(new_key)
+
+        # 未能加载预训练权重的Parameter
+        for key in parameters_set:
+            print(f'[WARNIMG] Parameter {key} not loaded from pretrain models')
+        del file_state_dict
 
         # 将ckpt的权重load到模型结构中
         self.load_state_dict(state_dict_new, strict=self.ignore_invalid_weights)
@@ -387,7 +398,8 @@ class BERT(BERT_BASE):
             self.with_pool = True
         self.layer_norm_conds = layer_norm_cond
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, 
+                                         self.dropout_rate, self.conditional_size)
         layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         if self.with_pool:
@@ -407,7 +419,7 @@ class BERT(BERT_BASE):
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
             self.mlmDense = nn.Linear(self.hidden_size, self.hidden_size)
-            self.transform_act_fn = activations[self.hidden_act]
+            self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
         self.apply(self.init_model_weights)
 
@@ -520,18 +532,18 @@ class BERT(BERT_BASE):
         outputs = [value for value in [encoded_layers, pooled_output, mlm_scores, nsp_scores] if value is not None]
         return outputs if len(outputs) > 1 else outputs[0]
 
-    def load_variable(self, state_dict, name):
+    def load_variable(self, state_dict, name, prefix='bert'):
         """加载单个变量的函数
         """
         variable = state_dict[name]
         if name in {
-            'bert.embeddings.word_embeddings.weight',
+            f'{prefix}.embeddings.word_embeddings.weight',
             'cls.predictions.bias',
             'cls.predictions.decoder.weight',
             'cls.predictions.decoder.bias'
         }:
             return self.load_embeddings(variable)
-        elif name == 'bert.embeddings.position_embeddings.weight':
+        elif name == f'{prefix}.embeddings.position_embeddings.weight':
             return self.load_pos_embeddings(variable)
         elif name == 'cls.seq_relationship.weight':
             return variable.T
@@ -701,7 +713,8 @@ class NEZHA(BERT):
     def __init__(self, *args, **kwargs):
         super(NEZHA, self).__init__(*args, **kwargs)
         # 通过max_position=0控制在embedding阶段无位置编码
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
+                                         self.dropout_rate, self.conditional_size)
         config = {'p_bias': 'typical_relative', 'max_position_embeddings': self.max_position, 'max_relative_position': kwargs.get('max_relative_position')}
         layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
                             conditional_size=self.conditional_size, **config)
@@ -715,7 +728,8 @@ class RoFormer(BERT):
     def __init__(self, *args, **kwargs):
         super(RoFormer, self).__init__(*args, **kwargs)
         # 通过max_position=0控制在embedding阶段无位置编码
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
+                                         self.dropout_rate, self.conditional_size)
         config = {'p_bias': 'rotary', 'max_position_embeddings': self.max_position}
         layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
                             conditional_size=self.conditional_size, **config)
@@ -732,9 +746,9 @@ class ELECTRA(BERT):
         super(ELECTRA, self).__init__(max_position, **kwargs)
         if self.with_discriminator:
             self.dense = nn.Linear(self.hidden_size, self.hidden_size)
-            self.dense_act = activations[self.hidden_act]
+            self.dense_act = get_activation(self.hidden_act)
             self.dense_prediction = nn.Linear(self.hidden_size, 1)
-            self.dense_prediction_act = nn.Sigmoid() if self.with_discriminator is True else self.with_discriminator
+            self.dense_prediction_act = get_activation('sigmoid') if self.with_discriminator is True else get_activation(self.with_discriminator)
 
     def apply_final_layers(self, inputs):
         hidden_states = super().apply_final_layers(inputs)  # 仅有hidden_state一项输出
@@ -747,20 +761,14 @@ class ELECTRA(BERT):
     def load_variable(self, state_dict, name):
         """加载单个变量的函数
         """
-        variable = state_dict[name]
-        if name in {'electra.embeddings.word_embeddings.weight'}:
-            return self.load_embeddings(variable)
-        elif name == 'electra.embeddings.position_embeddings.weight':
-            return self.load_pos_embeddings(variable)
-        else:
-            return variable
+        return super().load_variable(state_dict, name, prefix='electra')
 
     def variable_mapping(self):
         mapping = super(ELECTRA, self).variable_mapping(prefix='electra')
         mapping.update({'dense.weight': 'discriminator_predictions.dense.weight', 
                         'dense.bias': 'discriminator_predictions.dense.bias',
                         'dense_prediction.weight': 'discriminator_predictions.dense_prediction.weight',
-                        'dense_prediction.biad': 'discriminator_predictions.dense_prediction.bias'}
+                        'dense_prediction.bias': 'discriminator_predictions.dense_prediction.bias'}
                         )
         for del_key in ['pooler.weight', 'pooler.bias', 'nsp.weight', 'nsp.bias', 'mlmDense.weight', 'mlmDense.bias', 
                         'mlmLayerNorm.weight', 'mlmLayerNorm.bias', 'mlmBias', 'mlmDecoder.weight', 'mlmDecoder.bias']:
@@ -776,7 +784,8 @@ class Transformer(BERT):
     def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
         self.src_vocab_size = kwargs.get('src_vocab_size') or self.vocab_size
-        self.embeddings = BertEmbeddings(self.src_vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
+        self.embeddings = BertEmbeddings(self.src_vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings,
+                                         self.dropout_rate, self.conditional_size)
         # decoder
         self.tgt_vocab_size = kwargs.get('tgt_vocab_size') or self.vocab_size
         if emb_src_tgt_weight_sharing:
@@ -784,7 +793,8 @@ class Transformer(BERT):
             assert self.src_vocab_size == self.tgt_vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
             self.tgt_embeddings = self.embeddings
         else:
-            self.tgt_embeddings = BertEmbeddings(self.tgt_vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.dropout_rate, self.conditional_size)
+            self.tgt_embeddings = BertEmbeddings(self.tgt_vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings,
+                                                 self.dropout_rate, self.conditional_size)
         dec_layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size, is_decoder=True)
         self.decoderLayer = nn.ModuleList([copy.deepcopy(dec_layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
 
@@ -874,7 +884,7 @@ class BART(Transformer):
         super(BART, self).__init__(*args, emb_src_tgt_weight_sharing=False, **kwargs)
         self.emb_src_tgt_weight_sharing = emb_src_tgt_weight_sharing
 
-    def load_variable(self, state_dict, name):
+    def load_variable(self, state_dict, name, prefix=''):
         """加载单个变量的函数
         """
         variable = state_dict[name]
@@ -945,7 +955,6 @@ class BART(Transformer):
                             f'decoderLayer.{i}.feedForward.outputDense.bias': f'decoder.layers.{i}.fc2.bias',
                             f'decoderLayer.{i}.layerNorm2.weight': f'decoder.layers.{i}.final_layer_norm.weight',
                             f'decoderLayer.{i}.layerNorm2.bias': f'decoder.layers.{i}.final_layer_norm.bias'
-
                             })
 
         return mapping
@@ -992,7 +1001,8 @@ def build_transformer_model(
         'roformer': RoFormer,
         'electra': ELECTRA,
         'transformer': Transformer,
-        'bart': BART
+        'bart': BART,
+        'gpt': GPT,
     }
 
     if isinstance(model, str):  # string表示使用自带的模型
@@ -1070,6 +1080,37 @@ def extend_with_unified_language_model(InputModel):
             super(UnifiedLanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
 
     return UnifiedLanguageModel
+
+
+class GPT(LM_Mask, BERT):
+    """构建GPT模型
+    链接：https://github.com/openai/finetune-transformer-lm
+    """
+    @insert_arguments(final_activation='softmax')
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, max_position, **kwargs):
+        """GPT的embedding是token、position两者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
+           使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
+        """
+        super(GPT, self).__init__(max_position, **kwargs)
+        del self.embeddings.layerNorm
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.dense.weight = self.embeddings.word_embeddings.weight
+        self.final_activation = get_activation(self.final_activation)
+
+    def apply_final_layers(self, inputs):
+        hidden_state = super().apply_final_layers(inputs)
+        logit = self.dense(hidden_state)
+        return self.final_activation(logit)
+
+    def load_variable(self, state_dict, name):
+        return super(GPT, self).load_variable(state_dict, name, prefix='gpt')
+
+    def variable_mapping(self):
+        """映射到GPT权重格式
+        """
+        mapping =  super(GPT, self).variable_mapping(prefix='gpt')
+        return mapping
 
 class FGM():
     def __init__(self, model):

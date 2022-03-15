@@ -135,6 +135,10 @@ class Tokenizer(object):
 
         return split_tokens
 
+    def token_to_id(self, token):
+        """token转为vocab中的id"""
+        return self._token_dict.get(token, self._token_unk_id)
+
     def tokens_to_ids(self, tokens):
         """tokens转为vocab中的id"""
         ids = []
@@ -142,8 +146,12 @@ class Tokenizer(object):
             ids.append(self._token_dict.get(token, self._token_unk_id))
         return ids
 
+    def id_to_token(self, id):
+        """id转为词表中的token"""
+        return self._token_dict_inv[id]
+
     def ids_to_tokens(self, ids):
-        """ids转为词表中的token"""
+        """ids转为词表中的tokens"""
         tokens = []
         for i in ids:
             tokens.append(self._token_dict_inv[i])

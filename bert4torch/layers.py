@@ -1,25 +1,10 @@
+from sympy import im
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
 from bert4torch.snippets import get_sinusoid_encoding_table
-
-
-def gelu(x):
-    """ gelu激活函数
-        在GPT架构中，使用的是gelu函数的近似版本，公式如下:
-            0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
-        这里是直接求的解析解，就是原始论文给出的公式
-        论文 https://arxiv.org/abs/1606.08415
-    """
-    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
-
-
-def swish(x):
-    return x * torch.sigmoid(x)
-
-
-activations = {"gelu": gelu, "relu": F.relu, "swish": swish}
+from bert4torch.activations import get_activation
 
 
 class LayerNorm(nn.Module):
@@ -186,7 +171,7 @@ class PositionWiseFeedForward(nn.Module):
         super(PositionWiseFeedForward, self).__init__()
 
         self.is_dropout = is_dropout
-        self.intermediate_act_fn = activations[hidden_act]
+        self.intermediate_act_fn = get_activation(hidden_act)
         self.intermediateDense = nn.Linear(hidden_size, intermediate_size)
         self.outputDense = nn.Linear(intermediate_size, hidden_size)
         if self.is_dropout:
@@ -211,13 +196,13 @@ class BertEmbeddings(nn.Module):
         embeddings层
         构造word, position and token_type embeddings.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, drop_rate, conditional_size=False, **kwargs):
+    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, drop_rate, conditional_size=False, **kwargs):
         super(BertEmbeddings, self).__init__()
+        self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
         if max_position > 0: # Embeddings时候包含位置编码
             self.position_embeddings = nn.Embedding(max_position, embedding_size)
-        self.segment_vocab_size = segment_vocab_size
-        if segment_vocab_size > 0:
+        if (segment_vocab_size > 0) and (not shared_segment_embeddings):
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
 
         self.layerNorm = LayerNorm(embedding_size, eps=1e-12, conditional_size=conditional_size)
@@ -233,9 +218,13 @@ class BertEmbeddings(nn.Module):
 
         words_embeddings = self.word_embeddings(token_ids)
 
-        if self.segment_vocab_size > 0:
+        if hasattr(self, 'segment_embeddings'):
             segment_ids = torch.zeros_like(token_ids) if segment_ids is None else segment_ids
             segment_embeddings = self.segment_embeddings(segment_ids)  
+            embeddings = words_embeddings + segment_embeddings
+        elif self.shared_segment_embeddings:  # segment和word_embedding共享权重
+            segment_ids = torch.zeros_like(token_ids) if segment_ids is None else segment_ids
+            segment_embeddings = self.word_embeddings(segment_ids)  
             embeddings = words_embeddings + segment_embeddings
         else:
             embeddings = words_embeddings
@@ -244,7 +233,8 @@ class BertEmbeddings(nn.Module):
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
 
-        embeddings = self.layerNorm((embeddings, conditional_emb))
+        if hasattr(self, 'layerNorm'):
+            embeddings = self.layerNorm((embeddings, conditional_emb))
         embeddings = self.dropout(embeddings)
 
         if hasattr(self, 'embedding_hidden_mapping_in'):
