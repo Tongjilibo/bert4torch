@@ -1003,6 +1003,7 @@ def build_transformer_model(
         'transformer': Transformer,
         'bart': BART,
         'gpt': GPT,
+        'gpt2_ml': GPT2_ML,
     }
 
     if isinstance(model, str):  # string表示使用自带的模型
@@ -1111,6 +1112,51 @@ class GPT(LM_Mask, BERT):
         """
         mapping =  super(GPT, self).variable_mapping(prefix='gpt')
         return mapping
+
+class GPT2_ML(LM_Mask, BERT):
+    """构建GPT2_ML模型
+    链接: https://github.com/imcaspar/gpt2-ml
+    注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
+         看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第一个跳跃链接是在layernorm前，bert是在之后
+    """
+    @insert_arguments(final_activation='softmax')
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, max_position, **kwargs):
+        super().__init__(max_position, **kwargs)
+        layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.dense.weight = self.embeddings.word_embeddings.weight
+        self.final_activation = get_activation(self.final_activation)
+
+    def apply_final_layers(self, inputs):
+        hidden_state = super().apply_final_layers(inputs)
+        logit = self.dense(hidden_state)
+        return self.final_activation(logit)
+
+    def load_variable(self, state_dict, name):
+        return super(GPT2_ML, self).load_variable(state_dict, name, prefix='gpt2_ml')
+
+    def variable_mapping(self):
+        """映射到GPT2权重格式
+        """
+        mapping =  super(GPT2_ML, self).variable_mapping(prefix='gpt2_ml')
+        return mapping
+
+    class Gpt2MlLayer(BertLayer):
+        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用
+        '''
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+            self_attn_output = self.multiHeadAttention(hidden_states, attention_mask)
+            hidden_states = hidden_states + self.dropout1(self_attn_output)
+            x = self.layerNorm1((hidden_states, conditional_emb))
+            # bert的跳跃连接是在layerNorm之后，gpt2_ml是在layerNorm之前
+            self_attn_output2 = self.feedForward(x)
+            hidden_states = hidden_states + self.dropout2(self_attn_output2)
+            hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+            return hidden_states
 
 class FGM():
     def __init__(self, model):
