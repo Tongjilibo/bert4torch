@@ -1,6 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 句子对分类任务，LCQMC数据集
-# val_acc: 0.887071, test_acc: 0.870320
+# 情感分类例子，加载nezha权重
 
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
@@ -10,16 +9,14 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-from tensorboardX import SummaryWriter
 
 maxlen = 128
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -54,15 +51,16 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True)
+        # 指定好model=nezha和对应的ckpt地址
+        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='nezha', with_pool=True, return_model_config=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.config['hidden_size'], 2)
 
@@ -95,12 +93,6 @@ class Evaluator(Callback):
     """
     def __init__(self):
         self.best_val_acc = 0.
-
-    # def on_batch_end(self, global_step, batch, logs=None):
-    #     if global_step % 10 == 0:
-    #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
-    #         val_acc = evaluate(valid_dataloader)
-    #         writer.add_scalar(f"valid/acc", val_acc, global_step)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = evaluate(valid_dataloader)

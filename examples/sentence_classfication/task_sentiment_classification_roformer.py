@@ -12,9 +12,9 @@ from torch.utils.data import DataLoader, Dataset
 
 maxlen = 128
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -51,16 +51,16 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
         # 指定好model=nezha和对应的ckpt地址
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='nezha', with_pool=True, return_model_config=True)
+        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', with_pool=True, return_model_config=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.config['hidden_size'], 2)
 
@@ -104,6 +104,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

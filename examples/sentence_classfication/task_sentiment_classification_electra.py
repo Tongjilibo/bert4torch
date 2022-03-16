@@ -12,9 +12,9 @@ from torch.utils.data import DataLoader, Dataset
 
 maxlen = 128
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -51,22 +51,22 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['datasets/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
         # 指定好model=nezha和对应的ckpt地址
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', with_pool=True, return_model_config=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='electra')
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.config['hidden_size'], 2)
+        self.dense = nn.Linear(768, 2)
 
     def forward(self, token_ids, segment_ids):
-        _, pooled_output = self.bert([token_ids, segment_ids])
-        output = self.dropout(pooled_output)
+        hidden_states = self.bert([token_ids, segment_ids])
+        output = self.dropout(hidden_states[:, 0, :])  # 用hidden_states的首位，即[CLS]后接dense层
         output = self.dense(output)
         return output
 model = Model().to(device)

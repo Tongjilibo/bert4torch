@@ -5,6 +5,8 @@
 - [basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_language_model_nezha_gen_gpt.py)：基础测试，测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
 - [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_make_uncased_model_cased.py)：基础测试，通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
 - [basic_masked_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_masked_language_model.py)：基础测试，测试BERT的MLM模型效果。
+- [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_language_model_CDial_GPT.py)：基础测试，测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
+- [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic_language_model_gpt2_ml.py)：基础测试，测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
 
 ### 文本表示
 - [task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
@@ -41,13 +43,13 @@
 
 ### 训练Trick
 - [task_iflytek_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_iflytek_adversarial_training.py)：任务例子，通过[对抗训练](https://kexue.fm/archives/7234)提升分类效果。
-- [task_iflytek_bert_of_theseus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_iflytek_bert_of_theseus.py)：任务例子，通过[BERT-of-Theseus](https://kexue.fm/archives/7575)来进行模型压缩。
 - [task_iflytek_gradient_penalty.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_iflytek_gradient_penalty.py)：任务例子，通过[梯度惩罚](https://kexue.fm/archives/7234)提升分类效果，可以视为另一种对抗训练。
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
 - [task_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_language_model.py)：任务例子，加载BERT的预训练权重做无条件语言模型，效果上等价于GPT。
 - [task_relation_extraction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_relation_extraction.py)：任务例子，结合BERT以及自行设计的“半指针-半标注”结构来做[关系抽取](https://kexue.fm/archives/7161)。
+- [task_iflytek_bert_of_theseus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/task_iflytek_bert_of_theseus.py)：任务例子，通过[BERT-of-Theseus](https://kexue.fm/archives/7575)来进行模型压缩。
 
 ## 用到的数据集
 - 后续补充
