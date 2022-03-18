@@ -54,21 +54,150 @@ def whitespace_tokenize(text):
     return tokens
 
 
-class Tokenizer(object):
-
+class TokenizerBase(object):
+    """分词器基类
+    """
     def __init__(
-        self, 
-        token_dict, 
-        do_lower_case=True, 
-        do_basic_tokenize=True,
-        do_tokenize_unk=False,
+        self,
         token_start='[CLS]',
         token_end='[SEP]',
         token_unk='[UNK]',
         token_pad='[PAD]',
-        token_mask='[MASK]'):
+        token_mask='[MASK]',
+        pre_tokenize=None,
+        token_translate=None
+    ):
+        """参数说明：
+        token_unk:
+            未知词标记
+        token_end:
+            句子切分标记，当只有一句话作为输入时，此标记知识作为结束符；当有两句话作为输入时，此标记作为分隔符、最后一句话的结束符
+        pad_token:
+            padding填充标记
+        token_start:
+            分类标记，位于整个序列的第一个
+        mask_token:
+            mask标记
+        pre_tokenize：外部传入的分词函数，用作对文本进行预分词。如果传入
+                      pre_tokenize，则先执行pre_tokenize(text)，然后在它
+                      的基础上执行原本的tokenize函数；
+        token_translate：映射字典，主要用在tokenize之后，将某些特殊的token
+                         替换为对应的token。
         """
+        self._token_pad = token_pad
+        self._token_unk = token_unk
+        self._token_mask = token_mask
+        self._token_start = token_start
+        self._token_end = token_end
 
+        self._pre_tokenize = pre_tokenize
+        self._token_translate = token_translate or {}
+        self._token_translate_inv = {
+            v: k
+            for k, v in self._token_translate.items()
+        }
+
+    def tokenize(self, text, maxlen=None):
+        """分词函数
+        """
+        tokens = [
+            self._token_translate.get(token) or token
+            for token in self._tokenize(text)
+        ]
+        if self._token_start is not None:
+            tokens.insert(0, self._token_start)
+        if self._token_end is not None:
+            tokens.append(self._token_end)
+
+        if maxlen is not None:
+            index = int(self._token_end is not None) + 1
+            truncate_sequences(maxlen, -index, tokens)
+
+        return tokens
+
+    def token_to_id(self, token):
+        """token转换为对应的id
+        """
+        raise NotImplementedError
+
+    def tokens_to_ids(self, tokens):
+        """token序列转换为对应的id序列
+        """
+        return [self.token_to_id(token) for token in tokens]
+
+    def encode(
+        self,
+        first_text,
+        second_text=None,
+        maxlen=None,
+        pattern='S*E*E',
+        truncate_from='right'
+    ):
+        """输出文本对应token id和segment id
+        """
+        if is_string(first_text):
+            first_tokens = self.tokenize(first_text)
+        else:
+            first_tokens = first_text
+
+        if second_text is None:
+            second_tokens = None
+        elif is_string(second_text):
+            second_tokens = self.tokenize(second_text)
+        else:
+            second_tokens = second_text
+
+        if maxlen is not None:
+            if truncate_from == 'right':
+                index = -int(self._token_end is not None) - 1
+            elif truncate_from == 'left':
+                index = int(self._token_start is not None)
+            else:
+                index = truncate_from
+            if second_text is not None and pattern == 'S*E*E':
+                maxlen += 1
+            truncate_sequences(maxlen, index, first_tokens, second_tokens)
+
+        first_token_ids = self.tokens_to_ids(first_tokens)
+        first_segment_ids = [0] * len(first_token_ids)
+
+        if second_text is not None:
+            if pattern == 'S*E*E':
+                idx = int(bool(self._token_start))
+                second_tokens = second_tokens[idx:]
+            second_token_ids = self.tokens_to_ids(second_tokens)
+            second_segment_ids = [1] * len(second_token_ids)
+            first_token_ids.extend(second_token_ids)
+            first_segment_ids.extend(second_segment_ids)
+
+        return first_token_ids, first_segment_ids
+
+    def id_to_token(self, i):
+        """id序列为对应的token
+        """
+        raise NotImplementedError
+
+    def ids_to_tokens(self, ids):
+        """id序列转换为对应的token序列
+        """
+        return [self.id_to_token(i) for i in ids]
+
+    def decode(self, ids):
+        """转为可读文本
+        """
+        raise NotImplementedError
+
+    def _tokenize(self, text):
+        """基本分词函数
+        """
+        raise NotImplementedError
+
+
+class Tokenizer(TokenizerBase):
+    """Bert原生分词器
+    """
+    def __init__(self, token_dict, do_lower_case=True, do_basic_tokenize=True, do_tokenize_unk=False, **kwargs):
+        """
         参数:
             token_dict:
                 词典文件
@@ -78,27 +207,12 @@ class Tokenizer(object):
                 分词前，是否进行基础的分词
             do_tokenize_unk:
                 分词后，是否生成[UNK]标记，还是在encode阶段生成
-            token_unk:
-                未知词标记
-            token_end:
-                句子切分标记，当只有一句话作为输入时，此标记知识作为结束符；当有两句话作为输入时，此标记作为分隔符、最后一句话的结束符
-            pad_token:
-                padding填充标记
-            token_start:
-                分类标记，位于整个序列的第一个
-            mask_token:
-                mask标记
-          
         """
+        super(Tokenizer, self).__init__(**kwargs)
         if is_string(token_dict):
             token_dict = load_vocab(token_dict)
 
         self._do_lower_case = do_lower_case
-        self._token_pad = token_pad
-        self._token_unk = token_unk
-        self._token_mask = token_mask
-        self._token_start = token_start
-        self._token_end = token_end
         self._vocab_size = len(token_dict)
         self._token_dict = token_dict
         self._token_dict_inv = {v: k for k, v in token_dict.items()}
@@ -108,7 +222,6 @@ class Tokenizer(object):
           self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case, never_split=(self._token_unk, self._token_end, self._token_pad, self._token_start, self._token_mask))
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self._token_dict, unk_token=self._token_unk, do_tokenize_unk=do_tokenize_unk)
 
-
         for token in ['pad', 'unk', 'mask', 'start', 'end']:
             try:
                 _token_id = token_dict[getattr(self, '_token_%s' % token)]
@@ -116,7 +229,23 @@ class Tokenizer(object):
             except:
                 pass
 
-    def tokenize(self, text, maxlen=None):
+    def _tokenize(self, text, pre_tokenize=True):
+        """基本分词函数
+        """
+        # 以下pre_tokenizer逻辑参考bert4keras
+        if self._do_lower_case:
+            text = lowercase_and_normalize(text)
+
+        if pre_tokenize and self._pre_tokenize is not None:
+            tokens = []
+            for token in self._pre_tokenize(text):
+                if token in self._token_dict:
+                    tokens.append(token)
+                else:
+                    tokens.extend(self._tokenize(token, False))
+            return tokens
+
+        # 以下逻辑参考pytorch版本bert分词器自己的
         split_tokens = []
         if self.do_basic_tokenize:
             for token in self.basic_tokenizer.tokenize(text):
@@ -124,83 +253,15 @@ class Tokenizer(object):
                     split_tokens.append(sub_token)
         else:
             split_tokens = self.wordpiece_tokenizer.tokenize(text)
-        if self._token_start is not None:
-            split_tokens.insert(0, self._token_start)
-        if self._token_end is not None:
-            split_tokens.append(self._token_end)
-        
-        if maxlen is not None:
-            index = int(self._token_end is not None) + 1
-            truncate_sequences(maxlen, -index, split_tokens)
-
         return split_tokens
 
     def token_to_id(self, token):
         """token转为vocab中的id"""
         return self._token_dict.get(token, self._token_unk_id)
 
-    def tokens_to_ids(self, tokens):
-        """tokens转为vocab中的id"""
-        ids = []
-        for token in tokens:
-            ids.append(self._token_dict.get(token, self._token_unk_id))
-        return ids
-
     def id_to_token(self, id):
         """id转为词表中的token"""
         return self._token_dict_inv[id]
-
-    def ids_to_tokens(self, ids):
-        """ids转为词表中的tokens"""
-        tokens = []
-        for i in ids:
-            tokens.append(self._token_dict_inv[i])
-        return tokens
-    
-    def encode(
-        self,
-        first_text,
-        second_text=None,
-        maxlen=None,
-        truncate_from='right'
-    ):
-        """输出文本对应token id和segment id
-        """
-        if isinstance(first_text, str):
-            first_tokens = self.tokenize(first_text)
-        else:
-            first_tokens = first_text
-
-        if second_text is None:
-            second_tokens = None
-        elif isinstance(second_text, str):
-            second_tokens = self.tokenize(second_text)
-        else:
-            second_tokens = second_text
-
-        if maxlen is not None:
-            if truncate_from == 'right':
-                index = -2
-            elif truncate_from == 'left':
-                index = 1
-            else:
-                index = truncate_from
-            if second_text is not None:
-                maxlen += 1
-            truncate_sequences(maxlen, index, first_tokens, second_tokens)
-
-        first_token_ids = self.tokens_to_ids(first_tokens)
-        first_segment_ids = [0] * len(first_token_ids)
-
-        if second_text is not None:
-            idx = int(bool('[CLS]'))
-            second_tokens = second_tokens[idx:]
-            second_token_ids = self.tokens_to_ids(second_tokens)
-            second_segment_ids = [1] * len(second_token_ids)
-            first_token_ids.extend(second_token_ids)
-            first_segment_ids.extend(second_segment_ids)
-
-        return first_token_ids, first_segment_ids
 
     def decode(self, ids, tokens=None):
         """转为可读文本
@@ -559,3 +620,68 @@ def convert_to_unicode(text):
         return text.decode("utf-8", "ignore")
     else:
         raise ValueError("Unsupported string type: %s" % (type(text)))
+
+
+class SpTokenizer(TokenizerBase):
+    """基于SentencePiece模型的封装，使用上跟Tokenizer基本一致。
+    """
+    def __init__(self, sp_model_path, **kwargs):
+        super(SpTokenizer, self).__init__(**kwargs)
+        import sentencepiece as spm
+        self.sp_model = spm.SentencePieceProcessor()
+        self.sp_model.Load(sp_model_path)
+        self._token_pad = self.sp_model.id_to_piece(self.sp_model.pad_id())
+        self._token_unk = self.sp_model.id_to_piece(self.sp_model.unk_id())
+        self._vocab_size = self.sp_model.get_piece_size()
+
+        for token in ['pad', 'unk', 'mask', 'start', 'end']:
+            try:
+                _token = getattr(self, '_token_%s' % token)
+                _token_id = self.sp_model.piece_to_id(_token)
+                setattr(self, '_token_%s_id' % token, _token_id)
+            except:
+                pass
+
+    def token_to_id(self, token):
+        """token转换为对应的id
+        """
+        return self.sp_model.piece_to_id(token)
+
+    def id_to_token(self, i):
+        """id转换为对应的token
+        """
+        if i < self._vocab_size:
+            return self.sp_model.id_to_piece(i)
+        else:
+            return ''
+
+    def decode(self, ids):
+        """转为可读文本
+        """
+        tokens = [
+            self._token_translate_inv.get(token) or token
+            for token in self.ids_to_tokens(ids)
+        ]
+        text = self.sp_model.decode_pieces(tokens)
+        return convert_to_unicode(text)
+
+    def _tokenize(self, text):
+        """基本分词函数
+        """
+        if self._pre_tokenize is not None:
+            text = ' '.join(self._pre_tokenize(text))
+
+        tokens = self.sp_model.encode_as_pieces(text)
+        return tokens
+
+    def _is_special(self, i):
+        """判断是不是有特殊含义的符号
+        """
+        return self.sp_model.is_control(i) or \
+            self.sp_model.is_unknown(i) or \
+            self.sp_model.is_unused(i)
+
+    def _is_decodable(self, i):
+        """判断是否应该被解码输出
+        """
+        return (i < self._vocab_size) and not self._is_special(i)

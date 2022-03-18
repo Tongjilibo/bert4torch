@@ -1003,6 +1003,7 @@ def build_transformer_model(
         'transformer': Transformer,
         'bart': BART,
         'gpt': GPT,
+        'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
     }
 
@@ -1090,7 +1091,7 @@ class GPT(LM_Mask, BERT):
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, max_position, **kwargs):
-        """GPT的embedding是token、position两者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
+        """GPT的embedding是token、position、segment三者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
            使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
         """
         super(GPT, self).__init__(max_position, **kwargs)
@@ -1112,6 +1113,60 @@ class GPT(LM_Mask, BERT):
         """
         mapping =  super(GPT, self).variable_mapping(prefix='gpt')
         return mapping
+
+
+class GPT2(LM_Mask, BERT):
+    """构建GPT模型
+    链接：https://github.com/openai/finetune-transformer-lm
+    """
+    @insert_arguments(final_activation='softmax')
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, max_position, **kwargs):
+        """GPT2的embedding是token、position两者embedding之和
+           1、跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
+           2、bert的layernorm是在attn/ffc之后，OpenAi-gpt2是在之前。
+           使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
+        """
+        super(GPT2, self).__init__(max_position, **kwargs)
+        del self.embeddings.layerNorm
+        layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.dense.weight = self.embeddings.word_embeddings.weight
+        self.final_activation = get_activation(self.final_activation)
+
+    def apply_final_layers(self, inputs):
+        hidden_state = super().apply_final_layers(inputs)
+        logit = self.dense(self.LayerNormFinal([hidden_state]))
+        return self.final_activation(logit)
+
+    def load_variable(self, state_dict, name):
+        return super(GPT2, self).load_variable(state_dict, name, prefix='gpt2')
+
+    def variable_mapping(self):
+        """映射到GPT权重格式
+        """
+        mapping =  super(GPT2, self).variable_mapping(prefix='gpt2')
+        mapping.update({'LayerNormFinal.weight': 'gpt2.LayerNormFinal.weight',
+                        'LayerNormFinal.bias': 'gpt2.LayerNormFinal.bias'})
+        return mapping
+    
+    class Gpt2Layer(BertLayer):
+        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用
+        '''
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+            # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
+            x = self.layerNorm1((hidden_states, conditional_emb))
+            self_attn_output = self.multiHeadAttention(x, attention_mask)
+            hidden_states = hidden_states + self.dropout1(self_attn_output)
+            x = self.layerNorm2((hidden_states, conditional_emb))
+            ffn_output = self.feedForward(x)
+            hidden_states = hidden_states + self.dropout2(ffn_output)
+            return hidden_states
+
 
 class GPT2_ML(LM_Mask, BERT):
     """构建GPT2_ML模型
@@ -1153,8 +1208,8 @@ class GPT2_ML(LM_Mask, BERT):
             hidden_states = hidden_states + self.dropout1(self_attn_output)
             x = self.layerNorm1((hidden_states, conditional_emb))
             # bert的跳跃连接是在layerNorm之后，gpt2_ml是在layerNorm之前
-            self_attn_output2 = self.feedForward(x)
-            hidden_states = hidden_states + self.dropout2(self_attn_output2)
+            ffn_output = self.feedForward(x)
+            hidden_states = hidden_states + self.dropout2(ffn_output)
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
             return hidden_states
 

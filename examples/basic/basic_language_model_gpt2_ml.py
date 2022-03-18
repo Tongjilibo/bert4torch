@@ -8,8 +8,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.snippets import AutoRegressiveDecoder
 
-config_path = 'F:/Projects/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/config_bert4torch.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/pytorch_model_bert4torch.bin'
+config_path = 'F:/Projects/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/bert4torch_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/bert4torch_pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

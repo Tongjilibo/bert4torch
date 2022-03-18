@@ -16,6 +16,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
 speakers = [tokenizer.token_to_id('[speaker1]'), tokenizer.token_to_id('[speaker2]')]
 
+# config中设置shared_segment_embeddings=True，segment embedding用word embedding的权重生成
 model = build_transformer_model(
     config_path=config_path,
     checkpoint_path=checkpoint_path,
