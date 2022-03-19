@@ -1,3 +1,4 @@
+from audioop import bias
 from turtle import forward
 from sympy import im
 import torch
@@ -9,13 +10,14 @@ from bert4torch.activations import get_activation
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-12, conditional_size=False):
+    def __init__(self, hidden_size, eps=1e-12, conditional_size=False, bias=True):
         """layernorm 层，这里自行实现，目的是为了兼容 conditianal layernorm，使得可以做条件文本生成、条件分类等任务
            条件layernorm来自于苏剑林的想法，详情：https://spaces.ac.cn/archives/7124
         """
         super(LayerNorm, self).__init__()
         self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.bias = nn.Parameter(torch.zeros(hidden_size))
+        if bias:  # 兼容t5不包含bias项
+            self.bias = nn.Parameter(torch.zeros(hidden_size))
         self.eps = eps
         self.conditional_size = conditional_size
         if conditional_size:
@@ -31,6 +33,9 @@ class LayerNorm(nn.Module):
         u = inputs.mean(-1, keepdim=True)
         s = (inputs - u).pow(2).mean(-1, keepdim=True)
         o = (inputs - u) / torch.sqrt(s + self.eps)
+
+        if not hasattr(self, 'bias'):
+            self.bias = 0
 
         if self.conditional_size:
             cond = x[1]
@@ -63,11 +68,18 @@ class MultiHeadAttentionLayer(nn.Module):
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
 
         if self.p_bias == 'typical_relative':
-            self.relative_positions_encoding = RelativePositionsEncoding(max_position=kwargs.get('max_position_embeddings'),
-                                                                     embedding_size=self.attention_head_size,
-                                                                     max_relative_position=kwargs.get('max_relative_position'))
+            self.relative_positions_encoding = RelativePositionsEncoding(qlen=kwargs.get('max_position_embeddings'),
+                                                                         klen=kwargs.get('max_position_embeddings'),
+                                                                         embedding_size=self.attention_head_size,
+                                                                         max_relative_position=kwargs.get('max_relative_position'))
         elif self.p_bias == 'rotary':
             self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position_embeddings'), embedding_size=self.attention_head_size)
+        elif self.p_bias == 't5_relative':
+            self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position_embeddings'), 
+                                                                  klen=kwargs.get('max_position_embeddings'), 
+                                                                  relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
+                                                                  is_decoder=kwargs.get('is_decoder'))
+            self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -107,7 +119,7 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
-        if self.p_bias == 'typical_relative':
+        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
             relations_keys = self.relative_positions_encoding(attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
             # 旧实现，方便读者理解维度转换
             # query_layer_t = query_layer.permute(2, 0, 1, 3)
@@ -117,6 +129,10 @@ class MultiHeadAttentionLayer(nn.Module):
             # key_position_scores_r_t = key_position_scores_r.permute(1, 2, 0, 3)
             # 新实现
             key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
+            attention_scores = attention_scores + key_position_scores_r_t
+        elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
+            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
+            key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
             attention_scores = attention_scores + key_position_scores_r_t
 
         # 是否进行attention scale
@@ -134,7 +150,7 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_probs = self.dropout(attention_probs)
         context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
-        if self.p_bias == 'typical_relative':
+        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
             relations_values = self.relative_positions_encoding(attention_scores.shape[-1])
             # 旧实现，方便读者理解维度转换
             # attention_probs_t = attention_probs.permute(2, 0, 1, 3)
@@ -284,26 +300,49 @@ class BertLayer(nn.Module):
         return hidden_states
 
 
-class Identity(nn.Module):
-    r"""A placeholder identity operator that is argument-insensitive.
-
-    Args:
-        args: any argument (unused)
-        kwargs: any keyword argument (unused)
-
-    Shape:
-        - Input: :math:`(*)`, where :math:`*` means any number of dimensions.
-        - Output: :math:`(*)`, same shape as the input.
-
-    Examples::
-
-        >>> m = nn.Identity(54, unused_argument1=0.1, unused_argument2=False)
-        >>> input = torch.randn(128, 20)
-        >>> output = m(input)
-        >>> print(output.size())
-        torch.Size([128, 20])
-
+class T5Layer(BertLayer):
+    """T5的Encoder的主体是基于Self-Attention的模块
+    顺序：LN --> Att --> Add --> LN --> FFN --> Add
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.multiHeadAttention.q.register_parameter('bias', None)
+        self.multiHeadAttention.k.register_parameter('bias', None)
+        self.multiHeadAttention.v.register_parameter('bias', None)
+        self.multiHeadAttention.o.register_parameter('bias', None)
+        del self.layerNorm1.bias
+        del self.layerNorm2.bias
+        self.feedForward.outputDense.register_parameter('bias', None)
+        self.feedForward.intermediateDense.register_parameter('bias', None)
+        if self.is_decoder:
+            self.crossAttention.q.register_parameter('bias', None)
+            self.crossAttention.k.register_parameter('bias', None)
+            self.crossAttention.v.register_parameter('bias', None)
+            self.crossAttention.o.register_parameter('bias', None)
+            del self.layerNorm3.bias
+            if hasattr(self.crossAttention, 'relative_positions_encoding'):
+                del self.crossAttention.relative_positions_encoding
+                del self.crossAttention.relative_positions
+
+    def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+        # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
+        x = self.layerNorm1((hidden_states, conditional_emb))
+        self_attn_output = self.multiHeadAttention(x, attention_mask)
+        hidden_states = hidden_states + self.dropout1(self_attn_output)
+
+        # cross attention
+        if self.is_decoder and encoder_hidden_states is not None:
+            x = self.layerNorm3((hidden_states, conditional_emb))
+            cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask)
+            hidden_states = hidden_states + self.dropout3(cross_attn_output)
+
+        x = self.layerNorm2((hidden_states, conditional_emb))
+        ffn_output = self.feedForward(x)
+        hidden_states = hidden_states + self.dropout2(ffn_output)
+        return hidden_states
+
+
+class Identity(nn.Module):
     def __init__(self, *args, **kwargs):
         super(Identity, self).__init__()
 
@@ -311,24 +350,22 @@ class Identity(nn.Module):
         return args[0]
 
 
-# nezha相对位置编码
 class RelativePositionsEncoding(nn.Module):
-    """相对位置编码
+    """nezha用的google相对位置编码
     来自论文：https://arxiv.org/abs/1803.02155
     """
-    def __init__(self, max_position, embedding_size, max_relative_position=127):
+    def __init__(self, qlen, klen, embedding_size, max_relative_position=127):
         super(RelativePositionsEncoding, self).__init__()
         # 生成相对位置矩阵
         vocab_size = max_relative_position * 2 + 1
-        range_vec = torch.arange(max_position)
-        distance_mat = range_vec[None, :] - range_vec[:, None]  # 列数-行数
+        distance_mat = torch.arange(klen)[None, :] - torch.arange(qlen)[:, None]  # 列数-行数, [query_len, key_len]
         distance_mat_clipped = torch.clamp(distance_mat, -max_relative_position, max_relative_position)
         final_mat = distance_mat_clipped + max_relative_position
 
         # sinusoid_encoding编码的位置矩阵
         embeddings_table = get_sinusoid_encoding_table(vocab_size, embedding_size)
 
-        # 老的实现方式
+        # 实现方式1
         # flat_relative_positions_matrix = final_mat.view(-1)
         # one_hot_relative_positions_matrix = torch.nn.functional.one_hot(flat_relative_positions_matrix, num_classes=vocab_size).float()
         # position_embeddings = torch.matmul(one_hot_relative_positions_matrix, embeddings_table)
@@ -336,14 +373,65 @@ class RelativePositionsEncoding(nn.Module):
         # my_shape.append(embedding_size)
         # position_embeddings = position_embeddings.view(my_shape)
 
-        position_embeddings = torch.take_along_dim(embeddings_table, final_mat.flatten().unsqueeze(1), dim=0)
-        position_embeddings = position_embeddings.reshape(*final_mat.shape, embeddings_table.shape[-1])  # [seq_len, seq_len, hdsz]
+        # 实现方式2
+        # position_embeddings = torch.take_along_dim(embeddings_table, final_mat.flatten().unsqueeze(1), dim=0)
+        # position_embeddings = position_embeddings.reshape(*final_mat.shape, embeddings_table.shape[-1])  # [seq_len, seq_len, hdsz]
+        # self.register_buffer('position_embeddings', position_embeddings)
+        
+        # 实现方式3
+        position_embeddings = nn.Embedding.from_pretrained(embeddings_table, freeze=True)(final_mat)
         self.register_buffer('position_embeddings', position_embeddings)
-        # self.post = nn.Embedding.from_pretrained(position_embeddings, freeze=True)
 
-    def forward(self, length):
-        return self.position_embeddings[:length, :length, :]
+    def forward(self, qlen, klen):
+        return self.position_embeddings[:qlen, :klen, :]
 
+
+class RelativePositionsEncodingT5(nn.Module):
+    """Google T5的相对位置编码
+    来自论文：https://arxiv.org/abs/1910.10683
+    """
+    def __init__(self, qlen, klen, relative_attention_num_buckets, is_decoder=False):
+        super(RelativePositionsEncodingT5, self).__init__()
+        # 生成相对位置矩阵
+        context_position = torch.arange(qlen, dtype=torch.long)[:, None]
+        memory_position = torch.arange(klen, dtype=torch.long)[None, :]
+        relative_position = memory_position - context_position  # shape (qlen, klen)
+        relative_position = self._relative_position_bucket(
+            relative_position,  # shape (qlen, klen)
+            bidirectional=not is_decoder,
+            num_buckets=relative_attention_num_buckets,
+        )
+        self.register_buffer('relative_position', relative_position)
+
+    def forward(self, qlen, klen):
+        return self.relative_position[:qlen, :klen]
+
+    @staticmethod
+    def _relative_position_bucket(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
+        '''直接来源于transformer
+        '''
+        ret = 0
+        n = -relative_position
+        if bidirectional:
+            num_buckets //= 2
+            ret += (n < 0).to(torch.long) * num_buckets  # mtf.to_int32(mtf.less(n, 0)) * num_buckets
+            n = torch.abs(n)
+        else:
+            n = torch.max(n, torch.zeros_like(n))
+        # now n is in the range [0, inf)
+
+        # half of the buckets are for exact increments in positions
+        max_exact = num_buckets // 2
+        is_small = n < max_exact
+
+        # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
+        val_if_large = max_exact + (
+            torch.log(n.float() / max_exact) / math.log(max_distance / max_exact) * (num_buckets - max_exact)
+        ).to(torch.long)
+        val_if_large = torch.min(val_if_large, torch.full_like(val_if_large, num_buckets - 1))
+
+        ret += torch.where(is_small, n, val_if_large)
+        return ret
 
 class SinusoidalPositionEncoding(nn.Module):
     """定义Sin-Cos位置Embedding
@@ -355,6 +443,7 @@ class SinusoidalPositionEncoding(nn.Module):
 
     def forward(self, position_ids):
         return self.position_embeddings(position_ids)
+
 
 class RoPEPositionEncoding(nn.Module):
     """旋转式位置编码: https://kexue.fm/archives/8265

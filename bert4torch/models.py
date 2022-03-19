@@ -3,7 +3,7 @@ import torch.nn as nn
 import copy
 import json
 from itertools import cycle
-from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
 from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
 from bert4torch.activations import get_activation
 
@@ -140,7 +140,7 @@ class BaseModel(nn.Module):
 
     def save_weights(self, save_path):
         torch.save(self.state_dict(), save_path)
-
+    
 
 class BERT_BASE(BaseModel):
     """模型基类
@@ -165,6 +165,7 @@ class BERT_BASE(BaseModel):
             residual_attention_scores=False,  # Attention矩阵加残差
             ignore_invalid_weights=False,  # 允许跳过不存在的权重
             keep_hidden_layers=None, # 保留的hidden_layer层的id
+            hierarchical_position=None,  # 是否层次分解位置编码
             **kwargs
     ):
         super(BERT_BASE, self).__init__(**kwargs)
@@ -192,6 +193,7 @@ class BERT_BASE(BaseModel):
         self.residual_attention_scores = residual_attention_scores
         self.ignore_invalid_weights = ignore_invalid_weights
         self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
+        self.hierarchical_position = hierarchical_position
 
     def build(
         self,
@@ -339,25 +341,55 @@ class BERT_BASE(BaseModel):
         else:
             self.output = outputs[0]
 
-def lm_mask(segment_ids):
+
+class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）
     """
-    idxs = torch.arange(0, segment_ids.shape[1])
-    mask = (idxs.unsqueeze(0) <= idxs.unsqueeze(1)).unsqueeze(0).unsqueeze(0).to(dtype=torch.float32)
-    return mask
+    def compute_attention_bias(self, inputs=None):
+        """通过idxs序列的比较来得到对应的mask
+        """
+        seq_len = inputs[0].shape[1]
+        attention_bias = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.long, device=inputs[0].device), diagonal=0)
+        self.attention_bias = attention_bias.unsqueeze(0).unsqueeze(1)
+        return self.attention_bias
 
-
-def unilm_mask(segment_ids):
-    """定义UniLM的Attention Mask（Seq2Seq模型用）
-        其中source和target的分区，由segment_ids来表示。
-        UniLM: https://arxiv.org/abs/1905.03197
+def extend_with_language_model(InputModel):
+    """添加下三角的Attention Mask（语言模型用）
     """
+    class LanguageModel(LM_Mask, InputModel):
+        """带下三角Attention Mask的派生模型
+        """
+        def __init__(self, *args, **kwargs):
+            super(LanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
 
-    # 在序列维度进行累加求和
-    idxs = torch.cumsum(segment_ids, dim=1)
-    # 构造unilm的mask矩阵，并把shape扩充到[batch_size, num_heads, from_seq_length, to_seq_length]
-    mask = (idxs.unsqueeze(1) <= idxs.unsqueeze(2)).unsqueeze(1).to(dtype=torch.float32)
-    return mask
+    return LanguageModel
+
+class UniLM_Mask(object):
+    """定义UniLM的Attention Mask（Seq2Seq模型用）
+    其中source和target的分区，由segment_ids来表示。
+    UniLM: https://arxiv.org/abs/1905.03197
+    """
+    def compute_attention_bias(self, inputs=None):
+        """通过idxs序列的比较来得到对应的mask
+        """
+        segment_ids = inputs[1]
+        attention_bias = torch.cumsum(segment_ids, dim=1)
+        attention_bias = (attention_bias.unsqueeze(1)) <= (attention_bias.unsqueeze(2))
+        self.attention_bias = attention_bias.unsqueeze(1).long()
+
+        return self.attention_bias
+
+def extend_with_unified_language_model(InputModel):
+    """添加UniLM的Attention Mask（Seq2Seq模型用）
+    """
+    class UnifiedLanguageModel(UniLM_Mask, InputModel):
+        """带UniLM的Attention Mask的派生模型
+        UniLM: https://arxiv.org/abs/1905.03197
+        """
+        def __init__(self, *args, **kwargs):
+            super(UnifiedLanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
+
+    return UnifiedLanguageModel
 
 
 ####################################################################################
@@ -376,7 +408,6 @@ class BERT(BERT_BASE):
             with_pool=False,  # 是否包含Pool部分
             with_nsp=False,  # 是否包含NSP部分
             with_mlm=False,  # 是否包含MLM部分
-            hierarchical_position=None,  # 是否层次分解位置编码
             custom_position_ids=False,  # 是否自行传入位置id
             custom_attention_mask=False, # 是否自行传入attention_mask
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
@@ -390,7 +421,6 @@ class BERT(BERT_BASE):
         self.with_pool = with_pool
         self.with_nsp = with_nsp
         self.with_mlm = with_mlm
-        self.hierarchical_position = hierarchical_position
         self.custom_position_ids = custom_position_ids
         self.custom_attention_mask = custom_attention_mask
         self.shared_segment_embeddings = shared_segment_embeddings
@@ -398,8 +428,7 @@ class BERT(BERT_BASE):
             self.with_pool = True
         self.layer_norm_conds = layer_norm_cond
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size)
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, self.dropout_rate, self.conditional_size)
         layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         if self.with_pool:
@@ -777,85 +806,21 @@ class ELECTRA(BERT):
         return mapping
 
 
-class Transformer(BERT):
-    '''encoder-decoder结构
-    '''
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
-        super(Transformer, self).__init__(*args, **kwargs)
-        self.src_vocab_size = kwargs.get('src_vocab_size') or self.vocab_size
-        self.embeddings = BertEmbeddings(self.src_vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings,
-                                         self.dropout_rate, self.conditional_size)
-        # decoder
-        self.tgt_vocab_size = kwargs.get('tgt_vocab_size') or self.vocab_size
-        if emb_src_tgt_weight_sharing:
-            # encoder和decoder的embedding权重共享
-            assert self.src_vocab_size == self.tgt_vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
-            self.tgt_embeddings = self.embeddings
-        else:
-            self.tgt_embeddings = BertEmbeddings(self.tgt_vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings,
-                                                 self.dropout_rate, self.conditional_size)
+class Encoder(BERT):
+    def __init__(self, *args, **kwargs):
+        kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
+        super().__init__(*args, **kwargs)
+
+
+class Decoder(LM_Mask, BERT):
+    def __init__(self, *args, **kwargs):
+        kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
+        super().__init__(*args, **kwargs)
+        del self.encoderLayer
         dec_layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size, is_decoder=True)
         self.decoderLayer = nn.ModuleList([copy.deepcopy(dec_layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
 
-
-    def forward(self, inputs):
-        """定义模型的执行流程
-        """
-        encoder_input, decoder_input = inputs[:2]
-
-        # encoder
-        encoder_emb = self.apply_embeddings(encoder_input)
-        encode_outputs, _ = self.apply_main_layers(encoder_emb)
-        
-        # decoder
-        decoder_emb = self.apply_tgt_embeddings(decoder_input)
-        encoder_hidden_state = encode_outputs[-1]
-        encoder_attention_mask = encoder_emb[1]
-        decoder_outputs, _ = self.apply_tgt_main_layers([*decoder_emb, encoder_hidden_state, encoder_attention_mask])
-        decoder_hidden_state = decoder_outputs[-1]
-
-        return decoder_hidden_state
-    
-    def apply_tgt_embeddings(self, inputs):
-            """tgt的embedding是token、position、segment三者embedding之和
-            """
-            token_ids = inputs[0]
-            index_ = 1
-            if self.segment_vocab_size > 0:
-                segment_ids = inputs[index_]
-                index_ += 1
-            else:
-                segment_ids = None
-
-            if self.custom_position_ids:
-                position_ids = inputs[index_]
-                index_ += 1
-            else:
-                position_ids = None
-            # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
-            # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸
-            if self.custom_attention_mask:
-                attention_mask = inputs[index_]
-                index_ += 1
-            else:
-                attention_mask = (token_ids != 0).long().unsqueeze(1).unsqueeze(2)  # 这里指定了0为mask_value
-            
-            # 加三角式mask [btz, 1, seq_q, seq_k]
-            attention_mask = (attention_mask + self.get_subsequent_mask(attention_mask)).gt(1).to(attention_mask)
-            attention_mask = attention_mask.to(dtype=next(self.parameters()).dtype)  # 兼容fp16
-            
-            # 对mask矩阵中，数值为0的转换成很大的负数，使得不需要attention的位置经过softmax后,分数趋近于0
-            # attention_mask = (1.0 - attention_mask) * -10000.0
-            # 执行embedding
-            if self.layer_norm_conds is None:
-                conditional_emb = None
-            else:
-                conditional_emb = self.layer_norm_conds(inputs[index_])
-            hidden_states = self.tgt_embeddings(token_ids, segment_ids, conditional_emb)
-            return hidden_states, attention_mask, conditional_emb
-
-    def apply_tgt_main_layers(self, inputs):
+    def apply_main_layers(self, inputs):
         """Dencoder主体是基于Self-Attention、Cross-Attention的模块
         顺序：Att1 --> Add --> LN --> Att2 --> Add -->  LN --> FFN --> Add --> LN
         """
@@ -869,13 +834,45 @@ class Transformer(BERT):
             decoded_layers.append(hidden_states)
         return [decoded_layers, conditional_emb]
 
-    @staticmethod
-    def get_subsequent_mask(seq):
-        ''' 下三角为1表示可以访问'''
-        sz_b, _, _, len_s = seq.size()
-        subsequent_mask = torch.tril(torch.ones((len_s, len_s), device=seq.device, dtype=torch.uint8), diagonal=0)
-        subsequent_mask = subsequent_mask.unsqueeze(0).unsqueeze(1).expand(sz_b, -1, -1, -1)  # b x 1 x ls x ls
-        return subsequent_mask
+
+class Transformer(BERT_BASE):
+    '''encoder-decoder结构
+    '''
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
+        super(Transformer, self).__init__(*args, **kwargs)
+
+        # encoder
+        self.encoder = Encoder(*args, **kwargs)
+        self.encoder.build(**kwargs)
+
+        # decoder
+        self.decoder = Decoder(*args, **kwargs)
+        self.decoder.build(**kwargs)
+
+        if emb_src_tgt_weight_sharing:
+            # encoder和decoder的embedding权重共享
+            assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
+            self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
+
+    def forward(self, inputs):
+        """定义模型的执行流程
+        """
+        encoder_input, decoder_input = inputs[:2]
+
+        # encoder
+        encoder_emb = self.encoder.apply_embeddings(encoder_input)
+        encode_outputs, _ = self.encoder.apply_main_layers(encoder_emb)
+        encoder_hidden_state = encode_outputs[-1]
+        encoder_attention_mask = encoder_emb[1]
+
+        # decoder
+        decoder_emb = self.decoder.apply_embeddings(decoder_input)
+        decoder_outputs, _ = self.decoder.apply_main_layers([*decoder_emb, encoder_hidden_state, encoder_attention_mask])
+        decoder_hidden_state = decoder_outputs[-1]
+
+        return decoder_hidden_state
+
 
 class BART(Transformer):
     '''encoder-decoder结构
@@ -902,62 +899,208 @@ class BART(Transformer):
     def variable_mapping(self, prefix=''):
         # 查看check_point发现'shared.weight'
         mapping = {
-            'embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'encoder.embed_tokens.weight',
-            'embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
-            'embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
-            'embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
-            'tgt_embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'decoder.embed_tokens.weight',
-            'tgt_embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
-            'tgt_embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
-            'tgt_embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
-
+            'encoder.embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'encoder.embed_tokens.weight',
+            'encoder.embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
+            'encoder.embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
+            'encoder.embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
+            'decoder.embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'decoder.embed_tokens.weight',
+            'decoder.embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
+            'decoder.embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
+            'decoder.embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
         }
         for i in range(self.num_hidden_layers):
-            mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.layers.{i}.self_attn.q_proj.weight',
-                            f'encoderLayer.{i}.multiHeadAttention.q.bias': f'encoder.layers.{i}.self_attn.q_proj.bias',
-                            f'encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.layers.{i}.self_attn.k_proj.weight',
-                            f'encoderLayer.{i}.multiHeadAttention.k.bias': f'encoder.layers.{i}.self_attn.k_proj.bias',
-                            f'encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.layers.{i}.self_attn.v_proj.weight',
-                            f'encoderLayer.{i}.multiHeadAttention.v.bias': f'encoder.layers.{i}.self_attn.v_proj.bias',
-                            f'encoderLayer.{i}.multiHeadAttention.o.weight': f'encoder.layers.{i}.self_attn.out_proj.weight',
-                            f'encoderLayer.{i}.multiHeadAttention.o.bias': f'encoder.layers.{i}.self_attn.out_proj.bias',
-                            f'encoderLayer.{i}.layerNorm1.weight': f'encoder.layers.{i}.self_attn_layer_norm.weight',
-                            f'encoderLayer.{i}.layerNorm1.bias': f'encoder.layers.{i}.self_attn_layer_norm.bias',
-                            f'encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.layers.{i}.fc1.weight',
-                            f'encoderLayer.{i}.feedForward.intermediateDense.bias': f'encoder.layers.{i}.fc1.bias',
-                            f'encoderLayer.{i}.feedForward.outputDense.weight': f'encoder.layers.{i}.fc2.weight',
-                            f'encoderLayer.{i}.feedForward.outputDense.bias': f'encoder.layers.{i}.fc2.bias',
-                            f'encoderLayer.{i}.layerNorm2.weight': f'encoder.layers.{i}.final_layer_norm.weight',
-                            f'encoderLayer.{i}.layerNorm2.bias': f'encoder.layers.{i}.final_layer_norm.bias',
-                            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'decoder.layers.{i}.self_attn.q_proj.weight',
-                            f'decoderLayer.{i}.multiHeadAttention.q.bias': f'decoder.layers.{i}.self_attn.q_proj.bias',
-                            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.layers.{i}.self_attn.k_proj.weight',
-                            f'decoderLayer.{i}.multiHeadAttention.k.bias': f'decoder.layers.{i}.self_attn.k_proj.bias',
-                            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.layers.{i}.self_attn.v_proj.weight',
-                            f'decoderLayer.{i}.multiHeadAttention.v.bias': f'decoder.layers.{i}.self_attn.v_proj.bias',
-                            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'decoder.layers.{i}.self_attn.out_proj.weight',
-                            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'decoder.layers.{i}.self_attn.out_proj.bias',
-                            f'decoderLayer.{i}.layerNorm1.weight': f'decoder.layers.{i}.self_attn_layer_norm.weight',
-                            f'decoderLayer.{i}.layerNorm1.bias': f'decoder.layers.{i}.self_attn_layer_norm.bias',
-                            f'decoderLayer.{i}.crossAttention.q.weight': f'decoder.layers.{i}.encoder_attn.q_proj.weight',
-                            f'decoderLayer.{i}.crossAttention.q.bias': f'decoder.layers.{i}.encoder_attn.q_proj.bias',
-                            f'decoderLayer.{i}.crossAttention.k.weight': f'decoder.layers.{i}.encoder_attn.k_proj.weight',
-                            f'decoderLayer.{i}.crossAttention.k.bias': f'decoder.layers.{i}.encoder_attn.k_proj.bias',
-                            f'decoderLayer.{i}.crossAttention.v.weight': f'decoder.layers.{i}.encoder_attn.v_proj.weight',
-                            f'decoderLayer.{i}.crossAttention.v.bias': f'decoder.layers.{i}.encoder_attn.v_proj.bias',
-                            f'decoderLayer.{i}.crossAttention.o.weight': f'decoder.layers.{i}.encoder_attn.out_proj.weight',
-                            f'decoderLayer.{i}.crossAttention.o.bias': f'decoder.layers.{i}.encoder_attn.out_proj.bias',
-                            f'decoderLayer.{i}.layerNorm3.weight': f'decoder.layers.{i}.encoder_attn_layer_norm.weight',
-                            f'decoderLayer.{i}.layerNorm3.bias': f'decoder.layers.{i}.encoder_attn_layer_norm.bias',
-                            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.layers.{i}.fc1.weight',
-                            f'decoderLayer.{i}.feedForward.intermediateDense.bias': f'decoder.layers.{i}.fc1.bias',
-                            f'decoderLayer.{i}.feedForward.outputDense.weight': f'decoder.layers.{i}.fc2.weight',
-                            f'decoderLayer.{i}.feedForward.outputDense.bias': f'decoder.layers.{i}.fc2.bias',
-                            f'decoderLayer.{i}.layerNorm2.weight': f'decoder.layers.{i}.final_layer_norm.weight',
-                            f'decoderLayer.{i}.layerNorm2.bias': f'decoder.layers.{i}.final_layer_norm.bias'
-                            })
+            mapping.update(
+                {
+                f'encoder.encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.layers.{i}.self_attn.q_proj.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.q.bias': f'encoder.layers.{i}.self_attn.q_proj.bias',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.layers.{i}.self_attn.k_proj.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.k.bias': f'encoder.layers.{i}.self_attn.k_proj.bias',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.layers.{i}.self_attn.v_proj.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.v.bias': f'encoder.layers.{i}.self_attn.v_proj.bias',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.o.weight': f'encoder.layers.{i}.self_attn.out_proj.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.o.bias': f'encoder.layers.{i}.self_attn.out_proj.bias',
+                f'encoder.encoderLayer.{i}.layerNorm1.weight': f'encoder.layers.{i}.self_attn_layer_norm.weight',
+                f'encoder.encoderLayer.{i}.layerNorm1.bias': f'encoder.layers.{i}.self_attn_layer_norm.bias',
+                f'encoder.encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.layers.{i}.fc1.weight',
+                f'encoder.encoderLayer.{i}.feedForward.intermediateDense.bias': f'encoder.layers.{i}.fc1.bias',
+                f'encoder.encoderLayer.{i}.feedForward.outputDense.weight': f'encoder.layers.{i}.fc2.weight',
+                f'encoder.encoderLayer.{i}.feedForward.outputDense.bias': f'encoder.layers.{i}.fc2.bias',
+                f'encoder.encoderLayer.{i}.layerNorm2.weight': f'encoder.layers.{i}.final_layer_norm.weight',
+                f'encoder.encoderLayer.{i}.layerNorm2.bias': f'encoder.layers.{i}.final_layer_norm.bias',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.q.weight': f'decoder.layers.{i}.self_attn.q_proj.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.q.bias': f'decoder.layers.{i}.self_attn.q_proj.bias',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.layers.{i}.self_attn.k_proj.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.k.bias': f'decoder.layers.{i}.self_attn.k_proj.bias',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.layers.{i}.self_attn.v_proj.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.v.bias': f'decoder.layers.{i}.self_attn.v_proj.bias',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.o.weight': f'decoder.layers.{i}.self_attn.out_proj.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.o.bias': f'decoder.layers.{i}.self_attn.out_proj.bias',
+                f'decoder.decoderLayer.{i}.layerNorm1.weight': f'decoder.layers.{i}.self_attn_layer_norm.weight',
+                f'decoder.decoderLayer.{i}.layerNorm1.bias': f'decoder.layers.{i}.self_attn_layer_norm.bias',
+                f'decoder.decoderLayer.{i}.crossAttention.q.weight': f'decoder.layers.{i}.encoder_attn.q_proj.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.q.bias': f'decoder.layers.{i}.encoder_attn.q_proj.bias',
+                f'decoder.decoderLayer.{i}.crossAttention.k.weight': f'decoder.layers.{i}.encoder_attn.k_proj.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.k.bias': f'decoder.layers.{i}.encoder_attn.k_proj.bias',
+                f'decoder.decoderLayer.{i}.crossAttention.v.weight': f'decoder.layers.{i}.encoder_attn.v_proj.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.v.bias': f'decoder.layers.{i}.encoder_attn.v_proj.bias',
+                f'decoder.decoderLayer.{i}.crossAttention.o.weight': f'decoder.layers.{i}.encoder_attn.out_proj.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.o.bias': f'decoder.layers.{i}.encoder_attn.out_proj.bias',
+                f'decoder.decoderLayer.{i}.layerNorm3.weight': f'decoder.layers.{i}.encoder_attn_layer_norm.weight',
+                f'decoder.decoderLayer.{i}.layerNorm3.bias': f'decoder.layers.{i}.encoder_attn_layer_norm.bias',
+                f'decoder.decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.layers.{i}.fc1.weight',
+                f'decoder.decoderLayer.{i}.feedForward.intermediateDense.bias': f'decoder.layers.{i}.fc1.bias',
+                f'decoder.decoderLayer.{i}.feedForward.outputDense.weight': f'decoder.layers.{i}.fc2.weight',
+                f'decoder.decoderLayer.{i}.feedForward.outputDense.bias': f'decoder.layers.{i}.fc2.bias',
+                f'decoder.decoderLayer.{i}.layerNorm2.weight': f'decoder.layers.{i}.final_layer_norm.weight',
+                f'decoder.decoderLayer.{i}.layerNorm2.bias': f'decoder.layers.{i}.final_layer_norm.bias'
+                })
 
         return mapping
+
+
+class T5_Encoder(Encoder):
+    @insert_arguments(version='t5.1.0')
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 通过max_position=0控制在embedding阶段无位置编码
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
+                                         self.dropout_rate, self.conditional_size)
+        del self.embeddings.layerNorm
+        # 第一层有相对位置编码，后面层无相对位置编码
+        config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position}
+        relative_attention_num_buckets = kwargs.get('relative_attention_num_buckets')
+        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+                            conditional_size=self.conditional_size, relative_attention_num_buckets=relative_attention_num_buckets, **config)
+        self.encoderLayer = nn.ModuleList([layer])
+        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+                    conditional_size=self.conditional_size, relative_attention_num_buckets=relative_attention_num_buckets)
+        self.encoderLayer.extend(nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers-1)]))
+        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
+
+    def load_variable(self, state_dict, name, prefix=''):
+        """加载单个变量的函数
+        """
+        variable = state_dict[name]
+        if name in {'encoder.embed_tokens.weight'}:
+            return self.load_embeddings(variable)
+        else:
+            return variable
+
+    def variable_mapping(self, prefix=''):
+        # 查看check_point发现'shared.weight'
+        mapping = {f'{prefix}embeddings.word_embeddings.weight': 'encoder.embed_tokens.weight',
+                   f'{prefix}encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
+                   f'{prefix}final_layer_norm.weight': 'encoder.final_layer_norm.weight'}
+        for i in range(self.num_hidden_layers):
+            mapping.update(
+                {
+                f'{prefix}encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.block.{i}.layer.0.SelfAttention.q.weight',
+                f'{prefix}encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.block.{i}.layer.0.SelfAttention.k.weight',
+                f'{prefix}encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.block.{i}.layer.0.SelfAttention.v.weight',
+                f'{prefix}encoderLayer.{i}.multiHeadAttention.o.weight': f'encoder.block.{i}.layer.0.SelfAttention.o.weight',
+                f'{prefix}encoderLayer.{i}.layerNorm1.weight': f'encoder.block.{i}.layer.0.layer_norm.weight',
+                f'{prefix}encoderLayer.{i}.feedForward.outputDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wo.weight',
+                f'{prefix}encoderLayer.{i}.layerNorm2.weight': f'encoder.block.{i}.layer.1.layer_norm.weight',
+                })
+
+            if self.version.endswith('t5.1.0'):
+                mapping.update({f'{prefix}encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi.weight'})
+            elif self.version.endswith('t5.1.1'):
+                mapping.update({f'{prefix}encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi_0.weight',
+                                f'{prefix}encoderLayer.{i}.feedForward.intermediateDense1.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi_1.weight'})
+        return mapping
+    
+
+class T5_Decoder(Decoder):
+    @insert_arguments(version='t5.1.0')
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 通过max_position=0控制在embedding阶段无位置编码
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
+                                         self.dropout_rate, self.conditional_size)
+        del self.embeddings.layerNorm
+        # 第一层有相对位置编码，后面层无相对位置编码
+        config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position}
+        relative_attention_num_buckets = kwargs.get('relative_attention_num_buckets')
+        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+                            conditional_size=self.conditional_size, is_decoder=True, relative_attention_num_buckets=relative_attention_num_buckets, **config)
+        self.decoderLayer = nn.ModuleList([layer])
+        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+                    conditional_size=self.conditional_size, is_decoder=True, relative_attention_num_buckets=relative_attention_num_buckets)
+        self.decoderLayer.extend(nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers-1)]))
+        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
+
+    def load_variable(self, state_dict, name, prefix=''):
+        """加载单个变量的函数
+        """
+        variable = state_dict[name]
+        if name in {f'decoder.embed_tokens.weight'}:
+            return self.load_embeddings(variable)
+        else:
+            return variable
+
+    def variable_mapping(self, prefix=''):
+        # 查看check_point发现'shared.weight'
+        mapping = {f'{prefix}embeddings.word_embeddings.weight': 'decoder.embed_tokens.weight',
+                   f'{prefix}decoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
+                   f'{prefix}final_layer_norm.weight': 'decoder.final_layer_norm.weight'}
+
+        for i in range(self.num_hidden_layers):
+            mapping.update(
+                {
+                f'{prefix}decoderLayer.{i}.multiHeadAttention.q.weight': f'decoder.block.{i}.layer.0.SelfAttention.q.weight',
+                f'{prefix}decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.block.{i}.layer.0.SelfAttention.k.weight',
+                f'{prefix}decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.block.{i}.layer.0.SelfAttention.v.weight',
+                f'{prefix}decoderLayer.{i}.multiHeadAttention.o.weight': f'decoder.block.{i}.layer.0.SelfAttention.o.weight',
+                f'{prefix}decoderLayer.{i}.layerNorm1.weight': f'decoder.block.{i}.layer.0.layer_norm.weight',
+
+                f'{prefix}decoderLayer.{i}.crossAttention.q.weight': f'decoder.block.{i}.layer.1.EncDecAttention.q.weight',
+                f'{prefix}decoderLayer.{i}.crossAttention.k.weight': f'decoder.block.{i}.layer.1.EncDecAttention.k.weight',
+                f'{prefix}decoderLayer.{i}.crossAttention.v.weight': f'decoder.block.{i}.layer.1.EncDecAttention.v.weight',
+                f'{prefix}decoderLayer.{i}.crossAttention.o.weight': f'decoder.block.{i}.layer.1.EncDecAttention.o.weight',
+                f'{prefix}decoderLayer.{i}.layerNorm3.weight': f'decoder.block.{i}.layer.1.layer_norm.weight',
+
+                f'{prefix}decoderLayer.{i}.feedForward.outputDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wo.weight',
+                f'{prefix}decoderLayer.{i}.layerNorm2.weight': f'decoder.block.{i}.layer.2.layer_norm.weight',
+                })
+
+            if self.version.endswith('t5.1.0'):
+                mapping.update({f'{prefix}decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi.weight'})
+            elif self.version.endswith('t5.1.1'):
+                mapping.update({f'{prefix}decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi_0.weight',
+                                f'{prefix}decoderLayer.{i}.feedForward.intermediateDense1.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi_1.weight'})
+        return mapping
+
+
+class T5(Transformer):
+    """Google的T5模型（Encoder-Decoder）
+    """
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
+        super(T5, self).__init__(*args, **kwargs)
+
+        # encoder
+        self.encoder = T5_Encoder(*args, **kwargs)
+        self.encoder.build(**kwargs)
+
+        # decoder
+        self.decoder = T5_Decoder(*args, **kwargs)
+        self.decoder.build(**kwargs)
+
+    def load_variable(self, state_dict, name, prefix=''):
+        """加载单个变量的函数
+        """
+        variable = state_dict[name]
+        if name in {'encoder.embed_tokens.weight', f'decoder.embed_tokens.weight'}:
+            return self.load_embeddings(variable)
+        else:
+            return variable
+
+    def variable_mapping(self, prefix=''):
+        mapping = self.encoder.variable_mapping(prefix='encoder.')
+        mapping.update(self.decoder.variable_mapping(prefix='decoder.'))
+        return mapping
+
 
 def build_transformer_model(
         config_path=None,
@@ -980,18 +1123,6 @@ def build_transformer_model(
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
     
-    # bart单独处理下
-    if isinstance(model, str) and model=='bart':
-        configs['hidden_size'] = configs.get('d_model') if 'hidden_size' not in configs else configs['hidden_size']
-        # 这里也可以用 decoder_attention_heads
-        configs['num_attention_heads'] = configs.get('encoder_attention_heads') if 'num_attention_heads' not in configs else configs['num_attention_heads']
-        # 这里也可以用 decoder_ffn_dim
-        configs['intermediate_size'] = configs.get('encoder_ffn_dim') if 'intermediate_size' not in configs else configs['intermediate_size']
-        configs['hidden_act'] = configs.get('activation_function', 'gelu')
-        configs['max_position'] = configs.get('max_position_embeddings', 512) + 2
-        configs['dropout_rate'] = configs.get('dropout')
-        configs['attention_probs_dropout_prob'] = configs.get('attention_dropout')
-
     models = {
         'bert': BERT,
         'roberta': BERT,  
@@ -1005,10 +1136,24 @@ def build_transformer_model(
         'gpt': GPT,
         'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
+        't5': T5,
+        't5_encoder': T5_Encoder,
+        't5_decoder': T5_Decoder,
+        't5.1.0': T5,
+        't5.1.0_encoder': T5_Encoder,
+        't5.1.0_decoder': T5_Decoder,
+        't5.1.1': T5,
+        't5.1.1_encoder': T5_Encoder,
+        't5.1.1_decoder': T5_Decoder,
+        'mt5.1.1': T5,
+        'mt5.1.1_encoder': T5_Encoder,
+        'mt5.1.1_decoder': T5_Decoder,
     }
 
     if isinstance(model, str):  # string表示使用自带的模型
         MODEL = models[model.lower()]
+        if model.endswith('t5.1.1'):
+            configs['version'] = model
     elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
         MODEL = model
     else:
@@ -1032,56 +1177,6 @@ def build_transformer_model(
         return transformer, configs
     else:
         return transformer
-
-
-class LM_Mask(object):
-    """定义下三角Attention Mask（语言模型用）
-    """
-    def compute_attention_bias(self, inputs=None):
-        """通过idxs序列的比较来得到对应的mask
-        """
-        seq_len = inputs[0].shape[1]
-        attention_bias = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.long, device=inputs[0].device), diagonal=0)
-        self.attention_bias = attention_bias.unsqueeze(0).unsqueeze(1)
-        return self.attention_bias
-
-def extend_with_language_model(InputModel):
-    """添加下三角的Attention Mask（语言模型用）
-    """
-    class LanguageModel(LM_Mask, InputModel):
-        """带下三角Attention Mask的派生模型
-        """
-        def __init__(self, *args, **kwargs):
-            super(LanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
-
-    return LanguageModel
-
-class UniLM_Mask(object):
-    """定义UniLM的Attention Mask（Seq2Seq模型用）
-    其中source和target的分区，由segment_ids来表示。
-    UniLM: https://arxiv.org/abs/1905.03197
-    """
-    def compute_attention_bias(self, inputs=None):
-        """通过idxs序列的比较来得到对应的mask
-        """
-        segment_ids = inputs[1]
-        attention_bias = torch.cumsum(segment_ids, dim=1)
-        attention_bias = (attention_bias.unsqueeze(1)) <= (attention_bias.unsqueeze(2))
-        self.attention_bias = attention_bias.unsqueeze(1).long()
-
-        return self.attention_bias
-
-def extend_with_unified_language_model(InputModel):
-    """添加UniLM的Attention Mask（Seq2Seq模型用）
-    """
-    class UnifiedLanguageModel(UniLM_Mask, InputModel):
-        """带UniLM的Attention Mask的派生模型
-        UniLM: https://arxiv.org/abs/1905.03197
-        """
-        def __init__(self, *args, **kwargs):
-            super(UnifiedLanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
-
-    return UnifiedLanguageModel
 
 
 class GPT(LM_Mask, BERT):
@@ -1154,6 +1249,7 @@ class GPT2(LM_Mask, BERT):
     
     class Gpt2Layer(BertLayer):
         '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用
+        顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -1200,6 +1296,7 @@ class GPT2_ML(LM_Mask, BERT):
 
     class Gpt2MlLayer(BertLayer):
         '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用
+        顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)

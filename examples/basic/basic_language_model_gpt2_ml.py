@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：中文GPT模型，base版本，华为开源的
-# 权重链接: https://pan.baidu.com/s/1-FB0yl1uxYDCGIRvU1XNzQ 提取码: xynn，这里使用的是转pytorch后的模型文件
-# 参考项目：https://github.com/bojone/chinese-gen
+# 基本测试：gpt2_ml的效果测试
+# 项目链接(tf版本)：https://github.com/imcaspar/gpt2-ml
+# 权重需转换后方可加载，转换脚本见convert_script文件夹
 
 import torch
 from bert4torch.models import build_transformer_model

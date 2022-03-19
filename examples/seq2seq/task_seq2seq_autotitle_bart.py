@@ -22,7 +22,7 @@ batch_size = 12
 epochs = 10000
 
 # bert配置
-config_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/config.json'
+config_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/bert4torch_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

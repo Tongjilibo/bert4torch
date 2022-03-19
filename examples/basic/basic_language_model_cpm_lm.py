@@ -2,6 +2,7 @@
 # 基本测试：清华开源的中文GPT2模型（26亿参数）
 # 项目链接：https://github.com/TsinghuaAI/CPM-Generate
 # 博客介绍：https://kexue.fm/archives/7912
+# 权重需转换后方可加载，转换脚本见convert_script文件夹
 
 import numpy as np
 from bert4torch.models import build_transformer_model
@@ -18,7 +19,7 @@ spm_path = 'F:/Projects/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b/chinese
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def pre_tokenize(text):
-    """分词前处理函数
+    """分词前处理函数，'\n'替换成'▃', ' '替换成'▂'
     """
     return [
         w.replace(' ', u'\u2582').replace('\n', u'\u2583')
@@ -31,7 +32,7 @@ tokenizer = SpTokenizer(
     token_start=None,
     token_end=None,
     pre_tokenize=pre_tokenize,
-    token_translate={u'\u2583': '<cls>'}
+    token_translate={u'\u2583': '<cls>'}  # '\n'替换成<cls>
 )  # 建立分词器
 
 model = build_transformer_model(
