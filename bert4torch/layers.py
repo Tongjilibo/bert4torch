@@ -33,6 +33,10 @@ class LayerNorm(nn.Module):
         u = inputs.mean(-1, keepdim=True)
         s = (inputs - u).pow(2).mean(-1, keepdim=True)
         o = (inputs - u) / torch.sqrt(s + self.eps)
+        # 在t5模型时候debug时候官方使用到的，测试下来和上述表现一致
+        # self.eps = 1e-6
+        # variance = inputs.to(torch.float32).pow(2).mean(-1, keepdim=True)
+        # o = inputs * torch.rsqrt(variance + self.eps)
 
         if not hasattr(self, 'bias'):
             self.bias = 0
@@ -179,7 +183,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
 
 class PositionWiseFeedForward(nn.Module):
-    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=True):
+    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=False):
         # 原生的tf版本的bert在激活函数后，没有添加dropout层，但是在google AI的bert-pytorch开源项目中，多了一层dropout；
         # 并且在pytorch官方的TransformerEncoderLayer的实现中，也有一层dropout层，就像这样：self.linear2(self.dropout(self.activation(self.linear1(src))))；
         # 这样不统一做法的原因不得而知，不过有没有这一层，差别可能不会很大；
@@ -217,7 +221,7 @@ class BertEmbeddings(nn.Module):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
-        if max_position > 0: # Embeddings时候包含位置编码
+        if kwargs.get('p_bias') is not None: # Embeddings时候包含位置编码
             self.position_embeddings = nn.Embedding(max_position, embedding_size)
         if (segment_vocab_size > 0) and (not shared_segment_embeddings):
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
@@ -229,10 +233,6 @@ class BertEmbeddings(nn.Module):
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
 
     def forward(self, token_ids, segment_ids=None, conditional_emb=None):
-        seq_length = token_ids.size(1)
-        position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
-        position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
-
         words_embeddings = self.word_embeddings(token_ids)
 
         if hasattr(self, 'segment_embeddings'):
@@ -247,6 +247,9 @@ class BertEmbeddings(nn.Module):
             embeddings = words_embeddings
         
         if hasattr(self, 'position_embeddings'):
+            seq_length = token_ids.size(1)
+            position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
 
@@ -274,7 +277,7 @@ class BertLayer(nn.Module):
         self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
         self.dropout1 = nn.Dropout(dropout_rate)
         self.layerNorm1 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size)
-        self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, hidden_act, is_dropout=is_dropout)
+        self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout)
         self.dropout2 = nn.Dropout(dropout_rate)
         self.layerNorm2 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size)
         self.is_decoder = kwargs.get('is_decoder')

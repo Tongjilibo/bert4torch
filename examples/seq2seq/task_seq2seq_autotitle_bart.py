@@ -1,6 +1,5 @@
 #! -*- coding: utf-8 -*-
 # bert做Seq2Seq任务，采用encoder-decoder方案
-# 训练时候收敛较慢，比unilm方案慢不少
 
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer, load_vocab
@@ -59,31 +58,13 @@ def collate_fn(batch):
 train_dataloader = DataLoader(ListDataset(glob.glob('F:/Projects/data/corpus/文本分类/THUCNews/*/*.txt')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
-class Model(BaseModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 只保留keep_tokens中的字，精简原字表
-        self.seq2seq_model = build_transformer_model(config_path, checkpoint_path, model='bart', keep_tokens=keep_tokens, segment_vocab_size=0)
-        self.tgt_word_prj = nn.Linear(768, len(token_dict), bias=True)
-        nn.init.xavier_normal_(self.tgt_word_prj.weight)
-
-        if kwargs.get('tgt_emb_prj_weight_sharing'):
-            # decoder底层的embedding和顶层的全连接共享
-            self.tgt_word_prj.weight = self.tgt_embeddings.word_embeddings.weight
-            self.x_logit_scale = (768 ** -0.5)
-        else:
-            self.x_logit_scale = 1.
-    def forward(self, inputs):
-        decoder_hidden_state = self.seq2seq_model(inputs)
-        y_pred = self.tgt_word_prj(decoder_hidden_state)
-        return y_pred
-
-model = Model().to(device)
+model = build_transformer_model(config_path, checkpoint_path, model='bart', keep_tokens=keep_tokens, segment_vocab_size=0).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-    def forward(self, y_pred, y_true):
+    def forward(self, outputs, y_true):
+        _, _, y_pred = outputs
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1.5e-5))
@@ -94,7 +75,7 @@ class AutoTitle(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids = inputs[0]
-        return model.predict([[token_ids], [output_ids]])[:, -1, :]  # 保留最后一位
+        return model.predict([[token_ids], [output_ids]])[-1][:, -1, :]  # 保留最后一位
 
     def generate(self, text, topk=1, topp=0.95):
         token_ids, _ = tokenizer.encode(text, maxlen=max_c_len)

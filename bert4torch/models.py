@@ -1,3 +1,5 @@
+from wsgiref.validate import ErrorWrapper
+from sympy import re
 import torch
 import torch.nn as nn
 import copy
@@ -9,7 +11,7 @@ from bert4torch.activations import get_activation
 
 
 class BaseModel(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         super(BaseModel, self).__init__()
     
     def compile(self, loss, optimizer, scheduler=None, metrics=None, adversarial_train={'name': ''}):
@@ -168,7 +170,7 @@ class BERT_BASE(BaseModel):
             hierarchical_position=None,  # 是否层次分解位置编码
             **kwargs
     ):
-        super(BERT_BASE, self).__init__(**kwargs)
+        super(BERT_BASE, self).__init__()
         if keep_tokens is not None:
             vocab_size = len(keep_tokens)
         if compound_tokens is not None:
@@ -392,9 +394,12 @@ def extend_with_unified_language_model(InputModel):
     return UnifiedLanguageModel
 
 
-####################################################################################
-#       bert                                                                       #
-####################################################################################
+def get_kw(cls, kwargs):
+    kwargs_new = {}
+    for k in kwargs:
+        if k not in vars(cls):
+            kwargs_new[k] = kwargs[k]
+    return kwargs_new
 
 class BERT(BERT_BASE):
     """构建BERT模型
@@ -412,6 +417,7 @@ class BERT(BERT_BASE):
             custom_attention_mask=False, # 是否自行传入attention_mask
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
             layer_norm_cond=None,  # conditional layer_norm
+            is_dropout=False,
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
@@ -424,12 +430,15 @@ class BERT(BERT_BASE):
         self.custom_position_ids = custom_position_ids
         self.custom_attention_mask = custom_attention_mask
         self.shared_segment_embeddings = shared_segment_embeddings
+        self.is_dropout = is_dropout
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
         self.layer_norm_conds = layer_norm_cond
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, self.dropout_rate, self.conditional_size)
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, 
+                                         self.dropout_rate, self.conditional_size, **get_kw(self, kwargs))
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
+                          is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(self, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         if self.with_pool:
             # Pooler部分（提取CLS向量）
@@ -625,7 +634,7 @@ class BERT(BERT_BASE):
 class ALBERT(BERT):
     def __init__(self, *args, **kwargs):
         super(ALBERT, self).__init__(*args, **kwargs)
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([layer])
 
     def apply_main_layers(self, inputs):
@@ -712,7 +721,7 @@ class ALBERT(BERT):
 class ALBERT_Unshared(ALBERT):
     def __init__(self, *args, **kwargs):
         super(ALBERT_Unshared).__init__(*args, **kwargs)
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
     def apply_main_layers(self, inputs):
@@ -745,7 +754,7 @@ class NEZHA(BERT):
         self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
                                          self.dropout_rate, self.conditional_size)
         config = {'p_bias': 'typical_relative', 'max_position_embeddings': self.max_position, 'max_relative_position': kwargs.get('max_relative_position')}
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
                             conditional_size=self.conditional_size, **config)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
@@ -760,7 +769,7 @@ class RoFormer(BERT):
         self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
                                          self.dropout_rate, self.conditional_size)
         config = {'p_bias': 'rotary', 'max_position_embeddings': self.max_position}
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
                             conditional_size=self.conditional_size, **config)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
@@ -813,12 +822,22 @@ class Encoder(BERT):
 
 
 class Decoder(LM_Mask, BERT):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, with_lm=True, tgt_emb_prj_weight_sharing=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         super().__init__(*args, **kwargs)
         del self.encoderLayer
-        dec_layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size, is_decoder=True)
+        dec_layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
         self.decoderLayer = nn.ModuleList([copy.deepcopy(dec_layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.with_lm = with_lm
+
+        # 从hidden_states映射到logit
+        if self.with_lm:
+            self.final_dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+            if tgt_emb_prj_weight_sharing:  # decoder底层的embedding和顶层的全连接共享
+                self.final_dense.weight = self.embeddings.word_embeddings.weight
+                self.x_logit_scale = (self.hidden_size ** -0.5)
+            else:
+                self.x_logit_scale = 1.
 
     def apply_main_layers(self, inputs):
         """Dencoder主体是基于Self-Attention、Cross-Attention的模块
@@ -833,6 +852,15 @@ class Decoder(LM_Mask, BERT):
         if not self.output_all_encoded_layers:
             decoded_layers.append(hidden_states)
         return [decoded_layers, conditional_emb]
+    
+    def apply_final_layers(self, inputs):
+        outputs = []
+        hidden_states =  super().apply_final_layers(inputs)  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
+        outputs.append(hidden_states)
+        if self.with_lm:
+            logits = self.final_dense(hidden_states) * self.x_logit_scale # outputs为[btz, seq_len, vocab_size]的logits
+            outputs.append(logits)
+        return outputs
 
 
 class Transformer(BERT_BASE):
@@ -862,23 +890,23 @@ class Transformer(BERT_BASE):
 
         # encoder
         encoder_emb = self.encoder.apply_embeddings(encoder_input)
-        encode_outputs, _ = self.encoder.apply_main_layers(encoder_emb)
-        encoder_hidden_state = encode_outputs[-1]
+        encode_outputs = self.encoder.apply_main_layers(encoder_emb)
+        encoder_hidden_state = self.encoder.apply_final_layers(encode_outputs)
         encoder_attention_mask = encoder_emb[1]
 
         # decoder
         decoder_emb = self.decoder.apply_embeddings(decoder_input)
-        decoder_outputs, _ = self.decoder.apply_main_layers([*decoder_emb, encoder_hidden_state, encoder_attention_mask])
-        decoder_hidden_state = decoder_outputs[-1]
+        decoder_outputs = self.decoder.apply_main_layers([*decoder_emb, encoder_hidden_state, encoder_attention_mask])
+        decoder_outputs = self.decoder.apply_final_layers(decoder_outputs) # [hidden_states, logits]
 
-        return decoder_hidden_state
+        return [encoder_hidden_state] + decoder_outputs  # 输出encoder_hidden_state和decoder_hidden_state，以应对一些多任务情况
 
 
 class BART(Transformer):
     '''encoder-decoder结构
     '''
-    def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
-        super(BART, self).__init__(*args, emb_src_tgt_weight_sharing=False, **kwargs)
+    def __init__(self, *args, emb_src_tgt_weight_sharing=True, **kwargs):
+        super(BART, self).__init__(*args, emb_src_tgt_weight_sharing=emb_src_tgt_weight_sharing, **kwargs)
         self.emb_src_tgt_weight_sharing = emb_src_tgt_weight_sharing
 
     def load_variable(self, state_dict, name, prefix=''):
@@ -904,9 +932,9 @@ class BART(Transformer):
             'encoder.embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
             'encoder.embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
             'decoder.embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'decoder.embed_tokens.weight',
-            'decoder.embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
-            'decoder.embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
-            'decoder.embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
+            'decoder.embeddings.position_embeddings.weight': 'decoder.embed_positions.weight',
+            'decoder.embeddings.layerNorm.weight': 'decoder.layernorm_embedding.weight',
+            'decoder.embeddings.layerNorm.bias': 'decoder.layernorm_embedding.bias',
         }
         for i in range(self.num_hidden_layers):
             mapping.update(
@@ -969,13 +997,17 @@ class T5_Encoder(Encoder):
         # 第一层有相对位置编码，后面层无相对位置编码
         config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position}
         relative_attention_num_buckets = kwargs.get('relative_attention_num_buckets')
-        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
+        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
                             conditional_size=self.conditional_size, relative_attention_num_buckets=relative_attention_num_buckets, **config)
-        self.encoderLayer = nn.ModuleList([layer])
-        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
-                    conditional_size=self.conditional_size, relative_attention_num_buckets=relative_attention_num_buckets)
-        self.encoderLayer.extend(nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers-1)]))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
+        for i in range(1, self.num_hidden_layers):  # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+            self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
+        self.dropout = nn.Dropout(self.dropout_rate)
+
+    def apply_final_layers(self, inputs):
+        hidden_states = super().apply_final_layers(inputs)
+        return self.dropout(self.final_layer_norm([hidden_states]))
 
     def load_variable(self, state_dict, name, prefix=''):
         """加载单个变量的函数
@@ -1020,21 +1052,24 @@ class T5_Decoder(Decoder):
                                          self.dropout_rate, self.conditional_size)
         del self.embeddings.layerNorm
         # 第一层有相对位置编码，后面层无相对位置编码
-        config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position}
-        relative_attention_num_buckets = kwargs.get('relative_attention_num_buckets')
-        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
-                            conditional_size=self.conditional_size, is_decoder=True, relative_attention_num_buckets=relative_attention_num_buckets, **config)
-        self.decoderLayer = nn.ModuleList([layer])
-        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, 
-                    conditional_size=self.conditional_size, is_decoder=True, relative_attention_num_buckets=relative_attention_num_buckets)
-        self.decoderLayer.extend(nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers-1)]))
+        config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position, 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets')}
+        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
+                            conditional_size=self.conditional_size, is_decoder=True, **config)
+        self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
+        for i in range(1, self.num_hidden_layers):  # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+            self.decoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.decoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
+        self.dropout = nn.Dropout(self.dropout_rate)
+
+    def apply_final_layers(self, inputs):
+        inputs[0][1] = self.dropout(self.final_layer_norm([inputs[0][1]]))  # 在转logit前把最后一层的hidden_states加layernorm
+        return super().apply_final_layers(inputs)
 
     def load_variable(self, state_dict, name, prefix=''):
         """加载单个变量的函数
         """
         variable = state_dict[name]
-        if name in {f'decoder.embed_tokens.weight'}:
+        if name in {f'decoder.embed_tokens.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -1043,7 +1078,8 @@ class T5_Decoder(Decoder):
         # 查看check_point发现'shared.weight'
         mapping = {f'{prefix}embeddings.word_embeddings.weight': 'decoder.embed_tokens.weight',
                    f'{prefix}decoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
-                   f'{prefix}final_layer_norm.weight': 'decoder.final_layer_norm.weight'}
+                   f'{prefix}final_layer_norm.weight': 'decoder.final_layer_norm.weight',
+                   f'{prefix}final_dense.weight': 'lm_head.weight'}
 
         for i in range(self.num_hidden_layers):
             mapping.update(
@@ -1091,7 +1127,7 @@ class T5(Transformer):
         """加载单个变量的函数
         """
         variable = state_dict[name]
-        if name in {'encoder.embed_tokens.weight', f'decoder.embed_tokens.weight'}:
+        if name in {'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -1224,7 +1260,7 @@ class GPT2(LM_Mask, BERT):
         """
         super(GPT2, self).__init__(max_position, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
@@ -1274,7 +1310,7 @@ class GPT2_ML(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, max_position, **kwargs):
         super().__init__(max_position, **kwargs)
-        layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
