@@ -18,6 +18,7 @@ model = build_transformer_model(config_path, checkpoint_path, with_mlm=True)  # 
 
 token_ids, segments_ids = tokenizer.encode("科学技术是第一生产力")
 token_ids[3] = token_ids[4] = tokenizer._token_mask_id
+print(''.join(tokenizer.ids_to_tokens(token_ids)))
 
 tokens_ids_tensor = torch.tensor([token_ids])
 segment_ids_tensor = torch.tensor([segments_ids])

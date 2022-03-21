@@ -394,10 +394,11 @@ def extend_with_unified_language_model(InputModel):
     return UnifiedLanguageModel
 
 
+import inspect
 def get_kw(cls, kwargs):
     kwargs_new = {}
     for k in kwargs:
-        if k not in vars(cls):
+        if k not in set(inspect.getargspec(cls)[0]):
             kwargs_new[k] = kwargs[k]
     return kwargs_new
 
@@ -436,9 +437,10 @@ class BERT(BERT_BASE):
         self.layer_norm_conds = layer_norm_cond
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
         self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size, **get_kw(self, kwargs))
+                                         self.dropout_rate, self.conditional_size, **get_kw(BertEmbeddings, kwargs))
+        kwargs['max_position'] = self.max_position  # 相对位置编码需要使用    
         layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                          is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(self, kwargs))
+                          is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         if self.with_pool:
             # Pooler部分（提取CLS向量）
@@ -634,8 +636,7 @@ class BERT(BERT_BASE):
 class ALBERT(BERT):
     def __init__(self, *args, **kwargs):
         super(ALBERT, self).__init__(*args, **kwargs)
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
-        self.encoderLayer = nn.ModuleList([layer])
+        self.encoderLayer = nn.ModuleList([self.encoderLayer[0]])  # 取上述的第一行
 
     def apply_main_layers(self, inputs):
         """BERT的主体是基于Self-Attention的模块
@@ -721,8 +722,7 @@ class ALBERT(BERT):
 class ALBERT_Unshared(ALBERT):
     def __init__(self, *args, **kwargs):
         super(ALBERT_Unshared).__init__(*args, **kwargs)
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(self.encoderLayer[0]) for _ in range(self.num_hidden_layers)])
 
     def apply_main_layers(self, inputs):
         """BERT的主体是基于Self-Attention的模块
@@ -749,14 +749,8 @@ class NEZHA(BERT):
     链接：https://arxiv.org/abs/1909.00204
     """
     def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'typical_relative', 'max_relative_position': kwargs.get('max_relative_position')})  # p_bias来控制embedding阶段无pos_embedding
         super(NEZHA, self).__init__(*args, **kwargs)
-        # 通过max_position=0控制在embedding阶段无位置编码
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size)
-        config = {'p_bias': 'typical_relative', 'max_position_embeddings': self.max_position, 'max_relative_position': kwargs.get('max_relative_position')}
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
-                            conditional_size=self.conditional_size, **config)
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
 
 class RoFormer(BERT):
@@ -764,14 +758,8 @@ class RoFormer(BERT):
     链接：https://kexue.fm/archives/8265
     """
     def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'rotary'})
         super(RoFormer, self).__init__(*args, **kwargs)
-        # 通过max_position=0控制在embedding阶段无位置编码
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size)
-        config = {'p_bias': 'rotary', 'max_position_embeddings': self.max_position}
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
-                            conditional_size=self.conditional_size, **config)
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
 
 class ELECTRA(BERT):
@@ -824,10 +812,10 @@ class Encoder(BERT):
 class Decoder(LM_Mask, BERT):
     def __init__(self, *args, with_lm=True, tgt_emb_prj_weight_sharing=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
+        kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
+        self.decoderLayer = self.encoderLayer
         del self.encoderLayer
-        dec_layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
-        self.decoderLayer = nn.ModuleList([copy.deepcopy(dec_layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.with_lm = with_lm
 
         # 从hidden_states映射到logit
@@ -989,18 +977,17 @@ class BART(Transformer):
 class T5_Encoder(Encoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets')})  # p_bias来控制embedding阶段无pos_embedding
         super().__init__(*args, **kwargs)
-        # 通过max_position=0控制在embedding阶段无位置编码
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size)
         del self.embeddings.layerNorm
-        # 第一层有相对位置编码，后面层无相对位置编码
-        config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position}
-        relative_attention_num_buckets = kwargs.get('relative_attention_num_buckets')
+
+        # t5的layernorm都在前面，因此重新定义了下
         layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
-                            conditional_size=self.conditional_size, relative_attention_num_buckets=relative_attention_num_buckets, **config)
+                            conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
-        for i in range(1, self.num_hidden_layers):  # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+
+        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        for i in range(1, self.num_hidden_layers):
             self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
         self.dropout = nn.Dropout(self.dropout_rate)
@@ -1046,17 +1033,17 @@ class T5_Encoder(Encoder):
 class T5_Decoder(Decoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets')})  # p_bias来控制embedding阶段无pos_embedding
         super().__init__(*args, **kwargs)
-        # 通过max_position=0控制在embedding阶段无位置编码
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, 0, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size)
         del self.embeddings.layerNorm
-        # 第一层有相对位置编码，后面层无相对位置编码
-        config = {'p_bias': 't5_relative', 'max_position_embeddings': self.max_position, 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets')}
+
+        # t5的layernorm都在前面，因此重新定义了下
         layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
-                            conditional_size=self.conditional_size, is_decoder=True, **config)
+                            conditional_size=self.conditional_size, is_decoder=True, **get_kw(BertLayer, kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
-        for i in range(1, self.num_hidden_layers):  # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        
+        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        for i in range(1, self.num_hidden_layers):
             self.decoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.decoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
         self.dropout = nn.Dropout(self.dropout_rate)
@@ -1112,7 +1099,7 @@ class T5(Transformer):
     """Google的T5模型（Encoder-Decoder）
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(T5, self).__init__(*args, **kwargs)
 
         # encoder

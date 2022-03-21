@@ -71,16 +71,16 @@ class MultiHeadAttentionLayer(nn.Module):
 
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
 
-        if self.p_bias == 'typical_relative':
-            self.relative_positions_encoding = RelativePositionsEncoding(qlen=kwargs.get('max_position_embeddings'),
-                                                                         klen=kwargs.get('max_position_embeddings'),
+        if self.p_bias == 'typical_relative':  # nezha
+            self.relative_positions_encoding = RelativePositionsEncoding(qlen=kwargs.get('max_position'),
+                                                                         klen=kwargs.get('max_position'),
                                                                          embedding_size=self.attention_head_size,
                                                                          max_relative_position=kwargs.get('max_relative_position'))
-        elif self.p_bias == 'rotary':
-            self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position_embeddings'), embedding_size=self.attention_head_size)
-        elif self.p_bias == 't5_relative':
-            self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position_embeddings'), 
-                                                                  klen=kwargs.get('max_position_embeddings'), 
+        elif self.p_bias == 'rotary':  # roformer
+            self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position'), embedding_size=self.attention_head_size)
+        elif self.p_bias == 't5_relative':  # t5
+            self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position'), 
+                                                                  klen=kwargs.get('max_position'), 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
                                                                   is_decoder=kwargs.get('is_decoder'))
             self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
@@ -124,7 +124,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
         # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
         if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
-            relations_keys = self.relative_positions_encoding(attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
+            relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
             # 旧实现，方便读者理解维度转换
             # query_layer_t = query_layer.permute(2, 0, 1, 3)
             # query_layer_r = query_layer_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
@@ -155,7 +155,7 @@ class MultiHeadAttentionLayer(nn.Module):
         context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
         if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
-            relations_values = self.relative_positions_encoding(attention_scores.shape[-1])
+            relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
             # 旧实现，方便读者理解维度转换
             # attention_probs_t = attention_probs.permute(2, 0, 1, 3)
             # attentions_probs_r = attention_probs_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, to_seq_length)
@@ -221,7 +221,7 @@ class BertEmbeddings(nn.Module):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
-        if kwargs.get('p_bias') is not None: # Embeddings时候包含位置编码
+        if (kwargs.get('p_bias') not in {'rotary', 'typical_relative', 't5_relative'}) and max_position > 0: # Embeddings时候包含位置编码
             self.position_embeddings = nn.Embedding(max_position, embedding_size)
         if (segment_vocab_size > 0) and (not shared_segment_embeddings):
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
