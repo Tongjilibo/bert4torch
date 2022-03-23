@@ -10,14 +10,17 @@ from bert4torch.activations import get_activation
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-12, conditional_size=False, bias=True):
+    def __init__(self, hidden_size, eps=1e-12, conditional_size=False, bias=True, mode='normal', **kwargs):
         """layernorm 层，这里自行实现，目的是为了兼容 conditianal layernorm，使得可以做条件文本生成、条件分类等任务
            条件layernorm来自于苏剑林的想法，详情：https://spaces.ac.cn/archives/7124
         """
         super(LayerNorm, self).__init__()
         self.weight = nn.Parameter(torch.ones(hidden_size))
-        if bias:  # 兼容t5不包含bias项
+        # 兼容t5不包含bias项, 和t5使用的RMSnorm
+        if bias:
             self.bias = nn.Parameter(torch.zeros(hidden_size))
+        self.mode = mode
+
         self.eps = eps
         self.conditional_size = conditional_size
         if conditional_size:
@@ -30,13 +33,15 @@ class LayerNorm(nn.Module):
 
     def forward(self, x):
         inputs = x[0]
-        u = inputs.mean(-1, keepdim=True)
-        s = (inputs - u).pow(2).mean(-1, keepdim=True)
-        o = (inputs - u) / torch.sqrt(s + self.eps)
-        # 在t5模型时候debug时候官方使用到的，测试下来和上述表现一致
-        # self.eps = 1e-6
-        # variance = inputs.to(torch.float32).pow(2).mean(-1, keepdim=True)
-        # o = inputs * torch.rsqrt(variance + self.eps)
+
+        if self.mode == 'rmsnorm':
+            # t5使用的是RMSnorm
+            variance = inputs.to(torch.float32).pow(2).mean(-1, keepdim=True)
+            o = inputs * torch.rsqrt(variance + self.eps)
+        else:
+            u = inputs.mean(-1, keepdim=True)
+            s = (inputs - u).pow(2).mean(-1, keepdim=True)
+            o = (inputs - u) / torch.sqrt(s + self.eps)
 
         if not hasattr(self, 'bias'):
             self.bias = 0
@@ -183,7 +188,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
 
 class PositionWiseFeedForward(nn.Module):
-    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=False):
+    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=False, **kwargs):
         # 原生的tf版本的bert在激活函数后，没有添加dropout层，但是在google AI的bert-pytorch开源项目中，多了一层dropout；
         # 并且在pytorch官方的TransformerEncoderLayer的实现中，也有一层dropout层，就像这样：self.linear2(self.dropout(self.activation(self.linear1(src))))；
         # 这样不统一做法的原因不得而知，不过有没有这一层，差别可能不会很大；
@@ -307,22 +312,36 @@ class T5Layer(BertLayer):
     """T5的Encoder的主体是基于Self-Attention的模块
     顺序：LN --> Att --> Add --> LN --> FFN --> Add
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, version='t5.1.0', **kwargs):
         super().__init__(*args, **kwargs)
+        # 定义RMSnorm层
+        self.layerNorm1 = LayerNorm(hidden_size=args[0], eps=1e-12, bias=False, mode='rmsnorm', **kwargs)
+        self.layerNorm2 = LayerNorm(hidden_size=args[0], eps=1e-12, bias=False, mode='rmsnorm', **kwargs)
+
+        # 删除对应的bias项
         self.multiHeadAttention.q.register_parameter('bias', None)
         self.multiHeadAttention.k.register_parameter('bias', None)
         self.multiHeadAttention.v.register_parameter('bias', None)
         self.multiHeadAttention.o.register_parameter('bias', None)
-        del self.layerNorm1.bias
-        del self.layerNorm2.bias
-        self.feedForward.outputDense.register_parameter('bias', None)
-        self.feedForward.intermediateDense.register_parameter('bias', None)
+
+        # 如果是t5.1.1结构，则FFN层需要变更
+        if version.endswith('t5.1.0'):
+            self.feedForward.outputDense.register_parameter('bias', None)
+            self.feedForward.intermediateDense.register_parameter('bias', None)
+        elif version.endswith('t5.1.1'):
+            kwargs['dropout_rate'] = args[2]
+            kwargs['hidden_act'] = args[5]
+            self.feedForward = self.T5PositionWiseFeedForward(hidden_size=args[0], intermediate_size=args[4], **kwargs)
+        else:
+            raise ValueError('T5 model only support t5.1.0 and t5.1.1')
+
+        # decoder中间有crossAttention
         if self.is_decoder:
+            self.layerNorm3 = LayerNorm(hidden_size=args[0], eps=1e-12, bias=False, mode='rmsnorm', **kwargs)
             self.crossAttention.q.register_parameter('bias', None)
             self.crossAttention.k.register_parameter('bias', None)
             self.crossAttention.v.register_parameter('bias', None)
             self.crossAttention.o.register_parameter('bias', None)
-            del self.layerNorm3.bias
             if hasattr(self.crossAttention, 'relative_positions_encoding'):
                 del self.crossAttention.relative_positions_encoding
                 del self.crossAttention.relative_positions
@@ -343,6 +362,27 @@ class T5Layer(BertLayer):
         ffn_output = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(ffn_output)
         return hidden_states
+
+    class T5PositionWiseFeedForward(PositionWiseFeedForward):
+        def __init__(self, hidden_size, intermediate_size, **kwargs):
+            super().__init__(hidden_size, intermediate_size, **kwargs)
+            self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=False)
+            self.intermediateDense1 = nn.Linear(hidden_size, intermediate_size, bias=False)
+            self.outputDense = nn.Linear(intermediate_size, hidden_size, bias=False)
+
+        def forward(self, x):
+            # x shape: (batch size, seq len, hidden_size)
+            x_gelu = self.intermediate_act_fn(self.intermediateDense(x))
+            x_linear = self.intermediateDense1(x)
+            x = x_gelu * x_linear
+            if self.is_dropout:
+                x = self.dropout(x)
+
+            # x shape: (batch size, seq len, intermediate_size)
+            x = self.outputDense(x)
+
+            # x shape: (batch size, seq len, hidden_size)
+            return x
 
 
 class Identity(nn.Module):

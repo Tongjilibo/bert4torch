@@ -1,3 +1,4 @@
+from turtle import forward
 from wsgiref.validate import ErrorWrapper
 from sympy import re
 import torch
@@ -419,6 +420,7 @@ class BERT(BERT_BASE):
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
             layer_norm_cond=None,  # conditional layer_norm
             is_dropout=False,
+            token_pad_ids=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
@@ -432,6 +434,7 @@ class BERT(BERT_BASE):
         self.custom_attention_mask = custom_attention_mask
         self.shared_segment_embeddings = shared_segment_embeddings
         self.is_dropout = is_dropout
+        self.token_pad_ids = token_pad_ids
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
         self.layer_norm_conds = layer_norm_cond
@@ -500,8 +503,10 @@ class BERT(BERT_BASE):
             attention_mask = inputs[index_]
             index_ += 1
         else:
-            attention_mask = (token_ids != 0).long().unsqueeze(1).unsqueeze(2)  # 这里指定了0为mask_value
-        
+            attention_mask = (token_ids != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)  # 默认0为mask_value
+            if self.token_pad_ids < 0:
+                token_ids = token_ids * attention_mask[:,0,0,:]
+
         self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
         if self.attention_bias is not None:
             attention_mask = attention_mask * self.attention_bias
@@ -515,10 +520,7 @@ class BERT(BERT_BASE):
         else:
             conditional_emb = self.layer_norm_conds(inputs[index_])
         hidden_states = self.embeddings(token_ids, segment_ids, conditional_emb)
-        if len(inputs[index_:]) > 0:
-            return hidden_states, attention_mask, conditional_emb, inputs[index_:]
-        else:
-            return hidden_states, attention_mask, conditional_emb
+        return hidden_states, attention_mask, conditional_emb, *inputs[index_:]
 
     def apply_main_layers(self, inputs):
         """BERT的主体是基于Self-Attention的模块
@@ -807,6 +809,18 @@ class Encoder(BERT):
     def __init__(self, *args, **kwargs):
         kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
         super().__init__(*args, **kwargs)
+    
+    def forward(self, inputs):
+        """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
+        """
+        # Embedding
+        outputs = self.apply_embeddings(inputs)
+        encoder_attention_mask = [outputs[1]]
+        # Main
+        outputs = self.apply_main_layers(outputs)
+        # Final
+        outputs = self.apply_final_layers(outputs)
+        return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + encoder_attention_mask
 
 
 class Decoder(LM_Mask, BERT):
@@ -877,16 +891,17 @@ class Transformer(BERT_BASE):
         encoder_input, decoder_input = inputs[:2]
 
         # encoder
-        encoder_emb = self.encoder.apply_embeddings(encoder_input)
-        encode_outputs = self.encoder.apply_main_layers(encoder_emb)
-        encoder_hidden_state = self.encoder.apply_final_layers(encode_outputs)
-        encoder_attention_mask = encoder_emb[1]
+        # encoder_emb = self.encoder.apply_embeddings(encoder_input)
+        # encode_outputs = self.encoder.apply_main_layers(encoder_emb)
+        # encoder_hidden_state = self.encoder.apply_final_layers(encode_outputs)
+        # encoder_attention_mask = encoder_emb[1]
+        encoder_hidden_state, encoder_attention_mask = self.encoder(encoder_input)
 
         # decoder
-        decoder_emb = self.decoder.apply_embeddings(decoder_input)
-        decoder_outputs = self.decoder.apply_main_layers([*decoder_emb, encoder_hidden_state, encoder_attention_mask])
-        decoder_outputs = self.decoder.apply_final_layers(decoder_outputs) # [hidden_states, logits]
-
+        # decoder_emb = self.decoder.apply_embeddings(decoder_input)
+        # decoder_outputs = self.decoder.apply_main_layers([*decoder_emb, encoder_hidden_state, encoder_attention_mask])
+        # decoder_outputs = self.decoder.apply_final_layers(decoder_outputs) # [hidden_states, logits]
+        decoder_outputs = self.decoder(decoder_input + [encoder_hidden_state, encoder_attention_mask])
         return [encoder_hidden_state] + decoder_outputs  # 输出encoder_hidden_state和decoder_hidden_state，以应对一些多任务情况
 
 
@@ -977,7 +992,7 @@ class BART(Transformer):
 class T5_Encoder(Encoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets')})  # p_bias来控制embedding阶段无pos_embedding
+        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version})  # p_bias来控制embedding阶段无pos_embedding
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
 
@@ -989,7 +1004,7 @@ class T5_Encoder(Encoder):
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
-        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
+        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
 
     def apply_final_layers(self, inputs):
@@ -1000,7 +1015,7 @@ class T5_Encoder(Encoder):
         """加载单个变量的函数
         """
         variable = state_dict[name]
-        if name in {'encoder.embed_tokens.weight'}:
+        if name in {'encoder.embed_tokens.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -1033,7 +1048,7 @@ class T5_Encoder(Encoder):
 class T5_Decoder(Decoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets')})  # p_bias来控制embedding阶段无pos_embedding
+        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version})  # p_bias来控制embedding阶段无pos_embedding
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
 
@@ -1045,7 +1060,7 @@ class T5_Decoder(Decoder):
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.decoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.decoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
-        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False)
+        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
 
     def apply_final_layers(self, inputs):
@@ -1056,7 +1071,7 @@ class T5_Decoder(Decoder):
         """加载单个变量的函数
         """
         variable = state_dict[name]
-        if name in {f'decoder.embed_tokens.weight', 'lm_head.weight'}:
+        if name in {f'decoder.embed_tokens.weight', 'lm_head.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -1099,8 +1114,9 @@ class T5(Transformer):
     """Google的T5模型（Encoder-Decoder）
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args,  emb_src_tgt_weight_sharing=True, **kwargs):
         super(T5, self).__init__(*args, **kwargs)
+        self.emb_src_tgt_weight_sharing = emb_src_tgt_weight_sharing
 
         # encoder
         self.encoder = T5_Encoder(*args, **kwargs)
@@ -1114,7 +1130,7 @@ class T5(Transformer):
         """加载单个变量的函数
         """
         variable = state_dict[name]
-        if name in {'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'}:
+        if name in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -1122,6 +1138,9 @@ class T5(Transformer):
     def variable_mapping(self, prefix=''):
         mapping = self.encoder.variable_mapping(prefix='encoder.')
         mapping.update(self.decoder.variable_mapping(prefix='decoder.'))
+        if self.emb_src_tgt_weight_sharing:
+            mapping.update({'encoder.embeddings.word_embeddings.weight': 'shared.weight',
+                            'decoder.embeddings.word_embeddings.weight': 'shared.weight'})
         return mapping
 
 

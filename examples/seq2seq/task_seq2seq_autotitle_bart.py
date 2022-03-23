@@ -74,13 +74,15 @@ class AutoTitle(AutoRegressiveDecoder):
     """
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
-        token_ids = inputs[0]
-        return model.predict([[token_ids], [output_ids]])[-1][:, -1, :]  # 保留最后一位
+        return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
 
-    def generate(self, text, topk=1, topp=0.95):
+    def generate(self, text, topk=1):
         token_ids, _ = tokenizer.encode(text, maxlen=max_c_len)
-        output_ids = self.beam_search([token_ids], topk=topk)  # 基于beam search
+        token_ids = torch.tensor([token_ids], device=device)
+        encoder_output = model.encoder.predict([token_ids])
+        output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
+
 
 autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
 
@@ -107,10 +109,10 @@ class Evaluator(Callback):
 if __name__ == '__main__':
 
     evaluator = Evaluator()
-
+    just_show()
     model.fit(
         train_dataloader,
-        steps_per_epoch=500,
+        steps_per_epoch=100,
         epochs=epochs,
         callbacks=[evaluator]
     )

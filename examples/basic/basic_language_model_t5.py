@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 调用预训练的t5模型直接做预测
+# 调用预训练的t5-chinese模型直接做预测,使用的BertTokenizer
+# t5使用的是t5.1.0的结构
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -42,7 +43,7 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search([token_ids], topk=topk)  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
-autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=32, device=device)
+autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=1, maxlen=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
 
 if __name__ == '__main__':
     print(autotitle.generate('中国的首都是extra0京'))

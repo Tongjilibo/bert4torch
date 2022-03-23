@@ -555,12 +555,23 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
+    def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """beam search解码
         说明: 这里的topk即beam size；
         返回: 最优解码序列。
         """
-        inputs = [torch.tensor([i], device=self.device) for i in inputs]
+        inputs = []
+        for i in inputs_raw:
+            if isinstance(i, torch.torch.Tensor):
+                pass
+            elif isinstance(i, (list, tuple, np.ndarray)) and add_btz_dim:
+                i = torch.tensor([i], device=self.device)
+            elif isinstance(i, (list, tuple, np.ndarray)) and not add_btz_dim:
+                i = torch.tensor(i, device=self.device)
+            else:
+                raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
+            inputs.append(i)
+
         output_ids, output_scores = self.first_output_ids, torch.zeros(1, device=self.device)
         for step in range(self.maxlen):
             scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分

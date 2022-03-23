@@ -8,6 +8,7 @@
 - [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_CDial_GPT.py)：基础测试，测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
 - [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_ml.py)：基础测试，测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
 - [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_cpm_lm.py)：基础测试，测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
+- [basic_language_model_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5.py)：基础测试，测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)的生成效果。
 
 ### 文本表示
 - [task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
@@ -33,7 +34,9 @@
 ### 文本生成
 - [task_seq2seq_autotitle.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
 - [task_seq2seq_autotitle_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_bart.py)：任务例子，通过BART来做新闻标题生成
+- [task_seq2seq_autotitle_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_t5.py)：任务例子，通过T5来做新闻标题生成，用的[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)
 - [task_seq2seq_autotitle_csl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做论文标题生成。
+- [task_seq2seq_autotitle_csl_mt5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl_mt5.py)：任务例子，通过[google_mt](https://huggingface.co/google/mt5-base)的Seq2Seq模型来做论文标题生成。
 - [task_question_answer_generation_by_seq2seq.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_question_answer_generation_by_seq2seq.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做[问答对自动构建](https://kexue.fm/archives/7630)，属于自回归文本生成。
 - [task_reading_comprehension_by_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_reading_comprehension_by_mlm.py)：任务例子，通过MLM模型来做[阅读理解问答](https://kexue.fm/archives/7148)，属于简单的非自回归文本生成。
 - [task_reading_comprehension_by_seq2seq.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_reading_comprehension_by_seq2seq.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做[阅读理解问答](https://kexue.fm/archives/7115)，属于自回归文本生成。
