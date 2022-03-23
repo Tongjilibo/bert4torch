@@ -390,6 +390,8 @@ class Progbar(object):
 
 
 class Callback(object):
+    '''Callback基类
+    '''
     def __init__(self):
         pass
     def on_train_begin(self, logs=None):
