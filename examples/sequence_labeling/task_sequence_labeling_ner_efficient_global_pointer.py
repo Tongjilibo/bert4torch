@@ -4,13 +4,12 @@
 # 博客：https://kexue.fm/archives/8373
 
 import numpy as np
-import json
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from bert4torch.snippets import sequence_padding, Callback, get_sinusoid_encoding_table, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import RoPEPositionEncoding

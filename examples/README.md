@@ -44,6 +44,7 @@
 ### 序列标注
 - [task_sequence_labeling_ner_efficient_global_pointer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_efficient_global_pointer.py)：任务例子，ner例子，efficient_global_pointer的pytorch实现
 - [task_sequence_labeling_ner_global_pointer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_global_pointer.py)：任务例子，ner例子，global_pointer的pytorch实现
+- [task_sequence_labeling_ner_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_crf.py)：任务例子，ner例子，bert+crf
 
 ### 训练Trick
 - [task_iflytek_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflytek_adversarial_training.py)：任务例子，通过[对抗训练](https://kexue.fm/archives/7234)提升分类效果。
