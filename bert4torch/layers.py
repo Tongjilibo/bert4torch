@@ -690,3 +690,36 @@ class CRF(nn.Module):
         max_score = torch.gather(vec, 1, idx.view(-1, 1, m_size)).view(-1, 1, m_size)  # B * M
         return max_score.view(-1, m_size) + torch.log(torch.sum(
             torch.exp(vec - max_score.expand_as(vec)), 1)).view(-1, m_size)
+
+
+class BERT_WHITENING():
+    def __init__(self):
+        self.kernel = None
+        self.bias = None
+
+    def compute_kernel_bias(self, sentence_vec):
+        '''bert-whitening的torch实现
+        '''
+        vecs = torch.cat(sentence_vec, dim=0)
+        self.bias = -vecs.mean(dim=0, keepdims=True)
+
+        cov = torch.cov(vecs.T)  # 协方差
+        u, s, vh = torch.linalg.svd(cov)
+        W = torch.matmul(u, torch.diag(s**0.5))
+        self.kernel = torch.linalg.inv(W.T)
+    
+    def save_whiten(self, path):
+        whiten = {'kernel': self.kernel, 'bias': self.bias}
+        torch.save(path, whiten)
+        
+    def load_whiten(self, path):
+        whiten = torch.load(path)
+        self.kernel = whiten['kernel']
+        self.bias = whiten['bias']
+
+    def transform_and_normalize(self, vecs):
+        """应用变换，然后标准化
+        """
+        if not (self.kernel is None or self.bias is None):
+            vecs = (vecs + self.bias).mm(self.kernel)
+        return vecs / (vecs**2).sum(axis=1, keepdims=True)**0.5

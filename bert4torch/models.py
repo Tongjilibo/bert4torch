@@ -28,10 +28,11 @@ class BaseModel(nn.Module):
             metrics = []
         self.metrics = ['loss'] + metrics
         self.adversarial = adversarial_train
-
+        self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=[]):
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
+        self.total_steps = steps_per_epoch * epochs
 
         train_dataloader = cycle(train_dataloader)
         callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + callbacks
@@ -39,7 +40,7 @@ class BaseModel(nn.Module):
         for callback in callbacks:
             callback.on_train_begin()  #callback
 
-        global_step = 0
+        self.global_step = 0
         # 对抗训练
         if self.adversarial['name'] == 'fgm':
             ad_train = FGM(self)
@@ -57,8 +58,9 @@ class BaseModel(nn.Module):
         self.adversarial['alpha'] = self.adversarial.get('alpha', 0.3)
 
         for epoch in range(epochs):
+            self.epoch = epoch
             for callback in callbacks:
-                callback.on_epoch_begin(global_step, epoch, {})  # callback
+                callback.on_epoch_begin(self.global_step, epoch, {})  # callback
             for bti in range(steps_per_epoch):
                 batch = next(train_dataloader)
                 train_X, train_y = batch
@@ -74,7 +76,7 @@ class BaseModel(nn.Module):
                     raise ValueError('Input only support [list, tuple, tensor]')
                 logs = {'batch': bti, 'size': btz}
                 for callback in callbacks:
-                    callback.on_batch_begin(global_step, bti, logs)  # callback
+                    callback.on_batch_begin(self.global_step, bti, logs)  # callback
 
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
@@ -117,11 +119,11 @@ class BaseModel(nn.Module):
                 for metric in self.metrics[1:]:
                     logs[metric] = metric_mapping(metric, output, train_y)
                 for callback in callbacks:
-                    callback.on_batch_end(global_step, bti, logs)  #callback
+                    callback.on_batch_end(self.global_step, bti, logs)  #callback
 
-                global_step += 1
+                self.global_step += 1
             for callback in callbacks:
-                callback.on_epoch_end(global_step, epoch, logs)  #callback
+                callback.on_epoch_end(self.global_step, epoch, logs)  #callback
     
     def predict(self, input_tensor_list, return_all=None):
         self.eval()
