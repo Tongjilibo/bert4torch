@@ -13,8 +13,8 @@ from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
 import sys
 
-# task_name = sys.argv[1]
-task_name = 'STS-B'
+task_name = sys.argv[1]
+# task_name = 'STS-B'  # 直接测试使用
 assert task_name in ['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B']
 
 maxlen = 64 if task_name != 'PAWSX' else 128
