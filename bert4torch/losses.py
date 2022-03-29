@@ -53,24 +53,51 @@ class MultilabelCategoricalCrossentropy(nn.Module):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, y_pred, y_true):
-        """[summary]
-
-        Args:
-            y_true ([Tensor]): [btz, ner_vocab_size, seq_len, seq_len]
-            y_pred ([Tensor]): [btz, ner_vocab_size, seq_len, seq_len]
+        """ y_true ([Tensor]): [..., num_classes]
+            y_pred ([Tensor]): [..., num_classes]
         """
-        y_true = y_true.view(y_true.shape[0]*y_true.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
-        y_pred = y_pred.view(y_pred.shape[0]*y_pred.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
-
         y_pred = (1-2*y_true) * y_pred
         y_pred_pos = y_pred - (1-y_true) * 1e12
         y_pred_neg = y_pred - y_true * 1e12
 
-        y_pred_pos = torch.cat([y_pred_pos, torch.zeros(y_pred_pos.shape[0], 1, device=y_pred_pos.device)], dim=-1)
-        y_pred_neg = torch.cat([y_pred_neg, torch.zeros(y_pred_neg.shape[0], 1, device=y_pred_neg.device)], dim=-1)
+        y_pred_pos = torch.cat([y_pred_pos, torch.zeros_like(y_pred_pos[..., :1])], dim=-1)
+        y_pred_neg = torch.cat([y_pred_neg, torch.zeros_like(y_pred_neg[..., :1])], dim=-1)
         loss = torch.sum(torch.logsumexp(y_pred_pos, 1) + torch.logsumexp(y_pred_neg, 1)) / y_pred_neg.shape[0]
         return loss
 
+
+class SparseMultilabelCategoricalCrossentropy(nn.Module):
+    """稀疏版多标签分类的交叉熵
+    说明：
+        1. y_true.shape=[..., num_positive]，
+           y_pred.shape=[..., num_classes]；
+        2. 请保证y_pred的值域是全体实数，换言之一般情况下
+           y_pred不用加激活函数，尤其是不能加sigmoid或者
+           softmax；
+        3. 预测阶段则输出y_pred大于0的类；
+        4. 详情请看：https://kexue.fm/archives/7359 。
+    """
+    def __init__(self, mask_zero=False, **kwargs):
+        super().__init__(**kwargs)
+        self.mask_zero = mask_zero
+        
+    def forward(self, y_pred, y_true):
+        zeros = torch.zeros_like(y_pred[..., :1])
+        y_pred = torch.cat([y_pred, zeros], dim=-1)
+        if self.mask_zero:
+            infs = zeros + float('inf')
+            y_pred = torch.cat([infs, y_pred[..., 1:]], dim=-1)
+        y_pos_2 = torch.gather(y_pred, dim=-1, index=y_true)
+        y_pos_1 = torch.cat([y_pos_2, zeros], dim=-1)
+        if self.mask_zero:
+            y_pred = torch.cat([-infs, y_pred[..., 1:]], dim=-1)
+            y_pos_2 = torch.gather(y_pred, dim=-1, index=y_true)
+        pos_loss = torch.logsumexp(-y_pos_1, dim=-1)
+        all_loss = torch.logsumexp(y_pred, dim=-1)
+        aux_loss = torch.logsumexp(y_pos_2, dim=-1) - all_loss
+        aux_loss = torch.clip(1 - torch.exp(aux_loss), 1e-12, 1)
+        neg_loss = all_loss + torch.log(aux_loss)
+        return pos_loss + neg_loss
 
 class ContrastiveLoss(nn.Module):
     """对比损失：减小正例之间的距离，增大正例和反例之间的距离，labels * distance_matrix.pow(2) + (1-labels)*F.relu(margin-distance_matrix).pow(2)

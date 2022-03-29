@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# global_pointer用来做实体识别
+# efficient_global_pointer用来做实体识别
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
 # 博客：https://kexue.fm/archives/8373
 
@@ -12,7 +12,7 @@ import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
-from bert4torch.layers import RoPEPositionEncoding
+from bert4torch.layers import EfficientGlobalPointer
 
 
 maxlen = 512
@@ -78,44 +78,24 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.p_dense = nn.Linear(768, ner_head_size * 2)
-        self.q_dense = nn.Linear(ner_head_size * 2, ner_vocab_size * 2)
-        self.RoPE = True
-        if self.RoPE:
-            self.position_embedding = RoPEPositionEncoding(maxlen, ner_head_size)
+        self.global_pointer = EfficientGlobalPointer(hidden_size=768, heads=ner_vocab_size, head_size=ner_head_size)
 
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
-        sequence_output = self.p_dense(sequence_output)  # [bts, seq_len, ner_head_size * 2]
-        qw, kw = sequence_output[:, :, :ner_head_size], sequence_output[:, :, ner_head_size:]  # [bts, seq_len, ner_head_size]
-
-        # ROPE编码
-        if self.RoPE:
-            qw = self.position_embedding(qw)
-            kw = self.position_embedding(kw)
-
-        logits = torch.einsum('bmd,bnd->bmn', qw, kw) / ner_head_size**0.5  # [btz, seq_len, seq_len]
-        btz, seq_len = token_ids.shape[:2]
-        bias = self.q_dense(sequence_output).reshape(btz, seq_len, ner_vocab_size, 2).transpose(1, 2) / 2  # [btz, ner_vocab_size, seq_len, 2]
-        logits = logits.unsqueeze(1) + bias[:, :, :, :1] + bias[:, :, :, 1:].transpose(2, 3)
-
-        # 排除padding
-        attention_mask = token_ids.gt(0).long()
-        attention_mask1 = 1 - attention_mask.unsqueeze(1).unsqueeze(3)  # [btz, 1, seq_len, 1]
-        attention_mask2 = 1 - attention_mask.unsqueeze(1).unsqueeze(2)  # [btz, 1, 1, seq_len]
-        logits = logits.masked_fill(attention_mask1.gt(0), value=-float('inf'))
-        logits = logits.masked_fill(attention_mask2.gt(0), value=-float('inf'))
-
-        # 排除下三角
-        logits = logits - torch.tril(torch.ones_like(logits), -1) * 1e12
-
-        # scale返回
-        return logits
+        logit = self.global_pointer(sequence_output, token_ids.gt(0).long())
+        return logit
         
-
 model = Model().to(device)
-model.compile(loss=MultilabelCategoricalCrossentropy(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
+class MyLoss(MultilabelCategoricalCrossentropy):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    def forward(self, y_pred, y_true):
+        y_true = y_true.view(y_true.shape[0]*y_true.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
+        y_pred = y_pred.view(y_pred.shape[0]*y_pred.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
+        return super().forward(y_pred, y_true)
+
+model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
 def evaluate(data, threshold=0.5):
     X, Y, Z, threshold = 1e-10, 1e-10, 1e-10, 0
@@ -154,7 +134,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, epochs=50, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
 
 else: 
 

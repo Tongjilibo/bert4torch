@@ -21,7 +21,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 maxlen = 128
-batch_size = 8
+batch_size = 48
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
@@ -88,9 +88,10 @@ def collate_fn(batch):
             # subject标签
             subject_labels = np.zeros((len(token_ids), 2))
             for s in spoes:
-                subject_labels[s[0], 0] = 1
-                subject_labels[s[1], 1] = 1
+                subject_labels[s[0], 0] = 1  # subject首
+                subject_labels[s[1], 1] = 1  # subject尾
             # 随机选一个subject（这里没有实现错误！这就是想要的效果！！）
+            # Todo: 感觉可以对未选到的subject加个mask，这样计算loss就不会计算到，可能因为模型对prob**n正例加权重导致影响不大
             start, end = np.array(list(spoes.keys())).T
             start = np.random.choice(start)
             end = np.random.choice(end[end >= start])
@@ -147,7 +148,7 @@ class Model(BaseModel):
         # 传入subject，预测object
         # 通过Conditional Layer Normalization将subject融入到object的预测中
         subject_ids = inputs[2]
-        # 理论上应该用LayNorm前的，但是这样只能返回各个block顶层输出，这里和keras实现不一致
+        # 理论上应该用LayerNorm前的，但是这样只能返回各个block顶层输出，这里和keras实现不一致
         subject = self.extract_subject([seq_output, subject_ids])
         output = self.condLayerNorm([seq_output, subject])
         output = (torch.sigmoid(self.linear2(output)))**4
@@ -315,7 +316,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
+    train_model.fit(train_dataloader, steps_per_epoch=200, epochs=20, callbacks=[evaluator])
 
 else:
 
