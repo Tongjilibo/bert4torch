@@ -1,20 +1,19 @@
 #! -*- coding:utf-8 -*-
-# 通过对抗训练增强模型的泛化性能
-# 比CLUE榜单公开的同数据集上的BERT base的成绩高2%
+# 通过R-Drop增强模型的泛化性能
+# 官方项目：https://github.com/dropreg/R-Drop
 # 数据集：IFLYTEK' 长文本分类 (https://github.com/CLUEbenchmark/CLUE)
-# 博客：https://kexue.fm/archives/7234
-# 适用于Keras 2.3.1
 
 import json
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
+from bert4torch.losses import RDropLoss
 from tqdm import tqdm
-from torchinfo import summary
+import torch.nn.functional as F
 
 num_classes = 119
 maxlen = 128
@@ -47,16 +46,15 @@ class MyDataset(ListDataset):
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
-    batch_token_ids, batch_segment_ids, batch_labels = [], [], []
+    batch_token_ids, batch_labels = [], []
     for text, label in batch:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        batch_token_ids.append(token_ids)
-        batch_segment_ids.append(segment_ids)
-        batch_labels.append([label])
+        token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+        for i in range(2):
+            batch_token_ids.append(token_ids)
+            batch_labels.append([label])
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
+    return [batch_token_ids], batch_labels.flatten()
 
 # 转换数据集
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/文本分类/CLUEdataset/iflytek/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -64,20 +62,18 @@ valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/文本分类/CL
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, return_model_config=True)
-        self.dense = nn.Linear(self.config['hidden_size'], num_classes)
+        self.bert= build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, dropout_rate=0.3, segment_vocab_size=0)
+        self.dense = nn.Linear(768, num_classes)
 
-    def forward(self, token_ids, segment_ids):
-        encoded_layers = self.bert([token_ids, segment_ids])
+    def forward(self, token_ids):
+        encoded_layers = self.bert(token_ids)
         output = self.dense(encoded_layers[:, 0, :])  # 取第1个位置
         return output
 model = Model().to(device)
-summary(model, input_data=next(iter(train_dataloader))[0])
 
-model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), 
-              metrics=['accuracy'], adversarial_train={'name': 'fgm'})
+model.compile(loss=RDropLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), metrics=['accuracy'])
 
 def evaluate(data):
     total, right = 0., 0.

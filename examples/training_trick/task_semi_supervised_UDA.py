@@ -93,7 +93,9 @@ class Model(BaseModel):
         return output
 model = Model().to(device)
 
-class MyLoss(nn.Module):
+class UDALoss(nn.Module):
+    '''这里没有放到Losses里面，主要是因为tsa策略需要用到global_step等信息
+    '''
     def __init__(self, tsa_schedule=None):
         super().__init__()
         self.loss_sup = nn.CrossEntropyLoss()
@@ -136,7 +138,7 @@ class MyLoss(nn.Module):
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss=MyLoss(tsa_schedule=None),  # 这里可换用不同的策略
+    loss=UDALoss(tsa_schedule=None),  # 这里可换用不同的策略
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
