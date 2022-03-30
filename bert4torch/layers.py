@@ -499,15 +499,13 @@ class RoPEPositionEncoding(nn.Module):
         dim = len(qw.shape)
         assert (dim >= 2) and (dim <= 4), 'Input units should >= 2 dims(seq_len and hdsz) and usually <= 4 dims'
         seq_len = qw.shape[seq_len_dim]
+        qw2 = torch.cat([-qw[..., 1::2], qw[..., ::2]], dim=-1)
 
         if dim == 2:
-            qw2 = torch.cat([-qw[:, 1::2], qw[:, ::2]], dim=-1)
             return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
         if dim == 3:
-            qw2 = torch.cat([-qw[:, :, 1::2], qw[:, :, ::2]], dim=-1)
             return qw * self.cos_position[:seq_len].unsqueeze(0) + qw2 * self.sin_position[:seq_len].unsqueeze(0)
         else:
-            qw2 = torch.cat([-qw[:, :, :, 1::2], qw[:, :, :, ::2]], dim=-1)
             return qw * self.cos_position[:seq_len].unsqueeze(0).unsqueeze(2) + qw2 * self.sin_position[:seq_len].unsqueeze(0).unsqueeze(2)
 
 
@@ -738,7 +736,7 @@ class GlobalPointer(nn.Module):
         if self.RoPE:
             self.position_embedding = RoPEPositionEncoding(max_len, head_size)
 
-    def forward(self, inputs, mask):
+    def forward(self, inputs, mask=None):
         ''' inputs: [..., hdsz]
             mask: [bez, seq_len], padding部分为0
         '''
@@ -755,10 +753,11 @@ class GlobalPointer(nn.Module):
         logits = torch.einsum('bmhd,bnhd->bhmn', qw, kw)  # [btz, head_size, seq_len, seq_len]
 
         # 排除padding
-        attention_mask1 = 1 - mask.unsqueeze(1).unsqueeze(3)  # [btz, 1, seq_len, 1]
-        attention_mask2 = 1 - mask.unsqueeze(1).unsqueeze(2)  # [btz, 1, 1, seq_len]
-        logits = logits.masked_fill(attention_mask1.bool(), value=-float('inf'))
-        logits = logits.masked_fill(attention_mask2.bool(), value=-float('inf'))
+        if mask is not None:
+            attention_mask1 = 1 - mask.unsqueeze(1).unsqueeze(3)  # [btz, 1, seq_len, 1]
+            attention_mask2 = 1 - mask.unsqueeze(1).unsqueeze(2)  # [btz, 1, 1, seq_len]
+            logits = logits.masked_fill(attention_mask1.bool(), value=-float('inf'))
+            logits = logits.masked_fill(attention_mask2.bool(), value=-float('inf'))
 
         # 排除下三角
         if self.tril_mask:
@@ -785,7 +784,7 @@ class EfficientGlobalPointer(nn.Module):
         if self.RoPE:
             self.position_embedding = RoPEPositionEncoding(max_len, head_size)
 
-    def forward(self, inputs, mask):
+    def forward(self, inputs, mask=None):
         ''' inputs: [..., hdsz]
             mask: [bez, seq_len], padding部分为0
         '''
@@ -804,10 +803,11 @@ class EfficientGlobalPointer(nn.Module):
         logits = logits.unsqueeze(1) + bias[..., :1] + bias[..., 1:].transpose(2, 3)  # [btz, head_size, seq_len, seq_len]
 
         # 排除padding
-        attention_mask1 = 1 - mask.unsqueeze(1).unsqueeze(3)  # [btz, 1, seq_len, 1]
-        attention_mask2 = 1 - mask.unsqueeze(1).unsqueeze(2)  # [btz, 1, 1, seq_len]
-        logits = logits.masked_fill(attention_mask1.bool(), value=-float('inf'))
-        logits = logits.masked_fill(attention_mask2.bool(), value=-float('inf'))
+        if mask is not None:
+            attention_mask1 = 1 - mask.unsqueeze(1).unsqueeze(3)  # [btz, 1, seq_len, 1]
+            attention_mask2 = 1 - mask.unsqueeze(1).unsqueeze(2)  # [btz, 1, 1, seq_len]
+            logits = logits.masked_fill(attention_mask1.bool(), value=-float('inf'))
+            logits = logits.masked_fill(attention_mask2.bool(), value=-float('inf'))
 
         # 排除下三角
         if self.tril_mask:

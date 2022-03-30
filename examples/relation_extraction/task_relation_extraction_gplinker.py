@@ -4,7 +4,6 @@
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
 
 import json
-from turtle import forward
 from bert4torch.layers import GlobalPointer
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -12,8 +11,10 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.losses import SparseMultilabelCategoricalCrossentropy
 from tqdm import tqdm
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import numpy as np
 
 maxlen = 128
 batch_size = 24
@@ -135,11 +136,13 @@ class MyLoss(SparseMultilabelCategoricalCrossentropy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, y_preds, y_trues):
+        ''' y_preds: [Tensor], shape为[btz, head_size, seq_len ,seq_len]
+        '''
         loss_sum = 0
         for y_pred, y_true in zip(y_preds, y_trues):
             shape = y_pred.shape
-            y_true = y_true[..., 0] * shape[2] + y_true[..., 1]
-            y_pred = torch.reshape(y_pred, (shape[0], shape[1], -1))
+            y_true = y_true[..., 0] * shape[2] + y_true[..., 1]  # []
+            y_pred = y_pred.reshape(shape[0], -1, np.prod(shape[2:]))
             loss = super().forward(y_pred, y_true.long())
             loss = torch.mean(torch.sum(loss, dim=1))
             loss_sum += loss
@@ -155,14 +158,13 @@ def extract_spoes(text, threshold=0):
     token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
     token_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
     segment_ids = torch.tensor([segment_ids], dtype=torch.long, device=device)
-
     outputs = model.predict([token_ids, segment_ids])
-    outputs = [o[0] for o in outputs]
+    outputs = [o[0].cpu().numpy() for o in outputs]
     # 抽取subject和object
     subjects, objects = set(), set()
     outputs[0][:, [0, -1]] -= float('inf')
     outputs[0][:, :, [0, -1]] -= float('inf')
-    for l, h, t in zip(*torch.where(outputs[0] > threshold)):
+    for l, h, t in zip(*np.where(outputs[0] > threshold)):
         if l == 0:
             subjects.add((h, t))
         else:
@@ -171,8 +173,8 @@ def extract_spoes(text, threshold=0):
     spoes = set()
     for sh, st in subjects:
         for oh, ot in objects:
-            p1s = torch.where(outputs[1][:, sh, oh] > threshold)[0]
-            p2s = torch.where(outputs[2][:, st, ot] > threshold)[0]
+            p1s = np.where(outputs[1][:, sh, oh] > threshold)[0]
+            p2s = np.where(outputs[2][:, st, ot] > threshold)[0]
             ps = set(p1s) & set(p2s)
             for p in ps:
                 spoes.add((
@@ -256,7 +258,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, steps_per_epoch=200, epochs=20, callbacks=[evaluator])
+    model.fit(train_dataloader, steps_per_epoch=100, epochs=20, callbacks=[evaluator])
 
 else:
 

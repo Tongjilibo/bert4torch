@@ -77,9 +77,10 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
         3. 预测阶段则输出y_pred大于0的类；
         4. 详情请看：https://kexue.fm/archives/7359 。
     """
-    def __init__(self, mask_zero=False, **kwargs):
+    def __init__(self, mask_zero=False, epsilon=1e-7, **kwargs):
         super().__init__(**kwargs)
         self.mask_zero = mask_zero
+        self.epsilon = epsilon
         
     def forward(self, y_pred, y_true):
         zeros = torch.zeros_like(y_pred[..., :1])
@@ -95,9 +96,10 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
         pos_loss = torch.logsumexp(-y_pos_1, dim=-1)
         all_loss = torch.logsumexp(y_pred, dim=-1)
         aux_loss = torch.logsumexp(y_pos_2, dim=-1) - all_loss
-        aux_loss = torch.clip(1 - torch.exp(aux_loss), 1e-12, 1)
+        aux_loss = torch.clamp(1 - torch.exp(aux_loss), self.epsilon, 1)
         neg_loss = all_loss + torch.log(aux_loss)
         return pos_loss + neg_loss
+
 
 class ContrastiveLoss(nn.Module):
     """对比损失：减小正例之间的距离，增大正例和反例之间的距离，labels * distance_matrix.pow(2) + (1-labels)*F.relu(margin-distance_matrix).pow(2)
