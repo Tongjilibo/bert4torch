@@ -26,11 +26,25 @@ class BaseModel(nn.Module):
         self.scheduler = scheduler
         if metrics is None:
             metrics = []
-        self.metrics = ['loss'] + metrics
+        self.metrics = ['loss'] + [i for i in metrics if i!='loss']
         self.adversarial = adversarial_train
         self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=[]):
+        def __deal_loss_detail(output, train_y):
+            '''处理返回多个loss，需要在进度条打印的情况
+            '''
+            loss_detail = self.criterion(output, train_y)
+            if isinstance(loss_detail, torch.Tensor):
+                loss = loss_detail
+                loss_detail = None
+            elif isinstance(loss_detail, dict):
+                loss = loss_detail['loss']  # 还存在其他loss，仅用于打印
+                del loss_detail['loss']
+            else:
+                raise ValueError('Return loss only support Tensor and dict format')
+            return loss, loss_detail
+
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
 
@@ -81,14 +95,14 @@ class BaseModel(nn.Module):
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
                 output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss = self.criterion(output, train_y)
+                loss, loss_detail = __deal_loss_detail(output, train_y)
                 loss.backward(retain_graph=(self.adversarial['name'] == 'gradient_penalty'))
                 
                 # 对抗训练
                 if self.adversarial['name'] == 'fgm':
                     ad_train.attack(epsilon=self.adversarial['epsilon'], emb_name=self.adversarial['emb_name']) # embedding被修改了
                     output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                    loss = self.criterion(output, train_y)
+                    loss, loss_detail = __deal_loss_detail(output, train_y)
                     loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
                     ad_train.restore(emb_name=self.adversarial['emb_name']) # 恢复Embedding的参数
                 elif self.adversarial['name'] == 'pgd':
@@ -100,7 +114,7 @@ class BaseModel(nn.Module):
                         else:
                             ad_train.restore_grad() # 恢复正常的grad
                         output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                        loss = self.criterion(output, train_y)
+                        loss, loss_detail = __deal_loss_detail(output, train_y)
                         loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
                     ad_train.restore(emb_name=self.adversarial['emb_name']) # 恢复embedding参数
                 # 梯度惩罚
@@ -116,15 +130,19 @@ class BaseModel(nn.Module):
                 self.optimizer.zero_grad()
                 
                 logs.update({'loss': loss.item()})
+                if isinstance(loss_detail, dict):
+                    logs.update(dict([(k, v.item()) for k, v in loss_detail.items()]))
                 for metric in self.metrics[1:]:
-                    logs[metric] = metric_mapping(metric, output, train_y)
+                    tmp = metric_mapping(metric, output, train_y)
+                    if tmp is not None:
+                        logs[metric] = tmp
                 for callback in callbacks:
                     callback.on_batch_end(self.global_step, bti, logs)  #callback
 
                 self.global_step += 1
             for callback in callbacks:
                 callback.on_epoch_end(self.global_step, epoch, logs)  #callback
-    
+
     def predict(self, input_tensor_list, return_all=None):
         self.eval()
         with torch.no_grad():

@@ -13,6 +13,8 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 import math
 
+from transformers import RetriBertConfig
+
 is_py2 = six.PY2
 
 if not is_py2:
@@ -472,8 +474,7 @@ def metric_mapping(metric, y_pred, y_true):
         y_pred = torch.argmax(y_pred, dim=-1)
         acc = torch.sum(y_pred.eq(y_true)).item() / y_true.size(0)
         return acc
-    else:
-        raise ValueError(f'{metric} not in supported metric names ["accuracy"]')
+    return None
 
 def softmax(x, axis=-1):
     """numpy版softmax

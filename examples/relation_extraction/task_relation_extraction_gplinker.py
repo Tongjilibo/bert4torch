@@ -88,9 +88,9 @@ def collate_fn(batch):
         for label in entity_labels + head_labels + tail_labels:
             if not label:  # 至少要有一个标签
                 label.add((0, 0))  # 如果没有则用0填充
-        entity_labels = sequence_padding([list(l) for l in entity_labels])  # [s/o个数=2, 实体个数, 实体起终点]
-        head_labels = sequence_padding([list(l) for l in head_labels])  # [关系个数, 实体个数, s/o起点]
-        tail_labels = sequence_padding([list(l) for l in tail_labels])  # [关系个数, 实体个数, s/o终点]
+        entity_labels = sequence_padding([list(l) for l in entity_labels])  # [subject/object=2, 实体个数, 实体起终点]
+        head_labels = sequence_padding([list(l) for l in head_labels])  # [关系个数, 该关系下subject/object配对数, subject/object起点]
+        tail_labels = sequence_padding([list(l) for l in tail_labels])  # [关系个数, 该关系下subject/object配对数, subject/object终点]
         # 构建batch
         batch_token_ids.append(token_ids)
         batch_segment_ids.append(segment_ids)
@@ -100,9 +100,12 @@ def collate_fn(batch):
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, seq_dims=2), dtype=torch.float, device=device)  # [btz, s/o个数=2, 实体个数, 实体起终点]
-    batch_head_labels = torch.tensor(sequence_padding(batch_head_labels, seq_dims=2), dtype=torch.float, device=device)  # [btz, 关系个数, 实体个数, s/o起点]
-    batch_tail_labels = torch.tensor(sequence_padding(batch_tail_labels, seq_dims=2), dtype=torch.float, device=device)  # [btz, 关系个数, 实体个数, s/o终点]
+    # batch_entity_labels: [btz, subject/object=2, 实体个数, 实体起终点]
+    # batch_head_labels: [btz, 关系个数, 该关系下subject/object配对数, subject/object起点]
+    # batch_tail_labels: [btz, 关系个数, 该关系下subject/object配对数, subject/object终点]
+    batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, seq_dims=2), dtype=torch.float, device=device)
+    batch_head_labels = torch.tensor(sequence_padding(batch_head_labels, seq_dims=2), dtype=torch.float, device=device)
+    batch_tail_labels = torch.tensor(sequence_padding(batch_tail_labels, seq_dims=2), dtype=torch.float, device=device)
     return [batch_token_ids, batch_segment_ids], [batch_entity_labels, batch_head_labels, batch_tail_labels]
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/关系抽取/BD_Knowledge_Extraction/train_data.json'), 
@@ -121,34 +124,35 @@ class Model(BaseModel):
         self.tail_output = GlobalPointer(hidden_size=768, heads=len(predicate2id), head_size=64, RoPE=False, tril_mask=False)
 
     def forward(self, inputs):
-        hidden_states = self.bert(inputs)
+        hidden_states = self.bert(inputs)  # [btz, seq_len, hdsz]
         mask = inputs[0].gt(0).long()
 
-        entity_output = self.entity_output(hidden_states, mask)  # [btz, head_size, seq_len, seq_len]
-        head_output = self.head_output(hidden_states, mask)  # [btz, head_size, seq_len, seq_len]
-        tail_output = self.tail_output(hidden_states, mask)  # [btz, head_size, seq_len, seq_len]
+        entity_output = self.entity_output(hidden_states, mask)  # [btz, heads, seq_len, seq_len]
+        head_output = self.head_output(hidden_states, mask)  # [btz, heads, seq_len, seq_len]
+        tail_output = self.tail_output(hidden_states, mask)  # [btz, heads, seq_len, seq_len]
         return entity_output, head_output, tail_output
     
 
 model = Model().to(device)
 
 class MyLoss(SparseMultilabelCategoricalCrossentropy):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs): 
         super().__init__(**kwargs)
     def forward(self, y_preds, y_trues):
-        ''' y_preds: [Tensor], shape为[btz, head_size, seq_len ,seq_len]
+        ''' y_preds: [Tensor], shape为[btz, heads, seq_len ,seq_len]
         '''
-        loss_sum = 0
+        loss_list = []
         for y_pred, y_true in zip(y_preds, y_trues):
             shape = y_pred.shape
-            y_true = y_true[..., 0] * shape[2] + y_true[..., 1]  # []
-            y_pred = y_pred.reshape(shape[0], -1, np.prod(shape[2:]))
+            # 乘以seq_len是因为(i, j)在展开到seq_len*seq_len维度对应的下标是i*seq_len+j
+            y_true = y_true[..., 0] * shape[2] + y_true[..., 1]  # [btz, heads, 实体起终点的下标]
+            y_pred = y_pred.reshape(shape[0], -1, np.prod(shape[2:]))  # [btz, heads, seq_len*seq_len]
             loss = super().forward(y_pred, y_true.long())
             loss = torch.mean(torch.sum(loss, dim=1))
-            loss_sum += loss
-        return loss_sum / 3
+            loss_list.append(loss)
+        return {'loss': sum(loss_list)/3, 'entity_loss': loss_list[0], 'head_loss': loss_list[1], 'tail_loss': loss_list[2]}
 
-model.compile(loss=MyLoss(mask_zero=True), optimizer=optim.Adam(model.parameters(), 1e-5))
+model.compile(loss=MyLoss(mask_zero=True), optimizer=optim.Adam(model.parameters(), 1e-5), metrics=['entity_loss', 'head_loss', 'tail_loss'])
 
 def extract_spoes(text, threshold=0):
     """抽取输入text所包含的三元组

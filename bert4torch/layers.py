@@ -750,7 +750,7 @@ class GlobalPointer(nn.Module):
             kw = self.position_embedding(kw)
 
         # 计算内积
-        logits = torch.einsum('bmhd,bnhd->bhmn', qw, kw)  # [btz, head_size, seq_len, seq_len]
+        logits = torch.einsum('bmhd,bnhd->bhmn', qw, kw)  # [btz, heads, seq_len, seq_len]
 
         # 排除padding
         if mask is not None:

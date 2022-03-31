@@ -121,7 +121,7 @@ class UDALoss(nn.Module):
         y_true_unsup = F.softmax(y_true_unsup.detach(), dim=-1)
         y_pred_unsup = F.log_softmax(y_pred[sup_size+unsup_size:], dim=-1)
         loss_unsup = self.loss_unsup(y_pred_unsup, y_true_unsup)
-        return loss_sup + loss_unsup
+        return {'loss': loss_sup + loss_unsup, 'loss_sup': loss_sup, 'loss_unsup': loss_unsup}
 
     @ staticmethod
     def get_tsa_threshold(schedule, global_step, num_train_steps, start, end):
@@ -140,6 +140,7 @@ class UDALoss(nn.Module):
 model.compile(
     loss=UDALoss(tsa_schedule=None),  # 这里可换用不同的策略
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    metrics=['loss_sup', 'loss_unsup']
 )
 
 # 定义评价函数

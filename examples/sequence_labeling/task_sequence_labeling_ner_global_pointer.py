@@ -49,7 +49,7 @@ class MyDataset(ListDataset):
                         label[-1][1] = i
                 text_list = tokenizer.tokenize(text)[1:-1]  #不保留首位[CLS]和末位[SEP]
                 tokens = [j for i in text_list for j in i][:maxlen]
-                data.append((tokens, label))
+                data.append((tokens, label))  # label为[[start, end, entity], ...]
         return data
 
 

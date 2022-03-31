@@ -94,10 +94,10 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
             y_pred = torch.cat([-infs, y_pred[..., 1:]], dim=-1)
             y_pos_2 = torch.gather(y_pred, dim=-1, index=y_true)
         pos_loss = torch.logsumexp(-y_pos_1, dim=-1)
-        all_loss = torch.logsumexp(y_pred, dim=-1)
-        aux_loss = torch.logsumexp(y_pos_2, dim=-1) - all_loss
-        aux_loss = torch.clamp(1 - torch.exp(aux_loss), self.epsilon, 1)
-        neg_loss = all_loss + torch.log(aux_loss)
+        all_loss = torch.logsumexp(y_pred, dim=-1)  # a
+        aux_loss = torch.logsumexp(y_pos_2, dim=-1) - all_loss  # b-a
+        aux_loss = torch.clamp(1 - torch.exp(aux_loss), self.epsilon, 1)  # 1-exp(b-a)
+        neg_loss = all_loss + torch.log(aux_loss)  # a + log[1-exp(b-a)]
         return pos_loss + neg_loss
 
 
