@@ -11,10 +11,13 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.layers import CRF
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
+from tqdm import tqdm
 
 maxlen = 512
 batch_size = 6
-categories = ['LOC', 'PER', 'ORG']
+categories = ['O', 'B-LOC', 'I-LOC', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG']
+categories_id2label = dict([(i, k) for i, k in enumerate(categories)])
+categories_label2id = dict([(k, i) for i, k in enumerate(categories)])
 
 # BERT base
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -61,8 +64,8 @@ def collate_fn(batch):
             if start in start_mapping and end in end_mapping:
                 start = start_mapping[start]
                 end = end_mapping[end]
-                labels[start] = categories.index(label) * 2 + 1
-                labels[start + 1:end + 1] = categories.index(label) * 2 + 2
+                labels[start] = categories_label2id['B-'+label]
+                labels[start + 1:end + 1] = categories_label2id['I-'+label]
         batch_token_ids.append(token_ids)
         batch_labels.append(labels)
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
@@ -78,8 +81,8 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.fc = nn.Linear(768, len(categories) * 2 + 3)  # 包含首尾
-        self.crf = CRF(len(categories) * 2 + 1)
+        self.fc = nn.Linear(768, len(categories)+2)  # 包含首尾
+        self.crf = CRF(len(categories))
 
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
@@ -105,16 +108,48 @@ model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
 def evaluate(data):
     X, Y, Z = 1e-10, 1e-10, 1e-10
-    for token_ids, label in data:
+    X2, Y2, Z2 = 1e-10, 1e-10, 1e-10
+    for token_ids, label in tqdm(data):
         scores = model.predict(token_ids)  # [btz, seq_len]
         attention_mask = label.gt(0)
+
+        # token粒度
         X += (scores.eq(label) * attention_mask).sum().item()
         Y += scores.gt(0).sum().item()
         Z += label.gt(0).sum().item()
 
+        # entity粒度
+        entity_pred = trans_entity2tuple(scores)
+        entity_true = trans_entity2tuple(label)
+        X2 += len(entity_pred.intersection(entity_true))
+        Y2 += len(entity_pred)
+        Z2 += len(entity_true)
     f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
-    return f1, precision, recall
+    f2, precision2, recall2 = 2 * X2 / (Y2 + Z2), X2/ Y2, X2 / Z2
+    return f1, precision, recall, f2, precision2, recall2
 
+
+def trans_entity2tuple(scores):
+    '''把tensor转为(样本id, start, end, 实体类型)的tuple用于计算指标
+    '''
+    batch_entity_ids = set()
+    for i, one_samp in enumerate(scores):
+        entity_ids = []
+        for j, item in enumerate(one_samp):
+            flag_tag = categories_id2label[item.item()]
+            if flag_tag.startswith('B-'):  # B
+                entity_ids.append([i, j, j, flag_tag[2:]])
+            elif len(entity_ids) == 0:
+                continue
+            elif (len(entity_ids[-1]) > 0) and flag_tag.startswith('I-') and (flag_tag[2:]==entity_ids[-1][-1]):  # I
+                entity_ids[-1][-2] = j
+            elif len(entity_ids[-1]) > 0:
+                entity_ids.append([])
+
+        for i in entity_ids:
+            if i:
+                batch_entity_ids.add(tuple(i))
+    return batch_entity_ids
 
 class Evaluator(Callback):
     """评估与保存
@@ -123,11 +158,12 @@ class Evaluator(Callback):
         self.best_val_f1 = 0.
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        f1, precision, recall = evaluate(valid_dataloader)
-        if f1 > self.best_val_f1:
-            self.best_val_f1 = f1
+        f1, precision, recall, f2, precision2, recall2 = evaluate(valid_dataloader)
+        if f2 > self.best_val_f1:
+            self.best_val_f1 = f2
             # model.save_weights('best_model.pt')
-        print(f'[val] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f} best_f1: {self.best_val_f1:.5f}')
+        print(f'[val-1阶段] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}')
+        print(f'[val-2阶段] f1: {f2:.5f}, p: {precision2:.5f} r: {recall2:.5f} best_f1: {self.best_val_f1:.5f}\n')
 
 
 if __name__ == '__main__':
