@@ -1,11 +1,7 @@
-from turtle import forward
-from wsgiref.validate import ErrorWrapper
-from sympy import re
 import torch
 import torch.nn as nn
 import copy
 import json
-from itertools import cycle
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
 from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
 from bert4torch.activations import get_activation
@@ -47,14 +43,12 @@ class BaseModel(nn.Module):
 
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
+        self.global_step = 0
 
-        train_dataloader = cycle(train_dataloader)
         callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + callbacks
-
         for callback in callbacks:
             callback.on_train_begin()  #callback
 
-        self.global_step = 0
         # 对抗训练
         if self.adversarial['name'] == 'fgm':
             ad_train = FGM(self)
@@ -71,12 +65,18 @@ class BaseModel(nn.Module):
         self.adversarial['emb_name'] = self.adversarial.get('emb_name', 'emb')
         self.adversarial['alpha'] = self.adversarial.get('alpha', 0.3)
 
+        train_dataloader_iter = iter(train_dataloader)  # 循环epoch时不重生成
         for epoch in range(epochs):
             self.epoch = epoch
             for callback in callbacks:
                 callback.on_epoch_begin(self.global_step, epoch, {})  # callback
             for bti in range(steps_per_epoch):
-                batch = next(train_dataloader)
+                # 循环dataloader, 不要试用itertools的cycle，遇到过变量不释放的问题
+                try:
+                    batch = next(train_dataloader_iter)
+                except StopIteration:
+                    train_dataloader_iter = iter(train_dataloader)
+                    batch = next(train_dataloader_iter)
                 train_X, train_y = batch
 
                 if isinstance(train_X, (list, tuple)):  # 仅允许嵌套两层，即((token_ids1, mask1), (token_ids2, mask2))

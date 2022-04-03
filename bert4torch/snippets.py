@@ -12,8 +12,7 @@ import collections
 import torch.nn as nn
 from torch.utils.data import Dataset
 import math
-
-from transformers import RetriBertConfig
+import gc
 
 is_py2 = six.PY2
 
@@ -721,3 +720,21 @@ def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     position_ids[:, ::2] = torch.sin(position_ids[:, ::2])
     position_ids[:, 1::2] = torch.cos(position_ids[:, 1::2])
     return position_ids
+
+
+def cal_ts_num(tensor_shape):
+    '''查看某个tensor在gc中的数量
+    '''
+    cal_num = 0
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj): # or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                tensor = obj
+            else:
+                continue
+            if tensor.is_cuda and tensor.size() == tensor_shape:
+                print(tensor.shape)
+                cal_num+=1
+        except Exception as e:
+            print('A trivial exception occured: {}'.format(e))
+    print(cal_num)

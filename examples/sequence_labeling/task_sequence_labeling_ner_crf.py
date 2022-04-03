@@ -162,8 +162,8 @@ class Evaluator(Callback):
         if f2 > self.best_val_f1:
             self.best_val_f1 = f2
             # model.save_weights('best_model.pt')
-        print(f'[val-1阶段] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}')
-        print(f'[val-2阶段] f1: {f2:.5f}, p: {precision2:.5f} r: {recall2:.5f} best_f1: {self.best_val_f1:.5f}\n')
+        print(f'[val-token  level] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}')
+        print(f'[val-entity level] f1: {f2:.5f}, p: {precision2:.5f} r: {recall2:.5f} best_f1: {self.best_val_f1:.5f}\n')
 
 
 if __name__ == '__main__':

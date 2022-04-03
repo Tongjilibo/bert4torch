@@ -163,7 +163,7 @@ def extract_spoes(text, threshold=0):
     token_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
     segment_ids = torch.tensor([segment_ids], dtype=torch.long, device=device)
     outputs = model.predict([token_ids, segment_ids])
-    outputs = [o[0].cpu().numpy() for o in outputs]
+    outputs = [o[0].cpu().numpy() for o in outputs]  # [heads, seq_len, seq_len]
     # 抽取subject和object
     subjects, objects = set(), set()
     outputs[0][:, [0, -1]] -= float('inf')
@@ -194,11 +194,7 @@ class SPO(tuple):
     使得在判断两个三元组是否等价时容错性更好。
     """
     def __init__(self, spo):
-        self.spox = (
-            tuple(tokenizer.tokenize(spo[0])),
-            spo[1],
-            tuple(tokenizer.tokenize(spo[2])),
-        )
+        self.spox = (tuple(tokenizer.tokenize(spo[0])), spo[1], tuple(tokenizer.tokenize(spo[2])))
 
     def __hash__(self):
         return self.spox.__hash__()
@@ -221,18 +217,9 @@ def evaluate(data):
         Z += len(T)
         f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
         pbar.update()
-        pbar.set_description(
-            'f1: %.5f, precision: %.5f, recall: %.5f' % (f1, precision, recall)
-        )
-        s = json.dumps({
-            'text': d['text'],
-            'spo_list': list(T),
-            'spo_list_pred': list(R),
-            'new': list(R - T),
-            'lack': list(T - R),
-        },
-                       ensure_ascii=False,
-                       indent=4)
+        pbar.set_description('f1: %.5f, precision: %.5f, recall: %.5f' % (f1, precision, recall))
+        s = json.dumps({'text': d['text'], 'spo_list': list(T), 'spo_list_pred': list(R),
+                        'new': list(R - T), 'lack': list(T - R)}, ensure_ascii=False, indent=4)
         f.write(s + '\n')
     pbar.close()
     f.close()
@@ -252,18 +239,11 @@ class Evaluator(Callback):
             self.best_val_f1 = f1
             # model.save_weights('best_model.pt')
         # optimizer.reset_old_weights()
-        print(
-            'f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' %
-            (f1, precision, recall, self.best_val_f1)
-        )
+        print('f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' %(f1, precision, recall, self.best_val_f1))
 
 
 if __name__ == '__main__':
-
     evaluator = Evaluator()
-
     model.fit(train_dataloader, steps_per_epoch=100, epochs=20, callbacks=[evaluator])
-
 else:
-
     model.load_weights('best_model.pt')
