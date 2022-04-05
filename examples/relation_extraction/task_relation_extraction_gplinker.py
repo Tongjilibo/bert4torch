@@ -206,7 +206,7 @@ class SPO(tuple):
 def evaluate(data):
     """评估函数，计算f1、precision、recall
     """
-    X, Y, Z = 1e-10, 1e-10, 1e-10
+    X, Y, Z = 0, 1e-10, 1e-10
     f = open('dev_pred.json', 'w', encoding='utf-8')
     pbar = tqdm()
     for d in data:

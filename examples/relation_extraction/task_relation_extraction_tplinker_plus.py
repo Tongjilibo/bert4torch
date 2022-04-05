@@ -1,22 +1,22 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，tplinker, 实体部分收敛较快，关系部分收敛较慢
+# 三元组抽取任务，tplinker_plus
 # 官方链接：https://github.com/131250208/TPlinker-joint-extraction
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
 
 import json
-from math import gamma
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
-from bert4torch.losses import FocalLoss
+from bert4torch.losses import MultilabelCategoricalCrossentropy
 from tqdm import tqdm
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import numpy as np
 
 maxlen = 50
-batch_size = 16
+batch_size = 8
 config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
@@ -35,6 +35,7 @@ with open('F:/Projects/data/corpus/关系抽取/BD_Knowledge_Extraction/all_50_s
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
+
 # 加载数据集
 class MyDataset(ListDataset):
     @staticmethod
@@ -50,14 +51,28 @@ class MyDataset(ListDataset):
                           'spo_list': [(spo['subject'], spo['predicate'], spo['object']) for spo in l['spo_list']]})
         return D
 
+
 def trans_ij2k(seq_len, i, j):
     '''把第i行，第j列转化成上三角flat后的序号
     '''
     if (i > seq_len - 1) or (j > seq_len - 1) or (i > j):
         return 0
     return int(0.5*(2*seq_len-i+1)*i+(j-i))
+
+
 map_ij2k = dict([((i, j), trans_ij2k(maxlen, i, j)) for i in range(maxlen) for j in range(maxlen) if j >= i])
 map_k2ij = dict([(v, k) for k, v in map_ij2k.items()])
+
+def tran_ent_rel2id():
+    '''获取最后一个分类层的的映射关系
+    '''
+    tag2id = {'ent': 0}
+    for p in predicate2id.keys():
+        for mode in ['sh_oh', 'oh_sh', 'st_ot', 'ot_st']:
+            tag2id[p+'##'+mode] = len(tag2id)
+    return tag2id
+tag2id = tran_ent_rel2id()
+id2tag = dict([(v, k) for k, v in tag2id.items()])
 
 def search(pattern, sequence):
     """从sequence中寻找子串pattern
@@ -71,12 +86,8 @@ def search(pattern, sequence):
 
 def collate_fn(batch):
     pair_len = maxlen * (maxlen+1)//2
-    # batch_entity_labels: [btz, pair_len]
-    # batch_head_labels: [btz, rel_size, pair_len]
-    # batch_tail_labels: [btz, rel_size, pair_len]
-    batch_entity_labels = torch.zeros((len(batch), pair_len), dtype=torch.long, device=device)
-    batch_head_labels = torch.zeros((len(batch), len(predicate2id), pair_len), dtype=torch.long, device=device)
-    batch_tail_labels = torch.zeros((len(batch), len(predicate2id), pair_len), dtype=torch.long, device=device)
+    # batch_head_labels: [btz, pair_len, tag2id_len]
+    batch_labels = torch.zeros((len(batch), pair_len, len(tag2id)), dtype=torch.long, device=device)
 
     batch_token_ids = []
     for i, d in enumerate(batch):
@@ -85,25 +96,23 @@ def collate_fn(batch):
         # 整理三元组 {s: [(o, p)]}
         for s, p, o in d['spo_list']:
             s = tokenizer.encode(s)[0][1:-1]
-            p = predicate2id[p]
             o = tokenizer.encode(o)[0][1:-1]
-            sh = search(s, token_ids)  # 这里超过长度就会找不到
+            sh = search(s, token_ids)
             oh = search(o, token_ids)
             if sh != -1 and oh != -1:
                 st, ot = sh+len(s)-1, oh+len(o)-1
-                batch_entity_labels[i, map_ij2k[sh, st]] = 1
-                batch_entity_labels[i, map_ij2k[oh, ot]] = 1
+                batch_labels[i, map_ij2k[sh, st], tag2id['ent']] = 1
+                batch_labels[i, map_ij2k[oh, ot], tag2id['ent']] = 1
                 if sh <= oh:
-                    batch_head_labels[i, p, map_ij2k[sh, oh]] = 1
+                    batch_labels[i, map_ij2k[sh, oh], tag2id[p+'##sh_oh']] = 1
                 else:
-                    batch_head_labels[i, p, map_ij2k[oh, sh]] = 2
+                    batch_labels[i, map_ij2k[oh, sh], tag2id[p+'##oh_sh']] = 1
                 if st <= ot:
-                    batch_tail_labels[i, p, map_ij2k[st, ot]] = 1
+                    batch_labels[i, map_ij2k[st, ot], tag2id[p+'##st_ot']] = 1
                 else:
-                    batch_tail_labels[i, p, map_ij2k[ot, st]] = 2
-
+                    batch_labels[i, map_ij2k[ot, st], tag2id[p+'##ot_st']] = 1
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, length=maxlen), dtype=torch.long, device=device)
-    return [batch_token_ids], [batch_entity_labels, batch_head_labels, batch_tail_labels]
+    return [batch_token_ids], batch_labels
     
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/关系抽取/BD_Knowledge_Extraction/train_data.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -116,9 +125,7 @@ class Model(BaseModel):
         super().__init__()
         self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0)
         self.combine_fc = nn.Linear(768*2, 768)
-        self.ent_fc = nn.Linear(768, 2)
-        self.head_rel_fc = nn.Linear(768, len(predicate2id)*3)
-        self.tail_rel_fc = nn.Linear(768, len(predicate2id)*3)
+        self.fc = nn.Linear(768, len(tag2id))
         self.gather_idx = torch.tensor(list(map_ij2k.keys()), dtype=torch.long, device=device).flatten()[None, :, None]
 
     def handshaking_kernel(self, last_hidden_state):
@@ -135,76 +142,39 @@ class Model(BaseModel):
         last_hidden_state = self.bert(inputs)  # [btz, seq_len, hdsz]
         shaking_hiddens = self.handshaking_kernel(last_hidden_state)  # [btz, pair_len, hdsz*2]
         shaking_hiddens = torch.tanh(self.combine_fc(shaking_hiddens))  # [btz, pair_len, hdsz]
-        ent_shaking_outputs = self.ent_fc(shaking_hiddens)  # [btz, pair_len, 2]
-
-        btz, pair_len = shaking_hiddens.shape[:2]
-        head_rel_shaking_outputs = self.head_rel_fc(shaking_hiddens).reshape(btz, -1, pair_len, 3)  #[btz, predicate_num, pair_len, 3]
-        tail_rel_shaking_outputs = self.tail_rel_fc(shaking_hiddens).reshape(btz, -1, pair_len, 3)
-
-        return ent_shaking_outputs, head_rel_shaking_outputs, tail_rel_shaking_outputs
+        output = self.fc(shaking_hiddens)  # [btz, pair_len, tag_size]
+        return output
 
 model = Model().to(device)
-model.load_weights('best_model.pt')
+model.compile(loss=MultilabelCategoricalCrossentropy(), optimizer=optim.Adam(model.parameters(), 5e-5))
 
-class MyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs): 
-        super().__init__(**kwargs)
-    def forward(self, y_preds, y_trues):
-        loss_list = []
-        for y_pred, y_true in zip(y_preds, y_trues):
-            loss = super().forward(y_pred.view(-1, y_pred.size()[-1]), y_true.view(-1))
-            loss_list.append(loss)
-        
-        z = (2 * len(predicate2id) + 1)
-        total_steps = 1
-        w_ent = max(1 / z + 1 - model.global_step / total_steps, 1 / z)
-        w_rel = min((len(predicate2id) / z) * model.global_step / total_steps, (len(predicate2id) / z))
-        loss = w_ent*loss_list[0] + w_rel*loss_list[1] + w_rel*loss_list[2]
-
-        return {'loss': loss, 'entity_loss': loss_list[0], 'head_loss': loss_list[1], 'tail_loss': loss_list[2]}
-
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 5e-5), metrics=['entity_loss', 'head_loss', 'tail_loss'])
-
-def extract_spoes(text):
+def extract_spoes(text, threshold=0):
     """抽取输入text所包含的三元组
     """
-    def get_spots_fr_shaking_tag(shaking_tag):
-        '''解析关系
-        '''
-        spots = []
-        for shaking_inds in shaking_tag.nonzero():
-            rel_id = shaking_inds[0].item()
-            tag_id = shaking_tag[rel_id][shaking_inds[1]].item()
-            matrix_inds = map_k2ij[shaking_inds[1].item()]
-            # 保证前面是subject，后面是object
-            if tag_id == 1:
-                spot = (rel_id, matrix_inds[0], matrix_inds[1])
-            elif tag_id == 2:
-                spot = (rel_id, matrix_inds[1], matrix_inds[0])
-            spots.append(spot)
-        return spots
-
     tokens = tokenizer.tokenize(text)[1:-1]
     mapping = tokenizer.rematch(text, tokens)
     token_ids = tokenizer.encode(text)[0][1:-1]
-    token_ids_ts = torch.tensor(sequence_padding([token_ids], length=maxlen), dtype=torch.long, device=device)
-    outputs = model.predict([token_ids_ts])
-    outputs = [o[0].argmax(dim=-1) for o in outputs]
-    # 抽取entity
-    ent_matrix_spots = set()
-    ent_text = set()
-    for shaking_ind in outputs[0].nonzero():
-        shaking_ind_ = shaking_ind[0].item()
-        # tag_id = outputs[0][shaking_ind_]
-        matrix_inds = map_k2ij[shaking_ind_]
+    token_ids = torch.tensor(sequence_padding([token_ids], length=maxlen), dtype=torch.long, device=device)
+    outputs = model.predict([token_ids])[0].cpu().numpy()  # [pair_len, tag_size]
+    # 抽取entity, 识别对应的predicate
+    ent_matrix_spots, ent_text = set(), set()
+    head_rel_matrix_spots, tail_rel_matrix_spots = [], []
+    for shaking_ind, tag_id in zip(*np.where(outputs > threshold)):
+        matrix_inds = map_k2ij[shaking_ind]
         spot = (matrix_inds[0], matrix_inds[1])
         if (spot[0] < len(mapping)) and (spot[1] < len(mapping)):  # 实体起始在mapping范围内
-            ent_matrix_spots.add(spot)
-            ent_text.add(text[mapping[spot[0]][0]:mapping[spot[1]][-1] + 1])
-
-    # 识别对应的predicate
-    head_rel_matrix_spots = get_spots_fr_shaking_tag(outputs[1])
-    tail_rel_matrix_spots = get_spots_fr_shaking_tag(outputs[2])
+            p = id2tag[tag_id].split('##')[0]
+            if id2tag[tag_id] == 'ent':
+                ent_matrix_spots.add(spot)
+                ent_text.add(text[mapping[spot[0]][0]:mapping[spot[1]][-1] + 1])
+            elif id2tag[tag_id].endswith('##sh_oh'):
+                head_rel_matrix_spots.append((p, spot[0], spot[1]))
+            elif id2tag[tag_id].endswith('##oh_sh'):
+                head_rel_matrix_spots.append((p, spot[1], spot[0]))
+            elif id2tag[tag_id].endswith('##st_ot'):
+                tail_rel_matrix_spots.append((p, spot[0], spot[1]))
+            elif id2tag[tag_id].endswith('##ot_st'):
+                tail_rel_matrix_spots.append((p, spot[1], spot[0]))
 
     spoes = []
     for rel_h, sh, oh in head_rel_matrix_spots:
@@ -284,13 +254,12 @@ class Evaluator(Callback):
         f1, precision, recall = evaluate(valid_dataset.data[:1000])
         if f1 >= self.best_val_f1:
             self.best_val_f1 = f1
-            model.save_weights('best_model.pt')
+            # model.save_weights('best_model.pt')
         print('f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' % (f1, precision, recall, self.best_val_f1))
 
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    f1, precision, recall = evaluate(valid_dataset.data[:1000])
     model.fit(train_dataloader, steps_per_epoch=500, epochs=50, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')
