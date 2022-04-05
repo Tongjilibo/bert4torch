@@ -1,6 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，tplinker, 实体部分收敛较快，关系部分收敛较慢
-# 示例使用了最简单的向量concat后接dense层作为向量交互，其他方式可以参考官方项目
+# 三元组抽取任务，tplinker, cat方式实体部分收敛较快，关系部分收敛较慢
 # 官方链接：https://github.com/131250208/TPlinker-joint-extraction
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
 
