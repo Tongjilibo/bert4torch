@@ -1,14 +1,14 @@
 #! -*- coding:utf-8 -*-
 # 三元组抽取任务，tplinker, 实体部分收敛较快，关系部分收敛较慢
+# 示例使用了最简单的向量concat后接dense层作为向量交互，其他方式可以参考官方项目
 # 官方链接：https://github.com/131250208/TPlinker-joint-extraction
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
 
 import json
-from math import gamma
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
-from bert4torch.losses import FocalLoss
+from bert4torch.layers import TplinkerHandshakingKernel
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -119,22 +119,11 @@ class Model(BaseModel):
         self.ent_fc = nn.Linear(768, 2)
         self.head_rel_fc = nn.Linear(768, len(predicate2id)*3)
         self.tail_rel_fc = nn.Linear(768, len(predicate2id)*3)
-        self.gather_idx = torch.tensor(list(map_ij2k.keys()), dtype=torch.long, device=device).flatten()[None, :, None]
-
-    def handshaking_kernel(self, last_hidden_state):
-        '''获取(0,0),(0,1),...,(99,99))对应的序列id
-        '''
-        btz, _, hdsz = last_hidden_state.shape
-        gather_idx = self.gather_idx.repeat(btz, 1, hdsz)
-        concat_hidden_states = torch.gather(last_hidden_state, dim=1, index=gather_idx)  # [btz, pair_len*2, hdsz]
-        concat_hidden_states = concat_hidden_states.reshape(btz, -1, 2, hdsz)  # concat方式 [btz, pair_len, 2, hdsz]
-        shaking_hiddens = torch.cat(torch.chunk(concat_hidden_states, chunks=2, dim=-2), dim=-1).squeeze(-2)  # [btz, pair_len, hdsz*2]
-        return shaking_hiddens
+        self.handshaking_kernel = TplinkerHandshakingKernel(768, shaking_type='cat')
 
     def forward(self, inputs):
         last_hidden_state = self.bert(inputs)  # [btz, seq_len, hdsz]
-        shaking_hiddens = self.handshaking_kernel(last_hidden_state)  # [btz, pair_len, hdsz*2]
-        shaking_hiddens = torch.tanh(self.combine_fc(shaking_hiddens))  # [btz, pair_len, hdsz]
+        shaking_hiddens = self.handshaking_kernel(last_hidden_state)  # [btz, pair_len, hdsz]
         ent_shaking_outputs = self.ent_fc(shaking_hiddens)  # [btz, pair_len, 2]
 
         btz, pair_len = shaking_hiddens.shape[:2]
@@ -144,7 +133,6 @@ class Model(BaseModel):
         return ent_shaking_outputs, head_rel_shaking_outputs, tail_rel_shaking_outputs
 
 model = Model().to(device)
-model.load_weights('best_model.pt')
 
 class MyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs): 
@@ -156,7 +144,7 @@ class MyLoss(nn.CrossEntropyLoss):
             loss_list.append(loss)
         
         z = (2 * len(predicate2id) + 1)
-        total_steps = 1
+        total_steps = 6000 # 前期实体识别的权重高一些，建议也可以设置为model.total_steps
         w_ent = max(1 / z + 1 - model.global_step / total_steps, 1 / z)
         w_rel = min((len(predicate2id) / z) * model.global_step / total_steps, (len(predicate2id) / z))
         loss = w_ent*loss_list[0] + w_rel*loss_list[1] + w_rel*loss_list[2]
@@ -284,13 +272,12 @@ class Evaluator(Callback):
         f1, precision, recall = evaluate(valid_dataset.data[:1000])
         if f1 >= self.best_val_f1:
             self.best_val_f1 = f1
-            model.save_weights('best_model.pt')
+            # model.save_weights('best_model.pt')
         print('f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' % (f1, precision, recall, self.best_val_f1))
 
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    f1, precision, recall = evaluate(valid_dataset.data[:1000])
     model.fit(train_dataloader, steps_per_epoch=500, epochs=50, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

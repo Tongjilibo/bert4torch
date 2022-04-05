@@ -1,7 +1,5 @@
 #! -*- coding:utf-8 -*-
-# global_pointer用来做实体识别
-# 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
-# 博客：https://kexue.fm/archives/8373
+# tplinker_plus用来做实体识别
 
 import numpy as np
 from bert4torch.models import build_transformer_model, BaseModel
@@ -12,19 +10,17 @@ import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
-from bert4torch.layers import GlobalPointer
+from bert4torch.layers import TplinkerHandshakingKernel
 
-maxlen = 512
-batch_size = 6
+maxlen = 50
+batch_size = 16
 categories_label2id = {"LOC": 0, "ORG": 1, "PER": 2}
 categories_id2label = dict((value, key) for key,value in categories_label2id.items())
-ner_vocab_size = len(categories_label2id)
-ner_head_size = 64
 
 # BERT base
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -47,26 +43,48 @@ class MyDataset(ListDataset):
                     elif flag[0] == 'I':
                         label[-1][1] = i
                 text_list = tokenizer.tokenize(text)[1:-1]  #不保留首位[CLS]和末位[SEP]
-                tokens = [j for i in text_list for j in i][:maxlen]
+                tokens = [j for i in text_list for j in i][:maxlen]  # 以char为单位
                 data.append((tokens, label))  # label为[[start, end, entity], ...]
         return data
+
+
+def trans_ij2k(seq_len, i, j):
+    '''把第i行，第j列转化成上三角flat后的序号
+    '''
+    if (i > seq_len - 1) or (j > seq_len - 1) or (i > j):
+        return 0
+    return int(0.5*(2*seq_len-i+1)*i+(j-i))
+map_ij2k = dict([((i, j), trans_ij2k(maxlen, i, j)) for i in range(maxlen) for j in range(maxlen) if j >= i])
+map_k2ij = dict([(v, k) for k, v in map_ij2k.items()])
+
+def tran_ent_rel2id():
+    '''获取最后一个分类层的的映射关系
+    '''
+    tag2id = {}
+    for p in categories_label2id.keys():
+        tag2id[p] = len(tag2id)
+    return tag2id
+tag2id = tran_ent_rel2id()
+id2tag = dict([(v, k) for k, v in tag2id.items()])
 
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
+    pair_len = maxlen * (maxlen+1)//2
+    # batch_head_labels: [btz, pair_len, tag2id_len]
+    batch_labels = torch.zeros((len(batch), pair_len, len(tag2id)), dtype=torch.long, device=device)
+
     batch_token_ids = []
-    max_seq_len = min(max([len(tokens) for tokens, _ in batch]), maxlen)
-    batch_labels = torch.zeros((len(batch), len(categories_label2id), max_seq_len, max_seq_len), device=device)
     for i, (tokens, labels) in enumerate(batch):
-        batch_token_ids.append(tokenizer.tokens_to_ids(tokens)) # 前面已经限制了长度
+        batch_token_ids.append(tokenizer.tokens_to_ids(tokens))  # 前面已经限制了长度
         for s_i in labels:
             if s_i[1] >= len(tokens):  # 实体的结尾超过文本长度，则不标记
                 continue
-            batch_labels[i, categories_label2id[s_i[-1]], s_i[0], s_i[1]] = 1
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    return batch_token_ids, batch_labels
+            batch_labels[i, map_ij2k[s_i[0], s_i[1]], tag2id[s_i[2]]] = 1
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, length=maxlen), dtype=torch.long, device=device)
+    return [batch_token_ids], batch_labels
 
 # 转换数据集
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -77,37 +95,32 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.global_pointer = GlobalPointer(hidden_size=768, heads=ner_vocab_size, head_size=ner_head_size)
+        self.fc = nn.Linear(768, len(tag2id))
+        self.handshaking_kernel = TplinkerHandshakingKernel(768, shaking_type='cln_plus', inner_enc_type='lstm')
 
-    def forward(self, token_ids):
-        sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
-        logit = self.global_pointer(sequence_output, token_ids.gt(0).long())
-        return logit
+    def forward(self, inputs):
+        last_hidden_state = self.bert(inputs)  # [btz, seq_len, hdsz]
+        shaking_hiddens = self.handshaking_kernel(last_hidden_state)
+        output = self.fc(shaking_hiddens)  # [btz, pair_len, tag_size]
+        return output
         
 model = Model().to(device)
-
-class MyLoss(MultilabelCategoricalCrossentropy):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, y_pred, y_true):
-        y_true = y_true.view(y_true.shape[0]*y_true.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
-        y_pred = y_pred.view(y_pred.shape[0]*y_pred.shape[1], -1)  # [btz*ner_vocab_size, seq_len*seq_len]
-        return super().forward(y_pred, y_true)
-
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
+model.compile(loss=MultilabelCategoricalCrossentropy(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
 def evaluate(data, threshold=0):
-    X, Y, Z = 0, 1e-10, 1e-10
+    X, Y, Z, threshold = 0, 1e-10, 1e-10, 0
     for x_true, label in data:
-        scores = model.predict(x_true)
+        scores = model.predict(x_true)  # [btz, pair_len, tag_size]
         for i, score in enumerate(scores):
             R = set()
-            for l, start, end in zip(*np.where(score.cpu() > threshold)):
-                R.add((start, end, categories_id2label[l]))  
+            for pair_id, tag_id in zip(*np.where(score.cpu().numpy() > threshold)):
+                start, end = map_k2ij[pair_id][0], map_k2ij[pair_id][1]
+                R.add((start, end, tag_id))  
 
             T = set()
-            for l, start, end in zip(*np.where(label[i].cpu() > threshold)):
-                T.add((start, end, categories_id2label[l]))
+            for pair_id, tag_id in zip(*np.where(label[i].cpu().numpy() > threshold)):
+                start, end = map_k2ij[pair_id][0], map_k2ij[pair_id][1]
+                T.add((start, end, tag_id))
             X += len(R & T)
             Y += len(R)
             Z += len(T)
@@ -130,11 +143,7 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
-
     evaluator = Evaluator()
-
     model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
-
-else: 
-
+else:
     model.load_weights('best_model.pt')

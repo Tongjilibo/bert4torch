@@ -8,6 +8,7 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.losses import MultilabelCategoricalCrossentropy
+from bert4torch.layers import TplinkerHandshakingKernel
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -124,24 +125,12 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0)
-        self.combine_fc = nn.Linear(768*2, 768)
+        self.handshaking_kernel = TplinkerHandshakingKernel(768, shaking_type='cln_plus', inner_enc_type='lstm')
         self.fc = nn.Linear(768, len(tag2id))
-        self.gather_idx = torch.tensor(list(map_ij2k.keys()), dtype=torch.long, device=device).flatten()[None, :, None]
-
-    def handshaking_kernel(self, last_hidden_state):
-        '''获取(0,0),(0,1),...,(99,99))对应的序列id
-        '''
-        btz, _, hdsz = last_hidden_state.shape
-        gather_idx = self.gather_idx.repeat(btz, 1, hdsz)
-        concat_hidden_states = torch.gather(last_hidden_state, dim=1, index=gather_idx)  # [btz, pair_len*2, hdsz]
-        concat_hidden_states = concat_hidden_states.reshape(btz, -1, 2, hdsz)  # concat方式 [btz, pair_len, 2, hdsz]
-        shaking_hiddens = torch.cat(torch.chunk(concat_hidden_states, chunks=2, dim=-2), dim=-1).squeeze(-2)  # [btz, pair_len, hdsz*2]
-        return shaking_hiddens
 
     def forward(self, inputs):
         last_hidden_state = self.bert(inputs)  # [btz, seq_len, hdsz]
-        shaking_hiddens = self.handshaking_kernel(last_hidden_state)  # [btz, pair_len, hdsz*2]
-        shaking_hiddens = torch.tanh(self.combine_fc(shaking_hiddens))  # [btz, pair_len, hdsz]
+        shaking_hiddens = self.handshaking_kernel(last_hidden_state)
         output = self.fc(shaking_hiddens)  # [btz, pair_len, tag_size]
         return output
 
@@ -154,8 +143,8 @@ def extract_spoes(text, threshold=0):
     tokens = tokenizer.tokenize(text)[1:-1]
     mapping = tokenizer.rematch(text, tokens)
     token_ids = tokenizer.encode(text)[0][1:-1]
-    token_ids = torch.tensor(sequence_padding([token_ids], length=maxlen), dtype=torch.long, device=device)
-    outputs = model.predict([token_ids])[0].cpu().numpy()  # [pair_len, tag_size]
+    token_ids_ = torch.tensor(sequence_padding([token_ids], length=maxlen), dtype=torch.long, device=device)
+    outputs = model.predict([token_ids_])[0].cpu().numpy()  # [pair_len, tag_size]
     # 抽取entity, 识别对应的predicate
     ent_matrix_spots, ent_text = set(), set()
     head_rel_matrix_spots, tail_rel_matrix_spots = [], []
@@ -167,7 +156,10 @@ def extract_spoes(text, threshold=0):
             if id2tag[tag_id] == 'ent':
                 ent_matrix_spots.add(spot)
                 ent_text.add(text[mapping[spot[0]][0]:mapping[spot[1]][-1] + 1])
-            elif id2tag[tag_id].endswith('##sh_oh'):
+            else:
+                p = predicate2id[p]
+
+            if id2tag[tag_id].endswith('##sh_oh'):
                 head_rel_matrix_spots.append((p, spot[0], spot[1]))
             elif id2tag[tag_id].endswith('##oh_sh'):
                 head_rel_matrix_spots.append((p, spot[1], spot[0]))
