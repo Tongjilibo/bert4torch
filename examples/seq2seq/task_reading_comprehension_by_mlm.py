@@ -1,8 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 用MLM的方式做阅读理解任务
 # 数据集和评测同 https://github.com/bojone/dgcnn_for_reading_comprehension
-# 10个epoch后在valid上能达到约0.77的分数
-# (Accuracy=0.7282149325820084  F1=0.8207266829447049   Final=0.7744708077633566)
 
 import json, os
 from bert4torch.models import build_transformer_model

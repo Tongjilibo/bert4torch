@@ -2,7 +2,6 @@
 # 模型压缩，仅保留bert-base部分层
 # 初测测试指标从80%降到77%左右，未细测
 
-from turtle import st
 from task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
 from bert4torch.snippets import Callback
 import torch.optim as optim

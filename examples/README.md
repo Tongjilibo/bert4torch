@@ -53,13 +53,13 @@
 - [task_relation_extraction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction.py)：任务例子，结合BERT以及自行设计的“半指针-半标注”结构来做[关系抽取](https://kexue.fm/archives/7161)。
 - [task_relation_extraction_gplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_gplinker.py)：任务例子，结合GlobalPointer做关系抽取[GPLinker](https://kexue.fm/archives/8888)。
 - [task_relation_extraction_tplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker.py)：任务例子，tplinker关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)。
-- [task_relation_extraction_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker_plus.py)：任务例子，tplinker关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)。
+- [task_relation_extraction_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker_plus.py)：任务例子，tplinker关系抽取[TPLinkerPlus](https://github.com/131250208/TPlinker-joint-extraction)。
 
 ### 训练Trick
 - [task_iflytek_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflytek_adversarial_training.py)：任务例子，通过[对抗训练](https://kexue.fm/archives/7234)提升分类效果。
 - [task_iflytek_gradient_penalty.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflytek_gradient_penalty.py)：任务例子，通过[梯度惩罚](https://kexue.fm/archives/7234)提升分类效果，可以视为另一种对抗训练。
-- [task_semi_supervised_UDA.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/ttask_semi_supervised_UDA.py)：任务例子，通过[UDA](https://arxiv.org/abs/1904.12848)半监督学习提升分类效果，在原来Losss上加一致性损失。
-- [task_iflyteck_R-Drop.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflyteck_R-Drop.py)：任务例子，通过[R-Deop](https://github.com/dropreg/R-Drop)提升分类效果，可以视为用dropout加噪下的UDA。
+- [task_semi_supervised_UDA.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_semi_supervised_UDA.py)：任务例子，通过[UDA](https://arxiv.org/abs/1904.12848)半监督学习提升分类效果，在原来Losss上加一致性损失。
+- [task_iflyteck_R-Drop.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflyteck_R-Drop.py)：任务例子，通过[R-Drop](https://github.com/dropreg/R-Drop)提升分类效果，可以视为用dropout加噪下的UDA。
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。

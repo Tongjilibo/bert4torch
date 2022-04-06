@@ -2,10 +2,6 @@
 # 三元组抽取任务，基于“半指针-半标注”结构
 # 文章介绍：https://kexue.fm/archives/7161
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
-# 最优f1=0.82198
-# 换用RoBERTa Large可以达到f1=0.829+
-# 说明：由于使用了EMA，需要跑足够多的步数(5000步以上）才生效，如果
-#      你的数据总量比较少，那么请务必跑足够多的epoch数，或者去掉EMA。
 
 import json
 import numpy as np

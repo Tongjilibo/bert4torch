@@ -1,7 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 以文本分类为例的半监督学习UDA策略，https://arxiv.org/abs/1904.12848
 
-from turtle import forward
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset

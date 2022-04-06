@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 情感分类例子，加载nezha权重
+# 情感分类例子，加electra权重
 
 import numpy as np
 from bert4torch.tokenizers import Tokenizer

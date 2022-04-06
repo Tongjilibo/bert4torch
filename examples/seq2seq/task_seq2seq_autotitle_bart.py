@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# bert做Seq2Seq任务，采用encoder-decoder方案
+# bert做Seq2Seq任务，采用BART方案
 
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer, load_vocab

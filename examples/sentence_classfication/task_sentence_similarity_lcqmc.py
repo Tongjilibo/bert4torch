@@ -1,6 +1,5 @@
 #! -*- coding:utf-8 -*-
 # 句子对分类任务，LCQMC数据集
-# val_acc: 0.887071, test_acc: 0.870320
 
 import numpy as np
 from bert4torch.tokenizers import Tokenizer

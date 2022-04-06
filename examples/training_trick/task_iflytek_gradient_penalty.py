@@ -1,9 +1,7 @@
 #! -*- coding:utf-8 -*-
-# 通过对抗训练增强模型的泛化性能
-# 比CLUE榜单公开的同数据集上的BERT base的成绩高2%
+# 通过梯度惩罚增强模型的泛化性能
 # 数据集：IFLYTEK' 长文本分类 (https://github.com/CLUEbenchmark/CLUE)
 # 博客：https://kexue.fm/archives/7234
-# 适用于Keras 2.3.1
 
 import json
 from bert4torch.models import build_transformer_model, BaseModel

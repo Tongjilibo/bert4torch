@@ -2,7 +2,6 @@
 # 利用pca压缩句向量
 # 从768维压缩到128维，指标从81.82下降到80.10
 
-from turtle import st
 from task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
 from sklearn.decomposition import PCA
 import numpy as np
