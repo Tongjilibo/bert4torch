@@ -16,9 +16,6 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 # 基本信息
 maxlen = 32
 batch_size = 32
-steps_per_epoch = 1000
-epochs = 10000
-corpus_path = 'data_sample.json'
 
 # bert配置
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -250,6 +247,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=200, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=50, steps_per_epoch=200, callbacks=[evaluator])
 else:
     model.load_weights('./best_model.pt')
