@@ -22,6 +22,7 @@
 - [task_sentence_embedding_sbert_xnli__concat_CrossEntropyLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_xnli__concat_CrossEntropyLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_sbert_xnli__MultiNegtiveRankingLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_xnli__MultiNegtiveRankingLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_CoSENT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_CoSENT.py)：文本表示，参考[CoSENT](https://kexue.fm/archives/8847)
+- [task_sentence_embedding_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_simbert.py)：文本表示，相似问生成，数据增广，参考[SimBERT](https://kexue.fm/archives/7427)
 
 ### 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：任务例子，句子对分类任务。
