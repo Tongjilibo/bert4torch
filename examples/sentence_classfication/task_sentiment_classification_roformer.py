@@ -8,7 +8,7 @@ from bert4torch.snippets import sequence_padding, Callback, text_segmentate, Lis
 import torch.nn as nn
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 maxlen = 128
 batch_size = 16
@@ -104,6 +104,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=500, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

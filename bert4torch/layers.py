@@ -490,23 +490,17 @@ class RoPEPositionEncoding(nn.Module):
     def __init__(self, max_position, embedding_size):
         super(RoPEPositionEncoding, self).__init__()
         position_embeddings = get_sinusoid_encoding_table(max_position, embedding_size)  # [seq_len, hdsz]
-        cos_position = position_embeddings[:, 1::2].repeat(1, 2)
-        sin_position = position_embeddings[:, ::2].repeat(1, 2)
+        cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)
+        sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)
+        # register_buffer是为了最外层model.to(device)，不用内部指定device
         self.register_buffer('cos_position', cos_position)
         self.register_buffer('sin_position', sin_position)
     
-    def forward(self, qw, seq_len_dim=1):
-        dim = len(qw.shape)
-        assert (dim >= 2) and (dim <= 4), 'Input units should >= 2 dims(seq_len and hdsz) and usually <= 4 dims'
-        seq_len = qw.shape[seq_len_dim]
-        qw2 = torch.cat([-qw[..., 1::2], qw[..., ::2]], dim=-1)
-
-        if dim == 2:
-            return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
-        if dim == 3:
-            return qw * self.cos_position[:seq_len].unsqueeze(0) + qw2 * self.sin_position[:seq_len].unsqueeze(0)
-        else:
-            return qw * self.cos_position[:seq_len].unsqueeze(0).unsqueeze(2) + qw2 * self.sin_position[:seq_len].unsqueeze(0).unsqueeze(2)
+    def forward(self, qw, seq_dim=-2):
+        # 默认最后两个维度为[seq_len, hdsz]
+        seq_len = qw.shape[seq_dim]
+        qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
+        return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
 
 
 class CRF(nn.Module):
