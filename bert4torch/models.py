@@ -3,7 +3,7 @@ import torch.nn as nn
 import copy
 import json
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
-from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments
+from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.activations import get_activation
 
 
@@ -182,6 +182,7 @@ class BERT_BASE(BaseModel):
             embedding_size=None,  # 指定embedding_size, 不指定则使用config文件的参数
             attention_head_size=None,  # Attention中V的head_size
             attention_key_size=None,  # Attention中Q,K的head_size
+            initializer_range=0.02,  # 权重初始化方差
             sequence_length=None,  # 是否固定序列长度
             keep_tokens=None,  # 要保留的词ID列表
             compound_tokens=None,  # 扩展Embedding
@@ -207,6 +208,7 @@ class BERT_BASE(BaseModel):
         self.attention_probs_dropout_prob = attention_probs_dropout_prob or 0
         self.hidden_act = hidden_act
         self.embedding_size = embedding_size or hidden_size
+        self.initializer_range = initializer_range
         self.sequence_length = sequence_length
         self.keep_tokens = keep_tokens
         self.compound_tokens = compound_tokens
@@ -246,6 +248,7 @@ class BERT_BASE(BaseModel):
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
         self.output_all_encoded_layers = True if 'output_all_encoded_layers' in kwargs else False
+        self.apply(self.init_model_weights)  # 在模型初始化之后初始化权重
 
     def forward(self, inputs):
         """定义模型的执行流程
@@ -259,7 +262,18 @@ class BERT_BASE(BaseModel):
         return outputs
 
     def init_model_weights(self, module):
-        raise NotImplementedError
+        """ 初始化权重
+        """
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
+            # 此种初始化对于加载预训练模型后进行finetune没有任何影响，
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=self.initializer_range)
+        elif isinstance(module, LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
 
     def variable_mapping(self):
         """构建pytorch层与checkpoint的变量名之间的映射表
@@ -415,14 +429,6 @@ def extend_with_unified_language_model(InputModel):
     return UnifiedLanguageModel
 
 
-import inspect
-def get_kw(cls, kwargs):
-    kwargs_new = {}
-    for k in kwargs:
-        if k not in set(inspect.getargspec(cls)[0]):
-            kwargs_new[k] = kwargs[k]
-    return kwargs_new
-
 class BERT(BERT_BASE):
     """构建BERT模型
     """
@@ -431,7 +437,6 @@ class BERT(BERT_BASE):
             self,
             max_position,  # 序列最大长度
             segment_vocab_size=2,  # segment总数目
-            initializer_range=0.02, # 权重初始化方差
             with_pool=False,  # 是否包含Pool部分
             with_nsp=False,  # 是否包含NSP部分
             with_mlm=False,  # 是否包含MLM部分
@@ -446,7 +451,6 @@ class BERT(BERT_BASE):
         super(BERT, self).__init__(**kwargs)
         self.max_position = max_position
         self.segment_vocab_size = segment_vocab_size
-        self.initializer_range = initializer_range
         self.with_pool = with_pool
         self.with_nsp = with_nsp
         self.with_mlm = with_mlm
@@ -484,21 +488,7 @@ class BERT(BERT_BASE):
             self.mlmDense = nn.Linear(self.hidden_size, self.hidden_size)
             self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
-        self.apply(self.init_model_weights)
-
-    def init_model_weights(self, module):
-        """ 初始化权重
-        """
-        if isinstance(module, (nn.Linear, nn.Embedding)):
-            # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
-            # 此种初始化对于加载预训练模型后进行finetune没有任何影响，
-            # cf https://github.com/pytorch/pytorch/pull/5617
-            module.weight.data.normal_(mean=0.0, std=self.initializer_range)
-        elif isinstance(module, LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-        if isinstance(module, nn.Linear) and module.bias is not None:
-            module.bias.data.zero_()
+        # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
     def apply_embeddings(self, inputs):
         """BERT的embedding是token、position、segment三者embedding之和
@@ -1164,83 +1154,6 @@ class T5(Transformer):
         return mapping
 
 
-def build_transformer_model(
-        config_path=None,
-        checkpoint_path=None,
-        model='bert',
-        application='encoder',
-        return_model_config=False,
-        **kwargs
-):
-    """根据配置文件构建模型，可选加载checkpoint权重
-    """
-    configs = {}
-    if config_path is not None:
-        configs.update(json.load(open(config_path)))
-    configs.update(kwargs)
-    if 'max_position' not in configs:
-        configs['max_position'] = configs.get('max_position_embeddings', 512)
-    if 'dropout_rate' not in configs:
-        configs['dropout_rate'] = configs.get('hidden_dropout_prob')
-    if 'segment_vocab_size' not in configs:
-        configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    
-    models = {
-        'bert': BERT,
-        'roberta': BERT,  
-        'albert': ALBERT,
-        'albert_unshared': ALBERT_Unshared,
-        'nezha': NEZHA,
-        'roformer': RoFormer,
-        'electra': ELECTRA,
-        'transformer': Transformer,
-        'bart': BART,
-        'gpt': GPT,
-        'gpt2': GPT2,
-        'gpt2_ml': GPT2_ML,
-        't5': T5,
-        't5_encoder': T5_Encoder,
-        't5_decoder': T5_Decoder,
-        't5.1.0': T5,
-        't5.1.0_encoder': T5_Encoder,
-        't5.1.0_decoder': T5_Decoder,
-        't5.1.1': T5,
-        't5.1.1_encoder': T5_Encoder,
-        't5.1.1_decoder': T5_Decoder,
-        'mt5.1.1': T5,
-        'mt5.1.1_encoder': T5_Encoder,
-        'mt5.1.1_decoder': T5_Decoder,
-    }
-
-    if isinstance(model, str):  # string表示使用自带的模型
-        MODEL = models[model.lower()]
-        if model.endswith('t5.1.1'):
-            configs['version'] = model
-    elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
-        MODEL = model
-    else:
-        raise ValueError('"model" args type should be string or nn.Module')
-
-    application = application.lower()
-    if application in ['lm', 'unilm'] and model in ['electra', 't5', ]:
-        raise ValueError(f'"{model}" model can not be used as "{application}" application.\n')
-
-    if application == 'lm':
-        MODEL = extend_with_language_model(MODEL)
-    elif application == 'unilm':
-        MODEL = extend_with_unified_language_model(MODEL)
-
-    transformer = MODEL(**configs)
-    transformer.build(**configs)
-
-    if checkpoint_path is not None:
-        transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)
-    if return_model_config:
-        return transformer, configs
-    else:
-        return transformer
-
-
 class GPT(LM_Mask, BERT):
     """构建GPT模型
     链接：https://github.com/openai/finetune-transformer-lm
@@ -1434,3 +1347,80 @@ class PGD():
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 param.grad = self.grad_backup[name]
+
+
+def build_transformer_model(
+        config_path=None,
+        checkpoint_path=None,
+        model='bert',
+        application='encoder',
+        return_model_config=False,
+        **kwargs
+):
+    """根据配置文件构建模型，可选加载checkpoint权重
+    """
+    configs = {}
+    if config_path is not None:
+        configs.update(json.load(open(config_path)))
+    configs.update(kwargs)
+    if 'max_position' not in configs:
+        configs['max_position'] = configs.get('max_position_embeddings', 512)
+    if 'dropout_rate' not in configs:
+        configs['dropout_rate'] = configs.get('hidden_dropout_prob')
+    if 'segment_vocab_size' not in configs:
+        configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
+    
+    models = {
+        'bert': BERT,
+        'roberta': BERT,  
+        'albert': ALBERT,
+        'albert_unshared': ALBERT_Unshared,
+        'nezha': NEZHA,
+        'roformer': RoFormer,
+        'electra': ELECTRA,
+        'transformer': Transformer,
+        'bart': BART,
+        'gpt': GPT,
+        'gpt2': GPT2,
+        'gpt2_ml': GPT2_ML,
+        't5': T5,
+        't5_encoder': T5_Encoder,
+        't5_decoder': T5_Decoder,
+        't5.1.0': T5,
+        't5.1.0_encoder': T5_Encoder,
+        't5.1.0_decoder': T5_Decoder,
+        't5.1.1': T5,
+        't5.1.1_encoder': T5_Encoder,
+        't5.1.1_decoder': T5_Decoder,
+        'mt5.1.1': T5,
+        'mt5.1.1_encoder': T5_Encoder,
+        'mt5.1.1_decoder': T5_Decoder,
+    }
+
+    if isinstance(model, str):  # string表示使用自带的模型
+        MODEL = models[model.lower()]
+        if model.endswith('t5.1.1'):
+            configs['version'] = model
+    elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
+        MODEL = model
+    else:
+        raise ValueError('"model" args type should be string or nn.Module')
+
+    application = application.lower()
+    if application in ['lm', 'unilm'] and model in ['electra', 't5', ]:
+        raise ValueError(f'"{model}" model can not be used as "{application}" application.\n')
+
+    if application == 'lm':
+        MODEL = extend_with_language_model(MODEL)
+    elif application == 'unilm':
+        MODEL = extend_with_unified_language_model(MODEL)
+
+    transformer = MODEL(**configs)
+    transformer.build(**configs)
+
+    if checkpoint_path is not None:
+        transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)
+    if return_model_config:
+        return transformer, configs
+    else:
+        return transformer

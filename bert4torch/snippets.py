@@ -13,6 +13,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 import math
 import gc
+import inspect
 
 is_py2 = six.PY2
 
@@ -738,3 +739,13 @@ def cal_ts_num(tensor_shape):
         except Exception as e:
             print('A trivial exception occured: {}'.format(e))
     print(cal_num)
+
+
+def get_kw(cls, kwargs):
+    '''保留排除cls的入参后的kwargs
+    '''
+    kwargs_new = {}
+    for k in kwargs:
+        if k not in set(inspect.getargspec(cls)[0]):
+            kwargs_new[k] = kwargs[k]
+    return kwargs_new
