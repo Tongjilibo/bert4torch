@@ -55,8 +55,8 @@ def trans_ij2k(seq_len, i, j):
     if (i > seq_len - 1) or (j > seq_len - 1) or (i > j):
         return 0
     return int(0.5*(2*seq_len-i+1)*i+(j-i))
-map_ij2k = dict([((i, j), trans_ij2k(maxlen, i, j)) for i in range(maxlen) for j in range(maxlen) if j >= i])
-map_k2ij = dict([(v, k) for k, v in map_ij2k.items()])
+map_ij2k = {(i, j): trans_ij2k(maxlen, i, j) for i in range(maxlen) for j in range(maxlen) if j >= i}
+map_k2ij = {v: k for k, v in map_ij2k.items()}
 
 def search(pattern, sequence):
     """从sequence中寻找子串pattern

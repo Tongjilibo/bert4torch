@@ -16,8 +16,8 @@ from tqdm import tqdm
 maxlen = 512
 batch_size = 6
 categories = ['O', 'B-LOC', 'I-LOC', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG']
-categories_id2label = dict([(i, k) for i, k in enumerate(categories)])
-categories_label2id = dict([(k, i) for i, k in enumerate(categories)])
+categories_id2label = {i: k for i, k in enumerate(categories)}
+categories_label2id = {k: i for i, k in enumerate(categories)}
 
 # BERT base
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'

@@ -61,8 +61,8 @@ def trans_ij2k(seq_len, i, j):
     return int(0.5*(2*seq_len-i+1)*i+(j-i))
 
 
-map_ij2k = dict([((i, j), trans_ij2k(maxlen, i, j)) for i in range(maxlen) for j in range(maxlen) if j >= i])
-map_k2ij = dict([(v, k) for k, v in map_ij2k.items()])
+map_ij2k = {(i, j): trans_ij2k(maxlen, i, j) for i in range(maxlen) for j in range(maxlen) if j >= i}
+map_k2ij = {v: k for k, v in map_ij2k.items()}
 
 def tran_ent_rel2id():
     '''获取最后一个分类层的的映射关系
@@ -73,7 +73,7 @@ def tran_ent_rel2id():
             tag2id[p+'##'+mode] = len(tag2id)
     return tag2id
 tag2id = tran_ent_rel2id()
-id2tag = dict([(v, k) for k, v in tag2id.items()])
+id2tag = {v: k for k, v in tag2id.items()}
 
 def search(pattern, sequence):
     """从sequence中寻找子串pattern
