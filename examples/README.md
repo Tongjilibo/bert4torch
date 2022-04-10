@@ -49,6 +49,8 @@
 - [task_sequence_labeling_ner_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_crf.py)：任务例子，ner例子，bert+crf
 - [task_sequence_labeling_ner_cascade_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_cascade_crf.py)：任务例子，ner例子，bert+crf+级联
 - [task_sequence_labeling_ner_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_tplinker_plus.py)：任务例子，ner例子，改造了关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)
+- [task_sequence_labeling_ner_mrc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_mrc.py)：任务例子，ner例子，[mrc方案](https://github.com/z814081807/DeepNER)，用阅读理解的方式来做
+- [task_sequence_labeling_ner_span.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_span.py)：任务例子，ner例子，[span方案](https://github.com/z814081807/DeepNER)，用半指针-半标注方式来做
 
 ### 关系提取
 - [task_relation_extraction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction.py)：任务例子，结合BERT以及自行设计的“半指针-半标注”结构来做[关系抽取](https://kexue.fm/archives/7161)。
