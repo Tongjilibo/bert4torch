@@ -472,7 +472,7 @@ class BERT(BERT_BASE):
         if self.with_pool:
             # Pooler部分（提取CLS向量）
             self.pooler = nn.Linear(self.hidden_size, self.hidden_size)
-            self.pooler_activation = nn.Tanh()
+            self.pooler_activation = nn.Tanh() if self.with_pool is True else get_activation(self.with_pool)
             if self.with_nsp:
                 # Next Sentence Prediction部分
                 # nsp的输入为pooled_output, 所以with_pool为True是使用nsp的前提条件
@@ -772,6 +772,14 @@ class RoFormer(BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary'})
         super(RoFormer, self).__init__(*args, **kwargs)
+    
+    def load_variable(self, state_dict, name, prefix='roformer'):
+        return super().load_variable(state_dict, name, prefix)
+
+    def variable_mapping(self, prefix='roformer'):
+        mapping =  super().variable_mapping(prefix)
+        del mapping['embeddings.position_embeddings.weight'] # 没有位置编码
+        return mapping
 
 
 class ELECTRA(BERT):
