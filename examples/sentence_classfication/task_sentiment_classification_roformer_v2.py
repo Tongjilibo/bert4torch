@@ -1,5 +1,7 @@
 #! -*- coding:utf-8 -*-
 # 情感分类例子，RoPE相对位置编码
+# 官方项目：https://github.com/ZhuiyiTechnology/roformer-v2
+# pytorch参考项目：https://github.com/JunnYu/RoFormer_pytorch
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
