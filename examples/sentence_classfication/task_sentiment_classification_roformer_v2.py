@@ -11,9 +11,9 @@ from torch.utils.data import DataLoader
 
 maxlen = 128
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/roformer/roformer_v1_base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/roformer/roformer_v1_base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/roformer/roformer_v1_base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/roformer/roformer_v2_char_base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/roformer/roformer_v2_char_base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/roformer/roformer_v2_char_base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -59,13 +59,13 @@ class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
         # 指定好model=nezha和对应的ckpt地址
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', with_pool=True, return_model_config=True)
+        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer_v2', return_model_config=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.config['hidden_size'], 2)
 
     def forward(self, token_ids, segment_ids):
-        _, pooled_output = self.bert([token_ids, segment_ids])
-        output = self.dropout(pooled_output)
+        last_hidden_state = self.bert([token_ids, segment_ids])
+        output = self.dropout(last_hidden_state[:, 0, :])
         output = self.dense(output)
         return output
 model = Model().to(device)

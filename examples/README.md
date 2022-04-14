@@ -5,6 +5,7 @@
 - [basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gen_gpt.py)：基础测试，测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
 - [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_make_uncased_model_cased.py)：基础测试，通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
 - [basic_masked_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_masked_language_model.py)：基础测试，测试BERT的MLM模型效果。
+- [basic_masked_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_masked_language_model_roformer.py)：基础测试，测试roformer的MLM模型效果。
 - [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_CDial_GPT.py)：基础测试，测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
 - [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_ml.py)：基础测试，测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
 - [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_cpm_lm.py)：基础测试，测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
@@ -30,7 +31,8 @@
 - [task_sentiment_classification_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_albert.py)：任务例子，情感分类任务，加载ALBERT模型。
 - [task_sentiment_classification_hierarchical_position.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_hierarchical_position.py)：任务例子，情感分类任务，层次分解位置编码做长文本的初始化
 - [task_sentiment_classification_nezha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_nezha.py)：任务例子，情感分类任务，加载nezha模型
-- [task_sentiment_classification_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_roformer.py)：任务例子，情感分类任务，roformer
+- [task_sentiment_classification_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_roformer.py)：任务例子，情感分类任务，加载roformer权重
+- [task_sentiment_classification_roformer_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_roformer_v2.py)：任务例子，情感分类任务，加载roformer_v2权重
 - [task_sentiment_classification_electra.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_electra.py)：任务例子，情感分类任务，加载electra权重
 
 ### 文本生成

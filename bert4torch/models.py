@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import copy
 import json
+import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
 from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.activations import get_activation
@@ -248,7 +249,6 @@ class BERT_BASE(BaseModel):
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
         self.output_all_encoded_layers = True if 'output_all_encoded_layers' in kwargs else False
-        self.apply(self.init_model_weights)  # 在模型初始化之后初始化权重
 
     def forward(self, inputs):
         """定义模型的执行流程
@@ -270,8 +270,10 @@ class BERT_BASE(BaseModel):
             # cf https://github.com/pytorch/pytorch/pull/5617
             module.weight.data.normal_(mean=0.0, std=self.initializer_range)
         elif isinstance(module, LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
+            if hasattr(module, 'bias'):  # T5等模型使用的是rmsnorm
+                module.bias.data.zero_()
+            if hasattr(module, 'weight'):
+                module.weight.data.fill_(1.0)
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
@@ -782,6 +784,48 @@ class RoFormer(BERT):
         return mapping
 
 
+class RoFormerV2(RoFormer):
+    """RoFormerV2
+    改动：去掉bias，简化Norm，优化初始化等。目前初始化暂时还用的bert的初始化，finetune不受影响
+    """
+    @delete_arguments('with_pool', 'with_nsp')
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'rotary', 'weight': False, 'bias': False, 'norm_mode': 'rmsnorm'})
+        super(RoFormerV2, self).__init__(*args, **kwargs)
+        if self.with_mlm:
+            del self.mlmLayerNorm
+            del self.mlmBias
+            del self.mlmDense
+            self.mlmDecoder.register_parameter('bias', None)
+
+    def variable_mapping(self, prefix='roformer'):
+        mapping = super().variable_mapping(prefix)
+        mapping_new = {}
+        for k, v in mapping.items():
+            if (not re.search('bias|layernorm', k.lower())) and (not re.search('bias|layernorm', v.lower())):
+                mapping_new[k] = v
+        return mapping_new
+
+    def apply_final_layers(self, inputs):
+        """根据剩余参数决定输出
+        """
+        # 获取最后一层隐藏层的输出
+        encoded_layers, conditional_emb = inputs
+        sequence_output = encoded_layers[-1]
+        # 是否取最后一层输出
+        if not self.output_all_encoded_layers:
+            encoded_layers = encoded_layers[-1]
+
+        # 是否添加mlm
+        if self.with_mlm:
+            mlm_scores = self.mlmDecoder(sequence_output)
+        else:
+            mlm_scores = None
+        
+        outputs = [value for value in [encoded_layers, mlm_scores] if value is not None]
+        return outputs if len(outputs) > 1 else outputs[0]
+
+
 class ELECTRA(BERT):
     """Google推出的ELECTRA模型
     链接：https://arxiv.org/abs/2003.10555
@@ -1010,7 +1054,8 @@ class BART(Transformer):
 class T5_Encoder(Encoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version})  # p_bias来控制embedding阶段无pos_embedding
+        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version, 
+                       'bias': False, 'norm_mode': 'rmsnorm'})  # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
 
@@ -1066,7 +1111,8 @@ class T5_Encoder(Encoder):
 class T5_Decoder(Decoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version})  # p_bias来控制embedding阶段无pos_embedding
+        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version,
+                       'bias': False, 'norm_mode': 'rmsnorm'})  # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
 
@@ -1385,6 +1431,7 @@ def build_transformer_model(
         'albert_unshared': ALBERT_Unshared,
         'nezha': NEZHA,
         'roformer': RoFormer,
+        'roformer_v2': RoFormerV2,
         'electra': ELECTRA,
         'transformer': Transformer,
         'bart': BART,
@@ -1425,6 +1472,7 @@ def build_transformer_model(
 
     transformer = MODEL(**configs)
     transformer.build(**configs)
+    transformer.apply(transformer.init_model_weights)  # 初始化权重
 
     if checkpoint_path is not None:
         transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)

@@ -6,7 +6,7 @@
 - 自行训练：针对自己的数据，修改相应的数据处理代码块
 
 ## 更新：
-- **2022年4月10更新**：增加了ner_mrc, ner_span等示例
+- **2022年4月15更新**：增加了ner_mrc, ner_span, roformer_v2等示例
 - **2022年4月05更新**：增加了GPLinker, TPlinker, SimBERT等示例
 - **2022年3月29更新**：增加了CoSENT、R-Drop、UDA等示例
 - **2022年3月22更新**：添加GPT、GPT2、T5模型
@@ -19,11 +19,11 @@
 
 ## 功能
 - **核心功能**：加载预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
-- **丰富示例**：包含[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)等多种解决方案
+- **丰富示例**：包含[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)等多种解决方案
 - **其他特性**：调用方式和bert4keras基本一致，简洁高效；实现基于keras的训练进度条动态展示；兼容torchinfo，实现打印各层参数量功能
 
 ### 现在已经实现
-- 加载bert、roberta、albert、nezha、bart、RoFormer、ELECTRA、GPT、GPT2、T5模型进行fintune
+- 加载bert、roberta、albert、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5模型进行fintune
 - 对抗训练（FGM, PGD, 梯度惩罚）
 
 ### 未来将实现

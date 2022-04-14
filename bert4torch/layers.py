@@ -6,16 +6,19 @@ from bert4torch.activations import get_activation
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-12, conditional_size=False, bias=True, mode='normal', **kwargs):
+    def __init__(self, hidden_size, eps=1e-12, conditional_size=False, weight=True, bias=True, norm_mode='normal', **kwargs):
         """layernorm 层，这里自行实现，目的是为了兼容 conditianal layernorm，使得可以做条件文本生成、条件分类等任务
            条件layernorm来自于苏剑林的想法，详情：https://spaces.ac.cn/archives/7124
         """
         super(LayerNorm, self).__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
+        
+        # 兼容roformer_v2不包含weight
+        if weight:
+            self.weight = nn.Parameter(torch.ones(hidden_size))
         # 兼容t5不包含bias项, 和t5使用的RMSnorm
         if bias:
             self.bias = nn.Parameter(torch.zeros(hidden_size))
-        self.mode = mode
+        self.norm_mode = norm_mode
 
         self.eps = eps
         self.conditional_size = conditional_size
@@ -30,7 +33,7 @@ class LayerNorm(nn.Module):
     def forward(self, x):
         inputs = x[0]
 
-        if self.mode == 'rmsnorm':
+        if self.norm_mode == 'rmsnorm':
             # t5使用的是RMSnorm
             variance = inputs.to(torch.float32).pow(2).mean(-1, keepdim=True)
             o = inputs * torch.rsqrt(variance + self.eps)
@@ -39,6 +42,8 @@ class LayerNorm(nn.Module):
             s = (inputs - u).pow(2).mean(-1, keepdim=True)
             o = (inputs - u) / torch.sqrt(s + self.eps)
 
+        if not hasattr(self, 'weight'):
+            self.weight = 1
         if not hasattr(self, 'bias'):
             self.bias = 0
 
@@ -53,7 +58,7 @@ class LayerNorm(nn.Module):
 
 class MultiHeadAttentionLayer(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, attention_scale=True,
-                 return_attention_scores=False, **kwargs):
+                 return_attention_scores=False, bias=True, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
 
         assert hidden_size % num_attention_heads == 0
@@ -64,10 +69,10 @@ class MultiHeadAttentionLayer(nn.Module):
         self.attention_scale = attention_scale
         self.return_attention_scores = return_attention_scores
 
-        self.q = nn.Linear(hidden_size, hidden_size)
-        self.k = nn.Linear(hidden_size, hidden_size)
-        self.v = nn.Linear(hidden_size, hidden_size)
-        self.o = nn.Linear(hidden_size, hidden_size)
+        self.q = nn.Linear(hidden_size, hidden_size, bias=bias)
+        self.k = nn.Linear(hidden_size, hidden_size, bias=bias)
+        self.v = nn.Linear(hidden_size, hidden_size, bias=bias)
+        self.o = nn.Linear(hidden_size, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
@@ -184,7 +189,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
 
 class PositionWiseFeedForward(nn.Module):
-    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=False, **kwargs):
+    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=False, bias=True, **kwargs):
         # 原生的tf版本的bert在激活函数后，没有添加dropout层，但是在google AI的bert-pytorch开源项目中，多了一层dropout；
         # 并且在pytorch官方的TransformerEncoderLayer的实现中，也有一层dropout层，就像这样：self.linear2(self.dropout(self.activation(self.linear1(src))))；
         # 这样不统一做法的原因不得而知，不过有没有这一层，差别可能不会很大；
@@ -194,8 +199,8 @@ class PositionWiseFeedForward(nn.Module):
 
         self.is_dropout = is_dropout
         self.intermediate_act_fn = get_activation(hidden_act)
-        self.intermediateDense = nn.Linear(hidden_size, intermediate_size)
-        self.outputDense = nn.Linear(intermediate_size, hidden_size)
+        self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=bias)
+        self.outputDense = nn.Linear(intermediate_size, hidden_size, bias=bias)
         if self.is_dropout:
             self.dropout = nn.Dropout(dropout_rate)
 
@@ -227,7 +232,7 @@ class BertEmbeddings(nn.Module):
         if (segment_vocab_size > 0) and (not shared_segment_embeddings):
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
 
-        self.layerNorm = LayerNorm(embedding_size, eps=1e-12, conditional_size=conditional_size)
+        self.layerNorm = LayerNorm(embedding_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
         self.dropout = nn.Dropout(drop_rate)
         # 如果embedding_size != hidden_size，则再有一个linear(适用于albert矩阵分解)
         if embedding_size != hidden_size:
@@ -277,15 +282,15 @@ class BertLayer(nn.Module):
         super(BertLayer, self).__init__()
         self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
         self.dropout1 = nn.Dropout(dropout_rate)
-        self.layerNorm1 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size)
-        self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout)
+        self.layerNorm1 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
+        self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
         self.dropout2 = nn.Dropout(dropout_rate)
-        self.layerNorm2 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size)
+        self.layerNorm2 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
         self.is_decoder = kwargs.get('is_decoder')
         if self.is_decoder:
             self.crossAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
             self.dropout3 = nn.Dropout(dropout_rate)
-            self.layerNorm3 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size)
+            self.layerNorm3 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
 
     def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
         self_attn_output = self.multiHeadAttention(hidden_states, attention_mask)  # self.decoder为true时候，这里的attention_mask是三角的
@@ -310,37 +315,17 @@ class T5Layer(BertLayer):
     """
     def __init__(self, *args, version='t5.1.0', **kwargs):
         super().__init__(*args, **kwargs)
-        # 定义RMSnorm层
-        self.layerNorm1 = LayerNorm(hidden_size=args[0], eps=1e-12, bias=False, mode='rmsnorm', **kwargs)
-        self.layerNorm2 = LayerNorm(hidden_size=args[0], eps=1e-12, bias=False, mode='rmsnorm', **kwargs)
-
-        # 删除对应的bias项
-        self.multiHeadAttention.q.register_parameter('bias', None)
-        self.multiHeadAttention.k.register_parameter('bias', None)
-        self.multiHeadAttention.v.register_parameter('bias', None)
-        self.multiHeadAttention.o.register_parameter('bias', None)
 
         # 如果是t5.1.1结构，则FFN层需要变更
-        if version.endswith('t5.1.0'):
-            self.feedForward.outputDense.register_parameter('bias', None)
-            self.feedForward.intermediateDense.register_parameter('bias', None)
-        elif version.endswith('t5.1.1'):
+        if version.endswith('t5.1.1'):
             kwargs['dropout_rate'] = args[2]
             kwargs['hidden_act'] = args[5]
             self.feedForward = self.T5PositionWiseFeedForward(hidden_size=args[0], intermediate_size=args[4], **kwargs)
-        else:
-            raise ValueError('T5 model only support t5.1.0 and t5.1.1')
 
         # decoder中间有crossAttention
-        if self.is_decoder:
-            self.layerNorm3 = LayerNorm(hidden_size=args[0], eps=1e-12, bias=False, mode='rmsnorm', **kwargs)
-            self.crossAttention.q.register_parameter('bias', None)
-            self.crossAttention.k.register_parameter('bias', None)
-            self.crossAttention.v.register_parameter('bias', None)
-            self.crossAttention.o.register_parameter('bias', None)
-            if hasattr(self.crossAttention, 'relative_positions_encoding'):
-                del self.crossAttention.relative_positions_encoding
-                del self.crossAttention.relative_positions
+        if self.is_decoder and hasattr(self.crossAttention, 'relative_positions_encoding'):
+            del self.crossAttention.relative_positions_encoding
+            del self.crossAttention.relative_positions
 
     def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
         # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
