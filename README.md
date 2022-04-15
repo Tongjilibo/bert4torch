@@ -6,7 +6,7 @@
 - 自行训练：针对自己的数据，修改相应的数据处理代码块
 
 ## 更新：
-- **2022年4月15更新**：增加了ner_mrc、ner_span、roformer_v2等示例
+- **2022年4月15更新**：增加了ner_mrc、ner_span、roformer_v2、roformer-sim等示例
 - **2022年4月05更新**：增加了GPLinker、TPlinker、SimBERT等示例
 - **2022年3月29更新**：增加了CoSENT、R-Drop、UDA等示例
 - **2022年3月22更新**：添加GPT、GPT2、T5模型

@@ -80,7 +80,7 @@ model = build_transformer_model(
     attention_scale=False,
     is_dropout=True,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    tgt_emb_prj_weight_sharing=False,  # 独立权重
+    tie_emb_prj_weight=False,  # 独立权重
     token_pad_ids=token_pad_ids,  # 也可以指定custom_attention_mask并传入attention_mask来实现
 ).to(device)
 

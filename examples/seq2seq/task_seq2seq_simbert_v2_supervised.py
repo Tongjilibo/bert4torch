@@ -1,35 +1,31 @@
 #! -*- coding: utf-8 -*-
-# SimBERT训练代码
+# SimBERT_v2监督训练代码supervised部分
+# 官方项目：https://github.com/ZhuiyiTechnology/roformer-sim
 
 import json
-from turtle import forward
 import numpy as np
-from collections import Counter
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, AutoRegressiveDecoder, Callback
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, AutoRegressiveDecoder, Callback, truncate_sequences
+from bert4torch.tokenizers import Tokenizer
+import jieba
+jieba.initialize()
 
 # 基本信息
-maxlen = 32
-batch_size = 32
+maxlen = 64
+batch_size = 12
 
-# bert配置
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+# bert配置，需要加载stage2训练后的权重，这里直接加载官方最终的权重以示例
+config_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# 加载并精简词表，建立分词器
-token_dict, keep_tokens = load_vocab(
-    dict_path=dict_path,
-    simplified=True,
-    startswith=['[PAD]', '[UNK]', '[CLS]', '[SEP]'],
-)
-tokenizer = Tokenizer(token_dict, do_lower_case=True)
+# 建立分词器
+tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 class MyDataset(ListDataset):
     @staticmethod
@@ -49,20 +45,51 @@ def truncate(text):
     seps, strips = u'\n。！？!?；;，, ', u'；;，, '
     return text_segmentate(text, maxlen - 2, seps, strips)[0]
 
+def masked_encode(text):
+    """wwm随机mask
+    """
+    words = jieba.lcut(text)
+    rands = np.random.random(len(words))
+    source, target = [tokenizer._token_start_id], [0]
+    for r, w in zip(rands, words):
+        ids = tokenizer.encode(w)[0][1:-1]
+        if r < 0.15 * 0.8:
+            source.extend([tokenizer._token_mask_id] * len(ids))
+            target.extend(ids)
+        elif r < 0.15 * 0.9:
+            source.extend(ids)
+            target.extend(ids)
+        elif r < 0.15:
+            source.extend(
+                np.random.choice(tokenizer._vocab_size - 1, size=len(ids)) + 1
+            )
+            target.extend(ids)
+        else:
+            source.extend(ids)
+            target.extend([0] * len(ids))
+    source = source[:maxlen - 1] + [tokenizer._token_end_id]
+    target = target[:maxlen - 1] + [0]
+    return source, target
+
 def collate_fn(batch):
     batch_token_ids, batch_segment_ids = [], []
     for d in batch:
         text, synonyms = d['text'], d['synonyms']
         synonyms = [text] + synonyms
         np.random.shuffle(synonyms)
-        text, synonym = synonyms[:2]
-        text, synonym = truncate(text), truncate(synonym)
-        token_ids, segment_ids = tokenizer.encode(text, synonym, maxlen=maxlen * 2)
-        batch_token_ids.append(token_ids)
-        batch_segment_ids.append(segment_ids)
-        token_ids, segment_ids = tokenizer.encode(synonym, text, maxlen=maxlen * 2)
-        batch_token_ids.append(token_ids)
-        batch_segment_ids.append(segment_ids)
+        for _ in range(2):
+            text, synonym = synonyms[:2]
+            if np.random.random() < 0.5:
+                text_ids = masked_encode(text)[0]
+            else:
+                text_ids = tokenizer.encode(text)[0]
+            synonym_ids = tokenizer.encode(synonym)[0][1:]
+            truncate_sequences(maxlen * 2, -2, text_ids, synonym_ids)
+            token_ids = text_ids + synonym_ids
+            segment_ids = [0] * len(text_ids) + [1] * len(synonym_ids)
+            batch_token_ids.append(token_ids)
+            batch_segment_ids.append(segment_ids)
+            text, synonym = synonym, text
     
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
@@ -74,8 +101,8 @@ train_dataloader = DataLoader(MyDataset('../datasets/data_similarity.json'), bat
 class Model(BaseModel):
     def __init__(self, pool_method='cls'):
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool='linear', 
-                                            application='unilm', keep_tokens=keep_tokens)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', 
+                                            with_pool='linear', with_mlm='linear', dropout_rate=0.2, application='unilm')
         self.pool_method = pool_method
 
     def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
@@ -96,13 +123,6 @@ class Model(BaseModel):
         sen_emb = self.get_pool_emb(hidden_state, pool_cls, attention_mask=token_ids.gt(0).long())
         return seq_logit, sen_emb
 
-    def encode(self, token_ids):
-        self.eval()
-        with torch.no_grad():
-            hidden_state, pool_cls = self.bert([token_ids])
-            attention_mask = token_ids.gt(0).long()
-            output = self.get_pool_emb(hidden_state, pool_cls, attention_mask)
-        return output
 model = Model(pool_method='cls').to(device)
 
 class TotalLoss(nn.Module):
@@ -170,6 +190,20 @@ class SynonymsGenerator(AutoRegressiveDecoder):
 synonyms_generator = SynonymsGenerator(start_id=None, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
 
 
+def cal_sen_emb(text_list):
+    '''输入text的list，计算sentence的embedding
+    '''
+    X, S = [], []
+    for t in text_list:
+        x, s = tokenizer.encode(t)
+        X.append(x)
+        S.append(s)
+    X = torch.tensor(sequence_padding(X), dtype=torch.long, device=device)
+    S = torch.tensor(sequence_padding(S), dtype=torch.long, device=device)
+    _, Z = model.predict([X, S])
+    return Z
+    
+
 def gen_synonyms(text, n=100, k=20):
     """"含义： 产生sent的n个相似句，然后返回最相似的k个。
     做法：用seq2seq生成，并用encoder算相似度并排序。
@@ -191,14 +225,7 @@ def gen_synonyms(text, n=100, k=20):
     r = synonyms_generator.generate(text, n)
     r = [i for i in set(r) if i != text]  # 不和原文相同
     r = [text] + r
-    X, S = [], []
-    for t in r:
-        x, s = tokenizer.encode(t)
-        X.append(x)
-        S.append(s)
-    X = torch.tensor(sequence_padding(X), dtype=torch.long, device=device)
-    S = torch.tensor(sequence_padding(S), dtype=torch.long, device=device)
-    _, Z = model.predict([X, S])
+    Z = cal_sen_emb(r)
     Z /= (Z**2).sum(dim=1, keepdims=True)**0.5
     argsort = torch.matmul(Z[1:], -Z[0]).argsort()
     return [r[i + 1] for i in argsort[:k]]
@@ -211,8 +238,7 @@ def just_show(some_samples):
     for s in S:
         try:
             print(u'原句子：%s' % s)
-            print(u'同义句子：')
-            print(gen_synonyms(s, 10, 10))
+            print(u'同义句子：', gen_synonyms(s, 10, 10))
             print()
         except:
             pass
@@ -225,7 +251,6 @@ class Evaluator(Callback):
         self.lowest = 1e10
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        model.save_weights('./best_model.pt')
         # 保存最优
         if logs['loss'] <= self.lowest:
             self.lowest = logs['loss']
@@ -245,7 +270,7 @@ class Evaluator(Callback):
                    ])
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     evaluator = Evaluator()
     model.fit(train_dataloader, epochs=50, steps_per_epoch=200, callbacks=[evaluator])
 else:

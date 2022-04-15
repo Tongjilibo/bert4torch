@@ -399,7 +399,8 @@ def extend_with_language_model(InputModel):
         """带下三角Attention Mask的派生模型
         """
         def __init__(self, *args, **kwargs):
-            super(LanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
+            kwargs['with_mlm'] = kwargs.get('with_mlm') or True
+            super(LanguageModel, self).__init__(*args, **kwargs)
 
     return LanguageModel
 
@@ -426,7 +427,8 @@ def extend_with_unified_language_model(InputModel):
         UniLM: https://arxiv.org/abs/1905.03197
         """
         def __init__(self, *args, **kwargs):
-            super(UnifiedLanguageModel, self).__init__(with_mlm=True, *args, **kwargs)
+            kwargs['with_mlm'] = kwargs.get('with_mlm') or True
+            super(UnifiedLanguageModel, self).__init__(*args, **kwargs)
 
     return UnifiedLanguageModel
 
@@ -483,13 +485,14 @@ class BERT(BERT_BASE):
             self.pooler = None
             self.pooler_activation = None
         if self.with_mlm:
+            self.mlmDense = nn.Linear(self.hidden_size, self.hidden_size)
+            self.transform_act_fn = get_activation(self.hidden_act if self.with_mlm is True else self.with_mlm) # bert4keras默认为softmax
+            self.mlmLayerNorm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
             self.mlmDecoder = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-            # self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
+            if kwargs.get('tie_emb_prj_weight') is True:
+                self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
-            self.mlmDense = nn.Linear(self.hidden_size, self.hidden_size)
-            self.transform_act_fn = get_activation(self.hidden_act)
-            self.mlmLayerNorm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
         # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
     def apply_embeddings(self, inputs):
@@ -886,7 +889,7 @@ class Encoder(BERT):
 
 
 class Decoder(LM_Mask, BERT):
-    def __init__(self, *args, with_lm=True, tgt_emb_prj_weight_sharing=True, **kwargs):
+    def __init__(self, *args, with_lm=True, tie_emb_prj_weight=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -897,7 +900,7 @@ class Decoder(LM_Mask, BERT):
         # 从hidden_states映射到logit
         if self.with_lm:
             self.final_dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-            if tgt_emb_prj_weight_sharing:  # decoder底层的embedding和顶层的全连接共享
+            if tie_emb_prj_weight:  # decoder底层的embedding和顶层的全连接共享
                 self.final_dense.weight = self.embeddings.word_embeddings.weight
                 self.x_logit_scale = (self.hidden_size ** -0.5)
             else:
@@ -931,7 +934,7 @@ class Transformer(BERT_BASE):
     '''encoder-decoder结构
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, emb_src_tgt_weight_sharing=False, **kwargs):
+    def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
 
         # encoder
@@ -942,7 +945,7 @@ class Transformer(BERT_BASE):
         self.decoder = Decoder(*args, **kwargs)
         self.decoder.build(**kwargs)
 
-        if emb_src_tgt_weight_sharing:
+        if tie_emb_src_tgt_weight:
             # encoder和decoder的embedding权重共享
             assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
             self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
@@ -970,9 +973,9 @@ class Transformer(BERT_BASE):
 class BART(Transformer):
     '''encoder-decoder结构
     '''
-    def __init__(self, *args, emb_src_tgt_weight_sharing=True, **kwargs):
-        super(BART, self).__init__(*args, emb_src_tgt_weight_sharing=emb_src_tgt_weight_sharing, **kwargs)
-        self.emb_src_tgt_weight_sharing = emb_src_tgt_weight_sharing
+    def __init__(self, *args, tie_emb_src_tgt_weight=True, **kwargs):
+        super(BART, self).__init__(*args, tie_emb_src_tgt_weight=tie_emb_src_tgt_weight, **kwargs)
+        self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
 
     def load_variable(self, state_dict, name, prefix=''):
         """加载单个变量的函数
@@ -992,11 +995,11 @@ class BART(Transformer):
     def variable_mapping(self, prefix=''):
         # 查看check_point发现'shared.weight'
         mapping = {
-            'encoder.embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'encoder.embed_tokens.weight',
+            'encoder.embeddings.word_embeddings.weight': 'shared.weight' if self.tie_emb_src_tgt_weight else 'encoder.embed_tokens.weight',
             'encoder.embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
             'encoder.embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
             'encoder.embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
-            'decoder.embeddings.word_embeddings.weight': 'shared.weight' if self.emb_src_tgt_weight_sharing else 'decoder.embed_tokens.weight',
+            'decoder.embeddings.word_embeddings.weight': 'shared.weight' if self.tie_emb_src_tgt_weight else 'decoder.embed_tokens.weight',
             'decoder.embeddings.position_embeddings.weight': 'decoder.embed_positions.weight',
             'decoder.embeddings.layerNorm.weight': 'decoder.layernorm_embedding.weight',
             'decoder.embeddings.layerNorm.bias': 'decoder.layernorm_embedding.bias',
@@ -1178,9 +1181,9 @@ class T5(Transformer):
     """Google的T5模型（Encoder-Decoder）
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args,  emb_src_tgt_weight_sharing=True, **kwargs):
+    def __init__(self, *args,  tie_emb_src_tgt_weight=True, **kwargs):
         super(T5, self).__init__(*args, **kwargs)
-        self.emb_src_tgt_weight_sharing = emb_src_tgt_weight_sharing
+        self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
 
         # encoder
         self.encoder = T5_Encoder(*args, **kwargs)
@@ -1202,7 +1205,7 @@ class T5(Transformer):
     def variable_mapping(self, prefix=''):
         mapping = self.encoder.variable_mapping(prefix='encoder.')
         mapping.update(self.decoder.variable_mapping(prefix='decoder.'))
-        if self.emb_src_tgt_weight_sharing:
+        if self.tie_emb_src_tgt_weight:
             mapping.update({'encoder.embeddings.word_embeddings.weight': 'shared.weight',
                             'decoder.embeddings.word_embeddings.weight': 'shared.weight'})
         return mapping

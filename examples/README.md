@@ -10,6 +10,7 @@
 - [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_ml.py)：基础测试，测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
 - [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_cpm_lm.py)：基础测试，测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
 - [basic_language_model_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5.py)：基础测试，测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)的生成效果。
+- [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：基础测试，测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 
 ### 文本表示
 - [task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
@@ -23,7 +24,6 @@
 - [task_sentence_embedding_sbert_xnli__concat_CrossEntropyLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_xnli__concat_CrossEntropyLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_sbert_xnli__MultiNegtiveRankingLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_xnli__MultiNegtiveRankingLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_CoSENT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_CoSENT.py)：文本表示，参考[CoSENT](https://kexue.fm/archives/8847)
-- [task_sentence_embedding_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_simbert.py)：文本表示，相似问生成，数据增广，参考[SimBERT](https://kexue.fm/archives/7427)
 
 ### 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：任务例子，句子对分类任务。
@@ -44,6 +44,8 @@
 - [task_question_answer_generation_by_seq2seq.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_question_answer_generation_by_seq2seq.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做[问答对自动构建](https://kexue.fm/archives/7630)，属于自回归文本生成。
 - [task_reading_comprehension_by_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_reading_comprehension_by_mlm.py)：任务例子，通过MLM模型来做[阅读理解问答](https://kexue.fm/archives/7148)，属于简单的非自回归文本生成。
 - [task_reading_comprehension_by_seq2seq.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_reading_comprehension_by_seq2seq.py)：任务例子，通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做[阅读理解问答](https://kexue.fm/archives/7115)，属于自回归文本生成。
+- [task_seq2seq_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert.py)：相似问生成，数据增广，参考[SimBERT](https://kexue.fm/archives/7427)
+- [task_seq2seq_simbert_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert_v2_stage1.py)：相似问生成，数据增广，三个步骤：1-[弱监督]((https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert_v2_stage1.py))，2-[蒸馏](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert_v2_stage2.py)，3-[有监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert_v2_supervised.py)，参考[SimBERT-V2](https://kexue.fm/archives/8454)
 
 ### 序列标注
 - [task_sequence_labeling_ner_efficient_global_pointer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_efficient_global_pointer.py)：任务例子，ner例子，efficient_global_pointer的pytorch实现
