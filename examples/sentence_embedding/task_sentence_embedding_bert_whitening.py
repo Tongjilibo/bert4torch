@@ -1,6 +1,6 @@
 #! -*- coding:utf-8 -*-
-# 语义相似度任务：数据集sts-b
-# loss: CosineSimilarityLoss（cos + mse_loss）
+# bert_whitening
+# 官方项目：https://github.com/bojone/BERT-whitening
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel

@@ -13,6 +13,7 @@
 - [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：基础测试，测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 
 ### 文本表示
+- [task_sentence_embedding_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_bert_whitening.py)：文本表示，参考[bert_whitening](https://github.com/bojone/BERT-whitening)
 - [task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_lcqmc__ContrastiveLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_sbert_sts_b__DimensionalityReduction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_sts_b__DimensionalityReduction.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
