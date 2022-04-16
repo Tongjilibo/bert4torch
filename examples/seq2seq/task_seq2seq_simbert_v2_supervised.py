@@ -18,9 +18,9 @@ batch_size = 12
 labels = ['contradiction', 'entailment', 'neutral']
 
 # bert配置，需要加载stage2训练后的权重，这里直接加载官方最终的权重以示例
-config_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器

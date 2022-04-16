@@ -19,9 +19,9 @@ maxlen = 64
 batch_size = 12
 
 # bert配置，需要加载stage1训练后的权重，这里直接加载官方最终的权重以示例
-config_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
@@ -74,9 +74,9 @@ def masked_encode(text):
 
 # ========== 蒸馏用：开始 ==========
 # simbert配置
-sim_config_path = 'F:/Projects/pretrain_ckpt/simbert/simbert_chinese_base/config.json'
-sim_checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/simbert_chinese_base/pytorch_model.bin'
-sim_dict_path = 'F:/Projects/pretrain_ckpt/simbert/simbert_chinese_base/vocab.txt'
+sim_config_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/config.json'
+sim_checkpoint_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/pytorch_model.bin'
+sim_dict_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/vocab.txt'
 
 # 建立分词器
 sim_tokenizer = Tokenizer(sim_dict_path, do_lower_case=True)  # 建立分词器

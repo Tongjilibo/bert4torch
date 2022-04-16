@@ -13,10 +13,10 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 maxlen = 32
 choice = 'simbert'  # simbert simbert_v2
 if choice == 'simbert':
-    args_model_path = "F:/Projects/pretrain_ckpt/simbert/simbert_chinese_base"
+    args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base"
     args_model = 'bert'
 else:
-    args_model_path = "F:/Projects/pretrain_ckpt/simbert/roformer_chinese_sim_char_base"
+    args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base"
     args_model = 'roformer'
 
 # 加载simbert权重或roformer_v2
