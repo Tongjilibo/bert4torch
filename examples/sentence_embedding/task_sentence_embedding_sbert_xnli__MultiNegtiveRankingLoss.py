@@ -67,7 +67,7 @@ def get_data(filename):
             train_samples.append((random.choice(list(others['entailment'])), sent1, random.choice(list(others['contradictory']))))
     return train_samples
 
-train_data = get_data('F:/Projects/data/corpus/语义相似度/XNLI-MT-1.0/multinli/multinli.train.zh.tsv')
+train_data = get_data('F:/Projects/data/corpus/sentence_embedding/XNLI-MT-1.0/multinli/multinli.train.zh.tsv')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 from task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss import valid_dataloader
 

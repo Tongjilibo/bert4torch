@@ -1,12 +1,13 @@
 #! -*- coding: utf-8 -*-
-# SimBERT/RoFormer-Sim测试相似问生成效果，以及句子之间相似度效果
-# 官方项目：https://github.com/ZhuiyiTechnology/simbert
-# 官方项目：https://github.com/ZhuiyiTechnology/roformer-sim
+# 利用自带的接口，将SimBERT的同义句生成搭建成Web服务。
+# 基于bottlepy简单封装，仅作为临时测试使用，不保证性能。
+# 具体用法请看 https://github.com/bojone/bert4keras/blob/8ffb46a16a79f87aa8cdf045df7994036b4be47d/bert4keras/snippets.py#L580
 
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, AutoRegressiveDecoder
 from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.snippets import WebServing
 
 # 基本信息
 maxlen = 32
@@ -100,20 +101,6 @@ def cal_sen_emb(text_list):
 def gen_synonyms(text, n=100, k=20):
     """"含义： 产生sent的n个相似句，然后返回最相似的k个。
     做法：用seq2seq生成，并用encoder算相似度并排序。
-    效果：
-        >>> gen_synonyms(u'微信和支付宝哪个好？')
-        [
-            u'微信和支付宝，哪个好?',
-            u'微信和支付宝哪个好',
-            u'支付宝和微信哪个好',
-            u'支付宝和微信哪个好啊',
-            u'微信和支付宝那个好用？',
-            u'微信和支付宝哪个好用',
-            u'支付宝和微信那个更好',
-            u'支付宝和微信哪个好用',
-            u'微信和支付宝用起来哪个好？',
-            u'微信和支付宝选哪个好',
-        ]
     """
     r = synonyms_generator.generate(text, n)
     r = [i for i in set(r) if i != text]  # 不和原文相同
@@ -125,19 +112,8 @@ def gen_synonyms(text, n=100, k=20):
 
 
 if __name__ == '__main__':
-    choice = 'generate'  # generate  similarity
-    
-    if choice == 'generate':
-        print(gen_synonyms('我想去北京玩玩可以吗', 10, 10))
-
-    elif choice == 'similarity':
-        target_text = '我想去首都北京玩玩'
-        text_list = ['我想去北京玩', '北京有啥好玩的吗？我想去看看', '好渴望去北京游玩啊']
-        Z = cal_sen_emb([target_text]+text_list)
-        Z /= (Z**2).sum(dim=1, keepdims=True)**0.5
-        similarity = torch.matmul(Z[1:], Z[0])
-        for i, line in enumerate(text_list):
-            print(f'cos_sim: {similarity[i].item():.4f}, tgt_text: "{target_text}", cal_text: "{line}"')
-
-else:
-    model.load_weights('./best_model.pt')
+    arguments = {'text': (None, True), 'n': (int, False), 'k': (int, False)}
+    web = WebServing(port=8864)
+    web.route('/gen_synonyms', gen_synonyms, arguments)
+    web.start()
+    # 现在可以测试访问 http://127.0.0.1:8864/gen_synonyms?text=苹果多少钱一斤

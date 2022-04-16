@@ -95,14 +95,14 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels
 
 # 加载数据集
-data_path = 'F:/Projects/data/corpus/语义相似度/'
+data_path = 'F:/Projects/data/corpus/sentence_embedding/'
 dataset1_path = []
 for task_name in ['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B']:
     for f in ['train', 'valid']:
         threshold = 2.5 if task_name == 'STS-B' else 0.5
         filename = '%s%s/%s.%s.data' % (data_path, task_name, task_name, f)
         dataset1_path.append(filename)
-dataset2_path = 'F:/Projects/data/corpus/语义相似度/XNLI-MT-1.0/cnsd/cnsd-*/*.jsonl'
+dataset2_path = 'F:/Projects/data/corpus/sentence_embedding/XNLI-MT-1.0/cnsd/cnsd-*/*.jsonl'
 train_dataloader = DataLoader(MyDataset([dataset1_path, dataset2_path]), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 建立加载模型

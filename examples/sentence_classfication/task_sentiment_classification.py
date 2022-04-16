@@ -1,14 +1,13 @@
 #! -*- coding:utf-8 -*-
 # 句子对分类任务，LCQMC数据集
 
-import numpy as np
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 maxlen = 128

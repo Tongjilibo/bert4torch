@@ -53,7 +53,7 @@ def get_data(filename):
                 train_data.append((text1, text2, label2id[label]))
     return train_data, dev_data
 
-train_data, dev_data = get_data('F:/Projects/data/corpus/语义相似度/XNLI-MT-1.0/multinli/multinli.train.zh.tsv')
+train_data, dev_data = get_data('F:/Projects/data/corpus/sentence_embedding/XNLI-MT-1.0/multinli/multinli.train.zh.tsv')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataloader = DataLoader(ListDataset(data=dev_data), batch_size=batch_size, collate_fn=collate_fn)
 
