@@ -61,9 +61,7 @@ def masked_encode(text):
             source.extend(ids)
             target.extend(ids)
         elif r < 0.15:
-            source.extend(
-                np.random.choice(tokenizer._vocab_size - 1, size=len(ids)) + 1
-            )
+            source.extend(np.random.choice(tokenizer._vocab_size - 1, size=len(ids)) + 1)
             target.extend(ids)
         else:
             source.extend(ids)
