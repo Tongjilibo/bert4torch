@@ -73,6 +73,7 @@ valid_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_pub
 model = build_transformer_model(
     config_path,
     checkpoint_path,
+    with_mlm='linear',
     application='unilm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)

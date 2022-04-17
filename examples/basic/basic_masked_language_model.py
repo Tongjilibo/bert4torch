@@ -26,6 +26,6 @@ segment_ids_tensor = torch.tensor([segments_ids])
 # 需要传入参数with_mlm
 model.eval()
 with torch.no_grad():
-    _, logits = model([tokens_ids_tensor, segment_ids_tensor])
-    result = torch.argmax(logits[0, 3:5], dim=-1).numpy()
+    _, probas = model([tokens_ids_tensor, segment_ids_tensor])
+    result = torch.argmax(probas[0, 3:5], dim=-1).numpy()
     print(tokenizer.decode(result))

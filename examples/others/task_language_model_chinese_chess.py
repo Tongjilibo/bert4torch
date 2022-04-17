@@ -4,6 +4,7 @@
 # 数据：https://github.com/bojone/gpt_cchess
 # 模型训练可以在python2/python3进行。但是cchess模块只支持python3，
 # 因此如果需要交互式体验模型棋力，那么需要在python3下进行。
+# 权重转换脚本见：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_roberta_chess.py
 
 import json
 import numpy as np
@@ -83,7 +84,9 @@ def collate_fn(batch):
 # 加载数据集
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/qipu/qipu.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
-model = build_transformer_model(config_path, checkpoint_path, application='lm', keep_tokens=keep_tokens).to(device)
+# 由于字典中0不代表padding位，为避免attention_mask计算错误，这里token_pad_ids=-100
+model = build_transformer_model(config_path, checkpoint_path, application='lm', with_mlm='linear',
+                                keep_tokens=keep_tokens, token_pad_ids=-100).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -168,11 +171,12 @@ class ChessPlayer(object):
             moves = self.movable_steps()
             iccses = [' '.join(self.history + m) for m in moves]
             token_ids = [[0] + tokenizer.encode(ic)[0][1:-1] for ic in iccses]
-            token_ids = np.array(token_ids)
-            segment_ids = np.zeros_like(token_ids)
-            preds = model.predict([token_ids, segment_ids])[:, -5:-1]
-            preds = np.take_along_axis(preds, token_ids[:, -4:, None], axis=2)
-            preds = np.log(preds + 1e-8)[:, :, 0].sum(axis=1)
+            token_ids = torch.tensor(token_ids, dtype=torch.long, device=device)
+            segment_ids = torch.zeros_like(token_ids)
+            preds = model.predict([token_ids, segment_ids])[-1][:, -5:-1]
+            preds = nn.Softmax(dim=-1)(preds)
+            preds = torch.take_along_dim(preds, token_ids[:, -4:, None], dim=2)
+            preds = torch.log(preds + 1e-8)[:, :, 0].sum(dim=1)
             iccs = moves[preds.argmax()]
             move = self.board.move_iccs(iccs)
             self.record(iccs)
@@ -195,16 +199,16 @@ class Evaluator(Callback):
     """
     def on_epoch_end(self, global_step, epoch, logs=None):
         # 保存模型
-        # model.save_weights('./best_model.pt')
+        # model.save_weights('./best_model_chess.pt')
         pass
 
 
 if __name__ == '__main__':
-    choice = 'train'
+    choice = 'eval'
 
     if choice == 'train':
         evaluator = Evaluator()
         model.fit(train_dataloader, steps_per_epoch=1000, epochs=20, callbacks=[evaluator])
     else:
-        model.load_weights('./best_model.pt')
+        model.load_weights('./best_model_chess.pt')
         chessplayer.new_game(0)  # 启动新棋局，0为人类先手，1为机器先手

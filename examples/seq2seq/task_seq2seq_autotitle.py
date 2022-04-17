@@ -57,6 +57,7 @@ train_dataloader = DataLoader(ListDataset(glob.glob('F:/Projects/data/corpus/sen
 model = build_transformer_model(
     config_path,
     checkpoint_path,
+    with_mlm='linear',
     application='unilm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)
@@ -67,7 +68,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         super().__init__(**kwargs)
     def forward(self, outputs, target):
         '''
-        y_pred: [btz, seq_len, hdsz]
+        y_pred: [btz, seq_len, vocab_size]
         targets: y_true, y_segment
         unilm式样，需要手动把非seq2seq部分mask掉
         '''

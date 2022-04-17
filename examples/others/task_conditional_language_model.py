@@ -10,7 +10,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
 import torch.nn as nn
-from torchinfo import summary
 
 
 # 模型配置
@@ -79,16 +78,17 @@ class Model(BaseModel):
         c = nn.Embedding(num_classes, 128)
         self.bert = build_transformer_model(config_path,
                                             checkpoint_path,
+                                            with_mlm='linear',
                                             application='lm',
                                             keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-                                            layer_norm_cond=c)
+                                            layer_norm_cond=c,
+                                            ignore_invalid_weights=True)  # 忽略未初始化的权重
 
     def forward(self, inputs):
         _, seq_output = self.bert(inputs)  # [btz, seq_len, vocab_size]
         return seq_output
 
 model = Model().to(device)
-summary(model, input_data=[next(iter(train_dataloader))[0]])
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

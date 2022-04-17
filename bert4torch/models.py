@@ -326,18 +326,20 @@ class BERT_BASE(BaseModel):
                 continue
             if old_key in file_state_dict: # mapping中包含，且模型结构中有
                 state_dict_new[new_key] = self.load_variable(file_state_dict, old_key)
-            elif old_key not in file_state_dict: # mapping中不包含，但模型结构中有
+            elif (old_key not in file_state_dict) and (not self.ignore_invalid_weights):
+                # mapping中包含，但模型文件中没有
                 print(f'[WARNIMG] {old_key} not found in pretrain models')
             if new_key in parameters_set:
                 parameters_set.remove(new_key)
 
         # 未能加载预训练权重的Parameter
-        for key in parameters_set:
-            print(f'[WARNIMG] Parameter {key} not loaded from pretrain models')
+        if not self.ignore_invalid_weights:
+            for key in parameters_set:
+                print(f'[WARNIMG] Parameter {key} not loaded from pretrain models')
         del file_state_dict
 
         # 将ckpt的权重load到模型结构中
-        self.load_state_dict(state_dict_new, strict=self.ignore_invalid_weights)
+        self.load_state_dict(state_dict_new, strict=False)
 
     
     # def get_inputs(self):
@@ -486,7 +488,7 @@ class BERT(BERT_BASE):
             self.pooler_activation = None
         if self.with_mlm:
             self.mlmDense = nn.Linear(self.hidden_size, self.hidden_size)
-            self.transform_act_fn = get_activation(self.hidden_act if self.with_mlm is True else self.with_mlm) # bert4keras默认为softmax
+            self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
             self.mlmDecoder = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
             if kwargs.get('tie_emb_prj_weight') is True:
@@ -583,6 +585,8 @@ class BERT(BERT_BASE):
             mlm_hidden_state = self.transform_act_fn(mlm_hidden_state)
             mlm_hidden_state = self.mlmLayerNorm((mlm_hidden_state, conditional_emb))
             mlm_scores = self.mlmDecoder(mlm_hidden_state)
+            mlm_activation = get_activation('softmax' if self.with_mlm is True else self.with_mlm)
+            mlm_scores = mlm_activation(mlm_scores)
         else:
             mlm_scores = None
         

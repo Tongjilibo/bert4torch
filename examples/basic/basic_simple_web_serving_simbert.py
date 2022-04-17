@@ -67,7 +67,7 @@ model = Model(pool_method='cls').to(device)
 class SynonymsGenerator(AutoRegressiveDecoder):
     """seq2seq解码器
     """
-    @AutoRegressiveDecoder.wraps('logits')
+    @AutoRegressiveDecoder.wraps('probas')
     def predict(self, inputs, output_ids, states):
         token_ids, segment_ids = inputs
         token_ids = torch.cat([token_ids, output_ids], 1)

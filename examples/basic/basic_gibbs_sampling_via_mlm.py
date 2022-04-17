@@ -44,9 +44,8 @@ with torch.no_grad():
         i = np.random.choice(length) + 1
         token_ids[i] = tokenizer._token_mask_id
         token_ids_tensor, segment_ids_tensor = torch.tensor([token_ids], device=device), torch.tensor([segment_ids], device=device)
-        _, logits = model([token_ids_tensor, segment_ids_tensor])
-        logits = logits[0, i]
-        probas = nn.Softmax(dim=-1)(logits)
+        _, probas = model([token_ids_tensor, segment_ids_tensor])
+        probas = probas[0, i]
         token = np.random.choice(vocab_size, p=probas.cpu().numpy())
         token_ids[i] = token
         sentences.append(tokenizer.decode(token_ids))

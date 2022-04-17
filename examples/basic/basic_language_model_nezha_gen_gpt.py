@@ -26,7 +26,7 @@ model = build_transformer_model(
 class ArticleCompletion(AutoRegressiveDecoder):
     """基于随机采样的文章续写
     """
-    @AutoRegressiveDecoder.wraps(default_rtype='logits')
+    @AutoRegressiveDecoder.wraps(default_rtype='probas')
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
         _, mlm_scores = model.predict([token_ids])

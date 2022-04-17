@@ -75,7 +75,7 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool='linear', 
-                                            application='unilm', keep_tokens=keep_tokens)
+                                            with_mlm='linear', application='unilm', keep_tokens=keep_tokens)
         self.pool_method = pool_method
 
     def get_pool_emb(self, hidden_state, pool_cls, attention_mask):

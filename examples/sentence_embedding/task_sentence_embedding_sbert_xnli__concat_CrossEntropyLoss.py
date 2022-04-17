@@ -9,8 +9,6 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from sklearn.metrics.pairwise import paired_cosine_distances, paired_euclidean_distances, paired_manhattan_distances
-from scipy.stats import pearsonr, spearmanr
 
 maxlen = 256
 batch_size = 12

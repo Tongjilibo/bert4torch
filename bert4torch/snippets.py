@@ -501,7 +501,7 @@ class AutoRegressiveDecoder(object):
             self.first_output_ids = torch.tensor([[self.start_id]], device=device)
 
     @staticmethod
-    def wraps(default_rtype='logits', use_states=False):
+    def wraps(default_rtype='probas', use_states=False):
         """用来进一步完善predict函数
         目前包含: 1. 设置rtype参数，并做相应处理；
                   2. 确定states的使用，并做相应处理；

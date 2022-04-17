@@ -12,7 +12,7 @@ import torch
 from torchinfo import summary
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import numpy as np
 import re 
 
@@ -102,6 +102,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 model = build_transformer_model(
     config_path,
     checkpoint_path,
+    with_mlm='linear',
     application='unilm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)
