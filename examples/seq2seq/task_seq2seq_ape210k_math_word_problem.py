@@ -5,18 +5,17 @@
 
 from __future__ import division
 import json, re
-import numpy as np
-import pandas as pd
 from tqdm import tqdm
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from torch import nn, optim
 import torch
 from torch.utils.data import DataLoader
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.snippets import AutoRegressiveDecoder
-from keras.models import Model
 from sympy import Integer
+import warnings
+warnings.filterwarnings("ignore")
 
 # 基本参数
 maxlen = 192
