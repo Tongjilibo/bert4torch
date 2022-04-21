@@ -546,7 +546,7 @@ class BERT(BERT_BASE):
         else:
             conditional_emb = self.layer_norm_conds(inputs[index_])
         hidden_states = self.embeddings(token_ids, segment_ids, conditional_emb)
-        return hidden_states, attention_mask, conditional_emb, *inputs[index_:]
+        return [hidden_states, attention_mask, conditional_emb] + inputs[index_:]
 
     def apply_main_layers(self, inputs):
         """BERT的主体是基于Self-Attention的模块
