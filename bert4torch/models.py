@@ -3,6 +3,7 @@ import torch.nn as nn
 import copy
 import json
 import re
+import torch.nn.functional as F
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
 from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.activations import get_activation
@@ -11,6 +12,7 @@ from bert4torch.activations import get_activation
 class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
+        self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
     
     def compile(self, loss, optimizer, scheduler=None, metrics=None, adversarial_train={'name': ''}):
         '''定义loss，optimizer，metrics，是否在计算loss前reshape
@@ -25,7 +27,6 @@ class BaseModel(nn.Module):
             metrics = []
         self.metrics = ['loss'] + [i for i in metrics if i!='loss']
         self.adversarial = adversarial_train
-        self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=[]):
         def __deal_loss_detail(output, train_y):
@@ -57,6 +58,8 @@ class BaseModel(nn.Module):
             ad_train = PGD(self)
         elif self.adversarial['name'] == 'gradient_penalty':
             pass
+        elif self.adversarial['name'] == 'vat':
+            ad_train = VAT(self)
         elif self.adversarial['name'] == '':  # 默认情况
             pass
         else:
@@ -105,13 +108,14 @@ class BaseModel(nn.Module):
                     output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
                     loss, loss_detail = __deal_loss_detail(output, train_y)
                     loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
-                    ad_train.restore(emb_name=self.adversarial['emb_name']) # 恢复Embedding的参数
+                    # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
+                    ad_train.restore(emb_name=self.adversarial['emb_name'])
                 elif self.adversarial['name'] == 'pgd':
                     for t in range(self.adversarial['K']):
                         ad_train.attack(epsilon=self.adversarial['epsilon'], alpha=self.adversarial['alpha'], 
                                         emb_name=self.adversarial['emb_name'], is_first_attack=(t==0)) # 在embedding上添加对抗扰动, first attack时备份param.data
                         if t != self.adversarial['K']-1:
-                            self.optimizer.zero_grad()
+                            self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                         else:
                             ad_train.restore_grad() # 恢复正常的grad
                         output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
@@ -124,6 +128,11 @@ class BaseModel(nn.Module):
                     gp = (para.grad ** 2).sum()
                     loss += 0.5 * gp * self.adversarial['epsilon']
                     loss.backward()
+                # 虚拟对抗训练
+                elif self.adversarial['name'] == 'vat':
+                    adv_loss = ad_train.virtual_adversarial_training(train_X, output)
+                    if adv_loss:
+                        loss = adv_loss * 10 + loss
 
                 self.optimizer.step()
                 if self.scheduler is not None:
@@ -1347,9 +1356,12 @@ class GPT2_ML(LM_Mask, BERT):
             return hidden_states
 
 class FGM():
+    '''对抗训练
+    '''
     def __init__(self, model):
         self.model = model
         self.backup = {}
+
     def attack(self, epsilon=1., emb_name='emb'):
         # emb_name这个参数要换成你模型中embedding的参数名
         # 例如，self.emb = nn.Embedding(5000, 100)
@@ -1357,7 +1369,7 @@ class FGM():
             if param.requires_grad and emb_name in name:
                 self.backup[name] = param.data.clone()
                 norm = torch.norm(param.grad) # 默认为2范数
-                if norm != 0:
+                if norm != 0 and not torch.isnan(norm):  # nan是为了apex混合精度时:
                     r_at = epsilon * param.grad / norm
                     param.data.add_(r_at)
     def restore(self, emb_name='emb'):
@@ -1370,10 +1382,13 @@ class FGM():
 
 
 class PGD():
+    '''对抗训练
+    '''
     def __init__(self, model):
         self.model = model
         self.emb_backup = {}
         self.grad_backup = {}
+
     def attack(self, epsilon=1., alpha=0.3, emb_name='emb', is_first_attack=False):
         # emb_name这个参数要换成你模型中embedding的参数名
         for name, param in self.model.named_parameters():
@@ -1381,10 +1396,11 @@ class PGD():
                 if is_first_attack:
                     self.emb_backup[name] = param.data.clone()
                 norm = torch.norm(param.grad)
-                if norm != 0:
+                if norm != 0 and not torch.isnan(norm):  # nan是为了apex混合精度时
                     r_at = alpha * param.grad / norm
                     param.data.add_(r_at)
                     param.data = self.project(name, param.data, epsilon)
+
     def restore(self, emb_name='emb'):
         # emb_name这个参数要换成你模型中embedding的参数名
         for name, param in self.model.named_parameters():
@@ -1408,6 +1424,74 @@ class PGD():
         for name, param in self.model.named_parameters():
             if param.requires_grad:
                 param.grad = self.grad_backup[name]
+
+
+class VAT():
+    '''虚拟对抗训练 https://github.com/namisan/mt-dnn/blob/v0.2/alum/adv_masked_lm.py
+    '''
+    def __init__(self, model):
+        self.model = model
+
+    def virtual_adversarial_training(self, train_X, logits, emb_name='emb'):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name:
+                embed = param
+                break
+
+        # 初始扰动 r
+        noise = embed.data.new(embed.size()).normal_(0, 1) * 1e-5
+        noise.requires_grad_()
+        # x + r
+        new_embed = embed.data.detach() + noise
+        # todo self.model(inputs_embeds=new_embed)
+        adv_output = self.model.forward(*train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(train_X)
+        adv_logits = adv_output[0]
+        adv_loss = self.kl(adv_logits, logits.detach(), reduction="batchmean")
+        delta_grad, = torch.autograd.grad(adv_loss, noise, only_inputs=True)
+        norm = delta_grad.norm()
+
+        # 梯度消失，退出
+        if torch.isnan(norm) or torch.isinf(norm):
+            return None
+        # inner sum
+        noise = noise + delta_grad * 1e-3
+        # projection
+        noise = self.adv_project(noise, norm_type='l2', eps=1e-6)
+        new_embed = embed.data.detach() + noise
+        new_embed = new_embed.detach()
+        # 在进行一次训练
+        # todo: adv_output = self.model(inputs_embeds=new_embed)
+        adv_output = self.model.forward(*train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(train_X)
+        adv_logits = adv_output[0]
+        adv_loss_f = self.kl(adv_logits, logits.detach())
+        adv_loss_b = self.kl(logits, adv_logits.detach())
+        # 在预训练时设置为10，下游任务设置为1
+        adv_loss = (adv_loss_f + adv_loss_b) * 1
+        return adv_loss
+
+    
+    @staticmethod
+    def kl(inputs, targets, reduction="sum"):
+        """
+        计算kl散度
+        inputs：tensor，logits
+        targets：tensor，logits
+        """
+        loss = F.kl_div(F.log_softmax(inputs, dim=-1), F.softmax(targets, dim=-1), reduction=reduction)
+        return loss
+
+    @staticmethod
+    def adv_project(grad, norm_type='inf', eps=1e-6):
+        """
+        L0,L1,L2正则，对于扰动计算
+        """
+        if norm_type == 'l2':
+            direction = grad / (torch.norm(grad, dim=-1, keepdim=True) + eps)
+        elif norm_type == 'l1':
+            direction = grad.sign()
+        else:
+            direction = grad / (grad.abs().max(-1, keepdim=True)[0] + eps)
+        return direction
 
 
 def build_transformer_model(

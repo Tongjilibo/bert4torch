@@ -1,7 +1,8 @@
 #! -*- coding:utf-8 -*-
-# 通过对抗训练增强模型的泛化性能
+# 通过虚拟对抗训练进行半监督学习
 # 数据集：IFLYTEK' 长文本分类 (https://github.com/CLUEbenchmark/CLUE)
-# 博客：https://kexue.fm/archives/7234
+# use_vat=True比use_vat=False约有1%的提升
+# 博客：https://kexue.fm/archives/7466
 
 import json
 from bert4torch.models import build_transformer_model, BaseModel
@@ -12,7 +13,6 @@ import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
 from tqdm import tqdm
-from torchinfo import summary
 
 num_classes = 119
 maxlen = 128
@@ -72,10 +72,9 @@ class Model(BaseModel):
         output = self.dense(encoded_layers[:, 0, :])  # 取第1个位置
         return output
 model = Model().to(device)
-summary(model, input_data=next(iter(train_dataloader))[0])
 
 model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), 
-              metrics=['accuracy'], adversarial_train={'name': 'fgm'})
+              metrics=['accuracy'], adversarial_train={'name': 'vat'})
 
 def evaluate(data):
     total, right = 0., 0.

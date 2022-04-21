@@ -1,17 +1,17 @@
 #! -*- coding:utf-8 -*-
 # 以文本分类为例的半监督学习UDA策略，https://arxiv.org/abs/1904.12848
 
+from turtle import forward
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.losses import UDALoss
 import torch.nn as nn
 import torch
 import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 import random
-import math
 
 maxlen = 128
 batch_size = 8
@@ -92,52 +92,13 @@ class Model(BaseModel):
         return output
 model = Model().to(device)
 
-class UDALoss(nn.Module):
-    '''这里没有放到Losses里面，主要是因为tsa策略需要用到global_step等信息
-    '''
-    def __init__(self, tsa_schedule=None):
-        super().__init__()
-        self.loss_sup = nn.CrossEntropyLoss()
-        self.loss_unsup = nn.KLDivLoss(reduction='batchmean')
-        self.tsa_schedule = tsa_schedule
-
+class MyLoss(UDALoss):
     def forward(self, y_pred, y_true_sup):
-        sup_size = y_true_sup.size(0)
-        unsup_size = (y_pred.size(0) - sup_size) // 2
-
-        # 有监督部分, 用交叉熵损失
-        y_pred_sup = y_pred[:sup_size]
-        if self.tsa_schedule is None:
-            loss_sup = self.loss_sup(y_pred_sup, y_true_sup)
-        else:  # 使用tsa来去掉预测概率较高的有监督样本
-            threshold = self.get_tsa_threshold(self.tsa_schedule, model.global_step, model.total_steps, start=0.8, end=1)  # 二分类
-            true_prob = torch.gather(F.softmax(y_pred_sup, dim=-1), dim=1, index=y_true_sup[:, None])
-            sel_rows = true_prob.lt(threshold).sum(dim=-1).gt(0)  # 仅保留小于阈值的样本
-            loss_sup = self.loss_sup(y_pred_sup[sel_rows], y_true_sup[sel_rows]) if sel_rows.sum() > 0 else 0
-
-        # 无监督部分，这里用KL散度，也可以用交叉熵
-        y_true_unsup = y_pred[sup_size:sup_size+unsup_size]
-        y_true_unsup = F.softmax(y_true_unsup.detach(), dim=-1)
-        y_pred_unsup = F.log_softmax(y_pred[sup_size+unsup_size:], dim=-1)
-        loss_unsup = self.loss_unsup(y_pred_unsup, y_true_unsup)
-        return {'loss': loss_sup + loss_unsup, 'loss_sup': loss_sup, 'loss_unsup': loss_unsup}
-
-    @ staticmethod
-    def get_tsa_threshold(schedule, global_step, num_train_steps, start, end):
-        training_progress = global_step / num_train_steps
-        if schedule == "linear_schedule":
-            threshold = training_progress
-        elif schedule == "exp_schedule":
-            scale = 5
-            threshold = math.exp((training_progress - 1) * scale)
-        elif schedule == "log_schedule":
-            scale = 5
-            threshold = 1 - math.exp((-training_progress) * scale)
-        return threshold * (end - start) + start
+        return super().forward(y_pred, y_true_sup, model.global_step, model.total_steps)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss=UDALoss(tsa_schedule=None),  # 这里可换用不同的策略
+    loss=MyLoss(tsa_schedule='linear_schedule', start_p=0.8),  # 这里可换用不同的策略, 不为None时候要给定model
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
     metrics=['loss_sup', 'loss_unsup']
 )
