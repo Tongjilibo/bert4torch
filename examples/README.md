@@ -66,8 +66,8 @@
 - [task_relation_extraction_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker_plus.py)：任务例子，tplinker关系抽取[TPLinkerPlus](https://github.com/131250208/TPlinker-joint-extraction)。
 
 ### 训练Trick
-- [task_iflytek_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflytek_adversarial_training.py)：任务例子，通过[对抗训练](https://kexue.fm/archives/7234)提升分类效果。
-- [task_iflytek_gradient_penalty.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflytek_gradient_penalty.py)：任务例子，通过[梯度惩罚](https://kexue.fm/archives/7234)提升分类效果，可以视为另一种对抗训练。
+- [task_iflytek_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflytek_adversarial_training.py)：任务例子，通过对抗训练，虚拟对抗训练，梯度惩罚等措施来提升分类效果。
+- [task_sentiment_virtual_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_virtual_adversarial_training.py)：任务例子，通过半监督的虚拟对抗训练等措施来提升分类效果。
 - [task_semi_supervised_UDA.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_semi_supervised_UDA.py)：任务例子，通过[UDA](https://arxiv.org/abs/1904.12848)半监督学习提升分类效果，在原来Losss上加一致性损失。
 - [task_iflyteck_R-Drop.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflyteck_R-Drop.py)：任务例子，通过[R-Drop](https://github.com/dropreg/R-Drop)提升分类效果，可以视为用dropout加噪下的UDA。
 

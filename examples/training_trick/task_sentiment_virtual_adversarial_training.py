@@ -1,15 +1,15 @@
 #! -*- coding:utf-8 -*-
-# 以文本分类为例的半监督学习UDA策略，https://arxiv.org/abs/1904.12848
+# 以文本分类为例的半监督学习，虚拟对抗训练策略
+# 监督数据部分只计算监督Loss, 有监督+无监督数据计算对抗训练的Loss
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
-from bert4torch.losses import UDALoss
 import torch.nn as nn
 import torch
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import numpy as np
 import random
 
 maxlen = 128
@@ -47,17 +47,8 @@ test_dataset = MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sent
 unsup_dataset =  [sen for sen, _ in (train_dataset.data + valid_dataset.data + test_dataset.data)]
 
 def collate_fn(batch):
-    def add_noise(token_ids, del_ratio=0.3):
-        '''这里用随机删除做简单示例，实际中可以使用增删改等多种noise方案
-        '''
-        n = len(token_ids)
-        keep_or_not = np.random.rand(n) > del_ratio
-        if sum(keep_or_not) == 0:
-            keep_or_not[np.random.choice(n)] = True # guarantee that at least one word remains
-        return list(np.array(token_ids)[keep_or_not])
-
-    # batch_token_ids包含三部分，第一部分是有监督数据，第二部分是领域类的无监督数据，第三部分是无监督数据经数据增强后的数据
-    batch_token_ids, batch_labels = [[], [], []], []
+    # batch_token_ids包含两部部分，第一部分是有监督数据，第二部分是无监督数据
+    batch_token_ids, batch_labels = [[], []], []
     for text, label in batch:
         token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
         batch_token_ids[0].append(token_ids)
@@ -66,7 +57,6 @@ def collate_fn(batch):
         unsup_text = random.choice(unsup_dataset)  # 随机挑一个无监督数据
         token_ids, _ = tokenizer.encode(unsup_text, maxlen=maxlen)
         batch_token_ids[1].append(token_ids)
-        batch_token_ids[2].append(token_ids[:1] + add_noise(token_ids[1:-1]) + token_ids[-1:])  # 无监督数据增强
 
     batch_token_ids = [j for i in batch_token_ids for j in i]
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
@@ -91,23 +81,23 @@ class Model(BaseModel):
         return output
 model = Model().to(device)
 
-class Loss(UDALoss):
+class MyLoss(nn.Module):
     def forward(self, y_pred, y_true_sup):
-        loss, loss_sup, loss_unsup = super().forward(y_pred, y_true_sup, model.global_step, model.total_steps)
-        return {'loss': loss, 'loss_sup': loss_sup, 'loss_unsup': loss_unsup}
+        y_pred_sup = y_pred[:y_true_sup.shape[0]]  # 仅计算监督部分loss
+        return F.cross_entropy(y_pred_sup, y_true_sup)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss=Loss(tsa_schedule='linear_schedule', start_p=0.8),  # 这里可换用不同的策略, 不为None时候要给定model
+    loss=MyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
-    metrics=['loss_sup', 'loss_unsup']  # Loss返回的key会自动计入metrics，下述metrics不写仍可以打印具体的Loss
+    adversarial_train = {'name': 'vat', 'adv_alpha': 1}  # 虚拟对抗
 )
 
 # 定义评价函数
 def evaluate(data):
     total, right = 0., 0.
     for inputs, y_true in data:
-        inputs = [inputs[0][:y_true.size(0)]]
+        inputs = [inputs[0][:y_true.size(0)]]  # 仅计算有监督部分
         y_pred = model.predict(inputs).argmax(axis=1)
         total += len(y_true)
         right += (y_true == y_pred).sum().item()

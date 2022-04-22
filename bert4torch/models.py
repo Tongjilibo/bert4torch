@@ -3,9 +3,9 @@ import torch.nn as nn
 import copy
 import json
 import re
-import torch.nn.functional as F
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
-from bert4torch.snippets import ProgbarLogger, metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
+from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
+from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
 from bert4torch.activations import get_activation
 
 
@@ -27,52 +27,99 @@ class BaseModel(nn.Module):
             metrics = []
         self.metrics = ['loss'] + [i for i in metrics if i!='loss']
         self.adversarial = adversarial_train
+        self.adversarial_initialize()
+
+    def adversarial_initialize(self):
+        '''对抗训练初始化
+        '''
+        assert self.adversarial['name'] in {'', 'fgm', 'pgd', 'vat', 'gradient_penalty'}, 'adversarial_train support fgm, pgd, vat and gradient_penalty mode'
+        self.adversarial['epsilon'] = self.adversarial.get('epsilon', 1.0)
+        self.adversarial['emb_name'] = self.adversarial.get('emb_name', 'word_embeddings')
+
+        if self.adversarial['name'] == 'fgm':
+            self.ad_train = FGM(self)
+        elif self.adversarial['name'] == 'pgd':
+            self.adversarial['K'] = self.adversarial.get('K', 3)  # 步数
+            self.adversarial['alpha'] = self.adversarial.get('alpha', 0.3)  # 学习率
+            self.ad_train = PGD(self)
+        elif self.adversarial['name'] == 'gradient_penalty':
+            pass
+        elif self.adversarial['name'] == 'vat':
+            self.adversarial['K'] = self.adversarial.get('K', 3)
+            self.adversarial['noise_var'] = self.adversarial.get('noise_var', 1e-5)  # 噪声的方差
+            self.adversarial['noise_gamma'] = self.adversarial.get('noise_gamma', 1e-6) # eps
+            self.adversarial['adv_step_size'] = self.adversarial.get('adv_step_size', 1e-3)  # 学习率
+            self.adversarial['adv_alpha'] = self.adversarial.get('adv_alpha', 1)  # 对抗loss的权重
+            self.adversarial['norm_type'] = self.adversarial.get('norm_type', 'l2')  # 归一化方式
+            self.ad_train = VAT(self, **self.adversarial)
+
+
+    def adversarial_training(self, train_X, train_y, output, loss, loss_detail):
+        '''对抗训练
+        '''
+        if self.adversarial['name'] == 'fgm':
+            self.ad_train.attack(**self.adversarial) # embedding被修改了
+            output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
+            loss, loss_detail = self.__deal_loss_detail(output, train_y)
+            loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
+            self.ad_train.restore(**self.adversarial)
+        elif self.adversarial['name'] == 'pgd':
+            self.ad_train.backup_grad()  # 备份梯度
+            for t in range(self.adversarial['K']):
+                # 在embedding上添加对抗扰动, first attack时备份param.data
+                self.ad_train.attack(**self.adversarial, is_first_attack=(t==0))
+                if t != self.adversarial['K']-1:
+                    self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
+                else:
+                    self.ad_train.restore_grad() # 恢复正常的grad
+                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
+                loss, loss_detail = self.__deal_loss_detail(output, train_y)
+                loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            self.ad_train.restore(**self.adversarial) # 恢复embedding参数
+        # 梯度惩罚
+        elif self.adversarial['name'] == 'gradient_penalty':
+            para = search_layer(self, self.adversarial['emb_name'], retrun_first=True)
+            gp = (para.grad ** 2).sum()
+            loss += 0.5 * gp * self.adversarial['epsilon']
+            loss.backward()
+        # 虚拟对抗训练
+        elif self.adversarial['name'] == 'vat':
+            logit = output[0] if isinstance(output, (list, tuple)) else output
+            adv_loss = self.ad_train.virtual_adversarial_training(train_X, logit)
+            loss_detail.update({'loss_sup': loss.item(), 'loss_unsup': adv_loss})
+            loss += (adv_loss if adv_loss else 0)
+            loss.backward()
+
+        return loss, loss_detail
+
+    def __deal_loss_detail(self, output, train_y):
+        '''处理返回多个loss，需要在进度条打印的情况
+        '''
+        loss_detail = self.criterion(output, train_y)
+        if isinstance(loss_detail, torch.Tensor):
+            loss = loss_detail
+            loss_detail = {}
+        elif isinstance(loss_detail, dict):
+            loss = loss_detail['loss']  # 还存在其他loss，仅用于打印
+            del loss_detail['loss']
+        else:
+            raise ValueError('Return loss only support Tensor and dict format')
+        return loss, loss_detail
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=[]):
-        def __deal_loss_detail(output, train_y):
-            '''处理返回多个loss，需要在进度条打印的情况
-            '''
-            loss_detail = self.criterion(output, train_y)
-            if isinstance(loss_detail, torch.Tensor):
-                loss = loss_detail
-                loss_detail = None
-            elif isinstance(loss_detail, dict):
-                loss = loss_detail['loss']  # 还存在其他loss，仅用于打印
-                del loss_detail['loss']
-            else:
-                raise ValueError('Return loss only support Tensor and dict format')
-            return loss, loss_detail
-
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
         self.global_step = 0
 
-        callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + callbacks
-        for callback in callbacks:
+        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + callbacks
+        for callback in self.callbacks:
             callback.on_train_begin()  #callback
-
-        # 对抗训练
-        if self.adversarial['name'] == 'fgm':
-            ad_train = FGM(self)
-        elif self.adversarial['name'] == 'pgd':
-            ad_train = PGD(self)
-        elif self.adversarial['name'] == 'gradient_penalty':
-            pass
-        elif self.adversarial['name'] == 'vat':
-            ad_train = VAT(self)
-        elif self.adversarial['name'] == '':  # 默认情况
-            pass
-        else:
-            raise ValueError('adversarial_train only support fgm and pgd mode')
-        self.adversarial['K'] = self.adversarial.get('K', 3)
-        self.adversarial['epsilon'] = self.adversarial.get('epsilon', 1.0)
-        self.adversarial['emb_name'] = self.adversarial.get('emb_name', 'emb')
-        self.adversarial['alpha'] = self.adversarial.get('alpha', 0.3)
 
         train_dataloader_iter = iter(train_dataloader)  # 循环epoch时不重生成
         for epoch in range(epochs):
             self.epoch = epoch
-            for callback in callbacks:
+            for callback in self.callbacks:
                 callback.on_epoch_begin(self.global_step, epoch, {})  # callback
             for bti in range(steps_per_epoch):
                 # 循环dataloader, 不要试用itertools的cycle，遇到过变量不释放的问题
@@ -83,7 +130,8 @@ class BaseModel(nn.Module):
                     batch = next(train_dataloader_iter)
                 train_X, train_y = batch
 
-                if isinstance(train_X, (list, tuple)):  # 仅允许嵌套两层，即((token_ids1, mask1), (token_ids2, mask2))
+                # 取btz，最多允许嵌套两层，即((token_ids1, mask1), (token_ids2, mask2))
+                if isinstance(train_X, (list, tuple)):
                     if isinstance(train_X[0], (list, tuple)):
                         btz = train_X[0][0].size(0)
                     else:
@@ -93,64 +141,42 @@ class BaseModel(nn.Module):
                 else:
                     raise ValueError('Input only support [list, tuple, tensor]')
                 logs = {'batch': bti, 'size': btz}
-                for callback in callbacks:
+
+                for callback in self.callbacks:
                     callback.on_batch_begin(self.global_step, bti, logs)  # callback
 
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
                 output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss, loss_detail = __deal_loss_detail(output, train_y)
-                loss.backward(retain_graph=(self.adversarial['name'] == 'gradient_penalty'))
+                loss, loss_detail = self.__deal_loss_detail(output, train_y)
+                if self.adversarial['name'] in {'gradient_penalty', 'vat'}:
+                    loss.backward(retain_graph=True)
+                else:
+                    loss.backward()
                 
                 # 对抗训练
-                if self.adversarial['name'] == 'fgm':
-                    ad_train.attack(epsilon=self.adversarial['epsilon'], emb_name=self.adversarial['emb_name']) # embedding被修改了
-                    output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                    loss, loss_detail = __deal_loss_detail(output, train_y)
-                    loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
-                    # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
-                    ad_train.restore(emb_name=self.adversarial['emb_name'])
-                elif self.adversarial['name'] == 'pgd':
-                    for t in range(self.adversarial['K']):
-                        ad_train.attack(epsilon=self.adversarial['epsilon'], alpha=self.adversarial['alpha'], 
-                                        emb_name=self.adversarial['emb_name'], is_first_attack=(t==0)) # 在embedding上添加对抗扰动, first attack时备份param.data
-                        if t != self.adversarial['K']-1:
-                            self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
-                        else:
-                            ad_train.restore_grad() # 恢复正常的grad
-                        output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                        loss, loss_detail = __deal_loss_detail(output, train_y)
-                        loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
-                    ad_train.restore(emb_name=self.adversarial['emb_name']) # 恢复embedding参数
-                # 梯度惩罚
-                elif self.adversarial['name'] == 'gradient_penalty':
-                    para = search_layer(self, self.adversarial['emb_name'], retrun_first=True)
-                    gp = (para.grad ** 2).sum()
-                    loss += 0.5 * gp * self.adversarial['epsilon']
-                    loss.backward()
-                # 虚拟对抗训练
-                elif self.adversarial['name'] == 'vat':
-                    adv_loss = ad_train.virtual_adversarial_training(train_X, output)
-                    if adv_loss:
-                        loss = adv_loss * 10 + loss
+                loss, loss_detail = self.adversarial_training(train_X, train_y, output, loss, loss_detail)
 
                 self.optimizer.step()
                 if self.scheduler is not None:
                     self.scheduler.step()
-                self.optimizer.zero_grad()
+                self.optimizer.zero_grad()  # 清梯度
                 
+                # 添加log打印
                 logs.update({'loss': loss.item()})
-                if isinstance(loss_detail, dict):
-                    logs.update(dict([(k, v.item()) for k, v in loss_detail.items()]))
-                for metric in self.metrics[1:]:
-                    tmp = metric_mapping(metric, output, train_y)
+                logs_loss_detail = {k: v.item() if isinstance(v, torch.Tensor) else v for k, v in loss_detail.items()}
+                logs.update(logs_loss_detail)
+                if self.global_step == 0:
+                    self.callbacks[0].add_metrics(list(logs_loss_detail.keys()), add_position=1)
+                for metric in self.metrics:
+                    tmp = metric_mapping(metric, output, train_y)  # 内置的一些accuracy指标
                     if tmp is not None:
                         logs[metric] = tmp
-                for callback in callbacks:
+                for callback in self.callbacks:
                     callback.on_batch_end(self.global_step, bti, logs)  #callback
 
                 self.global_step += 1
-            for callback in callbacks:
+            for callback in self.callbacks:
                 callback.on_epoch_end(self.global_step, epoch, logs)  #callback
 
     def predict(self, input_tensor_list, return_all=None):
@@ -528,11 +554,14 @@ class BERT(BERT_BASE):
         if self.custom_attention_mask:
             attention_mask = inputs[index_]
             index_ += 1
-        else:
+        elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
             attention_mask = (token_ids != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)  # 默认0为mask_value
             if self.token_pad_ids < 0:
                 token_ids = token_ids * attention_mask[:,0,0,:]
-
+        else:  # 自定义word_embedding，目前仅有VAT中使用
+            attention_mask = self.attention_mask_cache
+        self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
+        
         self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
         if self.attention_bias is not None:
             attention_mask = attention_mask * self.attention_bias
@@ -1354,144 +1383,6 @@ class GPT2_ML(LM_Mask, BERT):
             hidden_states = hidden_states + self.dropout2(ffn_output)
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
             return hidden_states
-
-class FGM():
-    '''对抗训练
-    '''
-    def __init__(self, model):
-        self.model = model
-        self.backup = {}
-
-    def attack(self, epsilon=1., emb_name='emb'):
-        # emb_name这个参数要换成你模型中embedding的参数名
-        # 例如，self.emb = nn.Embedding(5000, 100)
-        for name, param in self.model.named_parameters():
-            if param.requires_grad and emb_name in name:
-                self.backup[name] = param.data.clone()
-                norm = torch.norm(param.grad) # 默认为2范数
-                if norm != 0 and not torch.isnan(norm):  # nan是为了apex混合精度时:
-                    r_at = epsilon * param.grad / norm
-                    param.data.add_(r_at)
-    def restore(self, emb_name='emb'):
-        # emb_name这个参数要换成你模型中embedding的参数名
-        for name, param in self.model.named_parameters():
-            if param.requires_grad and emb_name in name: 
-                assert name in self.backup
-                param.data = self.backup[name]
-        self.backup = {}
-
-
-class PGD():
-    '''对抗训练
-    '''
-    def __init__(self, model):
-        self.model = model
-        self.emb_backup = {}
-        self.grad_backup = {}
-
-    def attack(self, epsilon=1., alpha=0.3, emb_name='emb', is_first_attack=False):
-        # emb_name这个参数要换成你模型中embedding的参数名
-        for name, param in self.model.named_parameters():
-            if param.requires_grad and emb_name in name:
-                if is_first_attack:
-                    self.emb_backup[name] = param.data.clone()
-                norm = torch.norm(param.grad)
-                if norm != 0 and not torch.isnan(norm):  # nan是为了apex混合精度时
-                    r_at = alpha * param.grad / norm
-                    param.data.add_(r_at)
-                    param.data = self.project(name, param.data, epsilon)
-
-    def restore(self, emb_name='emb'):
-        # emb_name这个参数要换成你模型中embedding的参数名
-        for name, param in self.model.named_parameters():
-            if param.requires_grad and emb_name in name: 
-                assert name in self.emb_backup
-                param.data = self.emb_backup[name]
-        self.emb_backup = {}
-        
-    def project(self, param_name, param_data, epsilon):
-        r = param_data - self.emb_backup[param_name]
-        if torch.norm(r) > epsilon:
-            r = epsilon * r / torch.norm(r)
-        return self.emb_backup[param_name] + r
-        
-    def backup_grad(self):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                self.grad_backup[name] = param.grad.clone()
-    
-    def restore_grad(self):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                param.grad = self.grad_backup[name]
-
-
-class VAT():
-    '''虚拟对抗训练 https://github.com/namisan/mt-dnn/blob/v0.2/alum/adv_masked_lm.py
-    '''
-    def __init__(self, model):
-        self.model = model
-
-    def virtual_adversarial_training(self, train_X, logits, emb_name='emb'):
-        for name, param in self.model.named_parameters():
-            if param.requires_grad and emb_name in name:
-                embed = param
-                break
-
-        # 初始扰动 r
-        noise = embed.data.new(embed.size()).normal_(0, 1) * 1e-5
-        noise.requires_grad_()
-        # x + r
-        new_embed = embed.data.detach() + noise
-        # todo self.model(inputs_embeds=new_embed)
-        adv_output = self.model.forward(*train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(train_X)
-        adv_logits = adv_output[0]
-        adv_loss = self.kl(adv_logits, logits.detach(), reduction="batchmean")
-        delta_grad, = torch.autograd.grad(adv_loss, noise, only_inputs=True)
-        norm = delta_grad.norm()
-
-        # 梯度消失，退出
-        if torch.isnan(norm) or torch.isinf(norm):
-            return None
-        # inner sum
-        noise = noise + delta_grad * 1e-3
-        # projection
-        noise = self.adv_project(noise, norm_type='l2', eps=1e-6)
-        new_embed = embed.data.detach() + noise
-        new_embed = new_embed.detach()
-        # 在进行一次训练
-        # todo: adv_output = self.model(inputs_embeds=new_embed)
-        adv_output = self.model.forward(*train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(train_X)
-        adv_logits = adv_output[0]
-        adv_loss_f = self.kl(adv_logits, logits.detach())
-        adv_loss_b = self.kl(logits, adv_logits.detach())
-        # 在预训练时设置为10，下游任务设置为1
-        adv_loss = (adv_loss_f + adv_loss_b) * 1
-        return adv_loss
-
-    
-    @staticmethod
-    def kl(inputs, targets, reduction="sum"):
-        """
-        计算kl散度
-        inputs：tensor，logits
-        targets：tensor，logits
-        """
-        loss = F.kl_div(F.log_softmax(inputs, dim=-1), F.softmax(targets, dim=-1), reduction=reduction)
-        return loss
-
-    @staticmethod
-    def adv_project(grad, norm_type='inf', eps=1e-6):
-        """
-        L0,L1,L2正则，对于扰动计算
-        """
-        if norm_type == 'l2':
-            direction = grad / (torch.norm(grad, dim=-1, keepdim=True) + eps)
-        elif norm_type == 'l1':
-            direction = grad.sign()
-        else:
-            direction = grad / (grad.abs().max(-1, keepdim=True)[0] + eps)
-        return direction
 
 
 def build_transformer_model(

@@ -1,12 +1,15 @@
 #! -*- coding:utf-8 -*-
-# 通过对抗训练增强模型的泛化性能
+# 通过对抗训/梯度惩罚练增强模型的泛化性能，包含fgm, pgs, vat，梯度惩罚
 # 数据集：IFLYTEK' 长文本分类 (https://github.com/CLUEbenchmark/CLUE)
-# 博客：https://kexue.fm/archives/7234
+# 对抗训练：https://kexue.fm/archives/7234
+# 虚拟对抗训练：https://kexue.fm/archives/7466
+# 梯度惩罚：https://kexue.fm/archives/7234
+
 
 import json
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
@@ -74,8 +77,14 @@ class Model(BaseModel):
 model = Model().to(device)
 summary(model, input_data=next(iter(train_dataloader))[0])
 
+# 具体参数设置可以到bert4torch.models/bert4torch.snippets里
+adversarial_train = {'name': 'fgm'}  # fgm方式
+# adversarial_train = {'name': 'pgd'}  # pgd方式
+# adversarial_train = {'name': 'gradient_penalty'}  # 梯度惩罚
+# adversarial_train = {'name': 'vat'}  # 虚拟对抗，这里仅为使用有监督数据的示例
+
 model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), 
-              metrics=['accuracy'], adversarial_train={'name': 'fgm'})
+              metrics=['accuracy'], adversarial_train=adversarial_train)
 
 def evaluate(data):
     total, right = 0., 0.

@@ -163,7 +163,7 @@ class UDALoss(nn.Module):
     '''UDALoss，使用时候需要继承一下，因为forward需要使用到global_step和total_steps
     https://arxiv.org/abs/1904.12848
     '''
-    def __init__(self, tsa_schedule=None, total_steps=None, start_p=0, end_p=1):
+    def __init__(self, tsa_schedule=None, total_steps=None, start_p=0, end_p=1, return_all_loss=True):
         super().__init__()
         self.loss_sup = nn.CrossEntropyLoss()
         self.loss_unsup = nn.KLDivLoss(reduction='batchmean')
@@ -172,6 +172,7 @@ class UDALoss(nn.Module):
         self.end = end_p
         if self.tsa_schedule:
             assert self.tsa_schedule in {'linear_schedule', 'exp_schedule', 'log_schedule'}, 'tsa_schedule config illegal'
+        self.return_all_loss = return_all_loss
 
     def forward(self, y_pred, y_true_sup, global_step, total_steps):
         sup_size = y_true_sup.size(0)
@@ -192,7 +193,10 @@ class UDALoss(nn.Module):
         y_true_unsup = F.softmax(y_true_unsup.detach(), dim=-1)
         y_pred_unsup = F.log_softmax(y_pred[sup_size+unsup_size:], dim=-1)
         loss_unsup = self.loss_unsup(y_pred_unsup, y_true_unsup)
-        return {'loss': loss_sup + loss_unsup, 'loss_sup': loss_sup, 'loss_unsup': loss_unsup}
+        if self.return_all_loss:
+            return loss_sup + loss_unsup, loss_sup, loss_unsup
+        else:
+            return loss_sup + loss_unsup
 
     @ staticmethod
     def get_tsa_threshold(schedule, global_step, num_train_steps, start, end):

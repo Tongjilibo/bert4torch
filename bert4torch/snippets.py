@@ -4,6 +4,7 @@
 import unicodedata
 import six
 import numpy as np
+from sklearn import metrics
 import torch
 from torch.nn.utils.rnn import pad_sequence
 import time
@@ -15,6 +16,7 @@ import math
 import gc
 import inspect
 import json
+import torch.nn.functional as F
 
 is_py2 = six.PY2
 
@@ -141,94 +143,6 @@ def delete_arguments(*arguments):
         return new_func
 
     return actual_decorator
-
-def load_tf_weights_in_bert(model, config, tf_checkpoint_path):
-    """加载 tf checkpoints 到 pytorch model."""
-    # 需要安装tensorflow，请自行安装
-    try:
-        import re
-
-        import numpy as np
-        import tensorflow as tf
-    except ImportError:
-        logger.error(
-            "Loading a TensorFlow model in PyTorch, requires TensorFlow to be installed. Please see "
-            "https://www.tensorflow.org/install/ for installation instructions."
-        )
-        raise
-    tf_path = os.path.abspath(tf_checkpoint_path)
-    logger.info(f"Converting TensorFlow checkpoint from {tf_path}")
-    # Load weights from TF model
-    init_vars = tf.train.list_variables(tf_path)
-    names = []
-    arrays = []
-    for name, shape in init_vars:
-        logger.info(f"Loading TF weight {name} with shape {shape}")
-        array = tf.train.load_variable(tf_path, name)
-        names.append(name)
-        arrays.append(array)
-
-    for name, array in zip(names, arrays):
-        name = name.split("/")
-        # adam_v and adam_m are variables used in AdamWeightDecayOptimizer to calculated m and v
-        # which are not required for using pretrained model
-        if any(
-            n in ["adam_v", "adam_m", "AdamWeightDecayOptimizer", "AdamWeightDecayOptimizer_1", "global_step"]
-            for n in name
-        ):
-            logger.info(f"Skipping {'/'.join(name)}")
-            continue
-        pointer = model
-        for m_name in name:
-            if re.fullmatch(r"[A-Za-z]+_\d+", m_name):
-                scope_names = re.split(r"_(\d+)", m_name)
-            else:
-                scope_names = [m_name]
-            if scope_names[0] == "kernel" or scope_names[0] == "gamma":
-                pointer = getattr(pointer, "weight")
-            elif scope_names[0] == "output_bias" or scope_names[0] == "beta":
-                pointer = getattr(pointer, "bias")
-            elif scope_names[0] == "output_weights":
-                pointer = getattr(pointer, "weight")
-            elif scope_names[0] == "squad":
-                pointer = getattr(pointer, "classifier")
-            else:
-                try:
-                    pointer = getattr(pointer, scope_names[0])
-                except AttributeError:
-                    logger.info(f"Skipping {'/'.join(name)}")
-                    continue
-            if len(scope_names) >= 2:
-                num = int(scope_names[1])
-                pointer = pointer[num]
-        if m_name[-11:] == "_embeddings":
-            pointer = getattr(pointer, "weight")
-        elif m_name == "kernel":
-            array = np.transpose(array)
-        try:
-            assert (
-                pointer.shape == array.shape
-            ), f"Pointer shape {pointer.shape} and array shape {array.shape} mismatched"
-        except AssertionError as e:
-            e.args += (pointer.shape, array.shape)
-            raise
-        logger.info(f"Initialize PyTorch weight {name}")
-        pointer.data = torch.from_numpy(array)
-    return model
-
-def convert_tf_checkpoint_to_pytorch(tf_checkpoint_path, bert_config_file, pytorch_dump_path):
-    """tf模型转pytorch"""
-    # 初始化 PyTorch model
-    config = BertConfig.from_json_file(bert_config_file)
-    print("Building PyTorch model from configuration: {}".format(str(config)))
-    model = BertForPreTraining(config)
-
-    # 从tf checkpoint加载权重
-    load_tf_weights_in_bert(model, tf_checkpoint_path)
-
-    # 保存pytorch模型
-    print("Save PyTorch model to {}".format(pytorch_dump_path))
-    torch.save(model.state_dict(), pytorch_dump_path)
 
 
 class Progbar(object):
@@ -436,6 +350,18 @@ class ProgbarLogger(Callback):
         self.params = {'epochs': epochs, 'steps': steps, 'verbose': verbose, 'metrics': metrics}
         self.verbose = verbose
         self.epochs = epochs
+
+    def add_metrics(self, metrics, add_position=None):
+        if add_position is None:
+            add_position = len(self.params['metrics'])
+        if isinstance(metrics, str):
+            metrics = [metrics]
+
+        add_metrics = []
+        for metric in metrics:
+            if metric not in self.params['metrics']:
+                add_metrics.append(metric)
+        self.params['metrics'] = self.params['metrics'][:add_position] + add_metrics + self.params['metrics'][add_position:]
 
     def on_epoch_begin(self, global_step, epoch, logs=None):
         if self.verbose:
@@ -750,6 +676,156 @@ def get_kw(cls, kwargs):
         if k not in set(inspect.getargspec(cls)[0]):
             kwargs_new[k] = kwargs[k]
     return kwargs_new
+
+
+class FGM():
+    '''对抗训练
+    '''
+    def __init__(self, model):
+        self.model = model
+        self.backup = {}
+
+    def attack(self, epsilon=1., emb_name='word_embeddings', **kwargs):
+        # emb_name这个参数要换成你模型中embedding的参数名
+        # 例如，self.emb = nn.Embedding(5000, 100)
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name:
+                self.backup[name] = param.data.clone()
+                norm = torch.norm(param.grad) # 默认为2范数
+                if norm != 0 and not torch.isnan(norm):  # nan是为了apex混合精度时:
+                    r_at = epsilon * param.grad / norm
+                    param.data.add_(r_at)
+
+    def restore(self, emb_name='emb', **kwargs):
+        # emb_name这个参数要换成你模型中embedding的参数名
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name: 
+                assert name in self.backup
+                param.data = self.backup[name]
+        self.backup = {}
+
+
+class PGD():
+    '''对抗训练
+    '''
+    def __init__(self, model):
+        self.model = model
+        self.emb_backup = {}
+        self.grad_backup = {}
+
+    def attack(self, epsilon=1., alpha=0.3, emb_name='word_embeddings', is_first_attack=False, **kwargs):
+        # emb_name这个参数要换成你模型中embedding的参数名
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name:
+                if is_first_attack:
+                    self.emb_backup[name] = param.data.clone()
+                norm = torch.norm(param.grad)
+                if norm != 0 and not torch.isnan(norm):  # nan是为了apex混合精度时
+                    r_at = alpha * param.grad / norm
+                    param.data.add_(r_at)
+                    param.data = self.project(name, param.data, epsilon)
+
+    def restore(self, emb_name='emb', **kwargs):
+        # emb_name这个参数要换成你模型中embedding的参数名
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name: 
+                assert name in self.emb_backup
+                param.data = self.emb_backup[name]
+        self.emb_backup = {}
+        
+    def project(self, param_name, param_data, epsilon):
+        r = param_data - self.emb_backup[param_name]
+        if torch.norm(r) > epsilon:
+            r = epsilon * r / torch.norm(r)
+        return self.emb_backup[param_name] + r
+        
+    def backup_grad(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.grad_backup[name] = param.grad.clone()
+    
+    def restore_grad(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                param.grad = self.grad_backup[name]
+
+
+class VAT():
+    '''虚拟对抗训练 https://github.com/namisan/mt-dnn/blob/v0.2/alum/adv_masked_lm.py
+    '''
+    def __init__(self, model, emb_name='word_embeddings', noise_var=1e-5, noise_gamma=1e-6, adv_step_size=1e-3, 
+                 adv_alpha=1, norm_type='l2', **kwargs):
+        self.model = model
+        self.noise_var = noise_var  # 噪声的方差
+        self.noise_gamma = noise_gamma # eps
+        self.adv_step_size = adv_step_size  # 学习率
+        self.adv_alpha = adv_alpha  # 对抗loss的权重
+        self.norm_type = norm_type  # 归一化方式
+        self.embed = None
+        for (name, module) in self.model.named_modules():
+            if emb_name in name:
+                module.register_forward_hook(hook=self.hook)
+
+    def hook(self, module, fea_in, fea_out):
+        self.embed = fea_out
+        return None
+    
+    def forward_(self, train_X, new_embed):
+        new_train_X = [new_embed] + train_X[1:]
+        adv_output = self.model.forward(*new_train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(new_train_X)
+        return adv_output
+
+    def virtual_adversarial_training(self, train_X, logits):
+        # 初始扰动 r
+        noise = self.embed.data.new(self.embed.size()).normal_(0, 1) * self.noise_var
+        noise.requires_grad_()
+        # x + r
+        new_embed = self.embed.data.detach() + noise
+        adv_output = self.forward_(train_X, new_embed)  # forward第一次
+        adv_logits = adv_output[0] if isinstance(adv_output, (list, tuple)) else adv_output
+        adv_loss = self.kl(adv_logits, logits.detach(), reduction="batchmean")
+        delta_grad, = torch.autograd.grad(adv_loss, noise, only_inputs=True)
+        norm = delta_grad.norm()
+        # 梯度消失，退出
+        if torch.isnan(norm) or torch.isinf(norm):
+            return None
+        # inner sum
+        noise = noise + delta_grad * self.adv_step_size
+        # projection
+        noise = self.adv_project(noise, norm_type=self.norm_type, eps=self.noise_gamma)
+        new_embed = self.embed.data.detach() + noise
+        new_embed = new_embed.detach()
+        # 在进行一次训练
+        adv_output = self.forward_(train_X, new_embed)  # forward第二次
+        adv_logits = adv_output[0] if isinstance(adv_output, (list, tuple)) else adv_output
+        adv_loss_f = self.kl(adv_logits, logits.detach())
+        adv_loss_b = self.kl(logits, adv_logits.detach())
+        # 在预训练时设置为10，下游任务设置为1
+        adv_loss = (adv_loss_f + adv_loss_b) * self.adv_alpha
+        return adv_loss
+    
+    @staticmethod
+    def kl(inputs, targets, reduction="sum"):
+        """
+        计算kl散度
+        inputs：tensor，logits
+        targets：tensor，logits
+        """
+        loss = F.kl_div(F.log_softmax(inputs, dim=-1), F.softmax(targets, dim=-1), reduction=reduction)
+        return loss
+
+    @staticmethod
+    def adv_project(grad, norm_type='inf', eps=1e-6):
+        """
+        L0,L1,L2正则，对于扰动计算
+        """
+        if norm_type == 'l2':
+            direction = grad / (torch.norm(grad, dim=-1, keepdim=True) + eps)
+        elif norm_type == 'l1':
+            direction = grad.sign()
+        else:
+            direction = grad / (grad.abs().max(-1, keepdim=True)[0] + eps)
+        return direction
 
 
 class WebServing(object):

@@ -167,8 +167,8 @@ class Loss(nn.Module):
         loss2 = self.loss2(entity_logit.reshape(-1, entity_logit.shape[-1]), entity_labels.flatten())
         return {'loss': loss1+loss2, 'loss1': loss1, 'loss2': loss2}
 
-model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), metrics=['loss1', 'loss2'])
-
+# Loss返回的key会自动计入metrics，下述metrics不写仍可以打印loss1和loss2
+model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
 def evaluate(data):
     X1, Y1, Z1 = 1e-10, 1e-10, 1e-10
