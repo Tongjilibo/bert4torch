@@ -221,8 +221,11 @@ class PositionWiseFeedForward(nn.Module):
 
 
 class GatedAttentionUnit(nn.Module):
-    '''门控注意力单元
-    参考项目：https://github.com/lucidrains/FLASH-pytorch
+    '''门控注意力单元，
+    链接：https://arxiv.org/abs/2202.10447
+    介绍：https://kexue.fm/archives/8934
+    说明：没有加入加性相对位置编码
+    参考pytorch项目：https://github.com/lucidrains/FLASH-pytorch
     '''
     
     def __init__(self, hidden_size, attention_key_size, intermediate_size, attention_probs_dropout_prob, hidden_act, 
