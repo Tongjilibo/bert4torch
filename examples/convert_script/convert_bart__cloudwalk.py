@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 将cloudwalj的预训练bart模型转换为bert4keras可用的权重
+# 将cloudwalk的预训练bart模型转换为bert4keras可用的权重
 # 权重链接百度云地址：
 
 import torch

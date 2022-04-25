@@ -296,7 +296,7 @@ class GatedAttentionUnit(nn.Module):
         return a
 
     class OffsetScale(nn.Module):
-        '''放射变换
+        '''仿射变换
         '''
         def __init__(self, head_size, heads=1, bias=True):
             super().__init__()
