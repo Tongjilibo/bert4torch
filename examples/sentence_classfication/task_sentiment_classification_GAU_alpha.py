@@ -1,5 +1,6 @@
 #! -*- coding:utf-8 -*-
-# 句子对分类任务，LCQMC数据集
+# 情感分类任务，加载GAU-alpha权重
+# 博客：https://kexue.fm/archives/9052
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -8,7 +9,6 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
 
 maxlen = 128
 batch_size = 16
@@ -17,7 +17,6 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alp
 dict_path = 'F:/Projects/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
