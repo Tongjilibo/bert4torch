@@ -1,6 +1,7 @@
 #! -*- coding:utf-8 -*-
 # 情感分类任务，加载GAU-alpha权重
 # 博客：https://kexue.fm/archives/9052
+# 权重转换脚本：./convert_script/convert_GAU_alpha.py
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel

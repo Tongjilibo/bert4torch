@@ -1,5 +1,4 @@
 import torch
-# 这里用的keras==2.3.1
 import tensorflow as tf
 
 tf_path = 'F:/Projects/pretrain_ckpt/gau/[sushen-tf]--chinese_GAU-alpha-char_L-24_H-768/bert_model.ckpt'
