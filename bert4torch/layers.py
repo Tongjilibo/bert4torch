@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
 import math
 from bert4torch.snippets import get_sinusoid_encoding_table
 from bert4torch.activations import get_activation
@@ -218,6 +220,96 @@ class PositionWiseFeedForward(nn.Module):
         return x
 
 
+class GatedAttentionUnit(nn.Module):
+    '''门控注意力单元
+    参考项目：https://github.com/lucidrains/FLASH-pytorch
+    '''
+    
+    def __init__(self, hidden_size, attention_key_size, intermediate_size, attention_probs_dropout_prob, hidden_act, 
+                 is_dropout=False, attention_scale=True, bias=True, normalization='softmax_plus', **kwargs):
+        super().__init__()
+        self.intermediate_size = intermediate_size
+        self.attention_head_size = attention_key_size
+        self.attention_scale = attention_scale
+        self.is_dropout = is_dropout
+        self.normalization = normalization
+        self.hidden_fn = get_activation(hidden_act)
+        self.dropout = nn.Dropout(attention_probs_dropout_prob)
+        self.i_dense = nn.Linear(hidden_size, self.intermediate_size*2+attention_key_size, bias=bias)
+        self.offsetscale = self.OffsetScale(attention_key_size, heads=2, bias=bias)
+        self.o_dense = nn.Linear(self.intermediate_size, hidden_size, bias=bias)
+        
+        self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
+        if self.p_bias == 'rotary':  # RoPE
+            self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position'), embedding_size=self.attention_head_size)
+
+    def forward(self, hidden_states, attention_mask):
+        # 投影变换
+        hidden_states = self.hidden_fn(self.i_dense(hidden_states))
+        u, v, qk = hidden_states.split([self.intermediate_size, self.intermediate_size, self.attention_head_size], dim=-1)
+        q, k = self.offsetscale(qk)  # 仿射变换
+
+        # 加入RoPE
+        if self.p_bias == 'rotary':
+            q = self.relative_positions_encoding(q)
+            k = self.relative_positions_encoding(k)
+
+        # Attention
+        attention_scores = torch.einsum('b i d, b j d -> b i j', q, k)  # [btz, seq_len, seq_len]
+        if self.attention_scale:
+            # seq_len = hidden_states.shape[1]
+            # attention_scores = F.relu(attention_scores/seq_len) ** 2
+             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+
+        if attention_mask is not None:
+            attention_mask = (1.0 - attention_mask) * -1e12
+            attention_scores = attention_scores + attention_mask.squeeze(1)
+
+        # 归一化
+        attention_scores = self.attention_normalize(attention_scores, -1, self.normalization)
+
+        if self.is_dropout:
+            attention_scores = self.dropout(attention_scores)
+
+        # 计算输出
+        out = self.o_dense(u * torch.einsum('b i j, b j d -> b i d', attention_scores, v))
+        return out
+    
+    def attention_normalize(self, a, dim=-1, method='softmax'):
+        """不同的注意力归一化方案
+        softmax：常规/标准的指数归一化；
+        squared_relu：来自 https://arxiv.org/abs/2202.10447 ；
+        softmax_plus：来自 https://kexue.fm/archives/8823 。
+        """
+        if method == 'softmax':
+            return F.softmax(a, dim=dim)
+        else:
+            mask = (a > -1e11).float()
+            l = torch.maximum(torch.sum(mask, dim=dim, keepdims=True), torch.tensor(1).to(mask))
+            if method == 'squared_relu':
+                return F.relu(a)**2 / l
+            elif method == 'softmax_plus':
+                return F.softmax(a * torch.log(l) / torch.log(torch.tensor(512)).to(mask), dim=dim)
+        return a
+
+    class OffsetScale(nn.Module):
+        '''放射变换
+        '''
+        def __init__(self, head_size, heads=1, bias=True):
+            super().__init__()
+            self.gamma = nn.Parameter(torch.ones(heads, head_size))
+            self.bias = bias
+            if bias:
+                self.beta = nn.Parameter(torch.zeros(heads, head_size))
+            nn.init.normal_(self.gamma, std = 0.02)
+
+        def forward(self, x):
+            out = torch.einsum('... d, h d -> ... h d', x, self.gamma)
+            if self.bias:
+                 out = out + self.beta
+            return out.unbind(dim = -2)
+
+
 class BertEmbeddings(nn.Module):
     """
         embeddings层
@@ -227,8 +319,17 @@ class BertEmbeddings(nn.Module):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
-        if (kwargs.get('p_bias') not in {'rotary', 'typical_relative', 't5_relative'}) and max_position > 0: # Embeddings时候包含位置编码
+
+        # 位置编码
+        if kwargs.get('p_bias') == 'sinusoid':
+            self.position_embeddings = SinusoidalPositionEncoding(max_position, embedding_size)
+        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative'}:
+            # 如果使用相对位置编码，则不声明PositionEmbeddings
+            pass
+        elif max_position > 0:
             self.position_embeddings = nn.Embedding(max_position, embedding_size)
+        
+        # segement编码
         if (segment_vocab_size > 0) and (not shared_segment_embeddings):
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
 
@@ -348,6 +449,8 @@ class T5Layer(BertLayer):
         return hidden_states
 
     class T5PositionWiseFeedForward(PositionWiseFeedForward):
+        '''参考transformer包: https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py
+        '''
         def __init__(self, hidden_size, intermediate_size, **kwargs):
             super().__init__(hidden_size, intermediate_size, **kwargs)
             self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=False)

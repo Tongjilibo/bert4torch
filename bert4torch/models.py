@@ -3,7 +3,7 @@ import torch.nn as nn
 import copy
 import json
 import re
-from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
 from bert4torch.activations import get_activation
@@ -871,6 +871,32 @@ class RoFormerV2(RoFormer):
         return outputs if len(outputs) > 1 else outputs[0]
 
 
+class GAU_alpha(RoFormerV2):
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'rotary', 'weight': False, 'bias': False, 'norm_mode': 'rmsnorm', 'normalization': 'softmax_plus'})
+        super().__init__(*args, **kwargs)
+
+        layer = self.GAU_Layer(**kwargs)
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        
+    def variable_mapping(self, prefix=''):
+        '''在convert脚本里已经把key转成bert4torch可用的
+        '''
+        return {k: k for k, _ in self.named_parameters()}
+
+    class GAU_Layer(nn.Module):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            self.gau = GatedAttentionUnit(**kwargs)
+            self.dropout1 = nn.Dropout(kwargs.get('dropout_rate'))
+            self.layerNorm1 = LayerNorm(**kwargs)
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+            gau_hidden_states = self.gau(hidden_states, attention_mask)
+            hidden_states = hidden_states + self.dropout1(gau_hidden_states)
+            hidden_states = self.layerNorm1((hidden_states, conditional_emb))
+            return hidden_states
+
+    
 class ELECTRA(BERT):
     """Google推出的ELECTRA模型
     链接：https://arxiv.org/abs/2003.10555
@@ -1414,6 +1440,7 @@ def build_transformer_model(
         'nezha': NEZHA,
         'roformer': RoFormer,
         'roformer_v2': RoFormerV2,
+        'gau_alpha': GAU_alpha,
         'electra': ELECTRA,
         'transformer': Transformer,
         'bart': BART,
