@@ -363,7 +363,7 @@ class ProgbarLogger(Callback):
                 add_metrics.append(metric)
         self.params['metrics'] = self.params['metrics'][:add_position] + add_metrics + self.params['metrics'][add_position:]
 
-    def on_epoch_begin(self, global_step, epoch, logs=None):
+    def on_epoch_begin(self, global_step=None, epoch=None, logs=None):
         if self.verbose:
             print('Epoch %d/%d' % (epoch + 1, self.epochs))
             self.target = self.params['steps']
@@ -372,11 +372,11 @@ class ProgbarLogger(Callback):
                                    stateful_metrics=self.stateful_metrics)
         self.seen = 0
 
-    def on_batch_begin(self, global_step, batch, logs=None):
+    def on_batch_begin(self, global_step=None, batch=None, logs=None):
         if self.seen < self.target:
             self.log_values = []
 
-    def on_batch_end(self, global_step, batch, logs=None):
+    def on_batch_end(self, global_step=None, batch=None, logs=None):
         logs = logs or {}
         self.seen += 1
         for k in self.params['metrics']:
@@ -388,7 +388,7 @@ class ProgbarLogger(Callback):
         if self.verbose and self.seen < self.target:
             self.progbar.update(self.seen, self.log_values)
 
-    def on_epoch_end(self, global_step, epoch, logs=None):
+    def on_epoch_end(self, global_step=None, epoch=None, logs=None):
         logs = logs or {}
         for k in self.params['metrics']:
             if k in logs:

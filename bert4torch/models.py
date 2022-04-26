@@ -93,7 +93,7 @@ class BaseModel(nn.Module):
 
         return loss, loss_detail
 
-    def __deal_loss_detail(self, output, train_y):
+    def __deal_loss_detail(self, output, train_y, grad_accumulation_steps):
         '''处理返回多个loss，需要在进度条打印的情况
         '''
         loss_detail = self.criterion(output, train_y)
@@ -105,14 +105,16 @@ class BaseModel(nn.Module):
             del loss_detail['loss']
         else:
             raise ValueError('Return loss only support Tensor and dict format')
+        # 梯度累积
+        loss = loss / grad_accumulation_steps if grad_accumulation_steps > 1 else loss
         return loss, loss_detail
 
-    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=[]):
+    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
         self.global_step = 0
 
-        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + callbacks
+        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         for callback in self.callbacks:
             callback.on_train_begin()  #callback
 
@@ -148,19 +150,21 @@ class BaseModel(nn.Module):
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
                 output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss, loss_detail = self.__deal_loss_detail(output, train_y)
+                loss, loss_detail = self.__deal_loss_detail(output, train_y, grad_accumulation_steps)                
                 if self.adversarial['name'] in {'gradient_penalty', 'vat'}:
                     loss.backward(retain_graph=True)
                 else:
                     loss.backward()
-                
+
                 # 对抗训练
                 loss, loss_detail = self.adversarial_training(train_X, train_y, output, loss, loss_detail)
-
-                self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
-                self.optimizer.zero_grad()  # 清梯度
+                
+                # 参数更新, 真实的参数更新次数要除以grad_accumulation_steps，注意调整总的训练步数
+                if (self.global_step+1) % grad_accumulation_steps == 0:
+                    self.optimizer.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
+                    self.optimizer.zero_grad()  # 清梯度
                 
                 # 添加log打印
                 logs.update({'loss': loss.item()})

@@ -78,6 +78,7 @@
 - [task_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model.py)：任务例子，加载BERT的预训练权重做无条件语言模型，效果上等价于GPT。
 - [task_iflytek_bert_of_theseus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_iflytek_bert_of_theseus.py)：任务例子，通过[BERT-of-Theseus](https://kexue.fm/archives/7575)来进行模型压缩。
 - [task_language_model_chinese_chess.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model_chinese_chess.py)：任务例子，用GPT的方式下中国象棋，过程请参考[博客](https://kexue.fm/archives/7877)。
+- [task_custom_fit_progress.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_custom_fit_progress.py)：教程，自定义训练过程fit函数（集成了训练进度条展示），可用于满足如半精度，梯度裁剪等高阶需求
 
 ## 用到的数据集
 - 后续补充

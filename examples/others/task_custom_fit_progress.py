@@ -1,14 +1,15 @@
 #! -*- coding:utf-8 -*-
-# 情感分类任务
+# 自定义fit()训练过程
 
+from itertools import cycle
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, ProgbarLogger
 import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
+
 
 maxlen = 128
 batch_size = 16
@@ -17,7 +18,6 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -69,13 +69,43 @@ class Model(BaseModel):
         output = self.dropout(pooled_output)
         output = self.dense(output)
         return output
+    
+    def fit(self, train_dataloader, steps_per_epoch, epochs=1):
+        '''自定义fit过程，可用于满足自定义训练过程，如半精度，梯度裁剪等
+        '''
+        # 实现进度条展示功能，不需要可以不用
+        bar = ProgbarLogger(epochs, steps_per_epoch, ['loss']) 
+        global_step, epoch, best_val_acc  = 0, 0, 0
+        
+        train_dataloader = cycle(train_dataloader)
+        self.train()
+        for epoch in range(epochs):
+            bar.on_epoch_begin(epoch=epoch)
+            for bti in range(steps_per_epoch):
+                bar.on_batch_begin()
+                train_X, train_y = next(train_dataloader)
+                output = self.forward(*train_X)
+                loss = self.criterion(output, train_y)
+                loss.backward()
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+                bar.on_batch_end(logs={'loss': loss.item()})  # 和上面定义bar时候一致
+                global_step += 1
+            bar.on_epoch_end()
+            
+            # 评估
+            val_acc = evaluate(valid_dataloader)
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                # model.save_weights('best_model.pt')
+            print(f'val_acc: {val_acc:.5f}, best_val_acc: {best_val_acc:.5f}\n')
+            
 model = Model().to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=nn.CrossEntropyLoss(),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
-    metrics=['accuracy']
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 
 # 定义评价函数
@@ -88,28 +118,5 @@ def evaluate(data):
     return right / total
 
 
-class Evaluator(Callback):
-    """评估与保存
-    """
-    def __init__(self):
-        self.best_val_acc = 0.
-
-    # def on_batch_end(self, global_step, batch, logs=None):
-    #     if global_step % 10 == 0:
-    #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
-    #         val_acc = evaluate(valid_dataloader)
-    #         writer.add_scalar(f"valid/acc", val_acc, global_step)
-
-    def on_epoch_end(self, global_step, epoch, logs=None):
-        val_acc = evaluate(valid_dataloader)
-        if val_acc > self.best_val_acc:
-            self.best_val_acc = val_acc
-            # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
-
-
 if __name__ == '__main__':
-    evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, callbacks=[evaluator])
-else:
-    model.load_weights('best_model.pt')
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=100)
