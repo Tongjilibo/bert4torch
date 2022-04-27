@@ -161,6 +161,30 @@ class Model(BaseModel):
                 self.optimizer.zero_grad()
 ```
 
+- 模型保存和加载
+```python
+'''
+prefix: 是否以原始的key来保存，如word_embedding原始key为bert.embeddings.word_embeddings.weight
+默认为None表示不启用, 若基于BaseModel自定义模型，需指定为bert模型对应的成员变量名，直接使用设置为''
+主要是为了别的训练框架容易加载
+'''
+model.save_weights(save_path, prefix=None)
+model.load_weights(load_path, strict=True, prefix=None)
+```
+
+- [加载transformers模型进行训练](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)
+```python
+from transformers import AutoModelForSequenceClassification
+class Model(BaseModel):
+    def __init__(self):
+        super().__init__()
+        self.bert = AutoModelForSequenceClassification.from_pretrained("file_path", num_labels=2)
+    
+    def forward(self, token_ids, attention_mask, segment_ids):
+        output = self.bert(input_ids=token_ids, attention_mask=attention_mask, token_type_ids=segment_ids)
+        return output.logits
+```
+
 ### 3) 模型评估部分
 ```python
 '''支持在多个位置执行

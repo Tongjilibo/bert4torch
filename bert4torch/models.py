@@ -197,12 +197,34 @@ class BaseModel(nn.Module):
         else:
             raise ValueError('Return format error')
     
-    def load_weights(self, load_path, strict=True):
+    def load_weights(self, load_path, strict=True, prefix=None):
         state_dict = torch.load(load_path, map_location='cpu')
-        self.load_state_dict(state_dict, strict=strict)
+        if prefix is None:
+            self.load_state_dict(state_dict, strict=strict)
+        else:
+            # 加载save_weights中to_raw_format=True的情形
+            eval_str = 'self.variable_mapping()' if prefix == '' else f'self.{prefix}.variable_mapping()'
+            mapping = {v:k for k, v in eval(eval_str).items()}
+            mapping = mapping if prefix == '' else {k:f'{prefix}.{v}' for k,v in mapping.items()}
+            state_dict_raw = {}
+            for k, v in state_dict.items():
+                k = mapping.get(k, k)
+                state_dict_raw[k] = v
+            self.load_state_dict(state_dict_raw, strict=strict)
 
-    def save_weights(self, save_path):
-        torch.save(self.state_dict(), save_path)
+    def save_weights(self, save_path, prefix=None):
+        if prefix is None:
+            torch.save(self.state_dict(), save_path)
+        else:  
+            # 按照variable_mapping()中原始的key保存，方便其他官方代码加载模型
+            eval_str = 'self.variable_mapping()' if prefix == '' else f'self.{prefix}.variable_mapping()'
+            mapping = eval(eval_str)
+            mapping = mapping if prefix == '' else {f'{prefix}.{k}':v for k,v in mapping.items()}
+            state_dict_raw = {}
+            for k, v in self.state_dict().items():
+                k = mapping.get(k, k)
+                state_dict_raw[k] = v
+            torch.save(state_dict_raw, save_path)
     
 
 class BERT_BASE(BaseModel):

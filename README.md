@@ -27,7 +27,7 @@
 ## 功能
 - **核心功能**：加载预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
 - **丰富示例**：包含[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)等多种解决方案
-- **其他特性**：调用方式和bert4keras基本一致，简洁高效；实现基于keras的训练进度条动态展示；兼容torchinfo，实现打印各层参数量功能；自定义fit过程，满足高阶需求
+- **其他特性**：可搭配transformers库一起使用；调用方式和bert4keras基本一致，简洁高效；实现基于keras的训练进度条动态展示；兼容torchinfo，实现打印各层参数量功能；自定义fit过程，满足高阶需求
 
 ### 现在已经实现
 - 加载bert、roberta、albert、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha模型进行fintune
