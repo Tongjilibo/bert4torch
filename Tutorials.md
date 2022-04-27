@@ -78,7 +78,7 @@ if __name__ == '__main__':
 
 ## 2. 主要模块讲解
 ### 1) 数据处理部分
-#### a. 精简词表，并建立优化器
+#### a. 精简词表，并建立分词器
 ```python
 token_dict, keep_tokens = load_vocab(
     dict_path=dict_path,  # 词典文件路径
