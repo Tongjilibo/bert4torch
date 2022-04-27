@@ -87,7 +87,7 @@ token_dict, keep_tokens = load_vocab(
 )
 tokenizer = Tokenizer(token_dict, do_lower_case=True)  # 若无需精简，仅使用当前行定义tokenizer即可
 ```
-### b. 好用的小函数
+#### b. 好用的小函数
 - `text_segmentate()`: 截断总长度至不超过maxlen, 接受多个sequence输入，每次截断最长的句子，indices表示删除的token位置
 - `tokenizer.encode()`: 把text转成token_ids，默认句首添加[CLS]，句尾添加[SEP]，返回token_ids和segment_ids，相当于同时调用`tokenizer.tokenize()`和`tokenizer.tokens_to_ids()`
 - `tokenizer.decode()`: 把token_ids转成text，默认会删除[CLS], [SEP], [UNK]等特殊字符，相当于调用`tokenizer.ids_to_tokens()`并做了一些后处理
