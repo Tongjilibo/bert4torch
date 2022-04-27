@@ -71,7 +71,7 @@ class Model(BaseModel):
         return output
     
     def fit(self, train_dataloader, steps_per_epoch, epochs=1):
-        '''自定义fit过程，可用于满足自定义训练过程，如半精度，梯度裁剪等
+        '''自定义fit过程：适用于自带fit()不满足需求时，用于自定义训练过程，如混合精度，梯度裁剪等
         '''
         # 实现进度条展示功能，不需要可以不用
         bar = ProgbarLogger(epochs, steps_per_epoch, ['loss']) 

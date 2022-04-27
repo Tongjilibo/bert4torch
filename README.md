@@ -1,10 +1,16 @@
 # bert4torch
+**一款用pytorch来复现bert4keras的简洁训练框架**
 
 ## 下载安装
 - `pip install bert4torch`
 - pip包的发布慢于git上的开发版本，如需要使用最新开发的代码，可直接git clone最新代码，**注意引用路径**
 - 跑测试用例：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本，examples中用到的数据文件后续会放链接
 - 自行训练：针对自己的数据，修改相应的数据处理代码块
+
+## 快速上手
+- [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/Tutorials.md)
+- [实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
+- [bert4torch介绍(知乎图文版)](https://zhuanlan.zhihu.com/p/486329434)
 
 ## 更新：
 - **2022年4月25更新**：增加了VAT、GAU-alpha等示例，增加了梯度累积，自定义fit()示例
@@ -15,7 +21,6 @@
 - **2022年3月12更新**：初版提交
 
 ## 背景
-- [bert4torch介绍(知乎图文版)](https://zhuanlan.zhihu.com/p/486329434)
 - 用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)
 - 初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
@@ -30,3 +35,4 @@
 
 ### 未来将实现
 - 前沿的各类模型idea实现，如苏神科学空间网站的诸多idea
+**

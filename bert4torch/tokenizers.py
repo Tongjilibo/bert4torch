@@ -15,11 +15,11 @@ import six
 logger = logging.getLogger(__name__)
 is_py2 = six.PY2
 
-def load_vocab(dict_path, simplified=False, startswith=None):
+def load_vocab(dict_path, encoding="utf-8", simplified=False, startswith=None):
     """加载词典文件到dict"""
     token_dict = collections.OrderedDict()
     index = 0
-    with open(dict_path, "r", encoding="utf-8") as reader:
+    with open(dict_path, "r", encoding=encoding) as reader:
         while True:
             token = reader.readline()
             if not token:
