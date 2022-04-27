@@ -16,7 +16,7 @@ class MyDataset(ListDataset):
 
 def collate_fn(batch):
     '''处理上述load_data得到的batch数据，整理成对应device上的Tensor
-    注意：返回值分为feature和label, feature有可整理成list或tuple
+    注意：返回值分为feature和label, feature可整理成list或tuple
     '''
     batch_token_ids, batch_segment_ids, batch_labels = [], [], []
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
@@ -24,18 +24,17 @@ def collate_fn(batch):
 # 加载数据集
 train_dataloader = DataLoader(MyDataset('file_path'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
-
 # 定义bert上的模型结构，以文本二分类为例
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True)
+        self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.config['hidden_size'], 2)
+        self.dense = nn.Linear(768, 2)
 
     def forward(self, token_ids, segment_ids):
         # build_transformer_model得到的模型仅接受list/tuple传参，因此入参只有一个时候包装成[token_ids]
-        _, pooled_output = self.bert([token_ids, segment_ids])
+        hidden_states, pooled_output = self.bert([token_ids, segment_ids])
         output = self.dropout(pooled_output)
         output = self.dense(output)
         return output
@@ -57,7 +56,6 @@ def evaluate(data):
         total += len(y_true)
         right += (y_true == y_pred).sum().item()
     return right / total
-
 
 class Evaluator(Callback):
     """评估与保存，这里定义仅在epoch结束后调用
@@ -91,9 +89,9 @@ tokenizer = Tokenizer(token_dict, do_lower_case=True)  # 若无需精简，仅�
 ```
 ### b. 好用的小函数
 - `text_segmentate()`: 截断总长度至不超过maxlen, 接受多个sequence输入，每次截断最长的句子，indices表示删除的token位置
-- `tokenizer.encode()`: 把text转成tokenids，默认句首添加[CLS]，句尾添加[SEP]，返回token_ids和segment_ids，相当于同时调用`tokenizer.tokenize()`和`tokenizer.tokens_to_ids()`
-- `tokenizer.decode()`: 把tokenids转成text，默认会删除[CLS],[SEP],[UNK]等特殊字符，相当于调用`tokenizer.tokens_to_ids()`并做了一些后处理
-- `sequence_padding`: 将序列padding到同一长度, 传入一个元素为list,ndarray,tensor的list，返回ndarry或tensor
+- `tokenizer.encode()`: 把text转成token_ids，默认句首添加[CLS]，句尾添加[SEP]，返回token_ids和segment_ids，相当于同时调用`tokenizer.tokenize()`和`tokenizer.tokens_to_ids()`
+- `tokenizer.decode()`: 把token_ids转成text，默认会删除[CLS], [SEP], [UNK]等特殊字符，相当于调用`tokenizer.ids_to_tokens()`并做了一些后处理
+- `sequence_padding`: 将序列padding到同一长度, 传入一个元素为list, ndarray, tensor的list，返回ndarry或tensor
 
 
 ### 2) 模型定义部分
@@ -104,9 +102,9 @@ tokenizer = Tokenizer(token_dict, do_lower_case=True)  # 若无需精简，仅�
 '''
 build_transformer_model(
     config_path=config_path, # 模型的config文件地址
-    checkpoint_path=checkpoint_path, # 模型文件地址，默认值None表示不加载
+    checkpoint_path=checkpoint_path, # 模型文件地址，默认值None表示不加载预训练模型
     model='bert', # 加载的模型结构，这里Model也可以基于nn.Module自定义后传入
-    application='encoder',  # 模型应用，支持lm和unilm格式
+    application='encoder',  # 模型应用，支持encoder，lm和unilm格式
     segment_vocab_size=2,  # type_token_ids数量，默认为2，如不传入segment_ids则需设置为0
     with_pool=False,  # 是否包含Pool部分
     with_nsp=False,  # 是否包含NSP部分
