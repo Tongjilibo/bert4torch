@@ -38,7 +38,7 @@
 - 前沿的各类模型idea实现，如苏神科学空间网站的诸多idea
 
 ## 预训练权重
-| 模型分类 |  权重名称 | 权重链接 | 转换说明(若有) | 
+| 模型分类 |  权重来源 | 权重链接 | 转换说明(若有) | 
 |  ----  |  ----  | ----  | ----  |
 |  bert  | 谷歌原版bert | [Github](https://github.com/google-research/bert) | [转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)
 |  bert  | 哈工大bert | [Github](https://github.com/ymcui/Chinese-BERT-wwm), [HuggingFace](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
