@@ -60,7 +60,7 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        # 指定好model=nezha和对应的ckpt地址
+        # 指定好model和对应的ckpt地址
         self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', with_pool=True, return_model_config=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.config['hidden_size'], 2)
