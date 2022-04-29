@@ -43,8 +43,9 @@ def truncate_sequences(maxlen, indices, *sequences):
         else:
             return sequences
 
-def text_segmentate(text, maxlen, seps='\n', strips=None):
+def text_segmentate(text, maxlen, seps='\n', strips=None, truncate=True):
     """将文本按照标点符号划分为若干个短句
+       truncate: True表示标点符号切分后仍然超长时, 按照maxlen硬截断分成若干个短句
     """
     text = text.strip().strip(strips)
     if seps and len(text) > maxlen:
@@ -52,18 +53,41 @@ def text_segmentate(text, maxlen, seps='\n', strips=None):
         text, texts = '', []
         for i, p in enumerate(pieces):
             if text and p and len(text) + len(p) > maxlen - 1:
-                texts.extend(text_segmentate(text, maxlen, seps[1:], strips))
+                texts.extend(text_segmentate(text, maxlen, seps[1:], strips, truncate))
                 text = ''
             if i + 1 == len(pieces):
                 text = text + p
             else:
                 text = text + p + seps[0]
         if text:
-            texts.extend(text_segmentate(text, maxlen, seps[1:], strips))
+            texts.extend(text_segmentate(text, maxlen, seps[1:], strips, truncate))
         return texts
+    elif truncate and (not seps) and (len(text) > maxlen):
+        # 标点符号用完，仍然超长，且设置了truncate=True
+        return [text[i*maxlen:(i+1)*maxlen] for i in range(0, int(len(text)/maxlen)+1)]
     else:
         return [text]
-        
+
+def merge_segmentate(sequences, maxlen, sep=''):
+    '''把m个句子合并成不超过maxlen的n个句子, 主要用途是合并碎句子
+    '''
+    sequences_new = []
+    text = ''
+    for t in sequences:
+        if text and len(text + sep + t) <= maxlen:
+            text = text + sep + t
+        elif text:
+            sequences_new.append(text)
+            text = t
+        elif len(t) < maxlen: # text为空
+            text = t
+        else:
+            sequences_new.append(t)
+            text = ''
+    if text:
+        sequences_new.append(text)
+    return sequences_new
+
 def lowercase_and_normalize(text):
     """转小写，并进行简单的标准化
     """
