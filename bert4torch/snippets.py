@@ -64,7 +64,7 @@ def text_segmentate(text, maxlen, seps='\n', strips=None, truncate=True):
         return texts
     elif truncate and (not seps) and (len(text) > maxlen):
         # 标点符号用完，仍然超长，且设置了truncate=True
-        return [text[i*maxlen:(i+1)*maxlen] for i in range(0, int(len(text)/maxlen)+1)]
+        return [text[i*maxlen:(i+1)*maxlen] for i in range(0, int(np.ceil(len(text)/maxlen)))]
     else:
         return [text]
 
