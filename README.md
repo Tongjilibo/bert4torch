@@ -14,6 +14,7 @@
 - [examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/examples/README.md)
 
 ## 更新：
+- **2022年5月01更新**：增加了混合梯度，梯度裁剪
 - **2022年4月25更新**：增加了VAT、GAU-alpha等示例，增加了梯度累积，自定义fit()示例
 - **2022年4月15更新**：增加了ner_mrc、ner_span、roformer_v2、roformer-sim等示例
 - **2022年4月05更新**：增加了GPLinker、TPlinker、SimBERT等示例

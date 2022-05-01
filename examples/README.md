@@ -72,6 +72,7 @@
 - [task_sentiment_virtual_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_virtual_adversarial_training.py)：任务例子，通过半监督的虚拟对抗训练等措施来提升分类效果。
 - [task_semi_supervised_UDA.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_semi_supervised_UDA.py)：任务例子，通过[UDA](https://arxiv.org/abs/1904.12848)半监督学习提升分类效果，在原来Losss上加一致性损失。
 - [task_iflyteck_R-Drop.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflyteck_R-Drop.py)：任务例子，通过[R-Drop](https://github.com/dropreg/R-Drop)提升分类效果，可以视为用dropout加噪下的UDA。
+- [task_amp.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_amp.py)：任务例子，Pytorch的amp混合精度训练
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。

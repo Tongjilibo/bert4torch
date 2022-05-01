@@ -14,19 +14,31 @@ class BaseModel(nn.Module):
         super(BaseModel, self).__init__()
         self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
     
-    def compile(self, loss, optimizer, scheduler=None, metrics=None, adversarial_train={'name': ''}):
-        '''定义loss，optimizer，metrics，是否在计算loss前reshape
-        loss: 
-        optimizer:
-        metrics:
+    def compile(self, loss, optimizer, scheduler=None, max_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
+        '''定义loss, optimizer, metrics, 是否在计算loss前reshape
+        loss: loss
+        optimizer: 优化器
+        scheduler: scheduler
+        max_grad_norm: 是否使用梯度裁剪, 默认不启用
+        use_amp: 是否使用混合精度，默认不启用
+        metrics: 训练过程中需要打印的指标, loss相关指标默认会打印, 目前支持accuracy
         '''
         self.criterion = loss
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.max_grad_norm = max_grad_norm
+        self.use_amp = use_amp
+        if use_amp:
+            assert adversarial_train['name'] not in {'vat', 'gradient_penalty'}, 'Amp and adversarial_train both run is not supported in current version'
+            from torch.cuda.amp import autocast
+            self.autocast = autocast
+            self.scaler = torch.cuda.amp.GradScaler()
+
         if metrics is None:
             metrics = []
         self.metrics = ['loss'] + [i for i in metrics if i!='loss']
         self.adversarial = adversarial_train
+        
         self.adversarial_initialize()
 
     def adversarial_initialize(self):
@@ -54,13 +66,12 @@ class BaseModel(nn.Module):
             self.ad_train = VAT(self, **self.adversarial)
 
 
-    def adversarial_training(self, train_X, train_y, output, loss, loss_detail):
+    def adversarial_training(self, train_X, train_y, output, loss, loss_detail, grad_accumulation_steps):
         '''对抗训练
         '''
         if self.adversarial['name'] == 'fgm':
             self.ad_train.attack(**self.adversarial) # embedding被修改了
-            output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-            loss, loss_detail = self.__deal_loss_detail(output, train_y)
+            output, loss, loss_detail = self.__deal_loss_detail(train_X, train_y, grad_accumulation_steps)
             loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
             self.ad_train.restore(**self.adversarial)
@@ -73,8 +84,7 @@ class BaseModel(nn.Module):
                     self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                 else:
                     self.ad_train.restore_grad() # 恢复正常的grad
-                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss, loss_detail = self.__deal_loss_detail(output, train_y)
+                output, loss, loss_detail = self.__deal_loss_detail(train_X, train_y, grad_accumulation_steps)
                 loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             self.ad_train.restore(**self.adversarial) # 恢复embedding参数
         # 梯度惩罚
@@ -93,10 +103,17 @@ class BaseModel(nn.Module):
 
         return loss, loss_detail
 
-    def __deal_loss_detail(self, output, train_y, grad_accumulation_steps):
+    def __deal_loss_detail(self, train_X, train_y, grad_accumulation_steps):
         '''处理返回多个loss，需要在进度条打印的情况
         '''
-        loss_detail = self.criterion(output, train_y)
+        if self.use_amp:
+            with self.autocast():
+                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
+                loss_detail = self.criterion(output, train_y)
+        else:
+                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
+                loss_detail = self.criterion(output, train_y)
+
         if isinstance(loss_detail, torch.Tensor):
             loss = loss_detail
             loss_detail = {}
@@ -107,7 +124,7 @@ class BaseModel(nn.Module):
             raise ValueError('Return loss only support Tensor and dict format')
         # 梯度累积
         loss = loss / grad_accumulation_steps if grad_accumulation_steps > 1 else loss
-        return loss, loss_detail
+        return output, loss, loss_detail
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
@@ -149,23 +166,38 @@ class BaseModel(nn.Module):
 
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
-                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss, loss_detail = self.__deal_loss_detail(output, train_y, grad_accumulation_steps)                
-                if self.adversarial['name'] in {'gradient_penalty', 'vat'}:
-                    loss.backward(retain_graph=True)
+                output, loss, loss_detail = self.__deal_loss_detail(train_X, train_y, grad_accumulation_steps)
+                
+                retain_graph = True if self.adversarial['name'] in {'gradient_penalty', 'vat'} else False
+                if self.use_amp:  # 混合精度
+                    scale_before_step = self.scaler.get_scale()
+                    self.scaler.scale(loss).backward(retain_graph=retain_graph)
                 else:
-                    loss.backward()
+                    loss.backward(retain_graph=retain_graph)
 
                 # 对抗训练
-                loss, loss_detail = self.adversarial_training(train_X, train_y, output, loss, loss_detail)
+                loss, loss_detail = self.adversarial_training(train_X, train_y, output, loss, loss_detail, grad_accumulation_steps)
                 
                 # 参数更新, 真实的参数更新次数要除以grad_accumulation_steps，注意调整总的训练步数
                 if (self.global_step+1) % grad_accumulation_steps == 0:
-                    self.optimizer.step()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
+                    skip_scheduler = False
+                    # 混合精度
+                    if self.use_amp:
+                        self.scaler.unscale_(self.optimizer)
+                        if self.max_grad_norm is not None:  # 梯度裁剪
+                            torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                        skip_scheduler = self.scaler.get_scale() != scale_before_step
+                    else:
+                        if self.max_grad_norm is not None:  # 梯度裁剪
+                            torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+                        self.optimizer.step()
+
                     self.optimizer.zero_grad()  # 清梯度
-                
+                    if (self.scheduler is not None) and not skip_scheduler:
+                        self.scheduler.step()
+
                 # 添加log打印
                 logs.update({'loss': loss.item()})
                 logs_loss_detail = {k: v.item() if isinstance(v, torch.Tensor) else v for k, v in loss_detail.items()}
