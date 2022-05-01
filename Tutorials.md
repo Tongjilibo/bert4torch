@@ -145,7 +145,7 @@ class Model(BaseModel):
 - [自定义训练过程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_custom_fit_progress.py)
 ```python
 '''
-自定义fit过程，适用于自带fit()不满足需求时，如混合精度等
+自定义fit过程，适用于自带fit()不满足需求时
 '''
 class Model(BaseModel):
     def fit(self, train_dataloader, steps_per_epoch, epochs):   
