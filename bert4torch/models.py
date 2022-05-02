@@ -37,8 +37,9 @@ class BaseModel(nn.Module):
         if metrics is None:
             metrics = []
         self.metrics = ['loss'] + [i for i in metrics if i!='loss']
-        self.adversarial = adversarial_train
         
+        # 对抗训练
+        self.adversarial = adversarial_train
         self.adversarial_initialize()
 
     def adversarial_initialize(self):
@@ -71,7 +72,7 @@ class BaseModel(nn.Module):
         '''
         if self.adversarial['name'] == 'fgm':
             self.ad_train.attack(**self.adversarial) # embedding被修改了
-            output, loss, loss_detail = self.__deal_loss_detail(train_X, train_y, grad_accumulation_steps)
+            output, loss, loss_detail = self.train_step(train_X, train_y, grad_accumulation_steps)
             loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
             self.ad_train.restore(**self.adversarial)
@@ -84,7 +85,7 @@ class BaseModel(nn.Module):
                     self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                 else:
                     self.ad_train.restore_grad() # 恢复正常的grad
-                output, loss, loss_detail = self.__deal_loss_detail(train_X, train_y, grad_accumulation_steps)
+                output, loss, loss_detail = self.train_step(train_X, train_y, grad_accumulation_steps)
                 loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             self.ad_train.restore(**self.adversarial) # 恢复embedding参数
         # 梯度惩罚
@@ -103,16 +104,25 @@ class BaseModel(nn.Module):
 
         return loss, loss_detail
 
-    def __deal_loss_detail(self, train_X, train_y, grad_accumulation_steps):
-        '''处理返回多个loss，需要在进度条打印的情况
+    def train_step(self, train_X, train_y, grad_accumulation_steps):
+        '''forward并返回loss
         '''
+        def args_segmentate():
+            '''参数是
+            '''
+            if self.forward.__code__.co_argcount >= 3:
+                return True
+            elif isinstance(self, BaseModelDP):
+                return True
+            return False
+
         if self.use_amp:
             with self.autocast():
-                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss_detail = self.criterion(output, train_y)
+                output = self.forward(*train_X) if args_segmentate() else self.forward(train_X)
+                loss_detail = self.criterion(output, train_y) if self.criterion else output
         else:
-                output = self.forward(*train_X) if self.forward.__code__.co_argcount >= 3 else self.forward(train_X)
-                loss_detail = self.criterion(output, train_y)
+            output = self.forward(*train_X) if args_segmentate() else self.forward(train_X)
+            loss_detail = self.criterion(output, train_y) if self.criterion else output
 
         if isinstance(loss_detail, torch.Tensor):
             loss = loss_detail
@@ -166,7 +176,7 @@ class BaseModel(nn.Module):
 
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
-                output, loss, loss_detail = self.__deal_loss_detail(train_X, train_y, grad_accumulation_steps)
+                output, loss, loss_detail = self.train_step(train_X, train_y, grad_accumulation_steps)
                 
                 retain_graph = True if self.adversarial['name'] in {'gradient_penalty', 'vat'} else False
                 if self.use_amp:  # 混合精度
@@ -258,6 +268,13 @@ class BaseModel(nn.Module):
                 state_dict_raw[k] = v
             torch.save(state_dict_raw, save_path)
     
+
+class BaseModelDP(BaseModel, nn.DataParallel):
+    '''DataParallel模式使用多gpu的方法
+    '''
+    def __init__(self, module, device_ids=None, output_device=None, dim=0):
+        nn.DataParallel.__init__(self, module, device_ids, output_device, dim)
+
 
 class BERT_BASE(BaseModel):
     """模型基类
