@@ -1,25 +1,35 @@
 #! -*- coding:utf-8 -*-
-# DP示例，这里是把loss放在模型里计算的话，则可以部分缓解负载不均衡的问题
+# DDP示例
+# 启动命令：python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 task_distributed_data_parallel.py
 
 import os
 # 也可命令行传入
 os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel, BaseModelDP
+from bert4torch.models import build_transformer_model, BaseModelDDP
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim
 import random, os, numpy as np
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+import argparse
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--local_rank", type=int, default=-1)
+args = parser.parse_args()
+
+torch.cuda.set_device(args.local_rank)
+device = torch.device('cuda', args.local_rank)
+torch.distributed.init_process_group(backend='nccl')
+
+# 模型设置
 maxlen = 256
 batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
 seed = 42
@@ -62,7 +72,9 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids, batch_labels.flatten()], None
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataset = MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data'])
+train_sampler = DistributedSampler(train_dataset)
+train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构，这里loss并不是放在模型里计算的
 class Model(nn.Module):
@@ -80,13 +92,15 @@ class Model(nn.Module):
         loss = self.loss_fn(output, labels)
         return loss
 model = Model().to(device)
-model = BaseModelDP(model)  # 指定DP模型使用多gpu
+
+# 指定DDP模型使用多gpu, master_rank为指定用于打印训练过程的local_rank
+model = BaseModelDDP(model, master_rank=0, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss=lambda x, _: x.mean(),  # 多个gpu计算的loss的均值
+    loss=lambda x, _: x,  # 直接把forward计算的loss传出来
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
 if __name__ == '__main__':
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=10)
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=None)

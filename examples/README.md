@@ -74,6 +74,7 @@
 - [task_iflyteck_R-Drop.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_iflyteck_R-Drop.py)：任务例子，通过[R-Drop](https://github.com/dropreg/R-Drop)提升分类效果，可以视为用dropout加噪下的UDA。
 - [task_amp.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_amp.py)：任务例子，Pytorch的amp混合精度训练
 - [task_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_data_parallel.py)：任务例子，DataParallel模式的多GPU训练方式
+- [task_distributed_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py)：任务例子，DistributedDataParallel模式的多GPU训练方式
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。

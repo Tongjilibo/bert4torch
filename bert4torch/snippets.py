@@ -387,6 +387,10 @@ class ProgbarLogger(Callback):
                 add_metrics.append(metric)
         self.params['metrics'] = self.params['metrics'][:add_position] + add_metrics + self.params['metrics'][add_position:]
 
+    def on_train_begin(self, logs=None):
+        if self.verbose:
+            print('Start Training'.center(40, '='))
+
     def on_epoch_begin(self, global_step=None, epoch=None, logs=None):
         if self.verbose:
             print('Epoch %d/%d' % (epoch + 1, self.epochs))
@@ -419,6 +423,11 @@ class ProgbarLogger(Callback):
                 self.log_values.append((k, logs[k]))
         if self.verbose:
             self.progbar.update(self.seen, self.log_values)
+    
+    def on_train_end(self, logs=None):
+        if self.verbose:
+            print('Finish Training'.center(40, '='))
+
 
 def metric_mapping(metric, y_pred, y_true):
     if metric == 'accuracy':

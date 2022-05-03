@@ -13,6 +13,7 @@ class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
         self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
+        self.callbacks = []
     
     def compile(self, loss, optimizer, scheduler=None, max_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
         '''定义loss, optimizer, metrics, 是否在计算loss前reshape
@@ -66,7 +67,6 @@ class BaseModel(nn.Module):
             self.adversarial['norm_type'] = self.adversarial.get('norm_type', 'l2')  # 归一化方式
             self.ad_train = VAT(self, **self.adversarial)
 
-
     def adversarial_training(self, train_X, train_y, output, loss, loss_detail, grad_accumulation_steps):
         '''对抗训练
         '''
@@ -107,22 +107,25 @@ class BaseModel(nn.Module):
     def train_step(self, train_X, train_y, grad_accumulation_steps):
         '''forward并返回loss
         '''
-        def args_segmentate():
-            '''参数是
+        def args_segmentate(train_X):
+            '''参数是否展开
             '''
-            if self.forward.__code__.co_argcount >= 3:
-                return True
-            elif isinstance(self, BaseModelDP):
+            if isinstance(train_X, torch.Tensor):  # tensor不展开
+                pass
+            elif isinstance(self, (BaseModelDP, BaseModelDDP)):
+                if self.module.forward.__code__.co_argcount >= 3:
+                    return True
+            elif self.forward.__code__.co_argcount >= 3:
                 return True
             return False
 
         if self.use_amp:
             with self.autocast():
-                output = self.forward(*train_X) if args_segmentate() else self.forward(train_X)
-                loss_detail = self.criterion(output, train_y) if self.criterion else output
+                output = self.forward(*train_X) if args_segmentate(train_X) else self.forward(train_X)
+                loss_detail = self.criterion(output, train_y)
         else:
-            output = self.forward(*train_X) if args_segmentate() else self.forward(train_X)
-            loss_detail = self.criterion(output, train_y) if self.criterion else output
+            output = self.forward(*train_X) if args_segmentate(train_X) else self.forward(train_X)
+            loss_detail = self.criterion(output, train_y)
 
         if isinstance(loss_detail, torch.Tensor):
             loss = loss_detail
@@ -136,21 +139,48 @@ class BaseModel(nn.Module):
         loss = loss / grad_accumulation_steps if grad_accumulation_steps > 1 else loss
         return output, loss, loss_detail
 
+    def callback_fun(self, mode, logs={}):
+        '''统一调用callback, 方便一些判断条件的触发
+        '''
+        # 如果是分布式DDP训练，则仅masker_rank可以callback
+        if isinstance(self, BaseModelDDP) and self.master_rank!=torch.distributed.get_rank():
+            return
+
+        if mode == 'train_begin':
+            for callback in self.callbacks:
+                callback.on_train_begin()
+        elif mode == 'epoch_begin':
+            for callback in self.callbacks:
+                callback.on_epoch_begin(self.global_step, self.epoch, logs)
+        elif mode == 'batch_begin':
+            for callback in self.callbacks:
+                callback.on_batch_begin(self.global_step, self.bti, logs)
+        elif mode == 'batch_end':
+            for callback in self.callbacks:
+                callback.on_batch_end(self.global_step, self.bti, logs)
+        elif mode == 'epoch_end':
+            for callback in self.callbacks:
+                callback.on_epoch_end(self.global_step, self.epoch, logs)
+        elif mode == 'train_end':
+            for callback in self.callbacks:
+                callback.on_train_end()
+
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
         self.global_step = 0
 
         self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
-        for callback in self.callbacks:
-            callback.on_train_begin()  #callback
+        self.callback_fun('train_begin')
+        # for callback in self.callbacks:
+        #     callback.on_train_begin()  #callback
 
         train_dataloader_iter = iter(train_dataloader)  # 循环epoch时不重生成
         for epoch in range(epochs):
             self.epoch = epoch
-            for callback in self.callbacks:
-                callback.on_epoch_begin(self.global_step, epoch, {})  # callback
+            self.callback_fun('epoch_begin')
             for bti in range(steps_per_epoch):
+                self.bti = bti
                 # 循环dataloader, 不要试用itertools的cycle，遇到过变量不释放的问题
                 try:
                     batch = next(train_dataloader_iter)
@@ -170,9 +200,7 @@ class BaseModel(nn.Module):
                 else:
                     raise ValueError('Input only support [list, tuple, tensor]')
                 logs = {'batch': bti, 'size': btz}
-
-                for callback in self.callbacks:
-                    callback.on_batch_begin(self.global_step, bti, logs)  # callback
+                self.callback_fun('batch_begin', logs)
 
                 self.train()  # 设置为train模式
                 # 入参个数判断，如果入参>=3表示是多个入参，如果=2则表示是一个入参
@@ -218,12 +246,11 @@ class BaseModel(nn.Module):
                     tmp = metric_mapping(metric, output, train_y)  # 内置的一些accuracy指标
                     if tmp is not None:
                         logs[metric] = tmp
-                for callback in self.callbacks:
-                    callback.on_batch_end(self.global_step, bti, logs)  #callback
+                self.callback_fun('batch_end', logs)
 
                 self.global_step += 1
-            for callback in self.callbacks:
-                callback.on_epoch_end(self.global_step, epoch, logs)  #callback
+            self.callback_fun('epoch_end', logs)
+        self.callback_fun('train_end', logs)
 
     def predict(self, input_tensor_list, return_all=None):
         self.eval()
@@ -272,8 +299,16 @@ class BaseModel(nn.Module):
 class BaseModelDP(BaseModel, nn.DataParallel):
     '''DataParallel模式使用多gpu的方法
     '''
-    def __init__(self, module, device_ids=None, output_device=None, dim=0):
-        nn.DataParallel.__init__(self, module, device_ids, output_device, dim)
+    def __init__(self, *args, **kwargs):
+        nn.DataParallel.__init__(self, *args, **kwargs)
+
+
+class BaseModelDDP(BaseModel, nn.parallel.DistributedDataParallel):
+    '''DistributedDataParallel模式使用多gpu的方法
+    '''
+    def __init__(self, *args, master_rank=0, **kwargs):
+        self.master_rank = master_rank  # 用于记录打印条的rank
+        nn.parallel.DistributedDataParallel.__init__(self, *args, **kwargs)
 
 
 class BERT_BASE(BaseModel):
@@ -640,7 +675,15 @@ class BERT(BERT_BASE):
         self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
         if self.attention_bias is not None:
             attention_mask = attention_mask * self.attention_bias
-        attention_mask = attention_mask.to(dtype=next(self.parameters()).dtype)  # 兼容fp16
+
+        # pytorch >= 1.5时候回导致StopIteration错误
+        # https://github.com/huggingface/transformers/issues/3936
+        # https://github.com/huggingface/transformers/issues/4189
+        # https://github.com/huggingface/transformers/issues/3936
+        try:
+            attention_mask = attention_mask.to(dtype=next(self.parameters()).dtype)  # 兼容fp16
+        except StopIteration:
+            attention_mask = attention_mask.to(dtype=torch.float32)
         
         # 对mask矩阵中，数值为0的转换成很大的负数，使得不需要attention的位置经过softmax后,分数趋近于0
         # attention_mask = (1.0 - attention_mask) * -10000.0
