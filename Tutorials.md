@@ -214,7 +214,49 @@ class Evaluator(Callback):
         print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 ```
 ## 3. 其他特性讲解
-### 1) tensorboard保存训练过程
+### 1) 单机多卡训练
+#### a. 使用DataParallel
+```python
+'''DP有两种方式，第一种是forward只计算logit，第二种是forward直接计算loss
+建议使用第二种，可以部分缓解负载不均衡的问题
+'''
+from bert4torch.models import BaseModelDP
+
+# ===========处理数据和定义model===========
+
+model = BaseModelDP(model)  # 指定DP模式使用多gpu
+model.compile(
+    loss=lambda x, _: x.mean(),  # 多个gpu计算的loss的均值
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+)
+```
+
+#### b. 使用DistributedDataParallel
+```python
+'''DDP使用torch.distributed.launch，从命令行启动
+'''
+# 需要定义命令行参数
+parser = argparse.ArgumentParser()
+parser.add_argument("--local_rank", type=int, default=-1)
+args = parser.parse_args()
+
+torch.cuda.set_device(args.local_rank)
+device = torch.device('cuda', args.local_rank)
+torch.distributed.init_process_group(backend='nccl')
+
+# ===========处理数据和定义model===========
+
+# 指定DDP模型使用多gpu, master_rank为指定用于打印训练过程的local_rank
+model = BaseModelDDP(model, master_rank=0, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False)
+
+# 定义使用的loss和optimizer，这里支持自定义
+model.compile(
+    loss=lambda x, _: x,  # 直接把forward计算的loss传出来
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+)
+```
+
+### 2) tensorboard保存训练过程
 ```python
 from tensorboardX import SummaryWriter
 class Evaluator(Callback):
@@ -227,7 +269,7 @@ class Evaluator(Callback):
             writer.add_scalar(f"valid/acc", val_acc, global_step)
 
 ```
-### 2) 打印训练参数
+### 3) 打印训练参数
 ```python
 from torchinfo import summary
 summary(model, input_data=next(iter(train_dataloader))[0])
