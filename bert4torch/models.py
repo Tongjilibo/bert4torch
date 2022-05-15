@@ -165,6 +165,9 @@ class BaseModel(nn.Module):
         elif mode == 'train_end':
             for callback in self.callbacks:
                 callback.on_train_end()
+        elif mode == 'dataloader_end':
+            for callback in self.callbacks:
+                callback.on_dataloader_end()
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
@@ -185,6 +188,7 @@ class BaseModel(nn.Module):
                 try:
                     batch = next(train_dataloader_iter)
                 except StopIteration:
+                    self.callback_fun('dataloader_end')  # 适用于数据量较大时，动态读取文件并重新生成dataloader的情况，如预训练
                     train_dataloader_iter = iter(self.train_dataloader)
                     batch = next(train_dataloader_iter)
                 train_X, train_y = batch

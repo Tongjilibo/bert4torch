@@ -168,7 +168,7 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
                 texts[id] = delete(text, sel_idx)
             else:
                 texts[id] = replace(text, sel_idx, noise_dict)
-    return texts
+    return texts if len(texts) > 1 else texts[0]
 
 def lowercase_and_normalize(text):
     """转小写，并进行简单的标准化
@@ -428,6 +428,8 @@ class Callback(object):
     def on_batch_begin(self, global_step, batch, logs=None):
         pass
     def on_batch_end(self, global_step, batch, logs=None):
+        pass
+    def on_dataloader_end(self, logs=None):
         pass
 
 
