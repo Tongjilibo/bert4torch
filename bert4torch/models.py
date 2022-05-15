@@ -12,7 +12,8 @@ from bert4torch.activations import get_activation
 class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
-        self.global_step, self.total_steps, self.epoch = 0, 0, 0  # 这里主要是为了外面调用用到
+        # 这里主要是为了外面调用用到
+        self.global_step, self.total_steps, self.epoch, self.train_dataloader = 0, 0, 0, None
         self.callbacks = []
     
     def compile(self, loss, optimizer, scheduler=None, max_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
@@ -172,10 +173,9 @@ class BaseModel(nn.Module):
 
         self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         self.callback_fun('train_begin')
-        # for callback in self.callbacks:
-        #     callback.on_train_begin()  #callback
 
-        train_dataloader_iter = iter(train_dataloader)  # 循环epoch时不重生成
+        self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
+        train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
         for epoch in range(epochs):
             self.epoch = epoch
             self.callback_fun('epoch_begin')
@@ -185,7 +185,7 @@ class BaseModel(nn.Module):
                 try:
                     batch = next(train_dataloader_iter)
                 except StopIteration:
-                    train_dataloader_iter = iter(train_dataloader)
+                    train_dataloader_iter = iter(self.train_dataloader)
                     batch = next(train_dataloader_iter)
                 train_X, train_y = batch
 
