@@ -17,6 +17,8 @@ import gc
 import inspect
 import json
 import torch.nn.functional as F
+import random
+
 
 is_py2 = six.PY2
 
@@ -87,6 +89,86 @@ def merge_segmentate(sequences, maxlen, sep=''):
     if text:
         sequences_new.append(text)
     return sequences_new
+
+def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_words=None, strategy='random', allow_dup=True):
+    '''简单的EDA策略, 增删改
+    texts: 需要增强的文本/文本list
+    noise_dict: 噪音数据, 元素为str的list, tuple, set
+    noise_len: 噪音长度, 优先试用
+    noise_p: 噪音比例
+    skip_words: 跳过的短语, string/list
+    strategy: 修改的策略, 包含增insert, 删delete, 改replace, 随机random
+    allow_dup: 是否允许同一个位置多次EDA
+    '''
+    def insert(text, insert_idx, noise_dict):
+        text = list(text)
+        for i in insert_idx:
+            text[i] = text[i] + random.choice(noise_dict)
+        return ''.join(text)
+
+    def delete(text, delete_idx):
+        text = list(text)
+        for i in delete_idx:
+            text[i] = ''
+        return ''.join(text)
+
+    def replace(text, replace_idx, noise_dict):
+        text = list(text)
+        for i in replace_idx:
+            text[i] = random.choice(noise_dict)
+        return ''.join(text)
+
+    def search(pattern, sequence, keep_last=True):
+        """从sequence中寻找子串pattern, 返回符合pattern的id集合
+        """
+        n = len(pattern)
+        pattern_idx_set = set()
+        for i in range(len(sequence)):
+            if sequence[i:i + n] == pattern:
+                pattern_idx_set = pattern_idx_set.union(set(range(i, i+n))) if keep_last else pattern_idx_set.union(set(range(i, i+n-1)))
+        return pattern_idx_set
+
+    if (noise_len==0) and (noise_p==0):
+        return texts
+
+    assert strategy in {'insert', 'delete', 'replace', 'random'}, 'EDA strategy only support insert, delete, replace, random'
+
+    if isinstance(texts, str):
+        texts = [texts]
+
+    if skip_words is None:
+        skip_words = []
+    elif isinstance(skip_words, str):
+        skip_words = [skip_words]
+
+    for id, text in enumerate(texts):
+        sel_len = noise_len if noise_len > 0 else int(len(text)*noise_p) # 噪声长度
+        skip_idx = set()  # 不能修改的idx区间
+        for item in skip_words:
+            # insert时最后一位允许插入
+            skip_idx = skip_idx.union(search(item, text, strategy!='insert'))
+
+        sel_idxs = [i for i in range(len(text)) if i not in skip_idx]  # 可供选择的idx区间
+        sel_len = sel_len if allow_dup else min(sel_len, len(sel_idxs))  # 无重复抽样需要抽样数小于总样本
+        sel_idx = np.random.choice(sel_idxs, sel_len, replace=allow_dup)
+        if strategy == 'insert':
+            texts[id] = insert(text, sel_idx, noise_dict)
+        elif strategy == 'delete':
+            texts[id] = delete(text, sel_idx)
+        elif strategy == 'replace':
+            texts[id] = replace(text, sel_idx, noise_dict)
+        elif strategy == 'random':
+            if random.random() < 0.333:
+                skip_idx = set()  # 不能修改的idx区间
+                for item in skip_words:
+                    # insert时最后一位允许插入
+                    skip_idx = skip_idx.union(search(item, text, keep_last=False))
+                texts[id] = insert(text, sel_idx, noise_dict)
+            elif random.random() < 0.667:
+                texts[id] = delete(text, sel_idx)
+            else:
+                texts[id] = replace(text, sel_idx, noise_dict)
+    return texts
 
 def lowercase_and_normalize(text):
     """转小写，并进行简单的标准化
