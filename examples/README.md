@@ -76,6 +76,11 @@
 - [task_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_data_parallel.py)：任务例子，DataParallel模式的多GPU训练方式
 - [task_distributed_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py)：任务例子，DistributedDataParallel模式的多GPU训练方式
 
+### 预训练
+- [pretrain_roberta_data_gen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretraining/pretrain_roberta_data_gen.py)：roberta的mlm预训练，数据生成代码
+- [pretrain_roberta.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretraining/pretrain_roberta.py)：roberta的mlm预训练，训练代码
+
+
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
 - [task_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model.py)：任务例子，加载BERT的预训练权重做无条件语言模型，效果上等价于GPT。

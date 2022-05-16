@@ -150,6 +150,8 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
 
         sel_idxs = [i for i in range(len(text)) if i not in skip_idx]  # 可供选择的idx区间
         sel_len = sel_len if allow_dup else min(sel_len, len(sel_idxs))  # 无重复抽样需要抽样数小于总样本
+        if (sel_len == 0) or (len(sel_idxs) == 0):  # 如果不可采样则跳过
+            continue
         sel_idx = np.random.choice(sel_idxs, sel_len, replace=allow_dup)
         if strategy == 'insert':
             texts[id] = insert(text, sel_idx, noise_dict)
