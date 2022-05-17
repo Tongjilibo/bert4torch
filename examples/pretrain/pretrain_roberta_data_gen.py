@@ -1,5 +1,7 @@
 #! -*- coding: utf-8 -*-
-# 预训练语料构建
+# 预训练语料构建，这里实现的mlm任务的，NSP和SOP未使用
+# 方案：一直动态生成文件，超过最大保存数目时候sleep，
+# 当训练速度超过文件生成速度时候，可开启多个数据生成脚本
 
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
@@ -93,26 +95,15 @@ class TrainingDataset(object):
         for instance in instances:
             input_ids, masked_lm_labels = instance[0], instance[1]
             assert len(input_ids) <= sequence_length
-
             features = collections.OrderedDict()
             features["input_ids"] = input_ids
             features["masked_lm_labels"] = masked_lm_labels
-            
-            # 暂不支持
-            # if do_random_next:
-            #     features["token_type_ids"] = segment_ids
-            #     features["next_sentence_label"] = next_sentence_label
-
-            # if do_sent_order_pred:
-            #     features["sentence_order_label"] = sentence_order_label
-
             db[str(count)] = features
             count += 1
         return count
 
-    def process(self, corpus, record_name, workers=8, max_queue_size=2000):
+    def process(self, corpus, record_name):
         """处理输入语料（corpus）
-        自带多进程支持，如果cpu核心数多，请加大workers和max_queue_size。
         """
         count = 0
 
@@ -190,20 +181,16 @@ class TrainingDatasetRoBERTa(TrainingDataset):
 
 if __name__ == '__main__':
     sequence_length = 512  # 文本长度
-    workers = 40
-    max_queue_size = 4000
     max_file_num = 40  # 最大保存的文件个数
-    do_random_next = False  # NSP task
-    do_sent_order_pred = False # SOP task
-    dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-    dir_training_data = 'E:/Github/bert4torch/examples/datasets/pretrain'
-    dir_corpus = 'F:/Projects/data/corpus/pretrain'
+    dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'  # 字典文件
+    dir_training_data = 'E:/Github/bert4torch/examples/datasets/pretrain'  # 保存的文件目录
+    dir_corpus = 'F:/Projects/data/corpus/pretrain'  # 读入的语料地址
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
     def some_texts():
         '''挑选语料
         '''
-        files_corpus = glob.glob(f'{dir_corpus}/*/*')
+        files_corpus = glob.glob(f'{dir_corpus}/*/*')  # 根据目录结构自行调整
         file_corpus = random.choice(files_corpus)  # 随机挑选一篇文章
         count, texts = 0, []
 
@@ -227,13 +214,9 @@ if __name__ == '__main__':
         train_files = [file for file in os.listdir(dir_training_data) if ('train_' in file) and ('dat' in file)]
         # 当保存的训练文件未达到指定数量时
         if len(train_files) < max_file_num:
-            TD.process(
-                corpus=some_texts(),
-                record_name=f'{dir_training_data}/train_'+ time.strftime('%Y%m%d%H%M%S', time.localtime()),
-                workers=workers,
-                max_queue_size=max_queue_size,
-            )
-            time.sleep(1)  # 可不加，防止某篇文章太短，导致生成文件名一样
+            record_name = f'{dir_training_data}/train_'+ time.strftime('%Y%m%d%H%M%S', time.localtime())
+            TD.process(corpus=some_texts(), record_name=record_name)
+            time.sleep(1)  # 可不加，这里是防止生成文件名一样
         else:
             time.sleep(300)
 

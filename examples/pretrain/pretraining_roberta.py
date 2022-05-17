@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 预训练脚本，多GPU版版本
+# 预训练脚本，单GPU版方便测试
+# 改DDP需几行代码，参考https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, Callback
@@ -20,7 +21,7 @@ corpus_dir = 'E:/Github/bert4torch/examples/datasets/pretrain'
 
 # 其他配置
 maxlen = 512
-batch_size = 4096
+batch_size = 7
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'  # 如果从零训练，就设为None
 learning_rate = 0.00176
@@ -70,9 +71,10 @@ def collate_fn(batch):
 # 从语料文件夹中随机选取一个文件，生成dataloader
 def get_train_dataloader():
     files = os.listdir(corpus_dir)
-    sel_file = os.path.join(corpus_dir, random.choice(files))
+    sel_file = os.path.join(corpus_dir, random.choice(files)).split('.')[0]
     train_dataloader = DataLoader(MyDataset(sel_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    os.remove(sel_file)
+    # for suffix in ['.bak', '.dat', '.dir', '.json']:
+    #     os.remove(sel_file + suffix)
     return train_dataloader
 train_dataloader = get_train_dataloader()
 
@@ -86,10 +88,18 @@ optimizer_grouped_parameters = [
     {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
 ]
 
+class MyLoss(nn.CrossEntropyLoss):
+    def __init__(self, **kwargs): 
+        super().__init__(**kwargs)
+    def forward(self, output, batch_labels):
+        y_preds = output[-1]
+        y_preds = y_preds.reshape(-1, y_preds.shape[-1])
+        return super().forward(y_preds, batch_labels.flatten())
+
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss=nn.CrossEntropyLoss(ignore_index=0),
-    optimizer=optim.Adam(optimizer_grouped_parameters, lr=2e-5, weight_decay=weight_decay_rate)
+    loss=MyLoss(ignore_index=0),
+    optimizer=optim.Adam(optimizer_grouped_parameters, lr=learning_rate, weight_decay=weight_decay_rate)
 )
 
 
