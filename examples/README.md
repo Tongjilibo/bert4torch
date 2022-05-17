@@ -77,8 +77,8 @@
 - [task_distributed_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py)：任务例子，DistributedDataParallel模式的多GPU训练方式
 
 ### 预训练
-- [pretrain_roberta_data_gen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/pretrain_roberta_data_gen.py)：roberta的mlm预训练，数据生成代码
-- [pretrain_roberta.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/pretrain_roberta.py)：roberta的mlm预训练，训练代码
+- [pretrain_roberta_data_gen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/pretrain_roberta_mlm_data_gen.py)：roberta的mlm预训练，数据生成代码
+- [pretrain_roberta.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/pretrain_roberta_mlm.py)：roberta的mlm预训练，训练代码
 
 
 ### 其他
