@@ -149,8 +149,7 @@ class TrainingDatasetRoBERTa(TrainingDataset):
 
     def sentence_process(self, text):
         """单个文本的处理函数
-        流程：分词，然后转id，按照mask_rate构建全词mask的序列
-              来指定哪些token是否要被mask
+        流程：分词，然后转id，按照mask_rate构建全词mask的序列, 来指定哪些token是否要被mask
         """
         words = self.word_segment(text)
         rands = np.random.random(len(words))
@@ -159,15 +158,17 @@ class TrainingDatasetRoBERTa(TrainingDataset):
         for rand, word in zip(rands, words):
             word_tokens = self.tokenizer.tokenize(text=word)[1:-1]
             word_token_ids = self.tokenizer.tokens_to_ids(word_tokens)
-            token_ids.extend(word_token_ids)
+            
 
             if rand < self.mask_rate:
-                word_mask_ids = [self.token_process(i) + 1 for i in word_token_ids]
+                word_mask_ids = [self.token_process(i) for i in word_token_ids]
+                token_ids.extend(word_mask_ids)
+                mask_ids.extend(word_token_ids)
             else:
+                token_ids.extend(word_token_ids)
                 word_mask_ids = [0] * len(word_tokens)
-
-            mask_ids.extend(word_mask_ids)
-
+                mask_ids.extend(word_mask_ids)
+                
         return [token_ids, mask_ids]
 
     def paragraph_process(self, texts):

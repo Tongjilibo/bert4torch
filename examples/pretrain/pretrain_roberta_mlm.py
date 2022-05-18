@@ -4,6 +4,7 @@
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, Callback
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 from torch.utils.data import Dataset
 import torch.nn as nn
 import torch
@@ -13,11 +14,13 @@ import json
 import os
 import shelve
 import random
+import time
 
 
 # 语料路径和模型保存路径
 model_saved_path = './bert_model.ckpt'
-corpus_dir = 'E:/Github/bert4torch/examples/datasets/pretrain'
+dir_training_data = 'E:/Github/bert4torch/examples/datasets/pretrain'  # dir_training_data
+task_name = 'roberta'
 
 # 其他配置
 maxlen = 512
@@ -31,7 +34,6 @@ num_train_steps = 125000
 steps_per_epoch = 10000
 grad_accum_steps = 16  # 大于1即表明使用梯度累积
 epochs = num_train_steps * grad_accum_steps // steps_per_epoch
-exclude_from_layer_adaptation = ['Norm', 'bias']
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -70,11 +72,25 @@ def collate_fn(batch):
 
 # 从语料文件夹中随机选取一个文件，生成dataloader
 def get_train_dataloader():
-    files = os.listdir(corpus_dir)
-    sel_file = os.path.join(corpus_dir, random.choice(files)).split('.')[0]
-    train_dataloader = DataLoader(MyDataset(sel_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    # for suffix in ['.bak', '.dat', '.dir', '.json']:
-    #     os.remove(sel_file + suffix)
+    while True:
+        # prepare dataset
+        files_training_data = os.listdir(dir_training_data)
+        files_training_data = [file.split(".")[0] for file in files_training_data if "train" in file]
+        # 防止使用到正在生成的文件
+        files_training_data = [i for i in set(files_training_data) if files_training_data.count(i)==4]
+        if files_training_data:
+            file_train = random.choice(files_training_data)
+            for suffix in [".bak", ".dat", ".dir", ".json"]:
+                file_old = os.path.join(dir_training_data, file_train + suffix)
+                file_new = os.path.join(dir_training_data, task_name + suffix)
+                os.renames(file_old, file_new)
+            cur_load_file = file_new.split(".")[0]
+            train_dataloader = DataLoader(MyDataset(cur_load_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+            break
+        else:
+            print("No training data! Sleep 300s!")
+            time.sleep(10)
+            continue
     return train_dataloader
 train_dataloader = get_train_dataloader()
 
@@ -97,17 +113,26 @@ class MyLoss(nn.CrossEntropyLoss):
         return super().forward(y_preds, batch_labels.flatten())
 
 # 定义使用的loss和optimizer，这里支持自定义
-model.compile(
-    loss=MyLoss(ignore_index=0),
-    optimizer=optim.Adam(optimizer_grouped_parameters, lr=learning_rate, weight_decay=weight_decay_rate)
-)
+optimizer = optim.Adam(optimizer_grouped_parameters, lr=learning_rate, weight_decay=weight_decay_rate)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps)
+model.compile(loss=MyLoss(ignore_index=0), optimizer=optimizer, scheduler=scheduler)
 
 
 class ModelCheckpoint(Callback):
     """自动保存最新模型
     """
     def on_dataloader_end(self, logs=None):
-        model.train_dataloader = get_train_dataloader() # 重新生成dataloader
+        # 在dataloader结束的时候，关闭db并且删除训练的文件
+        model.train_dataloader.dataset.db.close()
+        for suffix in [".bak", ".dat", ".dir", ".json"]:
+            file_remove = os.path.join(dir_training_data, task_name + suffix)
+            try:
+                os.remove(file_remove)
+            except:
+                print(f"Failed to remove training data {file_remove}.")
+
+        # 重新生成dataloader
+        model.train_dataloader = get_train_dataloader()
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         model.save_weights(model_saved_path)
