@@ -342,7 +342,7 @@ class BertEmbeddings(nn.Module):
         if embedding_size != hidden_size:
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
 
-    def forward(self, token_ids, segment_ids=None, conditional_emb=None):
+    def forward(self, token_ids, segment_ids=None, conditional_emb=None, additional_embs=None):
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):
             words_embeddings = self.word_embeddings(token_ids)
         else:
@@ -359,6 +359,11 @@ class BertEmbeddings(nn.Module):
         else:
             embeddings = words_embeddings
         
+        # 额外的embedding，如词性等
+        if additional_embs is not None:
+            for emb in additional_embs:
+                embeddings += emb
+
         if hasattr(self, 'position_embeddings'):
             seq_length = token_ids.size(1)
             position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)

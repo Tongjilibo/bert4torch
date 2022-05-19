@@ -890,6 +890,7 @@ class VAT():
         return None
     
     def forward_(self, train_X, new_embed):
+        # 把原来的train_X中的token_ids换成embedding形式
         new_train_X = [new_embed] + train_X[1:]
         adv_output = self.model.forward(*new_train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(new_train_X)
         return adv_output

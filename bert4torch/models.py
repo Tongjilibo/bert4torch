@@ -599,6 +599,7 @@ class BERT(BERT_BASE):
             custom_attention_mask=False, # 是否自行传入attention_mask
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
             layer_norm_cond=None,  # conditional layer_norm
+            layer_add_embs=None, # addtional_embeddng, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout=False,
             token_pad_ids=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             **kwargs  # 其余参数
@@ -617,6 +618,7 @@ class BERT(BERT_BASE):
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
         self.layer_norm_conds = layer_norm_cond
+        self.layer_add_embs = layer_add_embs
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
         self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, 
                                          self.dropout_rate, self.conditional_size, **get_kw(BertEmbeddings, kwargs))
@@ -648,7 +650,7 @@ class BERT(BERT_BASE):
 
     def apply_embeddings(self, inputs):
         """BERT的embedding是token、position、segment三者embedding之和
-        默认第一个是token_ids, 第二个是segment_ids, 第三个是position_ids
+        默认顺序是token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)
         """
         token_ids = inputs[0]
         index_ = 1
@@ -658,7 +660,7 @@ class BERT(BERT_BASE):
         else:
             segment_ids = None
 
-        if self.custom_position_ids:
+        if self.custom_position_ids:  # 暂未使用到，暂保留
             position_ids = inputs[index_]
             index_ += 1
         else:
@@ -691,12 +693,28 @@ class BERT(BERT_BASE):
         
         # 对mask矩阵中，数值为0的转换成很大的负数，使得不需要attention的位置经过softmax后,分数趋近于0
         # attention_mask = (1.0 - attention_mask) * -10000.0
-        # 执行embedding
+        # conditional layer_norm
         if self.layer_norm_conds is None:
             conditional_emb = None
         else:
             conditional_emb = self.layer_norm_conds(inputs[index_])
-        hidden_states = self.embeddings(token_ids, segment_ids, conditional_emb)
+            index_ += 1
+
+        # addtional_embeddng, 比如加入词性，音调，word粒度的自定义embedding
+        if isinstance(self.layer_add_embs, nn.Module):  # 单个
+            additional_embs = [self.layer_add_embs(inputs[index_])]
+            index_ += 1
+        elif isinstance(self.layer_add_embs, (tuple, list)):  # 多个
+            additional_embs = []
+            for layer in self.layer_add_embs:
+                assert isinstance(layer, nn.Module), 'Layer_add_embs element should be nn.Module'
+                additional_embs.append(layer(inputs[index_]))
+                index_ += 1
+        else:
+            additional_embs = None
+
+        # 进入embedding层
+        hidden_states = self.embeddings(token_ids, segment_ids, conditional_emb, additional_embs)
         return [hidden_states, attention_mask, conditional_emb] + inputs[index_:]
 
     def apply_main_layers(self, inputs):
