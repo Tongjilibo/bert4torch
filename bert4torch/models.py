@@ -680,7 +680,7 @@ class BERT(BERT_BASE):
         if self.attention_bias is not None:
             attention_mask = attention_mask * self.attention_bias
 
-        # pytorch >= 1.5时候回导致StopIteration错误
+        # pytorch >= 1.5时候会导致StopIteration错误
         # https://github.com/huggingface/transformers/issues/3936
         # https://github.com/huggingface/transformers/issues/4189
         # https://github.com/huggingface/transformers/issues/3936
