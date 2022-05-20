@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# bert+crf用来做实体识别
+# bert+crf用来做实体识别, 增加词性作为额外的embedding
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
 
 import numpy as np
@@ -12,6 +12,8 @@ from bert4torch.layers import CRF
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
+import jieba.posseg as psg
+from collections import Counter
 
 maxlen = 512
 batch_size = 6
@@ -50,12 +52,15 @@ class MyDataset(ListDataset):
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
+psg_map = {v: i+1 for i, v in enumerate(['a', 'ad', 'ag', 'an', 'b', 'c', 'd', 'df', 'dg', 'e', 'f', 'g', 'h', 'i', 'j', 
+'k', 'l', 'm', 'mg', 'mq', 'n', 'ng', 'nr', 'nrfg', 'nrt', 'ns', 'nt', 'nz', 'o', 'p', 'q', 'r', 'rg', 'rr', 'rz', 's', 't',
+ 'tg', 'u', 'ud', 'ug', 'uj', 'ul', 'uv', 'uz', 'v', 'vd', 'vg', 'vi', 'vn', 'vq', 'x', 'y', 'z', 'zg'])}
 
 def collate_fn(batch):
-    batch_token_ids, batch_labels = [], []
+    batch_token_ids, batch_psg_ids, batch_labels = [], [], []
     for d in batch:
         tokens = tokenizer.tokenize(d[0], maxlen=maxlen)
-        mapping = tokenizer.rematch(d[0], tokens)
+        mapping = tokenizer.rematch(d[0], tokens)  # 第i个token在原始text中的区间
         start_mapping = {j[0]: i for i, j in enumerate(mapping) if j}
         end_mapping = {j[-1]: i for i, j in enumerate(mapping) if j}
         token_ids = tokenizer.tokens_to_ids(tokens)
@@ -68,9 +73,25 @@ def collate_fn(batch):
                 labels[start + 1:end + 1] = categories_label2id['I-'+label]
         batch_token_ids.append(token_ids)
         batch_labels.append(labels)
+        # 处理词性输入
+        seg = [(i, p) for word, p in psg.cut(d[0]) for i in word]
+        seg_word, seg_p = zip(*seg)
+        psg_ids = np.zeros(len(token_ids))
+        for i, j in enumerate(mapping):
+            if j:
+                start, end = j[0], j[-1]  # token在原始text的首尾位置
+                token_new = (''.join(seg_word[start:end+1])).lower()
+                assert tokens[i] == token_new, f"{tokens[i]} -> {token_new}"
+                if start == end:
+                    psg_ids[i] = psg_map.get(seg_p[start], 0)  # 不在字典里给0
+                else:
+                    psg_ids[i] = psg_map.get(Counter(seg_p[start:end+1]).most_common(1)[0][0], 0)  # 取众数
+        batch_psg_ids.append(psg_ids)
+
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+    batch_psg_ids = torch.tensor(sequence_padding(batch_psg_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(sequence_padding(batch_labels), dtype=torch.long, device=device)
-    return batch_token_ids, batch_labels
+    return [batch_token_ids, batch_psg_ids], batch_labels
 
 # 转换数据集
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -80,20 +101,22 @@ valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
+        layer_add_embs = nn.Embedding(len(psg_map)+1, 768)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0, 
+                                            layer_add_embs=layer_add_embs)
         self.fc = nn.Linear(768, len(categories)+2)  # 包含首尾
         self.crf = CRF(len(categories))
 
-    def forward(self, token_ids):
-        sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
+    def forward(self, token_ids, psg_ids):
+        sequence_output = self.bert([token_ids, psg_ids])  # [btz, seq_len, hdsz]
         emission_score = self.fc(sequence_output)  # [bts, seq_len, tag_size]
         attention_mask = token_ids.gt(0)
         return emission_score, attention_mask
 
-    def predict(self, token_ids):
+    def predict(self, token_ids, psg_ids):
         self.eval()
         with torch.no_grad():
-            emission_score, attention_mask = self.forward(token_ids)
+            emission_score, attention_mask = self.forward(token_ids, psg_ids)
             best_path = self.crf(emission_score, attention_mask)  # [bts, seq_len]
         return best_path
 
@@ -109,8 +132,8 @@ model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 def evaluate(data):
     X, Y, Z = 1e-10, 1e-10, 1e-10
     X2, Y2, Z2 = 1e-10, 1e-10, 1e-10
-    for token_ids, label in tqdm(data):
-        scores = model.predict(token_ids)  # [btz, seq_len]
+    for (token_ids, psg_ids), label in tqdm(data):
+        scores = model.predict(token_ids, psg_ids)  # [btz, seq_len]
         attention_mask = label.gt(0)
 
         # token粒度
@@ -167,11 +190,7 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
-
     evaluator = Evaluator()
-
     model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
-
 else: 
-
     model.load_weights('best_model.pt')

@@ -58,6 +58,7 @@
 - [task_sequence_labeling_ner_global_pointer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_global_pointer.py)：任务例子，ner例子，global_pointer的pytorch实现
 - [task_sequence_labeling_ner_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_crf.py)：任务例子，ner例子，bert+crf
 - [task_sequence_labeling_ner_cascade_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_cascade_crf.py)：任务例子，ner例子，bert+crf+级联
+- [task_sequence_labeling_ner_crf_add_posseg.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_crf_add_posseg.py)：任务例子，ner例子，bert+crf，词性作为输入
 - [task_sequence_labeling_ner_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_tplinker_plus.py)：任务例子，ner例子，改造了关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)
 - [task_sequence_labeling_ner_mrc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_mrc.py)：任务例子，ner例子，[mrc方案](https://github.com/z814081807/DeepNER)，用阅读理解的方式来做
 - [task_sequence_labeling_ner_span.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_span.py)：任务例子，ner例子，[span方案](https://github.com/z814081807/DeepNER)，用半指针-半标注方式来做
