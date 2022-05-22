@@ -3,7 +3,7 @@ import torch.nn as nn
 import copy
 import json
 import re
-from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, Transformer_XL_Layer, SinusoidalPositionEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
 from bert4torch.activations import get_activation
@@ -1551,6 +1551,94 @@ class GPT2_ML(LM_Mask, BERT):
             return hidden_states
 
 
+class Transformer_XL(BERT):
+    '''构建transformer-xl模型
+    项目: https://github.com/kimiyoung/transformer-xl
+    '''
+    def __init__(self, *args, **kwargs):
+        # p_bias来控制embedding阶段无pos_embedding
+        kwargs.update({'p_bias': 'other_relative'})
+        super().__init__(*args, **kwargs)
+        del self.embeddings.layerNorm  # word_embedding没有layerNorm
+        self.position_embeddings = SinusoidalPositionEncoding(self.max_position, self.embedding_size)
+        self.mem_len = kwargs.get('mem_len', 0)
+        self.same_length = kwargs.get('mem_len', False)
+        self.clamp_len = kwargs.get('clamp_len', 0)
+
+        # 每层自己的r_w_bias和r_r_bias，还是公用
+        if kwargs.get('untie_r') is None:
+            self.r_w_bias = nn.Parameter(torch.Tensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
+            self.r_r_bias = nn.Parameter(torch.Tensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+        else:
+            self.r_w_bias, self.r_r_bias = None, None
+
+        layer = Transformer_XL_Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act,
+                                     is_dropout=self.is_dropout, conditional_size=self.conditional_size, r_w_bias=self.r_w_bias, r_r_bias=self.r_r_bias, **get_kw(BertLayer, kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+
+
+    def init_mems(self):
+        '''初始化mems, 用于记忆mlen的各层隐含层状态
+        '''
+        if self.mem_len > 0:
+            mems = []
+            param = next(self.parameters())
+            for _ in range(self.num_hidden_layers+1):
+                empty = torch.empty(0, dtype=param.dtype, device=param.device)
+                mems.append(empty)
+            return mems
+        else:
+            return None
+
+    def forward(self, inputs):
+        self.mems = self.init_mems() 
+        return super().forward(inputs)
+
+    def apply_embeddings(self, inputs):
+        outputs = super().apply_embeddings(inputs)
+        word_emb = outputs[0]
+        qlen = inputs[0].size(1)  # query长度
+        mlen = self.mems[0].size(0) if self.mems is not None else 0
+        klen = mlen + qlen
+
+        # 修改attention_mask, mlen可以全部访问，q_len只能访问<=t时刻的, mask和Unilm类似，但是Unilm是靠segement_ids来控制
+        if self.same_length:  # 只能访问前面固定长度
+            all_ones = word_emb.new_ones(qlen, klen)
+            mask_len = klen - self.mem_len
+            mask_shift_len = qlen - mask_len if mask_len > 0 else qlen
+            attention_mask = 1-(torch.triu(all_ones, 1+mlen) + torch.tril(all_ones, -mask_shift_len)).byte() # -1
+        else:
+            attention_mask = torch.tril(word_emb.new_ones(qlen, klen), diagonal=mlen).byte()  # [q_len, k_len], 下三角为1矩阵
+        outputs[1] = attention_mask[None, None, :, :]
+
+        # 生成pos_emb, 这里使用sincos的位置编码
+        pos_seq = torch.arange(klen-1, -1, -1.0, device=word_emb.device, dtype=torch.long)
+        if self.clamp_len > 0:
+            pos_seq.clamp_(max=self.clamp_len)
+        pos_emb = self.embeddings.dropout(self.position_embeddings(pos_seq))  # 用word_emb的dropout
+        return outputs[:1] + [pos_emb] + outputs[1:]
+
+    def apply_main_layers(self, inputs):
+        hidden_states, pos_emb, attention_mask, conditional_emb = inputs[:4]
+        encoded_layers = [hidden_states] # 添加embedding的输出
+
+        for i, layer_module in enumerate(self.encoderLayer):
+            mems_i = None if self.mems is None else self.mems[i]
+            hidden_states = layer_module(hidden_states, pos_emb, attention_mask, mems_i, conditional_emb)
+            if self.output_all_encoded_layers:
+                encoded_layers.append(hidden_states)
+        if not self.output_all_encoded_layers:
+            encoded_layers.append(hidden_states)
+        return [encoded_layers, conditional_emb]
+
+
+class XLNET(BERT):
+    '''构建xlnet模型
+    '''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 def build_transformer_model(
         config_path=None,
         checkpoint_path=None,
@@ -1599,6 +1687,8 @@ def build_transformer_model(
         'mt5.1.1': T5,
         'mt5.1.1_encoder': T5_Encoder,
         'mt5.1.1_decoder': T5_Decoder,
+        'transformer_xl': Transformer_XL,
+        'xlnet': XLNET,
     }
 
     if isinstance(model, str):  # string表示使用自带的模型

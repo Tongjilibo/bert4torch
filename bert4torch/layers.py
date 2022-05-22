@@ -1,3 +1,4 @@
+from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -71,6 +72,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.attention_scale = attention_scale
         self.return_attention_scores = return_attention_scores
 
+        self.bias = bias
         self.q = nn.Linear(hidden_size, hidden_size, bias=bias)
         self.k = nn.Linear(hidden_size, hidden_size, bias=bias)
         self.v = nn.Linear(hidden_size, hidden_size, bias=bias)
@@ -326,7 +328,7 @@ class BertEmbeddings(nn.Module):
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':
             self.position_embeddings = SinusoidalPositionEncoding(max_position, embedding_size)
-        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative'}:
+        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'other_relative'}:
             # 如果使用相对位置编码，则不声明PositionEmbeddings
             pass
         elif max_position > 0:
@@ -336,8 +338,13 @@ class BertEmbeddings(nn.Module):
         if (segment_vocab_size > 0) and (not shared_segment_embeddings):
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
 
+        # emb_scale
+        self.emb_scale = kwargs.get('emb_scale', 1)  # transform_xl, xlnet特有
+
+        # LayerNorm
         self.layerNorm = LayerNorm(embedding_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
         self.dropout = nn.Dropout(drop_rate)
+
         # 如果embedding_size != hidden_size，则再有一个linear(适用于albert矩阵分解)
         if embedding_size != hidden_size:
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
@@ -370,6 +377,9 @@ class BertEmbeddings(nn.Module):
             position_ids = position_ids.unsqueeze(0).repeat(token_ids.shape[0], 1)
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
+
+        if self.emb_scale != 1:
+            embeddings = embeddings * self.emb_scale  # transform_xl, xlnet特有
 
         if hasattr(self, 'layerNorm'):
             embeddings = self.layerNorm((embeddings, conditional_emb))
@@ -480,6 +490,115 @@ class T5Layer(BertLayer):
             return x
 
 
+class Transformer_XL_Layer(BertLayer):
+    '''Transformer_XL层
+    顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
+    '''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pre_lnorm = kwargs.get('pre_lnorm')
+        self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(*args, **kwargs)
+
+    def forward(self, hidden_states, pos_emb, attention_mask, mems_i, conditional_emb=None):
+        # 拼接mems和query，mems_i: [btz, m_len, hdsz], w: [btz, q_len, hdsz] = [btz, k_len, hdsz]
+        hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
+        if self.pre_lnorm:
+            hidden_states_cat = self.layerNorm1(hidden_states_cat)
+        
+        self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask)
+        hidden_states = hidden_states + self.dropout1(self_attn_output)
+        if not self.pre_lnorm:
+            hidden_states = self.layerNorm1((hidden_states, conditional_emb))
+                    
+        self_attn_output2 = self.feedForward(hidden_states)
+        hidden_states = hidden_states + self.dropout2(self_attn_output2)
+        hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+        return hidden_states
+
+    class RelPartialLearnableMultiHeadAttn(MultiHeadAttentionLayer):
+        def __init__(self, *args, r_w_bias=None, r_r_bias=None, **kwargs):
+            super().__init__(*args, **kwargs)
+            if r_r_bias is None or r_w_bias is None:  # Biases are not shared
+                self.r_r_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
+                self.r_w_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+            else:  # 所有层公用一个
+                self.r_r_bias = r_r_bias
+                self.r_w_bias = r_w_bias
+            self.r_net = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
+
+        def _rel_shift(self, x):
+            '''向左shift让右上角都是0, 对角线是同一个值，[btz, n_head, q_len, k_len]
+            '''
+            zero_pad_shape = (x.size(0), 1) + x.size()[2:]
+            zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
+            x_padded = torch.cat([zero_pad, x], dim=1)
+
+            x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
+            x_padded = x_padded.view(*x_padded_shape)
+
+            x = x_padded[1:].view_as(x)
+            return x
+
+        def forward(self, w, cat, r, attn_mask=None):
+            '''这里修改成了MultiHeadAttentionLayer的代码格式, batch_first
+            '''
+            # w: 词向量[btz, q_len, hdsz], cat: w和mem_i拼接后向量[btz, k_len, hdsz], r：相对位置向量[r_len, hdsz]
+            qlen, rlen, bsz = w.size(1), r.size(0), w.size(0)
+            
+            mixed_query_layer = self.q(cat)[:, -qlen:, :]  # 仅取用query部分，不适用mem部分
+            mixed_key_layer = self.k(cat)
+            mixed_value_layer = self.v(cat)
+
+            w_head_q = self.transpose_for_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
+            w_head_k = self.transpose_for_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
+            w_head_v = self.transpose_for_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
+
+            r_head_k = self.r_net(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
+            r_head_k = r_head_k.view(rlen, self.num_attention_heads, self.attention_head_size)  # rlen x n_head x d_head
+
+            #### compute attention score
+            rw_head_q = w_head_q + self.r_w_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
+            AC = torch.einsum('bnid,bnjd->bnij', (rw_head_q, w_head_k))  # [btz, n_head, q_len, k_len]
+
+            rr_head_q = w_head_q + self.r_r_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
+            BD = torch.einsum('bnid,jnd->bnij', (rr_head_q, r_head_k))  # [btz, n_head, q_len, k_len]
+            BD = self._rel_shift(BD)
+
+            # # [btz, n_head, q_len, k_len]
+            attn_score = AC + BD
+            attn_score.mul_(self.scale)
+
+            #### compute attention probability
+            if attn_mask is not None and attn_mask.any().item():
+                if attn_mask.dim() == 2:
+                    attn_score = attn_score.float().masked_fill(attn_mask[None,:,:,None].bool(), -float('inf')).type_as(attn_score)
+                elif attn_mask.dim() == 3:
+                    attn_score = attn_score.float().masked_fill(attn_mask[:,:,:,None].bool(), -float('inf')).type_as(attn_score)
+
+            # [btz, n_head, q_len, k_len]
+            attn_prob = F.softmax(attn_score, dim=1)
+            attn_prob = self.dropatt(attn_prob)
+
+            #### compute attention vector
+            attn_vec = torch.einsum('ijbn,jbnd->ibnd', (attn_prob, w_head_v))
+
+            # [qlen x bsz x n_head x d_head]
+            attn_vec = attn_vec.contiguous().view(
+                attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
+
+            ##### linear projection
+            attn_out = self.o_net(attn_vec)
+            attn_out = self.drop(attn_out)
+
+            if self.pre_lnorm:
+                ##### residual connection
+                output = w + attn_out
+            else:
+                ##### residual connection + layer normalization
+                output = self.layer_norm(w + attn_out)
+
+            return output
+
 class Identity(nn.Module):
     def __init__(self, *args, **kwargs):
         super(Identity, self).__init__()
@@ -576,8 +695,7 @@ class SinusoidalPositionEncoding(nn.Module):
     """
     def __init__(self, max_position, embedding_size):
         super(SinusoidalPositionEncoding, self).__init__()
-        position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size), freeze=True)
-        self.register_buffer('position_embeddings', position_embeddings)
+        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size), freeze=True)
 
     def forward(self, position_ids):
         return self.position_embeddings(position_ids)
