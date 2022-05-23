@@ -3,7 +3,8 @@ import torch.nn as nn
 import copy
 import json
 import re
-from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, Transformer_XL_Layer, SinusoidalPositionEncoding
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, Transformer_XL_Layer
+from bert4torch.layers import AdaptiveEmbedding, SinusoidalPositionEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
 from bert4torch.activations import get_activation
@@ -1559,12 +1560,11 @@ class Transformer_XL(BERT):
         # p_bias来控制embedding阶段无pos_embedding
         kwargs.update({'p_bias': 'other_relative'})
         super().__init__(*args, **kwargs)
-        del self.embeddings.layerNorm  # word_embedding没有layerNorm
+        cutoffs, div_val, sample_softmax = kwargs.get('cutoffs', []), kwargs.get('div_val', 1), kwargs.get('sample_softmax', False)
+        self.embeddings = AdaptiveEmbedding(self.vocab_size, self.embedding_size, self.hidden_size, cutoffs, div_val, sample_softmax, **get_kw(AdaptiveEmbedding, kwargs))
         self.position_embeddings = SinusoidalPositionEncoding(self.max_position, self.embedding_size)
-        self.mem_len = kwargs.get('mem_len', 0)
-        self.same_length = kwargs.get('mem_len', False)
-        self.clamp_len = kwargs.get('clamp_len', 0)
-
+        self.mem_len, self.same_length, self.clamp_len = kwargs.get('mem_len', 0), kwargs.get('mem_len', False), kwargs.get('clamp_len', 0)        
+        self.dropout = nn.Dropout(self.dropout_rate)
         # 每层自己的r_w_bias和r_r_bias，还是公用
         if kwargs.get('untie_r') is None:
             self.r_w_bias = nn.Parameter(torch.Tensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
@@ -1575,7 +1575,6 @@ class Transformer_XL(BERT):
         layer = Transformer_XL_Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act,
                                      is_dropout=self.is_dropout, conditional_size=self.conditional_size, r_w_bias=self.r_w_bias, r_r_bias=self.r_r_bias, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
-
 
     def init_mems(self):
         '''初始化mems, 用于记忆mlen的各层隐含层状态
@@ -1590,13 +1589,31 @@ class Transformer_XL(BERT):
         else:
             return None
 
+    def _update_mems(self, hids, mlen, qlen):
+        '''更新mems
+        '''
+        # does not deal with None
+        if self.mems is None:
+            return None
+        # mems is not None
+        assert len(hids) == len(self.mems), "len(hids) != len(mems)"
+        # There are `mlen + qlen` steps that can be cached into mems
+        with torch.no_grad():
+            new_mems = []
+            end_idx = mlen + max(0, qlen)
+            beg_idx = max(0, end_idx - self.mem_len)
+            for i in range(len(hids)):
+                cat = torch.cat([self.mems[i], hids[i]], dim=0)
+                new_mems.append(cat[:, beg_idx:end_idx].detach())
+        self.mems = new_mems
+
     def forward(self, inputs):
         self.mems = self.init_mems() 
         return super().forward(inputs)
 
     def apply_embeddings(self, inputs):
-        outputs = super().apply_embeddings(inputs)
-        word_emb = outputs[0]
+        # 精简后embeddings中只计算word_emdedding
+        word_emb = self.embeddings(inputs[0])
         qlen = inputs[0].size(1)  # query长度
         mlen = self.mems[0].size(0) if self.mems is not None else 0
         klen = mlen + qlen
@@ -1609,14 +1626,14 @@ class Transformer_XL(BERT):
             attention_mask = 1-(torch.triu(all_ones, 1+mlen) + torch.tril(all_ones, -mask_shift_len)).byte() # -1
         else:
             attention_mask = torch.tril(word_emb.new_ones(qlen, klen), diagonal=mlen).byte()  # [q_len, k_len], 下三角为1矩阵
-        outputs[1] = attention_mask[None, None, :, :]
+        attention_mask = attention_mask[None, None, :, :]
 
         # 生成pos_emb, 这里使用sincos的位置编码
         pos_seq = torch.arange(klen-1, -1, -1.0, device=word_emb.device, dtype=torch.long)
         if self.clamp_len > 0:
             pos_seq.clamp_(max=self.clamp_len)
-        pos_emb = self.embeddings.dropout(self.position_embeddings(pos_seq))  # 用word_emb的dropout
-        return outputs[:1] + [pos_emb] + outputs[1:]
+        pos_emb = self.dropout(self.position_embeddings(pos_seq))  # 用word_emb的dropout
+        return [word_emb, pos_emb, attention_mask, None]
 
     def apply_main_layers(self, inputs):
         hidden_states, pos_emb, attention_mask, conditional_emb = inputs[:4]
@@ -1625,10 +1642,17 @@ class Transformer_XL(BERT):
         for i, layer_module in enumerate(self.encoderLayer):
             mems_i = None if self.mems is None else self.mems[i]
             hidden_states = layer_module(hidden_states, pos_emb, attention_mask, mems_i, conditional_emb)
-            if self.output_all_encoded_layers:
-                encoded_layers.append(hidden_states)
-        if not self.output_all_encoded_layers:
             encoded_layers.append(hidden_states)
+        
+        # 原实现中word_emb, pos_emb和core_out(hidden_states)使用同一个dropout
+        hidden_states = self.dropout(hidden_states)
+        qlen = inputs[0].size(1)  # query长度
+        mlen = self.mems[0].size(0) if self.mems is not None else 0
+        self._update_mems(encoded_layers, mlen, qlen)
+        
+        if not self.output_all_encoded_layers:
+            # 不返回所有层，即返回顶层
+            encoded_layers = encoded_layers[:1] + [hidden_states]
         return [encoded_layers, conditional_emb]
 
 

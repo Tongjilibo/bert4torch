@@ -160,7 +160,7 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_scores = attention_scores + attention_mask
 
         # 将attention score 归一化到0-1
-        attention_probs = nn.Softmax(dim=-1)(attention_scores)
+        attention_probs = F.softmax(attention_scores, dim=1)
         attention_probs = self.dropout(attention_probs)
         context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
@@ -494,28 +494,34 @@ class Transformer_XL_Layer(BertLayer):
     '''Transformer_XL层
     顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
     '''
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, **kwargs):
+        super().__init__(hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, **kwargs)
         self.pre_lnorm = kwargs.get('pre_lnorm')
-        self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(*args, **kwargs)
+        self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
 
     def forward(self, hidden_states, pos_emb, attention_mask, mems_i, conditional_emb=None):
         # 拼接mems和query，mems_i: [btz, m_len, hdsz], w: [btz, q_len, hdsz] = [btz, k_len, hdsz]
         hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
-        if self.pre_lnorm:
-            hidden_states_cat = self.layerNorm1(hidden_states_cat)
         
+        # Attn
+        if self.pre_lnorm:
+            hidden_states_cat = self.layerNorm1((hidden_states_cat, conditional_emb))
         self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask)
         hidden_states = hidden_states + self.dropout1(self_attn_output)
-        if not self.pre_lnorm:
+        if not self.pre_lnorm:  # post_lnorm
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
-                    
-        self_attn_output2 = self.feedForward(hidden_states)
+
+        # FFN
+        x = self.layerNorm2((hidden_states, conditional_emb)) if self.pre_lnorm else hidden_states
+        self_attn_output2 = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(self_attn_output2)
-        hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+        if not self.pre_lnorm:  # post_lnorm
+            hidden_states = self.layerNorm2((hidden_states, conditional_emb))
         return hidden_states
 
     class RelPartialLearnableMultiHeadAttn(MultiHeadAttentionLayer):
+        '''Transformer_XL式相对位置编码, 这里修改成了MultiHeadAttentionLayer的batch_first代码格式
+        '''
         def __init__(self, *args, r_w_bias=None, r_r_bias=None, **kwargs):
             super().__init__(*args, **kwargs)
             if r_r_bias is None or r_w_bias is None:  # Biases are not shared
@@ -526,22 +532,20 @@ class Transformer_XL_Layer(BertLayer):
                 self.r_w_bias = r_w_bias
             self.r_net = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
 
-        def _rel_shift(self, x):
-            '''向左shift让右上角都是0, 对角线是同一个值，[btz, n_head, q_len, k_len]
+        def _rel_shift(self, x, zero_triu=False):
+            '''向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]
             '''
-            zero_pad_shape = (x.size(0), 1) + x.size()[2:]
-            zero_pad = torch.zeros(zero_pad_shape, device=x.device, dtype=x.dtype)
-            x_padded = torch.cat([zero_pad, x], dim=1)
-
-            x_padded_shape = (x.size(1) + 1, x.size(0)) + x.size()[2:]
-            x_padded = x_padded.view(*x_padded_shape)
-
-            x = x_padded[1:].view_as(x)
+            q_len, k_len = x.size(2), x.size(-1)
+            zero_pad = torch.zeros((*x.size()[:2], q_len, 1), device=x.device, dtype=x.dtype)
+            x_padded = torch.cat([zero_pad, x], dim=-1)
+            x_padded = x_padded.view(*x.size()[:2], k_len + 1, q_len)
+            x = x_padded[:,:,1:,:].view_as(x)
+            if zero_triu:
+                ones = torch.ones((q_len, k_len), device=x.device)
+                x = x * torch.tril(ones, k_len - q_len)[None,None,:,:]
             return x
 
-        def forward(self, w, cat, r, attn_mask=None):
-            '''这里修改成了MultiHeadAttentionLayer的代码格式, batch_first
-            '''
+        def forward(self, w, cat, r, attention_mask=None):
             # w: 词向量[btz, q_len, hdsz], cat: w和mem_i拼接后向量[btz, k_len, hdsz], r：相对位置向量[r_len, hdsz]
             qlen, rlen, bsz = w.size(1), r.size(0), w.size(0)
             
@@ -565,39 +569,89 @@ class Transformer_XL_Layer(BertLayer):
             BD = self._rel_shift(BD)
 
             # # [btz, n_head, q_len, k_len]
-            attn_score = AC + BD
-            attn_score.mul_(self.scale)
+            attention_scores = AC + BD
+            if self.attention_scale:
+                attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
             #### compute attention probability
-            if attn_mask is not None and attn_mask.any().item():
-                if attn_mask.dim() == 2:
-                    attn_score = attn_score.float().masked_fill(attn_mask[None,:,:,None].bool(), -float('inf')).type_as(attn_score)
-                elif attn_mask.dim() == 3:
-                    attn_score = attn_score.float().masked_fill(attn_mask[:,:,:,None].bool(), -float('inf')).type_as(attn_score)
+            if attention_mask is not None and attention_mask.any().item():
+                attention_mask = (1.0 - attention_mask) * -10000.0
+                attention_scores = attention_scores + attention_mask
 
             # [btz, n_head, q_len, k_len]
-            attn_prob = F.softmax(attn_score, dim=1)
-            attn_prob = self.dropatt(attn_prob)
+            attention_probs = F.softmax(attention_scores, dim=1)
+            attention_probs = self.dropout(attention_probs)
+            context_layer = torch.matmul(attention_probs, w_head_v)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+            new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size,)
+            context_layer = context_layer.view(*new_context_layer_shape)
 
-            #### compute attention vector
-            attn_vec = torch.einsum('ijbn,jbnd->ibnd', (attn_prob, w_head_v))
-
-            # [qlen x bsz x n_head x d_head]
-            attn_vec = attn_vec.contiguous().view(
-                attn_vec.size(0), attn_vec.size(1), self.n_head * self.d_head)
-
-            ##### linear projection
-            attn_out = self.o_net(attn_vec)
-            attn_out = self.drop(attn_out)
-
-            if self.pre_lnorm:
-                ##### residual connection
-                output = w + attn_out
+            # 是否返回attention scores
+            if self.return_attention_scores:
+                # 这里返回的attention_scores没有经过softmax, 可在外部进行归一化操作
+                return self.o(context_layer), attention_scores
             else:
-                ##### residual connection + layer normalization
-                output = self.layer_norm(w + attn_out)
+                return self.o(context_layer)
 
-            return output
+
+class AdaptiveEmbedding(nn.Module):
+    '''Transformer_XL的自适应embedding, 实现不同区间使用不同的维度
+    可以实现如高频词用比如1024或512维，低频词用256或64维, 再用Linear层project到相同的维数
+    '''
+    def __init__(self, vocab_size, embedding_size, hidden_size, cutoffs, div_val=1, sample_softmax=False, **kwargs):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_size = embedding_size
+        self.cutoffs = cutoffs + [vocab_size]
+        self.div_val = div_val
+        self.hidden_size = hidden_size
+        self.emb_scale = hidden_size ** 0.5
+        self.cutoff_ends = [0] + self.cutoffs
+
+        self.emb_layers = nn.ModuleList()
+        self.emb_projs = nn.ParameterList()
+        if div_val == 1:
+            self.emb_layers.append(nn.Embedding(vocab_size, embedding_size, sparse=sample_softmax > 0))
+            if hidden_size != embedding_size:
+                self.emb_projs.append(nn.Parameter(torch.FloatTensor(hidden_size, embedding_size)))
+        else:
+            for i in range(len(self.cutoffs)):
+                l_idx, r_idx = self.cutoff_ends[i], self.cutoff_ends[i + 1]
+                d_emb_i = embedding_size // (div_val ** i)
+                self.emb_layers.append(nn.Embedding(r_idx - l_idx, d_emb_i))
+                self.emb_projs.append(nn.Parameter(torch.FloatTensor(hidden_size, d_emb_i)))
+
+    def forward(self, token_ids):
+        if self.div_val == 1:  # 仅有一个embedding
+            embed = self.emb_layers[0](token_ids)  # [btz, seq_len, embedding_size]
+            if self.hidden_size != self.embedding_size:
+                embed = nn.functional.linear(embed, self.emb_projs[0])
+        else:
+            param = next(self.parameters())
+            inp_flat = token_ids.view(-1)
+            emb_flat = torch.zeros([inp_flat.size(0), self.hidden_size], dtype=param.dtype, device=param.device)
+            for i in range(len(self.cutoffs)):
+                l_idx, r_idx = self.cutoff_ends[i], self.cutoff_ends[i + 1]
+
+                mask_i = (inp_flat >= l_idx) & (inp_flat < r_idx)
+                indices_i = mask_i.nonzero().squeeze()
+
+                if indices_i.numel() == 0:
+                    continue
+
+                inp_i = inp_flat.index_select(0, indices_i) - l_idx
+                emb_i = self.emb_layers[i](inp_i)
+                emb_i = nn.functional.linear(emb_i, self.emb_projs[i])
+
+                emb_flat.index_copy_(0, indices_i, emb_i)
+
+            embed_shape = token_ids.size() + (self.hidden_size,)
+            embed = emb_flat.view(embed_shape)
+
+        embed.mul_(self.emb_scale)
+
+        return embed
+
 
 class Identity(nn.Module):
     def __init__(self, *args, **kwargs):
