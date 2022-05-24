@@ -414,17 +414,18 @@ class BERT_BASE(BaseModel):
     def init_model_weights(self, module):
         """ 初始化权重
         """
-        if isinstance(module, (nn.Linear, nn.Embedding)):
+        if isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
             # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
             # 此种初始化对于加载预训练模型后进行finetune没有任何影响，
             # cf https://github.com/pytorch/pytorch/pull/5617
+            # 固定的相对位置编码如Sinusoidal无需初始化
             module.weight.data.normal_(mean=0.0, std=self.initializer_range)
         elif isinstance(module, LayerNorm):
-            if hasattr(module, 'bias'):  # T5等模型使用的是rmsnorm
+            if hasattr(module, 'bias') and module.bias.requires_grad:  # T5等模型使用的是rmsnorm
                 module.bias.data.zero_()
-            if hasattr(module, 'weight'):
+            if hasattr(module, 'weight') and module.weight.requires_grad:
                 module.weight.data.fill_(1.0)
-        if isinstance(module, nn.Linear) and module.bias is not None:
+        if isinstance(module, nn.Linear) and (module.bias is not None) and (module.bias.requires_grad):
             module.bias.data.zero_()
 
     def variable_mapping(self):
@@ -1553,17 +1554,26 @@ class GPT2_ML(LM_Mask, BERT):
 
 
 class Transformer_XL(BERT):
-    '''构建transformer-xl模型
+    '''构建transformer-xl模型, 已加载
     项目: https://github.com/kimiyoung/transformer-xl
+    不同点:  
+        1) 简化了原有的AdaptiveEmbedding(可选)和未使用ProjectedAdaptiveLogSoftmax, 直接输出last_hidden_state
+        2) mems修改了transformer中初始化为zero_tensor, 改为包含最后一层, 原项目初始化为empty_tensor
+        3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos
+        4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000
     '''
+    @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
         # p_bias来控制embedding阶段无pos_embedding
         kwargs.update({'p_bias': 'other_relative'})
         super().__init__(*args, **kwargs)
-        cutoffs, div_val, sample_softmax = kwargs.get('cutoffs', []), kwargs.get('div_val', 1), kwargs.get('sample_softmax', False)
-        self.embeddings = AdaptiveEmbedding(self.vocab_size, self.embedding_size, self.hidden_size, cutoffs, div_val, sample_softmax, **get_kw(AdaptiveEmbedding, kwargs))
-        self.position_embeddings = SinusoidalPositionEncoding(self.max_position, self.embedding_size)
+        if kwargs.get('adaptive_embedding'):
+            cutoffs, div_val, sample_softmax = kwargs.get('cutoffs', []), kwargs.get('div_val', 1), kwargs.get('sample_softmax', False)
+            self.embeddings = AdaptiveEmbedding(self.vocab_size, self.embedding_size, self.hidden_size, cutoffs, div_val, sample_softmax, **get_kw(AdaptiveEmbedding, kwargs))
+        else:
+            self.embeddings = nn.Embedding(self.vocab_size, self.embedding_size)
         self.mem_len, self.same_length, self.clamp_len = kwargs.get('mem_len', 0), kwargs.get('mem_len', False), kwargs.get('clamp_len', 0)        
+        self.pos_embeddings = SinusoidalPositionEncoding(max(self.max_position, self.clamp_len+1), self.embedding_size, adjacent=False)
         self.dropout = nn.Dropout(self.dropout_rate)
         # 每层自己的r_w_bias和r_r_bias，还是公用
         if kwargs.get('untie_r') is None:
@@ -1576,15 +1586,16 @@ class Transformer_XL(BERT):
                                      is_dropout=self.is_dropout, conditional_size=self.conditional_size, r_w_bias=self.r_w_bias, r_r_bias=self.r_r_bias, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
 
-    def init_mems(self):
+    def init_mems(self, bsz):
         '''初始化mems, 用于记忆mlen的各层隐含层状态
         '''
         if self.mem_len > 0:
             mems = []
             param = next(self.parameters())
             for _ in range(self.num_hidden_layers+1):
-                empty = torch.empty(0, dtype=param.dtype, device=param.device)
+                empty = torch.zeros(bsz, self.mem_len, self.hidden_size, dtype=param.dtype, device=param.device)
                 mems.append(empty)
+
             return mems
         else:
             return None
@@ -1603,19 +1614,19 @@ class Transformer_XL(BERT):
             end_idx = mlen + max(0, qlen)
             beg_idx = max(0, end_idx - self.mem_len)
             for i in range(len(hids)):
-                cat = torch.cat([self.mems[i], hids[i]], dim=0)
+                cat = torch.cat([self.mems[i], hids[i]], dim=1)
                 new_mems.append(cat[:, beg_idx:end_idx].detach())
         self.mems = new_mems
 
     def forward(self, inputs):
-        self.mems = self.init_mems() 
+        self.mems = self.init_mems(inputs[0].size(0)) 
         return super().forward(inputs)
 
     def apply_embeddings(self, inputs):
         # 精简后embeddings中只计算word_emdedding
         word_emb = self.embeddings(inputs[0])
         qlen = inputs[0].size(1)  # query长度
-        mlen = self.mems[0].size(0) if self.mems is not None else 0
+        mlen = self.mems[0].size(1) if self.mems is not None else 0
         klen = mlen + qlen
 
         # 修改attention_mask, mlen可以全部访问，q_len只能访问<=t时刻的, mask和Unilm类似，但是Unilm是靠segement_ids来控制
@@ -1632,7 +1643,7 @@ class Transformer_XL(BERT):
         pos_seq = torch.arange(klen-1, -1, -1.0, device=word_emb.device, dtype=torch.long)
         if self.clamp_len > 0:
             pos_seq.clamp_(max=self.clamp_len)
-        pos_emb = self.dropout(self.position_embeddings(pos_seq))  # 用word_emb的dropout
+        pos_emb = self.dropout(self.pos_embeddings(pos_seq))  # 用word_emb的dropout
         return [word_emb, pos_emb, attention_mask, None]
 
     def apply_main_layers(self, inputs):
@@ -1654,7 +1665,9 @@ class Transformer_XL(BERT):
             # 不返回所有层，即返回顶层
             encoded_layers = encoded_layers[:1] + [hidden_states]
         return [encoded_layers, conditional_emb]
-
+    
+    def variable_mapping(self, prefix=''):
+        return {k:k for k, v in self.named_parameters()}
 
 class XLNET(BERT):
     '''构建xlnet模型

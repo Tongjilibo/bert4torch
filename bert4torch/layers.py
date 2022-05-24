@@ -1,4 +1,3 @@
-from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -497,7 +496,8 @@ class Transformer_XL_Layer(BertLayer):
     def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, **kwargs):
         super().__init__(hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, **kwargs)
         self.pre_lnorm = kwargs.get('pre_lnorm')
-        self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
+        # multiattn层无bias
+        self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, bias=False, **kwargs)
 
     def forward(self, hidden_states, pos_emb, attention_mask, mems_i, conditional_emb=None):
         # 拼接mems和query，mems_i: [btz, m_len, hdsz], w: [btz, q_len, hdsz] = [btz, k_len, hdsz]
@@ -575,11 +575,13 @@ class Transformer_XL_Layer(BertLayer):
 
             #### compute attention probability
             if attention_mask is not None and attention_mask.any().item():
-                attention_mask = (1.0 - attention_mask) * -10000.0
-                attention_scores = attention_scores + attention_mask
+                # attention_mask = (1.0 - attention_mask) * -10000.0
+                # attention_scores = attention_scores + attention_mask  # 这里修改了下，原有的-10000不够接近-inf
+                attention_mask = (1.0 - attention_mask)
+                attention_scores = attention_scores.float().masked_fill(attention_mask.bool(), -1e30).type_as(attention_mask)
 
             # [btz, n_head, q_len, k_len]
-            attention_probs = F.softmax(attention_scores, dim=1)
+            attention_probs = F.softmax(attention_scores, dim=-1)
             attention_probs = self.dropout(attention_probs)
             context_layer = torch.matmul(attention_probs, w_head_v)  # [batch_size, num_attention_heads, query_len, attention_head_size]
             context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
@@ -747,10 +749,9 @@ class RelativePositionsEncodingT5(nn.Module):
 class SinusoidalPositionEncoding(nn.Module):
     """定义Sin-Cos位置Embedding
     """
-    def __init__(self, max_position, embedding_size):
+    def __init__(self, max_position, embedding_size, adjacent=True):
         super(SinusoidalPositionEncoding, self).__init__()
-        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size), freeze=True)
-
+        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size, adjacent=adjacent), freeze=True) 
     def forward(self, position_ids):
         return self.position_embeddings(position_ids)
 

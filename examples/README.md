@@ -13,6 +13,7 @@
 - [basic_language_model_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5.py)：基础测试，测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)的生成效果。
 - [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：基础测试，测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 - [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_simple_web_serving_simbert.py): 基础测试，测试自带的WebServing（将模型转化为Web接口）。
+- [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_transformer_xl.py): 基础测试，测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
 
 ### 文本表示
 - [task_sentence_embedding_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_bert_whitening.py)：文本表示，参考[bert_whitening](https://github.com/bojone/BERT-whitening)
@@ -81,7 +82,6 @@
 ### 预训练
 - [pretrain_roberta_mlm_data_gen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/pretrain_roberta_mlm_data_gen.py)：roberta的mlm预训练，数据生成代码
 - [pretrain_roberta_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/pretrain_roberta_mlm.py)：roberta的mlm预训练，训练代码
-
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：任务例子，结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
