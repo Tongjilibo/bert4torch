@@ -25,6 +25,14 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# 固定seed
+import random, os
+seed = 42
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -86,7 +94,7 @@ class Model(BaseModel):
 
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
-        emission_score = self.fc(sequence_output)  # [bts, seq_len, tag_size]
+        emission_score = self.fc(sequence_output)  # [btz, seq_len, tag_size]
         attention_mask = token_ids.gt(0)
         return emission_score, attention_mask
 
@@ -94,7 +102,7 @@ class Model(BaseModel):
         self.eval()
         with torch.no_grad():
             emission_score, attention_mask = self.forward(token_ids)
-            best_path = self.crf(emission_score, attention_mask)  # [bts, seq_len]
+            best_path = self.crf(emission_score, attention_mask)  # [btz, seq_len]
         return best_path
 
 model = Model().to(device)
@@ -170,7 +178,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=50, steps_per_epoch=100, callbacks=[evaluator])
 
 else: 
 
