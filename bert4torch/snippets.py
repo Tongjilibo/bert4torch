@@ -749,17 +749,14 @@ class ListDataset(Dataset):
 
 
 # sinusoid编码
-def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None, adjacent=True):
+def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     '''Returns: [seq_len, d_hid]
     '''
     position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
     div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(10000.0) / d_hid))
-    if adjacent:
-        embeddings_table = torch.zeros(n_position, d_hid)
-        embeddings_table[:, 0::2] = torch.sin(position * div_term)
-        embeddings_table[:, 1::2] = torch.cos(position * div_term)
-    else:  # transformer_xl的实现
-        embeddings_table = torch.cat([torch.sin(position * div_term), torch.cos(position * div_term)], dim=-1)
+    embeddings_table = torch.zeros(n_position, d_hid)
+    embeddings_table[:, 0::2] = torch.sin(position * div_term)
+    embeddings_table[:, 1::2] = torch.cos(position * div_term)
     return embeddings_table
 
     # 第二种实现

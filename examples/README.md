@@ -5,7 +5,7 @@
 - [basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gen_gpt.py)：基础测试，测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
 - [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_make_uncased_model_cased.py)：基础测试，通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
 - [basic_masked_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_masked_language_model.py)：基础测试，测试BERT的MLM模型效果。
-- [basid_language_model_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basid_language_model_GAU_alpha.py)：基础测试，测试[GAU-alpha](https://github.com/ZhuiyiTechnology/GAU-alpha)的MLM模型效果。
+- [basic_language_model_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_GAU_alpha.py)：基础测试，测试[GAU-alpha](https://github.com/ZhuiyiTechnology/GAU-alpha)的MLM模型效果。
 - [basic_masked_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_masked_language_model_roformer.py)：基础测试，测试roformer的MLM模型效果。
 - [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_CDial_GPT.py)：基础测试，测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
 - [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_ml.py)：基础测试，测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
@@ -14,6 +14,7 @@
 - [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：基础测试，测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 - [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_simple_web_serving_simbert.py): 基础测试，测试自带的WebServing（将模型转化为Web接口）。
 - [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_transformer_xl.py): 基础测试，测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
+- [basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_xlnet.py): 基础测试，测试xlnet模型。
 
 ### 文本表示
 - [task_sentence_embedding_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_bert_whitening.py)：文本表示，参考[bert_whitening](https://github.com/bojone/BERT-whitening)

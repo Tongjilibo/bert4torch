@@ -489,7 +489,7 @@ class T5Layer(BertLayer):
             return x
 
 
-class Transformer_XL_Layer(BertLayer):
+class XlnetLayer(BertLayer):
     '''Transformer_XL层
     顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
     '''
@@ -499,14 +499,14 @@ class Transformer_XL_Layer(BertLayer):
         # multiattn层无bias
         self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, bias=False, **kwargs)
 
-    def forward(self, hidden_states, pos_emb, attention_mask, mems_i, conditional_emb=None):
+    def forward(self, hidden_states, segment_ids, pos_emb, attention_mask, mems_i, conditional_emb=None):
         # 拼接mems和query，mems_i: [btz, m_len, hdsz], w: [btz, q_len, hdsz] = [btz, k_len, hdsz]
         hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
         
         # Attn
         if self.pre_lnorm:
             hidden_states_cat = self.layerNorm1((hidden_states_cat, conditional_emb))
-        self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask)
+        self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask, segment_ids)
         hidden_states = hidden_states + self.dropout1(self_attn_output)
         if not self.pre_lnorm:  # post_lnorm
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
@@ -522,18 +522,27 @@ class Transformer_XL_Layer(BertLayer):
     class RelPartialLearnableMultiHeadAttn(MultiHeadAttentionLayer):
         '''Transformer_XL式相对位置编码, 这里修改成了MultiHeadAttentionLayer的batch_first代码格式
         '''
-        def __init__(self, *args, r_w_bias=None, r_r_bias=None, **kwargs):
+        def __init__(self, *args, r_w_bias=None, r_r_bias=None, r_s_bias=None, **kwargs):
             super().__init__(*args, **kwargs)
+            segment_vocab_size = kwargs.get('segment_vocab_size')
             if r_r_bias is None or r_w_bias is None:  # Biases are not shared
                 self.r_r_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
                 self.r_w_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+                if segment_vocab_size > 0:
+                    self.r_s_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局segment偏置
             else:  # 所有层公用一个
                 self.r_r_bias = r_r_bias
                 self.r_w_bias = r_w_bias
-            self.r_net = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
+                self.r_s_bias = r_s_bias
+            if segment_vocab_size > 0:
+                self.seg_embed = nn.Embedding(segment_vocab_size, self.hidden_size)
 
-        def _rel_shift(self, x, zero_triu=False):
-            '''向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]
+            self.r = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
+            self.rel_shift_opt = kwargs.get('rel_shift_opt')
+
+        @staticmethod
+        def rel_shift(x, zero_triu=False):
+            '''transformer_xl使用, 向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]
             '''
             q_len, k_len = x.size(2), x.size(-1)
             zero_pad = torch.zeros((*x.size()[:2], q_len, 1), device=x.device, dtype=x.dtype)
@@ -545,7 +554,19 @@ class Transformer_XL_Layer(BertLayer):
                 x = x * torch.tril(ones, k_len - q_len)[None,None,:,:]
             return x
 
-        def forward(self, w, cat, r, attention_mask=None):
+        @staticmethod
+        def rel_shift_bnij(x, klen=-1):
+            ''' xlnet使用
+            '''
+            x_size = x.shape
+            x = x.reshape(x_size[0], x_size[1], x_size[3], x_size[2])
+            x = x[:, :, 1:, :]
+            x = x.reshape(x_size[0], x_size[1], x_size[2], x_size[3] - 1)
+            x = torch.index_select(x, 3, torch.arange(klen, device=x.device, dtype=torch.long))
+            # x = x[:, :, :, :klen]
+            return x
+
+        def forward(self, w, cat, r, attention_mask=None, seg_mat=None):
             # w: 词向量[btz, q_len, hdsz], cat: w和mem_i拼接后向量[btz, k_len, hdsz], r：相对位置向量[r_len, hdsz]
             qlen, rlen, bsz = w.size(1), r.size(0), w.size(0)
             
@@ -556,8 +577,11 @@ class Transformer_XL_Layer(BertLayer):
             w_head_q = self.transpose_for_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
             w_head_k = self.transpose_for_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
             w_head_v = self.transpose_for_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
+            if hasattr(self, 'seg_embed'):
+                w_head_s = self.seg_embed(seg_mat)  # [btz, q_len, klen, hdsz]
+                w_head_s = w_head_s.reshape(*w_head_s.shape[:3], self.num_attention_heads, self.attention_head_size)
 
-            r_head_k = self.r_net(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
+            r_head_k = self.r(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
             r_head_k = r_head_k.view(rlen, self.num_attention_heads, self.attention_head_size)  # rlen x n_head x d_head
 
             #### compute attention score
@@ -566,10 +590,16 @@ class Transformer_XL_Layer(BertLayer):
 
             rr_head_q = w_head_q + self.r_r_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
             BD = torch.einsum('bnid,jnd->bnij', (rr_head_q, r_head_k))  # [btz, n_head, q_len, k_len]
-            BD = self._rel_shift(BD)
+            BD = self.rel_shift_bnij(BD, klen=AC.shape[3]) if self.rel_shift_opt == 'xlnet' else self.rel_shift(BD)
+
+            if hasattr(self, 'seg_embed') and (self.r_r_bias is not None):
+                rs_head_q = w_head_q + self.r_s_bias.unsqueeze(1)
+                EF = torch.einsum('bnid,bijnd->bnij', (rs_head_q, w_head_s))  # [btz, n_head, q_len, k_len]
+            else:
+                EF = 0
 
             # # [btz, n_head, q_len, k_len]
-            attention_scores = AC + BD
+            attention_scores = AC + BD + EF
             if self.attention_scale:
                 attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
@@ -663,6 +693,21 @@ class Identity(nn.Module):
         return args[0]
 
 
+class XlnetPositionsEncoding(nn.Module):
+    '''Xlnet, transformer_xl使用的相对位置编码
+       和SinusoidalPositionEncoding区别是一个是间隔排列, 一个是前后排列
+    '''
+    def __init__(self, embedding_size):
+        super().__init__()
+        self.demb = embedding_size
+        self.inv_freq = 1 / (10000 ** (torch.arange(0.0, embedding_size, 2.0) / embedding_size))
+        # self.register_buffer("inv_freq", inv_freq)
+
+    def forward(self, pos_seq):
+        sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
+        pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
+        return pos_emb
+
 class RelativePositionsEncoding(nn.Module):
     """nezha用的google相对位置编码
     来自论文：https://arxiv.org/abs/1803.02155
@@ -749,9 +794,9 @@ class RelativePositionsEncodingT5(nn.Module):
 class SinusoidalPositionEncoding(nn.Module):
     """定义Sin-Cos位置Embedding
     """
-    def __init__(self, max_position, embedding_size, adjacent=True):
+    def __init__(self, max_position, embedding_size):
         super(SinusoidalPositionEncoding, self).__init__()
-        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size, adjacent=adjacent), freeze=True) 
+        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size), freeze=True) 
     def forward(self, position_ids):
         return self.position_embeddings(position_ids)
 

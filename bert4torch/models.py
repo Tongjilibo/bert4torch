@@ -3,8 +3,8 @@ import torch.nn as nn
 import copy
 import json
 import re
-from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, Transformer_XL_Layer
-from bert4torch.layers import AdaptiveEmbedding, SinusoidalPositionEncoding
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
+from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
 from bert4torch.activations import get_activation
@@ -433,6 +433,9 @@ class BERT_BASE(BaseModel):
         """
         return {}
 
+    def load_load_variable(self):
+        raise NotImplementedError
+
     def load_embeddings(self, embeddings):
         """根据keep_tokens和compound_tokens对embedding进行修改
         """
@@ -475,7 +478,7 @@ class BERT_BASE(BaseModel):
         for new_key, old_key in mapping.items():
             if new_key not in self.state_dict():
                 continue
-            if old_key in file_state_dict: # mapping中包含，且模型结构中有
+            elif old_key in file_state_dict: # mapping中包含，且模型结构中有
                 state_dict_new[new_key] = self.load_variable(file_state_dict, old_key)
             elif (old_key not in file_state_dict) and (not self.ignore_invalid_weights):
                 # mapping中包含，但模型文件中没有
@@ -1020,7 +1023,11 @@ class GAU_alpha(RoFormerV2):
 
         layer = self.GAU_Layer(**kwargs)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
-        
+    
+    def load_variable(self, state_dict, name, prefix=''):
+        variable = state_dict[name]
+        return self.load_embeddings(variable) if name in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'} else variable
+
     def variable_mapping(self, prefix=''):
         '''在convert脚本里已经把key转成bert4torch可用的
         '''
@@ -1562,34 +1569,48 @@ class Transformer_XL(BERT):
         3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos
         4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000
     '''
-    @delete_arguments('with_pool', 'with_nsp')
-    def __init__(self, *args, **kwargs):
+    @delete_arguments('with_pool', 'with_nsp', 'with_mlm')
+    @insert_arguments(with_lm=False)
+    def __init__(self, *args, mem_len=0, same_length=False, clamp_len=-1, **kwargs):
         # p_bias来控制embedding阶段无pos_embedding
         kwargs.update({'p_bias': 'other_relative'})
         super().__init__(*args, **kwargs)
+        self.mem_len, self.same_length, self.clamp_len = mem_len, same_length, clamp_len
+        self.attn_type = kwargs.get('attn_type', 0)
+
+        # embedding
         if kwargs.get('adaptive_embedding'):
             cutoffs, div_val, sample_softmax = kwargs.get('cutoffs', []), kwargs.get('div_val', 1), kwargs.get('sample_softmax', False)
             self.embeddings = AdaptiveEmbedding(self.vocab_size, self.embedding_size, self.hidden_size, cutoffs, div_val, sample_softmax, **get_kw(AdaptiveEmbedding, kwargs))
         else:
             self.embeddings = nn.Embedding(self.vocab_size, self.embedding_size)
-        self.mem_len, self.same_length, self.clamp_len = kwargs.get('mem_len', 0), kwargs.get('mem_len', False), kwargs.get('clamp_len', 0)        
-        self.pos_embeddings = SinusoidalPositionEncoding(max(self.max_position, self.clamp_len+1), self.embedding_size, adjacent=False)
+        self.pos_embeddings = XlnetPositionsEncoding(self.embedding_size)
         self.dropout = nn.Dropout(self.dropout_rate)
+
         # 每层自己的r_w_bias和r_r_bias，还是公用
-        if kwargs.get('untie_r') is None:
-            self.r_w_bias = nn.Parameter(torch.Tensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
-            self.r_r_bias = nn.Parameter(torch.Tensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+        if not kwargs.get('untie_r'):
+            self.r_w_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
+            self.r_r_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+            if self.segment_vocab_size > 0:
+                self.r_s_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局segment偏置
         else:
             self.r_w_bias, self.r_r_bias = None, None
+            self.r_s_bias = None
 
-        layer = Transformer_XL_Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act,
-                                     is_dropout=self.is_dropout, conditional_size=self.conditional_size, r_w_bias=self.r_w_bias, r_r_bias=self.r_r_bias, **get_kw(BertLayer, kwargs))
+        # transformer block
+        layer = XlnetLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, 
+                           self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size, r_w_bias=self.r_w_bias, r_r_bias=self.r_r_bias,
+                           r_s_bias=None, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+
+        # 映射
+        if self.with_lm:
+            self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=True)
 
     def init_mems(self, bsz):
         '''初始化mems, 用于记忆mlen的各层隐含层状态
         '''
-        if self.mem_len > 0:
+        if isinstance(self.mem_len, (int, float)) and (self.mem_len > 0):
             mems = []
             param = next(self.parameters())
             for _ in range(self.num_hidden_layers+1):
@@ -1622,13 +1643,15 @@ class Transformer_XL(BERT):
         self.mems = self.init_mems(inputs[0].size(0)) 
         return super().forward(inputs)
 
-    def apply_embeddings(self, inputs):
-        # 精简后embeddings中只计算word_emdedding
-        word_emb = self.embeddings(inputs[0])
-        qlen = inputs[0].size(1)  # query长度
-        mlen = self.mems[0].size(1) if self.mems is not None else 0
-        klen = mlen + qlen
+    def relative_positional_encoding(self, qlen, klen, device):
+        # 生成pos_emb, 这里使用sincos的位置编码，为了和xlnet入参一致
+        pos_seq = torch.arange(klen-1, -1, -1.0, device=device, dtype=torch.long)
+        if self.clamp_len > 0:
+            pos_seq.clamp_(max=self.clamp_len)
+        pos_emb = self.dropout(self.pos_embeddings(pos_seq))  # 用word_emb的dropout
+        return pos_emb
 
+    def create_mask(self, word_emb, qlen, klen, mlen):
         # 修改attention_mask, mlen可以全部访问，q_len只能访问<=t时刻的, mask和Unilm类似，但是Unilm是靠segement_ids来控制
         if self.same_length:  # 只能访问前面固定长度
             all_ones = word_emb.new_ones(qlen, klen)
@@ -1638,21 +1661,46 @@ class Transformer_XL(BERT):
         else:
             attention_mask = torch.tril(word_emb.new_ones(qlen, klen), diagonal=mlen).byte()  # [q_len, k_len], 下三角为1矩阵
         attention_mask = attention_mask[None, None, :, :]
+        return attention_mask
 
-        # 生成pos_emb, 这里使用sincos的位置编码
-        pos_seq = torch.arange(klen-1, -1, -1.0, device=word_emb.device, dtype=torch.long)
-        if self.clamp_len > 0:
-            pos_seq.clamp_(max=self.clamp_len)
-        pos_emb = self.dropout(self.pos_embeddings(pos_seq))  # 用word_emb的dropout
-        return [word_emb, pos_emb, attention_mask, None]
+    def apply_embeddings(self, inputs):
+        # 精简后embeddings中只计算word_emdedding
+        word_emb = self.embeddings(inputs[0])
+        index_ = 1
+        btz, qlen = inputs[0].shape[:2]  # query长度
+        mlen = self.mems[0].size(1) if self.mems is not None else 0
+        klen = mlen + qlen
+        # 相对位置编码
+        pos_emb = self.relative_positional_encoding(qlen, klen, word_emb.device)
+        # segment embedding
+        if self.segment_vocab_size > 0:
+            segment_ids = inputs[index_]
+            if mlen > 0:
+                mem_pad = torch.zeros([btz, mlen], dtype=torch.long, device=word_emb.device)
+                cat_ids = torch.cat([mem_pad, segment_ids], dim=1)
+            else:
+                cat_ids = segment_ids
+
+            # `1` indicates not in the same segment [qlen x klen x bsz]
+            segment_ids = (segment_ids[:, :, None] != cat_ids[None, :]).long()
+            index_ += 1
+        else:
+            segment_ids = None
+
+        if self.attn_type in {'uni', 0}:  # 兼容transformer_xl的设置: 0
+            attention_mask = self.create_mask(word_emb, qlen, klen, mlen)
+        elif self.attn_type == 'bi':
+            attention_mask = (inputs[0] != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)
+
+        return [word_emb, segment_ids, pos_emb, attention_mask, None]
 
     def apply_main_layers(self, inputs):
-        hidden_states, pos_emb, attention_mask, conditional_emb = inputs[:4]
+        hidden_states, segment_ids, pos_emb, attention_mask, conditional_emb = inputs[:5]
         encoded_layers = [hidden_states] # 添加embedding的输出
 
         for i, layer_module in enumerate(self.encoderLayer):
             mems_i = None if self.mems is None else self.mems[i]
-            hidden_states = layer_module(hidden_states, pos_emb, attention_mask, mems_i, conditional_emb)
+            hidden_states = layer_module(hidden_states, segment_ids, pos_emb, attention_mask, mems_i, conditional_emb)
             encoded_layers.append(hidden_states)
         
         # 原实现中word_emb, pos_emb和core_out(hidden_states)使用同一个dropout
@@ -1666,14 +1714,100 @@ class Transformer_XL(BERT):
             encoded_layers = encoded_layers[:1] + [hidden_states]
         return [encoded_layers, conditional_emb]
     
+    def load_variable(self, state_dict, name, prefix=''):
+        # 这里由于预训练模型使用了AdapterEmbedding，因此暂不支持
+        if (self.keep_tokens is not None) or (self.compound_tokens is not None):
+            raise ValueError('Custom keep_tokens and compound_tokens is not yet supported in Transformer_XL')
+        return state_dict[name]
+
     def variable_mapping(self, prefix=''):
         return {k:k for k, v in self.named_parameters()}
 
-class XLNET(BERT):
+class XLNET(Transformer_XL):
     '''构建xlnet模型
     '''
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, bi_data=False, **kwargs):
+        self.attn_type = kwargs.get('attn_type', 'bi')
+        self.bi_data = bi_data
+        kwargs['rel_shift_opt'] = 'xlnet'
         super().__init__(*args, **kwargs)
+    
+    def relative_positional_encoding(self, qlen, klen, device):
+        # 生成pos_emb, 这里使用sincos的位置编码, transformer_xl里面有-1
+        if self.attn_type == 'bi':
+            beg, end = klen, -qlen
+        elif self.attn_type == "uni":
+            beg, end = klen, -1
+        else:
+            raise ValueError(f"Unknown `attn_type` {self.attn_type}.") 
+
+        # 前向的emb
+        pos_seq = torch.arange(beg, end, -1.0, device=device, dtype=torch.long)
+        if self.clamp_len > 0:
+            pos_seq.clamp_(max=self.clamp_len)
+        fwd_pos_emb = self.pos_embeddings(pos_seq)
+
+        # 双向数据
+        if self.bi_data:
+            pos_seq = torch.arange(-beg, -end, -1.0, device=device, dtype=torch.long)
+            if self.clamp_len > 0:
+                pos_seq.clamp_(max=self.clamp_len)
+            bwd_pos_emb = self.pos_embeddings(pos_seq)
+            pos_emb = torch.cat([fwd_pos_emb, bwd_pos_emb], dim=0)
+        else:
+            pos_emb = fwd_pos_emb
+
+        pos_emb = self.dropout(pos_emb)  # 用word_emb的dropout
+        return pos_emb
+
+    def apply_final_layers(self, inputs):
+        hidden_state = super().apply_final_layers(inputs)
+        if self.with_lm:
+            return [hidden_state, self.dense(hidden_state)]
+        else:
+            return hidden_state
+
+    def load_variable(self, state_dict, name, prefix='transformer'):
+        """加载单个变量的函数
+        """
+        variable = state_dict[name]
+        if name in {f'{prefix}.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
+            return self.load_embeddings(variable)
+        elif re.search('rel_attn\.(q|k|v|r)$', name):
+            return variable.reshape(variable.shape[0], -1).T
+        elif re.search('rel_attn\.(o|seg_embed)$', name):
+            return variable.reshape(variable.shape[0], -1)
+        else:
+            return variable
+
+    def variable_mapping(self, prefix='transformer'):
+        mapping = {
+            'embeddings.weight': f'{prefix}.word_embedding.weight',
+            'dense.weight': 'lm_loss.weight',
+            'dense.bias': 'lm_loss.bias',
+        }
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'{prefix}.layer.%d.' % i
+            mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'rel_attn.q',
+                            f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'rel_attn.k',
+                            f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'rel_attn.v',
+                            f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'rel_attn.o',
+                            f'encoderLayer.{i}.multiHeadAttention.r.weight': prefix_i + 'rel_attn.r',
+                            f'encoderLayer.{i}.multiHeadAttention.r_r_bias': prefix_i + 'rel_attn.r_r_bias',
+                            f'encoderLayer.{i}.multiHeadAttention.r_s_bias': prefix_i + 'rel_attn.r_s_bias',
+                            f'encoderLayer.{i}.multiHeadAttention.r_w_bias': prefix_i + 'rel_attn.r_w_bias',
+                            f'encoderLayer.{i}.multiHeadAttention.seg_embed.weight': prefix_i + 'rel_attn.seg_embed',
+                            f'encoderLayer.{i}.layerNorm1.weight': prefix_i + 'rel_attn.layer_norm.weight',
+                            f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'rel_attn.layer_norm.bias',
+                            f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'ff.layer_1.weight',
+                            f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_i + 'ff.layer_1.bias',
+                            f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'ff.layer_2.weight',
+                            f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'ff.layer_2.bias',
+                            f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'ff.layer_norm.weight',
+                            f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'ff.layer_norm.bias'
+                            })
+
+        return mapping
 
 
 def build_transformer_model(

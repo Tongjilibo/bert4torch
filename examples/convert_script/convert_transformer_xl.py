@@ -25,7 +25,7 @@ for i in range(18):
         f'transformer.layers.{i}.dec_attn.o_net.weight': f'encoderLayer.{i}.multiHeadAttention.o.weight',
         f'transformer.layers.{i}.dec_attn.layer_norm.weight': f'encoderLayer.{i}.layerNorm1.weight',
         f'transformer.layers.{i}.dec_attn.layer_norm.bias': f'encoderLayer.{i}.layerNorm1.bias',
-        f'transformer.layers.{i}.dec_attn.r_net.weight': f'encoderLayer.{i}.multiHeadAttention.r_net.weight',
+        f'transformer.layers.{i}.dec_attn.r_net.weight': f'encoderLayer.{i}.multiHeadAttention.r.weight',
         f'transformer.layers.{i}.pos_ff.CoreNet.0.weight': f'encoderLayer.{i}.feedForward.intermediateDense.weight',
         f'transformer.layers.{i}.pos_ff.CoreNet.0.bias': f'encoderLayer.{i}.feedForward.intermediateDense.bias',
         f'transformer.layers.{i}.pos_ff.CoreNet.3.weight': f'encoderLayer.{i}.feedForward.outputDense.weight',

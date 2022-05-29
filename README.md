@@ -19,7 +19,7 @@
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年5月17更新**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding), transformer_xl模型, 修改sinusoid位置向量被init_weight的bug
+- **2022年5月17更新**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding), transformer_xl、xlnet模型, 修改sinusoid位置向量被init_weight的bug
 - **2022年5月01更新**：增加了混合梯度，梯度裁剪，单机多卡训练(DP、DDP)
 - **2022年4月25更新**：增加了VAT、GAU-alpha等示例，增加了梯度累积，自定义fit()示例
 - **2022年4月15更新**：增加了ner_mrc、ner_span、roformer_v2、roformer-sim等示例
@@ -45,6 +45,7 @@
 | bert | bert-base-chinese(HuggingFace) | [HuggingFace](https://huggingface.co/bert-base-chinese) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
 | robert | 哈工大robert | [Github](https://github.com/ymcui/Chinese-BERT-wwm), HuggingFace: [base](hfl/chinese-roberta-wwm-ext), [large](https://huggingface.co/hfl/chinese-roberta-wwm-ext-large)
 | albert | brightmart | [Github](https://github.com/brightmart/albert_zh)
+| xlnet | 哈工大xlnet | [Github](https://github.com/ymcui/Chinese-XLNet)
 | electra | 哈工大electra | [Github](https://github.com/ymcui/Chinese-ELECTRA)
 | macbert | 哈工大macbert | [Github](https://github.com/ymcui/MacBERT)
 | roformer | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer) |  HuggingFace搜索
