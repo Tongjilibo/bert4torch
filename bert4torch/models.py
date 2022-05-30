@@ -1665,7 +1665,7 @@ class Transformer_XL(BERT):
 
     def apply_embeddings(self, inputs):
         # 精简后embeddings中只计算word_emdedding
-        word_emb = self.embeddings(inputs[0])
+        word_emb = self.dropout(self.embeddings(inputs[0]))
         index_ = 1
         btz, qlen = inputs[0].shape[:2]  # query长度
         mlen = self.mems[0].size(1) if self.mems is not None else 0
@@ -1682,7 +1682,7 @@ class Transformer_XL(BERT):
                 cat_ids = segment_ids
 
             # `1` indicates not in the same segment [qlen x klen x bsz]
-            segment_ids = (segment_ids[:, :, None] != cat_ids[None, :]).long()
+            segment_ids = (segment_ids[:, :, None] != cat_ids[:, None]).long()
             index_ += 1
         else:
             segment_ids = None
@@ -1691,8 +1691,10 @@ class Transformer_XL(BERT):
             attention_mask = self.create_mask(word_emb, qlen, klen, mlen)
         elif self.attn_type == 'bi':
             attention_mask = (inputs[0] != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)
+        non_tgt_mask = torch.eye(qlen).to(attention_mask)[None, None, :, :]
+        non_tgt_mask = ((1 - attention_mask - non_tgt_mask) <= 0).long()
 
-        return [word_emb, segment_ids, pos_emb, attention_mask, None]
+        return [word_emb, segment_ids, pos_emb, non_tgt_mask, None]
 
     def apply_main_layers(self, inputs):
         hidden_states, segment_ids, pos_emb, attention_mask, conditional_emb = inputs[:5]

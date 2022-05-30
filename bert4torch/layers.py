@@ -700,8 +700,8 @@ class XlnetPositionsEncoding(nn.Module):
     def __init__(self, embedding_size):
         super().__init__()
         self.demb = embedding_size
-        self.inv_freq = 1 / (10000 ** (torch.arange(0.0, embedding_size, 2.0) / embedding_size))
-        # self.register_buffer("inv_freq", inv_freq)
+        inv_freq = 1 / (10000 ** (torch.arange(0.0, embedding_size, 2.0) / embedding_size))
+        self.register_buffer("inv_freq", inv_freq)
 
     def forward(self, pos_seq):
         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)

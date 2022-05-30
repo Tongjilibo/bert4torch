@@ -5,7 +5,7 @@ pretrained_model = "F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xl
 tokenizer = XLNetTokenizer.from_pretrained(pretrained_model)
 model = XLNetModel.from_pretrained(pretrained_model)
 
-inputs = tokenizer("你好啊，我叫张三", return_tensors="pt")
+inputs = tokenizer(["你好啊，我叫张三", "天气不错啊"], padding=True, return_tensors="pt")
 outputs = model(**inputs)
 
 last_hidden_states = outputs.last_hidden_state
@@ -21,6 +21,7 @@ model = build_transformer_model(
     checkpoint_path=checkpoint_path,
     model='xlnet',
     # with_lm=True
+    token_pad_ids=tokenizer.pad_token_id,
 )
 
 print('--------bert4torch last_hidden_state--------\n', model.predict([inputs['input_ids'], inputs['token_type_ids']]))
