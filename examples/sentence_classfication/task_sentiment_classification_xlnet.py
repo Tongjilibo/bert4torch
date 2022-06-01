@@ -1,5 +1,7 @@
 #! -*- coding:utf-8 -*-
-# 情感分类任务
+# 情感分类任务: xlnet
+# transformer包中tokenizer是padding在前面的
+# 这里可以使用transformer的tokenizer，也可以使用SpTokenizer，注意取最后一位时候取非padding的最后一位
 
 from bert4torch.tokenizers import SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -9,16 +11,15 @@ import torch
 import torch.optim as optim
 import random, os, numpy as np
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
 
 maxlen = 256
-batch_size = 4
-config_path = 'F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base/bert4torch_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base/pytorch_model.bin'
-spm_path = 'F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base/spiece.model'
+batch_size = 12
+pretrain_model = 'F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base/'
+config_path = pretrain_model + 'bert4torch_config.json'
+checkpoint_path = pretrain_model + 'pytorch_model.bin'
+spm_path = pretrain_model + 'spiece.model'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 
 # 固定seed
 seed = 42
@@ -29,7 +30,7 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 
 # 建立分词器
-tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>')
+tokenizer = SpTokenizer(spm_path, token_start=None, token_end='<cls>')
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -48,17 +49,16 @@ class MyDataset(ListDataset):
         return D
 
 def collate_fn(batch):
-    batch_token_ids, batch_segment_ids, batch_labels = [], [], []
+    batch_token_ids, batch_labels = [], []
     for text, label in batch:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
         batch_token_ids.append(token_ids)
-        batch_segment_ids.append(segment_ids)
         batch_labels.append([label])
 
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
+    # 用tokenizer的pad_id来做padding
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer._token_pad_id), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
+    return batch_token_ids, batch_labels.flatten()
 
 # 加载数据集
 train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -69,14 +69,19 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, 
-                                                         model='xlnet', return_model_config=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='xlnet', 
+                                            token_pad_ids=tokenizer._token_pad_id, segment_vocab_size=0)
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.config['hidden_size'], 2)
+        self.dense = nn.Linear(768, 2)
 
-    def forward(self, token_ids, segment_ids):
-        last_hidden_state = self.bert([token_ids, segment_ids])
-        output = self.dropout(last_hidden_state[:, 0])
+    def forward(self, token_ids):
+        last_hidden_state = self.bert([token_ids])
+        # 取最后一位<cls>位的隐含层状态
+        last_token_idx = token_ids.not_equal(tokenizer._token_pad_id).sum(dim=1) - 1
+        last_token_idx = last_token_idx[:, None, None].expand(last_hidden_state.shape[0], 1, last_hidden_state.shape[-1])
+        pooling = torch.gather(last_hidden_state, dim=1, index=last_token_idx).squeeze(1)
+
+        output = self.dropout(pooling)
         output = self.dense(output)
         return output
 model = Model().to(device)
@@ -114,6 +119,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=500, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

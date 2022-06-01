@@ -1664,6 +1664,8 @@ class Transformer_XL(BERT):
         return attention_mask
 
     def apply_embeddings(self, inputs):
+        '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入
+        '''
         # 精简后embeddings中只计算word_emdedding
         word_emb = self.dropout(self.embeddings(inputs[0]))
         index_ = 1
@@ -1680,7 +1682,6 @@ class Transformer_XL(BERT):
                 cat_ids = torch.cat([mem_pad, segment_ids], dim=1)
             else:
                 cat_ids = segment_ids
-
             # `1` indicates not in the same segment [qlen x klen x bsz]
             segment_ids = (segment_ids[:, :, None] != cat_ids[:, None]).long()
             index_ += 1
@@ -1726,7 +1727,8 @@ class Transformer_XL(BERT):
         return {k:k for k, v in self.named_parameters()}
 
 class XLNET(Transformer_XL):
-    '''构建xlnet模型
+    '''构建xlnet模型, 这里做了简化, 只用来finetune, 即没有perm_mask, target_mapping这些输入
+       接受的inputs输入: [token_ids, segment_ids]
     '''
     def __init__(self, *args, bi_data=False, **kwargs):
         self.attn_type = kwargs.get('attn_type', 'bi')
