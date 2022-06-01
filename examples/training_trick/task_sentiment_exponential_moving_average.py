@@ -1,24 +1,22 @@
 #! -*- coding:utf-8 -*-
-# 情感分类任务
+# 情感分类任务, 指数滑动平均
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.optimizers import extend_with_exponential_moving_average
 import torch.nn as nn
 import torch
 import torch.optim as optim
 import random, os, numpy as np
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
 
 maxlen = 256
 batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 
 # 固定seed
 seed = 42
@@ -79,21 +77,25 @@ class Model(BaseModel):
         output = self.dense(output)
         return output
 model = Model().to(device)
+ema_schedule = extend_with_exponential_moving_average(model, decay=0.99)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    scheduler=ema_schedule,
     metrics=['accuracy']
 )
 
 # 定义评价函数
 def evaluate(data):
+    ema_schedule.apply_ema_weights()  # 使用滑动平均的ema权重
     total, right = 0., 0.
     for x_true, y_true in data:
         y_pred = model.predict(x_true).argmax(axis=1)
         total += len(y_true)
         right += (y_true == y_pred).sum().item()
+    ema_schedule.restore_raw_weights()  # 恢复原来模型的参数
     return right / total
 
 
@@ -102,12 +104,6 @@ class Evaluator(Callback):
     """
     def __init__(self):
         self.best_val_acc = 0.
-
-    # def on_batch_end(self, global_step, batch, logs=None):
-    #     if global_step % 10 == 0:
-    #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
-    #         val_acc = evaluate(valid_dataloader)
-    #         writer.add_scalar(f"valid/acc", val_acc, global_step)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = evaluate(valid_dataloader)
