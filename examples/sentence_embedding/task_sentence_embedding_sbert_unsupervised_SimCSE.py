@@ -2,7 +2,6 @@
 # 语义相似度任务-无监督：训练集为网上pretrain数据, dev集为sts-b
 # loss: MultiNegativeRankingLoss 
 
-import enum
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
@@ -12,6 +11,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances, paired_euclidean_distances, paired_manhattan_distances
 from scipy.stats import pearsonr, spearmanr
+from tqdm import tqdm
 import random
 random.seed(2022)
 
@@ -42,7 +42,7 @@ def collate_fn(batch):
 def get_data(filename):
     train_data = []
     with open(filename, encoding='utf-8') as f:
-        for row, l in enumerate(f):
+        for row, l in tqdm(enumerate(f), desc='Load data'):
             if row == 0:  # 跳过首行
                 continue
             text = l.strip().replace(' ', '')

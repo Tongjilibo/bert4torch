@@ -4,7 +4,7 @@
 import unicodedata
 import six
 import numpy as np
-from sklearn import metrics
+import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
 import time
@@ -172,12 +172,18 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
                 texts[id] = replace(text, sel_idx, noise_dict)
     return texts if len(texts) > 1 else texts[0]
 
-def lowercase_and_normalize(text):
+def lowercase_and_normalize(text, never_split=()):
     """转小写，并进行简单的标准化
     """
     if is_py2:
         text = unicode(text)
-    text = text.lower()
+    
+    # convert non-special tokens to lowercase
+    escaped_special_toks = [re.escape(s_tok) for s_tok in never_split]
+    pattern = r"(" + r"|".join(escaped_special_toks) + r")|" + r"(.+?)"
+    text = re.sub(pattern, lambda m: m.groups()[0] or m.groups()[1].lower(), text)
+
+    # text = text.lower()
     text = unicodedata.normalize('NFD', text)
     text = ''.join([ch for ch in text if unicodedata.category(ch) != 'Mn'])
     return text

@@ -11,6 +11,8 @@ from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize
 import re
 import six
+from collections import OrderedDict
+
 
 logger = logging.getLogger(__name__)
 is_py2 = six.PY2
@@ -64,6 +66,7 @@ class TokenizerBase(object):
         token_unk='[UNK]',
         token_pad='[PAD]',
         token_mask='[MASK]',
+        add_special_tokens=None,
         pre_tokenize=None,
         token_translate=None
     ):
@@ -89,7 +92,13 @@ class TokenizerBase(object):
         self._token_mask = token_mask
         self._token_start = token_start
         self._token_end = token_end
-
+        self.never_split = [self._token_unk, self._token_end, self._token_pad, self._token_start, self._token_mask]
+        if add_special_tokens is not None:
+            if isinstance(add_special_tokens, (tuple, list)):
+                self.never_split.extend(add_special_tokens)
+            elif isinstance(add_special_tokens, str):
+                self.never_split.append(add_special_tokens)
+        self.tokens_trie = self._create_trie(self.never_split)  # trie树主要是为了special_tokens的分词
         self._pre_tokenize = pre_tokenize
         self._token_translate = token_translate or {}
         self._token_translate_inv = {
@@ -97,13 +106,16 @@ class TokenizerBase(object):
             for k, v in self._token_translate.items()
         }
 
+    def _create_trie(self, unique_no_split_tokens):
+        trie = Trie()
+        for token in unique_no_split_tokens:
+            trie.add(token)
+        return trie
+
     def tokenize(self, text, maxlen=None):
         """分词函数
         """
-        tokens = [
-            self._token_translate.get(token) or token
-            for token in self._tokenize(text)
-        ]
+        tokens = [self._token_translate.get(token) or token for token in self._tokenize(text)]
         if self._token_start is not None:
             tokens.insert(0, self._token_start)
         if self._token_end is not None:
@@ -219,7 +231,7 @@ class Tokenizer(TokenizerBase):
 
         self.do_basic_tokenize = do_basic_tokenize
         if do_basic_tokenize:
-          self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case, never_split=(self._token_unk, self._token_end, self._token_pad, self._token_start, self._token_mask))
+          self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case, never_split=self.never_split)
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self._token_dict, unk_token=self._token_unk, do_tokenize_unk=do_tokenize_unk)
 
         for token in ['pad', 'unk', 'mask', 'start', 'end']:
@@ -234,7 +246,7 @@ class Tokenizer(TokenizerBase):
         """
         # 以下pre_tokenizer逻辑参考bert4keras
         if self._do_lower_case:
-            text = lowercase_and_normalize(text)
+            text = lowercase_and_normalize(text, never_split=self.never_split)
 
         if pre_tokenize and self._pre_tokenize is not None:
             tokens = []
@@ -246,13 +258,19 @@ class Tokenizer(TokenizerBase):
             return tokens
 
         # 以下逻辑参考pytorch版本bert分词器自己的
+        text_pieces = self.tokens_trie.split(text)  # 新增逻辑，主要是special_tokens的分词
         split_tokens = []
-        if self.do_basic_tokenize:
-            for token in self.basic_tokenizer.tokenize(text):
-                for sub_token in self.wordpiece_tokenizer.tokenize(token):
-                    split_tokens.append(sub_token)
-        else:
-            split_tokens = self.wordpiece_tokenizer.tokenize(text)
+        for text_piece in text_pieces:
+            if not text_piece:
+                continue
+            elif text_piece in self._token_dict:
+                split_tokens.append(text_piece)
+            elif self.do_basic_tokenize:
+                for token in self.basic_tokenizer.tokenize(text_piece):
+                    for sub_token in self.wordpiece_tokenizer.tokenize(token):
+                        split_tokens.append(sub_token)
+            else:
+                split_tokens.extend(self.wordpiece_tokenizer.tokenize(text_piece))
         return split_tokens
 
     def token_to_id(self, token):
@@ -685,3 +703,165 @@ class SpTokenizer(TokenizerBase):
         """判断是否应该被解码输出
         """
         return (i < self._vocab_size) and not self._is_special(i)
+
+
+class Trie:
+    """直接从transformer的tokenization_utils.py中移植, 主要是为了special_tokens分词
+    """
+
+    def __init__(self):
+        self.data = {}
+
+    def add(self, word: str):
+        if not word:
+            # Prevent empty string
+            return
+        ref = self.data
+        for char in word:
+            ref[char] = char in ref and ref[char] or {}
+            ref = ref[char]
+        ref[""] = 1
+
+    def split(self, text: str):
+        states = OrderedDict()
+
+        # This will contain every indices where we need
+        # to cut.
+        # We force to cut at offset 0 and len(text) (added later)
+        offsets = [0]
+
+        # This is used by the lookahead which needs to skip over
+        # some text where the full match exceeded the place in the initial
+        # for loop
+        skip = 0
+        # Main loop, Giving this algorithm O(n) complexity
+        for current, current_char in enumerate(text):
+            if skip and current < skip:
+                # Prevents the lookahead for matching twice
+                # like extra_id_100 and id_100
+                continue
+
+            # This will track every state
+            # that stop matching, we need to stop tracking them.
+            # If we look at "lowball", we're going to match "l" (add it to states), "o", "w", then
+            # fail on "b", we need to remove 0 from the valid states.
+            to_remove = set()
+            # Whenever we found a match, we need to drop everything
+            # this is a greedy algorithm, it will match on the first found token
+            reset = False
+
+            # In this case, we already have partial matches (But unfinished)
+            for start, trie_pointer in states.items():
+                if "" in trie_pointer:
+                    # This is a final match, we need to reset and
+                    # store the results in `offsets`.
+
+                    # Lookahead to match longest first
+                    # Important in case of extra_id_1 vs extra_id_100
+                    # Here we are also actively looking for other earlier partial
+                    # matches
+                    # "[CLS]", "L", we need to match CLS even if L is special
+                    for lookstart, looktrie_pointer in states.items():
+                        if lookstart > start:
+                            # This partial match is later, we can stop looking
+                            break
+                        elif lookstart < start:
+                            # This partial match is earlier, the trie pointer
+                            # was already updated, so index is + 1
+                            lookahead_index = current + 1
+                            end = current + 1
+                        else:
+                            # Here lookstart == start and
+                            #      looktrie_pointer == trie_pointer
+                            # It wasn't updated yet so indices are current ones
+                            lookahead_index = current
+                            end = current
+                        next_char = text[lookahead_index] if lookahead_index < len(text) else None
+                        if "" in looktrie_pointer:
+                            start = lookstart
+                            end = lookahead_index
+                            skip = lookahead_index
+
+                        while next_char in looktrie_pointer:
+                            looktrie_pointer = looktrie_pointer[next_char]
+                            lookahead_index += 1
+                            if "" in looktrie_pointer:
+                                start = lookstart
+                                end = lookahead_index
+                                skip = lookahead_index
+
+                            if lookahead_index == len(text):
+                                # End of string
+                                break
+                            next_char = text[lookahead_index]
+                        # End lookahead
+
+                    # Storing and resetting
+                    offsets.append(start)
+                    offsets.append(end)
+                    reset = True
+                    break
+                elif current_char in trie_pointer:
+                    # The current character being looked at has a match within the trie
+                    # update the pointer (it will be stored back into states later).
+                    trie_pointer = trie_pointer[current_char]
+
+                    # Storing back the new pointer into the states.
+                    # Partial matches got longer by one.
+                    states[start] = trie_pointer
+                else:
+                    # The new character has not match in the trie, we need
+                    # to stop keeping track of this partial match.
+                    # We can't do it directly within the loop because of how
+                    # python iteration works
+                    to_remove.add(start)
+
+            # Either clearing the full start (we found a real match)
+            # Or clearing only the partial matches that didn't work.
+            if reset:
+                states = {}
+            else:
+                for start in to_remove:
+                    del states[start]
+
+            # If this character is a starting character within the trie
+            # start keeping track of this partial match.
+            if current >= skip and current_char in self.data:
+                states[current] = self.data[current_char]
+
+        # We have a cut at the end with states.
+        for start, trie_pointer in states.items():
+            if "" in trie_pointer:
+                # This is a final match, we need to reset and
+                # store the results in `offsets`.
+                end = len(text)
+                offsets.append(start)
+                offsets.append(end)
+                # Longest cut is always the one with lower start so the first
+                # item so we need to break.
+                break
+
+        return self.cut_text(text, offsets)
+
+    def cut_text(self, text, offsets):
+        # We have all the offsets now, we just need to do the actual splitting.
+        # We need to eventually add the first part of the string and the eventual
+        # last part.
+        offsets.append(len(text))
+        tokens = []
+        start = 0
+        for end in offsets:
+            if start > end:
+                logger.error(
+                    "There was a bug in Trie algorithm in tokenization. Attempting to recover. Please report it anyway."
+                )
+                continue
+            elif start == end:
+                # This might happen if there's a match at index 0
+                # we're also preventing zero-width cuts in case of two
+                # consecutive matches
+                continue
+            tokens.append(text[start:end])
+            start = end
+
+        return tokens

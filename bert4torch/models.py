@@ -8,6 +8,7 @@ from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
 from bert4torch.activations import get_activation
+import warnings
 
 
 class BaseModel(nn.Module):
@@ -445,10 +446,12 @@ class BERT_BASE(BaseModel):
         if self.compound_tokens is not None:
             ext_embeddings = []
             for item in self.compound_tokens:
-                ext_embeddings.append(
-                    torch.mean(embeddings[item], 0) * torch.ones_like(embeddings[item])
-                )
-            embeddings = torch.concat([embeddings]+ext_embeddings, 0)
+                try:
+                    ext_embeddings.append(torch.mean(embeddings[item], 0) * torch.ones_like(embeddings[item]))
+                except IndexError:
+                    ext_embeddings.append(torch.mean(embeddings, 0, keepdim=True))
+                    warnings.warn(f'Initialize ext_embeddings from compound_tokens not in embedding index')
+            embeddings = torch.concat([embeddings] + ext_embeddings, 0)
 
         return embeddings
 
