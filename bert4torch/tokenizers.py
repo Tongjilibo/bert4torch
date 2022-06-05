@@ -397,7 +397,7 @@ class Tokenizer(TokenizerBase):
         normalized_text, char_mapping = '', []
         for i, ch in enumerate(text):
             if self._do_lower_case:
-                ch = lowercase_and_normalize(ch)
+                ch = lowercase_and_normalize(ch, self.never_split)
             ch = ''.join([
                 c for c in ch
                 if not (ord(c) == 0 or ord(c) == 0xfffd or self._is_control(c))

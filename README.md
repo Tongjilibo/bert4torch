@@ -14,13 +14,14 @@
 - [examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/examples/README.md)
 
 ## 版本说明
+- **v0.1.6**：增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug
 - **v0.1.5**：增加GAU-alpha，混合梯度，梯度裁剪，单机多卡(DP、DDP)
 - **v0.1.4**：增加了VAT，修复了linux下apply_embedding返回项有问题的情况
 - **v0.1.3**：初始版本
 
 ## 更新：
 - **2022年6月05更新**：增加prompt示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus
-- **2022年5月29更新**：transformer_xl、xlnet模型, 修改sinusoid位置向量被init_weight的bug, EMA
+- **2022年5月29更新**：transformer_xl、xlnet模型, 修改sinusoid位置向量被init_weight的bug, EMA，sohu情感分类示例
 - **2022年5月17更新**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding)
 - **2022年5月01更新**：增加了混合梯度，梯度裁剪，单机多卡训练(DP、DDP)
 - **2022年4月25更新**：增加了VAT、GAU-alpha等示例，增加了梯度累积，自定义fit()示例
