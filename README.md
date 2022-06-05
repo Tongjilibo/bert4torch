@@ -19,7 +19,7 @@
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年6月05更新**：增加prompt示例，修改tokenizer对special_tokens分词错误的问题
+- **2022年6月05更新**：增加prompt示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus
 - **2022年5月29更新**：transformer_xl、xlnet模型, 修改sinusoid位置向量被init_weight的bug, EMA
 - **2022年5月17更新**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding)
 - **2022年5月01更新**：增加了混合梯度，梯度裁剪，单机多卡训练(DP、DDP)
@@ -61,4 +61,5 @@
 | gpt2 | 中文GPT2_ML模型 | [Github](https://github.com/imcaspar/gpt2-ml) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__gpt2-ml.py)
 | t5 | UER | HuggingFace: [small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall), [base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)
 | mt5 | 谷歌 | [HuggingFace](https://huggingface.co/google/mt5-base)
+| t5_pegasus | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/t5-pegasus)
 | bart | 复旦 | [Github](https://github.com/fastnlp/CPT)
