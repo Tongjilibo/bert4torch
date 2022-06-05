@@ -2,8 +2,15 @@
 **一款用pytorch来复现bert4keras的简洁训练框架**
 
 ## 下载安装
-- `pip install bert4torch`
-- pip包的发布慢于git上的开发版本，如需要使用最新开发的代码，可直接git clone最新代码，**注意引用路径**
+安装稳定版
+```shell
+pip install bert4torch
+```
+安装最新版
+```shell
+pip install git+https://www.github.com/Tongjilibo/bert4torch.git
+```
+- pip包的发布慢于git上的开发版本，git clone**注意引用路径**
 - 跑测试用例：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本，examples中用到的数据文件后续会放链接
 - 自行训练：针对自己的数据，修改相应的数据处理代码块
 
