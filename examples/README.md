@@ -29,7 +29,7 @@
 - [task_sentence_embedding_sbert_xnli__concat_CrossEntropyLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_xnli__concat_CrossEntropyLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_sbert_xnli__MultiNegtiveRankingLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_sbert_xnli__MultiNegtiveRankingLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_CoSENT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_CoSENT.py)：文本表示，参考[CoSENT](https://kexue.fm/archives/8847)
-- [task_sentence_embdding_prompt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embdding_prompt.py)：文本表示，Prompt方式
+- [task_sentence_embedding_unsupervised_PromptBert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_PromptBert.py)：文本表示，[PromptBert](https://github.com/kongds/Prompt-BERT)方式
 
 ### 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：任务例子，句子对分类任务。

@@ -1,6 +1,8 @@
 #! -*- coding: utf-8 -*-
-# prompt实现sentence embedding
-# 参考链接（非官方）：https://gitee.com/moontheunderwater/bert4pytorch/blob/master/examples/textmatch/promptbert.py
+# promptbert实现sentence embedding
+# 官方项目：https://github.com/kongds/Prompt-BERT
+# 参考项目：https://github.com/Macielyoung/sentence_representation_matching
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -90,7 +92,7 @@ def collate_fn_test(batch):
 valid_datset = load_valid_data('F:/Projects/data/corpus/sentence_embedding/STS-B/STS-B.test.data')
 valid_dataloader = DataLoader(MyDataset(data=valid_datset), batch_size=batch_size, collate_fn=collate_fn_test) 
 
-class Prompt(BaseModel):
+class PromptBert(BaseModel):
     def __init__(self, scale=20.0):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0, compound_tokens=compound_tokens)
@@ -105,6 +107,7 @@ class Prompt(BaseModel):
     def get_sentence_embedding(self, prompt_input_ids, template_input_ids):
         prompt_mask_embedding = self.get_mask_embedding(prompt_input_ids)
         template_mask_embedding = self.get_mask_embedding(template_input_ids)
+        # 在计算损失函数时为了消除Prompt模板影响，通过替换模板后的句子[MASK]获取的表征减去模板中[MASK]获取的表征来得到句子向量表征
         sentence_embedding = prompt_mask_embedding - template_mask_embedding
         return sentence_embedding
 
@@ -127,7 +130,7 @@ class Prompt(BaseModel):
         b_norm = torch.nn.functional.normalize(b, p=2, dim=1)
         return torch.mm(a_norm, b_norm.transpose(0, 1))
 
-model = Prompt().to(device)
+model = PromptBert().to(device)
        
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
