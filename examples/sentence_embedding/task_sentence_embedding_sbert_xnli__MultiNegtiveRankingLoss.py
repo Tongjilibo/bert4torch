@@ -137,7 +137,7 @@ def evaluate(data):
     embeddings2 = torch.concat(embeddings2).cpu().numpy()
     labels = torch.concat(labels).cpu().numpy()
     cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
-    eval_pearson_cosine, _ = pearsonr(labels, cosine_scores)
+    eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
     return eval_pearson_cosine
 
 
