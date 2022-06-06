@@ -1,10 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 情感分析例子，利用MLM做 Zero-Shot/Few-Shot/Semi-Supervised Learning
-# 参考项目：https://github.com/bojone/Pattern-Exploiting-Training
-# zero-shot1: 0.8517/0.8437
-# zero-shot2:
-# few-shot:
-# semi-sup:
+# 情感分析例子，利用MLM+P-tuning
 
 import torch
 import torch.nn as nn
@@ -15,14 +10,14 @@ from torch.optim import Adam
 from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
 
-num_classes = 2
+
 maxlen = 128
 batch_size = 32
 config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-choice = 'zero-shot2'  # zero-shot1, zero-shot2, few-shot, semi-sup
+
 
 def load_data(filename):
     D = []
@@ -41,21 +36,17 @@ test_data = load_data('E:/Github/bert4torch/examples/datasets/sentiment/sentimen
 train_frac = 0.01  # 标注数据的比例
 num_labeled = int(len(train_data) * train_frac)
 unlabeled_data = [(t, 2) for t, l in train_data[num_labeled:]]
-
-if choice == 'zero-shot2':
-    train_data = unlabeled_data  # 仅使用无监督数据继续mlm预训练
-elif choice == 'few-shot':
-    train_data = train_data[:num_labeled]  # 仅使用少量监督数据
-elif choice == 'semi-sup':  # 少量监督数据和全量无监督数据做半监督
-    train_data = train_data[:num_labeled]
-    train_data = train_data + unlabeled_data
+train_data = train_data[:num_labeled]
+# train_data = train_data + unlabeled_data
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 # 对应的任务描述
-prefix = u'很满意。'
-mask_idx = 1
+mask_idx = 5
+desc = ['[unused%s]' % i for i in range(1, 9)]
+desc.insert(mask_idx - 1, '[MASK]')
+desc_ids = [tokenizer.token_to_id(t) for t in desc]
 pos_id = tokenizer.token_to_id(u'很')
 neg_id = tokenizer.token_to_id(u'不')
 
@@ -85,9 +76,10 @@ random = True
 def collate_fn(batch):
     batch_token_ids, batch_segment_ids, batch_output_ids = [], [], []
     for text, label in batch:
-        if label != 2:
-            text = prefix + text
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        if label != 2:
+            token_ids = token_ids[:1] + desc_ids + token_ids[1:]
+            segment_ids = [0] * len(desc_ids) + segment_ids
         if random:
             source_ids, target_ids = random_masking(token_ids)
         else:
@@ -112,9 +104,6 @@ random = False
 valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(ListDataset(data=test_data),  batch_size=batch_size, collate_fn=collate_fn) 
 
-# 加载预训练模型
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
-
 class MyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -127,11 +116,67 @@ class MyLoss(nn.CrossEntropyLoss):
         loss = super().forward(y_pred, y_true.flatten())
         return loss
 
-# 定义使用的loss和optimizer，这里支持自定义
+# 加载预训练模型
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
+
+12# 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=MyLoss(ignore_index=0),
     optimizer=Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
+
+class PtuningEmbedding(Embedding):
+    """新定义Embedding层，只优化部分Token
+    """
+    def call(self, inputs, mode='embedding'):
+        embeddings = self.embeddings
+        embeddings_sg = K.stop_gradient(embeddings)
+        mask = np.zeros((K.int_shape(embeddings)[0], 1))
+        mask[1:9] += 1  # 只优化id为1～8的token
+        self.embeddings = embeddings * mask + embeddings_sg * (1 - mask)
+        outputs = super(PtuningEmbedding, self).call(inputs, mode)
+        self.embeddings = embeddings
+        return outputs
+
+
+class PtuningBERT(BERT):
+    """替换原来的Embedding
+    """
+    def apply(self, inputs=None, layer=None, arguments=None, **kwargs):
+        if layer is Embedding:
+            layer = PtuningEmbedding
+        return super(PtuningBERT, self).apply(inputs, layer, arguments, **kwargs)
+
+
+# 加载预训练模型
+model = build_transformer_model(
+    config_path=config_path,
+    checkpoint_path=checkpoint_path,
+    model=PtuningBERT,
+    with_mlm=True
+)
+
+for layer in model.layers:
+    if layer.name != 'Embedding-Token':
+        layer.trainable = False
+
+# 训练用模型
+y_in = keras.layers.Input(shape=(None,))
+output = keras.layers.Lambda(lambda x: x[:, :10])(model.output)
+outputs = CrossEntropy(1)([y_in, model.output])
+
+train_model = keras.models.Model(model.inputs + [y_in], outputs)
+train_model.compile(optimizer=Adam(6e-4))
+train_model.summary()
+
+# 预测模型
+model = keras.models.Model(model.inputs, output)
+
+# 转换数据集
+train_generator = data_generator(train_data, batch_size)
+valid_generator = data_generator(valid_data, batch_size)
+test_generator = data_generator(test_data, batch_size)
+
 
 class Evaluator(Callback):
     """评估与保存
@@ -160,12 +205,16 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
+
     evaluator = Evaluator()
-    if choice == 'zero-shot1':
-        valid_acc = evaluator.evaluate(valid_dataloader)
-        test_acc = evaluator.evaluate(test_dataloader)
-        print(f'[{choice}]  valid_acc: {valid_acc:.4f}, test_acc: {test_acc:.4f}')
-    else:
-        model.fit(train_dataloader, epochs=1000, steps_per_epoch=None, callbacks=[evaluator])
+
+    train_model.fit_generator(
+        train_generator.forfit(),
+        steps_per_epoch=len(train_generator) * 50,
+        epochs=1000,
+        callbacks=[evaluator]
+    )
+
 else:
-    model.load_weights('best_model.pt')
+
+    model.load_weights('best_model_bert.weights')
