@@ -2,7 +2,7 @@
 # 情感分析例子，利用MLM做 Zero-Shot/Few-Shot/Semi-Supervised Learning
 # 参考项目：https://github.com/bojone/Pattern-Exploiting-Training
 # zero-shot1: 0.8517/0.8437
-# zero-shot2:
+# zero-shot2: 0.8655/0.8678 [1epoch]
 # few-shot:
 # semi-sup:
 
@@ -121,9 +121,6 @@ class MyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, y_preds, y_true):
-        # accuracy = keras.metrics.sparse_categorical_accuracy(y_true, y_pred)
-        # accuracy = K.sum(accuracy * y_mask) / K.sum(y_mask)
-        # self.add_metric(accuracy, name='accuracy')
         y_pred = y_preds[1]
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         loss = super().forward(y_pred, y_true.flatten())
@@ -143,7 +140,7 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = self.evaluate(valid_dataloader)
-        test_acc = self.evaluate(train_dataloader)
+        test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
