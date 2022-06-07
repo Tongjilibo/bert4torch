@@ -12,6 +12,7 @@ import numpy as np
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model
 from torch.optim import Adam
+import torch.nn.functional as F
 from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
 
@@ -80,37 +81,38 @@ def random_masking(token_ids):
             target.append(0)
     return source, target
 
-
-random = True
-def collate_fn(batch):
-    batch_token_ids, batch_segment_ids, batch_output_ids = [], [], []
-    for text, label in batch:
-        if label != 2:
-            text = prefix + text
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        if random:
-            source_ids, target_ids = random_masking(token_ids)
-        else:
-            source_ids, target_ids = token_ids[:], token_ids[:]
-        if label == 0:
-            source_ids[mask_idx] = tokenizer._token_mask_id
-            target_ids[mask_idx] = neg_id
-        elif label == 1:
-            source_ids[mask_idx] = tokenizer._token_mask_id
-            target_ids[mask_idx] = pos_id
-        batch_token_ids.append(source_ids)
-        batch_segment_ids.append(segment_ids)
-        batch_output_ids.append(target_ids)
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    batch_output_ids = torch.tensor(sequence_padding(batch_output_ids), dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_output_ids
+class MyDataset(ListDataset):
+    def collate_fn(self, batch):
+        batch_token_ids, batch_segment_ids, batch_output_ids = [], [], []
+        for text, label in batch:
+            if label != 2:
+                text = prefix + text
+            token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+            if self.kwargs['random']:
+                source_ids, target_ids = random_masking(token_ids)
+            else:
+                source_ids, target_ids = token_ids[:], token_ids[:]
+            if label == 0:
+                source_ids[mask_idx] = tokenizer._token_mask_id
+                target_ids[mask_idx] = neg_id
+            elif label == 1:
+                source_ids[mask_idx] = tokenizer._token_mask_id
+                target_ids[mask_idx] = pos_id
+            batch_token_ids.append(source_ids)
+            batch_segment_ids.append(segment_ids)
+            batch_output_ids.append(target_ids)
+        batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+        batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
+        batch_output_ids = torch.tensor(sequence_padding(batch_output_ids), dtype=torch.long, device=device)
+        return [batch_token_ids, batch_segment_ids], batch_output_ids
 
 # 加载数据集
-train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-random = False
-valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(ListDataset(data=test_data),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataset = MyDataset(data=train_data, random=True)
+valid_dataset = MyDataset(data=valid_data, random=False)
+test_dataset = MyDataset(data=test_data, random=False)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
+valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=valid_dataset.collate_fn) 
+test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=test_dataset.collate_fn) 
 
 # 加载预训练模型
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
@@ -151,7 +153,7 @@ class Evaluator(Callback):
     def evaluate(data):
         total, right = 0., 0.
         for x_true, y_true in data:
-            y_pred = model.predict(x_true)[1]
+            y_pred = F.softmax(model.predict(x_true)[1], dim=-1)
             y_pred = y_pred[:, mask_idx, [neg_id, pos_id]].argmax(axis=1)
             y_true = (y_true[:, mask_idx] == pos_id).long()
             total += len(y_true)
@@ -166,6 +168,6 @@ if __name__ == '__main__':
         test_acc = evaluator.evaluate(test_dataloader)
         print(f'[{choice}]  valid_acc: {valid_acc:.4f}, test_acc: {test_acc:.4f}')
     else:
-        model.fit(train_dataloader, epochs=1000, steps_per_epoch=None, callbacks=[evaluator])
+        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

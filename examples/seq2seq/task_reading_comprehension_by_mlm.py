@@ -14,7 +14,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
-import re 
+import re
+import torch.nn.functional as F
 
 # 基本参数
 max_p_len = 256
@@ -158,7 +159,8 @@ def gen_answer(question, passages):
         segment_ids.append([0] * len(token_ids[-1]))
     token_ids = torch.tensor(sequence_padding(token_ids), device=device)
     segment_ids = torch.tensor(sequence_padding(segment_ids), device=device)
-    probas = model.predict([token_ids, segment_ids])[-1][:, 1:max_a_len+1, :]
+    logit = model.predict([token_ids, segment_ids])[-1][:, 1:max_a_len+1, :]
+    probas = F.softmax(logit, dim=-1)
     results = {}
     for t, p in zip(all_p_token_ids, probas):
         a, score = tuple(), 0.

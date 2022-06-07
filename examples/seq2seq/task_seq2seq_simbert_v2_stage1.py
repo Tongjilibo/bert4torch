@@ -101,7 +101,7 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', 
-                                            with_pool='linear', with_mlm='linear', dropout_rate=0.2, application='unilm')
+                                            with_pool='linear', with_mlm=True, dropout_rate=0.2, application='unilm')
         self.pool_method = pool_method
 
     def get_pool_emb(self, hidden_state, pool_cls, attention_mask):

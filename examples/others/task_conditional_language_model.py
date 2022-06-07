@@ -78,7 +78,7 @@ class Model(BaseModel):
         c = nn.Embedding(num_classes, 128)
         self.bert = build_transformer_model(config_path,
                                             checkpoint_path,
-                                            with_mlm='linear',
+                                            with_mlm=True,
                                             application='lm',
                                             keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
                                             layer_norm_cond=c,

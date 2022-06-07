@@ -85,7 +85,7 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/qipu/qipu.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 由于字典中0不代表padding位，为避免attention_mask计算错误，这里token_pad_ids=-100
-model = build_transformer_model(config_path, checkpoint_path, application='lm', with_mlm='linear',
+model = build_transformer_model(config_path, checkpoint_path, application='lm', with_mlm=True,
                                 keep_tokens=keep_tokens, token_pad_ids=-100).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):

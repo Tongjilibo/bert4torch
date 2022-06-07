@@ -57,7 +57,7 @@ train_dataloader = DataLoader(ListDataset(glob.glob('F:/Projects/data/corpus/sen
 model = build_transformer_model(
     config_path,
     checkpoint_path,
-    with_mlm='linear',
+    with_mlm=True,
     application='unilm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)

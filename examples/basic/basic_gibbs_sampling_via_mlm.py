@@ -16,7 +16,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
 model = build_transformer_model(
-    config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True
+    config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax'
 )  # 建立模型，加载权重
 
 sentences = []

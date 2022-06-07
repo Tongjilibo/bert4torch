@@ -91,7 +91,7 @@ train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/pretrain/金庸
 model = build_transformer_model(
     config_path,
     checkpoint_path,
-    with_mlm='linear',
+    with_mlm=True,
     application='lm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)
@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, epochs=epochs, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=epochs, steps_per_epoch=100, callbacks=[evaluator])
 
 else:
 

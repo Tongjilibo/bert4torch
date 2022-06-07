@@ -16,7 +16,7 @@ dict_path = 'F:/Projects/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-cha
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, model='gau_alpha', with_mlm='linear')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, model='gau_alpha', with_mlm='softmax')  # 建立模型，加载权重
 
 token_ids, segments_ids = tokenizer.encode("近期正是上市公司财报密集披露的时间，但有多家龙头公司的业绩令投资者失望")
 token_ids[5] = token_ids[6] = tokenizer._token_mask_id

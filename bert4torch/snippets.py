@@ -735,7 +735,8 @@ def search_layer(model, layer_name, retrun_first=True):
 
 
 class ListDataset(Dataset):
-    def __init__(self, file_path=None, data=None):
+    def __init__(self, file_path=None, data=None, **kwargs):
+        self.kwargs = kwargs
         if isinstance(file_path, (str, list)):
             self.data = self.load_data(file_path)
         elif isinstance(data, list):

@@ -94,7 +94,7 @@ def get_train_dataloader():
     return train_dataloader
 train_dataloader = get_train_dataloader()
 
-model = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0, with_mlm='linear').to(device)
+model = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0, with_mlm=True).to(device)
 
 # weight decay
 param_optimizer = list(model.named_parameters())
