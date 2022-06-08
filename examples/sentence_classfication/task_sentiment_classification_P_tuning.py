@@ -1,11 +1,13 @@
 #! -*- coding:utf-8 -*-
 # 情感分析例子，利用MLM+P-tuning
+# 官方项目：https://github.com/THUDM/P-tuning
+# 参考项目：https://github.com/bojone/P-tuning
 
 import torch
 import torch.nn as nn
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model
+from bert4torch.models import build_transformer_model, BaseModel
 from torch.optim import Adam
 from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
@@ -72,37 +74,39 @@ def random_masking(token_ids):
     return source, target
 
 
-random = True
-def collate_fn(batch):
-    batch_token_ids, batch_segment_ids, batch_output_ids = [], [], []
-    for text, label in batch:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        if label != 2:
-            token_ids = token_ids[:1] + desc_ids + token_ids[1:]
-            segment_ids = [0] * len(desc_ids) + segment_ids
-        if random:
-            source_ids, target_ids = random_masking(token_ids)
-        else:
-            source_ids, target_ids = token_ids[:], token_ids[:]
-        if label == 0:
-            source_ids[mask_idx] = tokenizer._token_mask_id
-            target_ids[mask_idx] = neg_id
-        elif label == 1:
-            source_ids[mask_idx] = tokenizer._token_mask_id
-            target_ids[mask_idx] = pos_id
-        batch_token_ids.append(source_ids)
-        batch_segment_ids.append(segment_ids)
-        batch_output_ids.append(target_ids)
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    batch_output_ids = torch.tensor(sequence_padding(batch_output_ids), dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_output_ids
+class MyDataset(ListDataset):
+    def collate_fn(self, batch):
+        batch_token_ids, batch_segment_ids, batch_output_ids = [], [], []
+        for text, label in batch:
+            token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+            if label != 2:
+                token_ids = token_ids[:1] + desc_ids + token_ids[1:]
+                segment_ids = [0] * len(desc_ids) + segment_ids
+            if self.kwargs['random']:
+                source_ids, target_ids = random_masking(token_ids)
+            else:
+                source_ids, target_ids = token_ids[:], token_ids[:]
+            if label == 0:
+                source_ids[mask_idx] = tokenizer._token_mask_id
+                target_ids[mask_idx] = neg_id
+            elif label == 1:
+                source_ids[mask_idx] = tokenizer._token_mask_id
+                target_ids[mask_idx] = pos_id
+            batch_token_ids.append(source_ids)
+            batch_segment_ids.append(segment_ids)
+            batch_output_ids.append(target_ids)
+        batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+        batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
+        batch_output_ids = torch.tensor(sequence_padding(batch_output_ids), dtype=torch.long, device=device)
+        return [batch_token_ids, batch_segment_ids], batch_output_ids
 
 # 加载数据集
-train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-random = False
-valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(ListDataset(data=test_data),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataset = MyDataset(data=train_data, random=True)
+valid_dataset = MyDataset(data=valid_data, random=False)
+test_dataset = MyDataset(data=test_data, random=False)
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
+valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=valid_dataset.collate_fn) 
+test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=test_dataset.collate_fn) 
 
 class MyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -116,67 +120,23 @@ class MyLoss(nn.CrossEntropyLoss):
         loss = super().forward(y_pred, y_true.flatten())
         return loss
 
-# 加载预训练模型
+# 只训练这几个tokens权重
+# class PtuningBERT(BaseModel):
+#     def __init__(self):
+#         super().__init__()
+#         self.model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True)
+#         for param in self.model.parameters():
+#             param.requires_grad = False  # 冻结bert
+#         self.embedding = nn.Embedding()
+
+# 全部权重一起训练
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
 
-12# 定义使用的loss和optimizer，这里支持自定义
+# 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=MyLoss(ignore_index=0),
     optimizer=Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
-
-class PtuningEmbedding(Embedding):
-    """新定义Embedding层，只优化部分Token
-    """
-    def call(self, inputs, mode='embedding'):
-        embeddings = self.embeddings
-        embeddings_sg = K.stop_gradient(embeddings)
-        mask = np.zeros((K.int_shape(embeddings)[0], 1))
-        mask[1:9] += 1  # 只优化id为1～8的token
-        self.embeddings = embeddings * mask + embeddings_sg * (1 - mask)
-        outputs = super(PtuningEmbedding, self).call(inputs, mode)
-        self.embeddings = embeddings
-        return outputs
-
-
-class PtuningBERT(BERT):
-    """替换原来的Embedding
-    """
-    def apply(self, inputs=None, layer=None, arguments=None, **kwargs):
-        if layer is Embedding:
-            layer = PtuningEmbedding
-        return super(PtuningBERT, self).apply(inputs, layer, arguments, **kwargs)
-
-
-# 加载预训练模型
-model = build_transformer_model(
-    config_path=config_path,
-    checkpoint_path=checkpoint_path,
-    model=PtuningBERT,
-    with_mlm=True
-)
-
-for layer in model.layers:
-    if layer.name != 'Embedding-Token':
-        layer.trainable = False
-
-# 训练用模型
-y_in = keras.layers.Input(shape=(None,))
-output = keras.layers.Lambda(lambda x: x[:, :10])(model.output)
-outputs = CrossEntropy(1)([y_in, model.output])
-
-train_model = keras.models.Model(model.inputs + [y_in], outputs)
-train_model.compile(optimizer=Adam(6e-4))
-train_model.summary()
-
-# 预测模型
-model = keras.models.Model(model.inputs, output)
-
-# 转换数据集
-train_generator = data_generator(train_data, batch_size)
-valid_generator = data_generator(valid_data, batch_size)
-test_generator = data_generator(test_data, batch_size)
-
 
 class Evaluator(Callback):
     """评估与保存
@@ -190,7 +150,7 @@ class Evaluator(Callback):
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(f'[{choice}]  valid_acc: {val_acc:.4f}, test_acc: {test_acc:.4f}, best_val_acc: {self.best_val_acc:.4f}\n')
+        print(f'valid_acc: {val_acc:.4f}, test_acc: {test_acc:.4f}, best_val_acc: {self.best_val_acc:.4f}\n')
 
     @staticmethod
     def evaluate(data):
@@ -205,16 +165,7 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
-
     evaluator = Evaluator()
-
-    train_model.fit_generator(
-        train_generator.forfit(),
-        steps_per_epoch=len(train_generator) * 50,
-        epochs=1000,
-        callbacks=[evaluator]
-    )
-
+    model.fit(train_dataloader, epochs=100, steps_per_epoch=None, callbacks=[evaluator])
 else:
-
-    model.load_weights('best_model_bert.weights')
+    model.load_weights('best_model.pt')

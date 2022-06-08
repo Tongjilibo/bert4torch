@@ -1,9 +1,10 @@
 #! -*- coding:utf-8 -*-
 # 情感分析例子，利用MLM做 Zero-Shot/Few-Shot/Semi-Supervised Learning
 # 参考项目：https://github.com/bojone/Pattern-Exploiting-Training
+# 指标如下，由于没有固定随机化因子，因此下述指标可能略有波动
 # zero-shot1: 0.8517/0.8437
-# zero-shot2: 0.8655/0.8678 [1epoch]
-# few-shot:
+# zero-shot2: 0.8811/0.8707
+# few-shot:   0.8896/0.8910
 # semi-sup:
 
 import torch
@@ -23,7 +24,7 @@ config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-robert
 checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-choice = 'zero-shot2'  # zero-shot1, zero-shot2, few-shot, semi-sup
+choice = 'semi-sup'  # zero-shot1, zero-shot2, few-shot, semi-sup
 
 def load_data(filename):
     D = []
@@ -165,6 +166,6 @@ if __name__ == '__main__':
         test_acc = evaluator.evaluate(test_dataloader)
         print(f'[{choice}]  valid_acc: {valid_acc:.4f}, test_acc: {test_acc:.4f}')
     else:
-        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+        model.fit(train_dataloader, epochs=100, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')
