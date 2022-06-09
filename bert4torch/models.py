@@ -676,7 +676,7 @@ class BERT(BERT_BASE):
         # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
         # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸
         if self.custom_attention_mask:
-            attention_mask = inputs[index_]
+            attention_mask = inputs[index_].long().unsqueeze(1).unsqueeze(2)
             index_ += 1
         elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
             attention_mask = (token_ids != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)  # 默认0为mask_value

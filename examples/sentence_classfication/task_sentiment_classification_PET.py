@@ -5,7 +5,7 @@
 # zero-shot1: 0.8517/0.8437
 # zero-shot2: 0.8811/0.8707
 # few-shot:   0.8896/0.8910
-# semi-sup:
+# semi-sup:   0.9024/0.8948
 
 import torch
 import torch.nn as nn

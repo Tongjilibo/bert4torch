@@ -1,7 +1,8 @@
 #! -*- coding:utf-8 -*-
-# 情感分析例子，利用MLM+P-tuning
+# 情感分析例子，利用MLM+P-tuning，目前示例是全部一起finetune未冻结
 # 官方项目：https://github.com/THUDM/P-tuning
 # 参考项目：https://github.com/bojone/P-tuning
+# few-shot: 0.8953/0.8953
 
 import torch
 import torch.nn as nn
@@ -11,7 +12,6 @@ from bert4torch.models import build_transformer_model, BaseModel
 from torch.optim import Adam
 from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
-
 
 maxlen = 128
 batch_size = 32
@@ -112,22 +112,30 @@ class MyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, y_preds, y_true):
-        # accuracy = keras.metrics.sparse_categorical_accuracy(y_true, y_pred)
-        # accuracy = K.sum(accuracy * y_mask) / K.sum(y_mask)
-        # self.add_metric(accuracy, name='accuracy')
         y_pred = y_preds[1]
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         loss = super().forward(y_pred, y_true.flatten())
         return loss
 
-# 只训练这几个tokens权重
+# # 只训练这几个tokens权重这部分尚未调试好
 # class PtuningBERT(BaseModel):
 #     def __init__(self):
 #         super().__init__()
-#         self.model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True)
-#         for param in self.model.parameters():
-#             param.requires_grad = False  # 冻结bert
-#         self.embedding = nn.Embedding()
+#         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True)
+#         for name, param in self.bert.named_parameters():
+#             if 'word_embeddings' not in name:
+#                 param.requires_grad = False  # 冻结除了word_embedding层意外的其他层
+#     def forward(self, token_ids, segment_ids):
+#         return self.bert([token_ids, segment_ids])
+#     def forward(self, token_ids, segment_ids):
+#         embedding = self.bert.embeddings.word_embeddings(token_ids)
+#         embedding_no_grad = embedding.detach()
+#         mask = torch.ones(token_ids.shape[1], dtype=torch.long, device=token_ids.device)
+#         mask[1:9] -= 1  # 只优化id为1～8的token
+#         embedding[:, mask.bool()] = embedding_no_grad[:, mask.bool()]
+#         attention_mask = (token_ids != tokenizer._token_pad_id)
+#         return self.bert([embedding, segment_ids, attention_mask])
+# model = PtuningBERT().to(device)
 
 # 全部权重一起训练
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
@@ -146,7 +154,7 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = self.evaluate(valid_dataloader)
-        test_acc = self.evaluate(train_dataloader)
+        test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
@@ -166,6 +174,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=100, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=100, steps_per_epoch=300, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')
