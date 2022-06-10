@@ -12,6 +12,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from torch.optim import Adam
 from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
+from torchinfo import summary
 
 maxlen = 128
 batch_size = 32
@@ -19,7 +20,7 @@ config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-robert
 checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+choice = 'finetune_all'  # finetune_all finetune_few
 
 def load_data(filename):
     D = []
@@ -117,33 +118,34 @@ class MyLoss(nn.CrossEntropyLoss):
         loss = super().forward(y_pred, y_true.flatten())
         return loss
 
-# # 只训练这几个tokens权重这部分尚未调试好
-# class PtuningBERT(BaseModel):
-#     def __init__(self):
-#         super().__init__()
-#         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True)
-#         for name, param in self.bert.named_parameters():
-#             if 'word_embeddings' not in name:
-#                 param.requires_grad = False  # 冻结除了word_embedding层意外的其他层
-#     def forward(self, token_ids, segment_ids):
-#         return self.bert([token_ids, segment_ids])
-#     def forward(self, token_ids, segment_ids):
-#         embedding = self.bert.embeddings.word_embeddings(token_ids)
-#         embedding_no_grad = embedding.detach()
-#         mask = torch.ones(token_ids.shape[1], dtype=torch.long, device=token_ids.device)
-#         mask[1:9] -= 1  # 只优化id为1～8的token
-#         embedding[:, mask.bool()] = embedding_no_grad[:, mask.bool()]
-#         attention_mask = (token_ids != tokenizer._token_pad_id)
-#         return self.bert([embedding, segment_ids, attention_mask])
-# model = PtuningBERT().to(device)
-
-# 全部权重一起训练
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
+if choice == 'finetune_few':
+    # 只训练这几个tokens权重这部分尚未调试好
+    class PtuningBERT(BaseModel):
+        def __init__(self):
+            super().__init__()
+            self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, tie_emb_prj_weight=True, custom_attention_mask=True)
+            for name, param in self.bert.named_parameters():
+                if ('word_embeddings' not in name) and ('mlmDecoder' not in name):
+                    param.requires_grad = False  # 冻结除了word_embedding层意外的其他层
+        def forward(self, token_ids, segment_ids):
+            embedding = self.bert.embeddings.word_embeddings(token_ids)
+            embedding_no_grad = embedding.detach()
+            mask = torch.ones(token_ids.shape[1], dtype=torch.long, device=token_ids.device)
+            mask[1:9] -= 1  # 只优化id为1～8的token
+            embedding[:, mask.bool()] = embedding_no_grad[:, mask.bool()]
+            attention_mask = (token_ids != tokenizer._token_pad_id)
+            return self.bert([embedding, segment_ids, attention_mask])
+    model = PtuningBERT().to(device)
+    summary(model, input_data=next(iter(train_dataloader))[0])
+elif choice == 'finetune_all':
+    # 全部权重一起训练
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
+    summary(model, input_data=[next(iter(train_dataloader))[0]])
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=MyLoss(ignore_index=0),
-    optimizer=Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=6e-4),  # 用足够小的学习率
 )
 
 class Evaluator(Callback):
