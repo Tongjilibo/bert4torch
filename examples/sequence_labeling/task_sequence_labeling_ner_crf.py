@@ -1,6 +1,8 @@
 #! -*- coding:utf-8 -*-
 # bert+crf用来做实体识别
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
+# [valid_f1]  token_level: 0.96563； entity_level: 0.95475
+
 
 import numpy as np
 import torch
@@ -178,7 +180,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, epochs=50, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
 
 else: 
 
