@@ -10,7 +10,7 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 
 # 基本信息
 maxlen = 32
-choice = 'simbert'  # simbert simbert_v2
+choice = 'simbert_v2'  # simbert simbert_v2
 if choice == 'simbert':
     args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base"
     args_model = 'bert'
@@ -66,7 +66,7 @@ model = Model(pool_method='cls').to(device)
 class SynonymsGenerator(AutoRegressiveDecoder):
     """seq2seq解码器
     """
-    @AutoRegressiveDecoder.wraps('probas')
+    @AutoRegressiveDecoder.wraps('logits')
     def predict(self, inputs, output_ids, states):
         token_ids, segment_ids = inputs
         token_ids = torch.cat([token_ids, output_ids], 1)
