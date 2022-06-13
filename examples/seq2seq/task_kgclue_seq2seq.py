@@ -140,7 +140,7 @@ class Trie(object):
 # 基本参数
 maxlen = 128
 batch_size = 32
-epochs = 3
+epochs = 10
 
 # 模型路径
 config_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_ft_base/config.json'
@@ -157,16 +157,16 @@ if os.path.exists('../datasets/KG.json'):
     KG.load('../datasets/KG.json')
 else:
     with open('F:/Projects/data/corpus/kg/KgCLUE/Knowledge_20211215.txt', 'r', encoding='utf-8') as f:
-        count = 0
+        # count = 0
         for l in tqdm(f):
             s, p, o = l.split('\t')
             s, m = subject_split(s)
             ids = tokenizer.encode(s, p)[0][1:]
             ids += tokenizer.encode(m)[0][1:-1]
             KG[ids] = ' '.join(o.split())
-            count += 1
-            if count > 10000:
-                break
+            # count += 1
+            # if count > 10000:
+            #     break
     KG.save('../datasets/KG.json')
 
 
@@ -231,7 +231,9 @@ class AutoQA(AutoRegressiveDecoder):
         probas = F.softmax(y_pred[:, -1, :], dim=-1)
         new_probas = torch.zeros_like(probas)
         for i, ids in enumerate(output_ids):
-            next_ids = [int(j) for j in KG.next_ones(ids.cpu().numpy())]  # 下一位容许集
+            ids = ids.cpu().numpy()
+            next_ids = [int(j) for j in KG.next_ones(ids)]  # 下一位容许集
+            # ===========如果t时刻为Pt的前缀树中的短句，带来的信息增益越大，则增加Pt的概率
             if len(next_ids) > 1 and self.end_id in ids:  # 容许集大于1且已解码出S
                 candidates = KG.keys(list(ids))  # 可能解码结果
                 weights = torch.ones_like(probas[i])  # 默认权重为1
@@ -240,7 +242,7 @@ class AutoQA(AutoRegressiveDecoder):
                     if len(c) > len(ids):
                         c = [int(j) for j in c]
                         w = lcs(c, token_ids[i])[0] - lcs0  # 未来还可能覆盖的token数
-                        weights[c[len(ids)]] = max(w + 1, weights[c[len(ids)]])
+                        weights[c[len(ids)]] = max(w + 1, weights[c[len(ids)]].cpu().numpy())
                 probas[i] = torch.pow(probas[i], 1. / weights)  # 按 p^(1/n) 来增大权重
             if not next_ids:  # 如果容许集为空，意味着要结束了
                 next_ids.append(self.end_id)
@@ -334,7 +336,7 @@ if __name__ == '__main__':
 
     model.fit(
         train_dataloader,
-        steps_per_epoch=100,
+        steps_per_epoch=None,
         epochs=epochs,
         callbacks=[evaluator]
     )

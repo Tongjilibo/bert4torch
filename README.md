@@ -28,6 +28,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
+- **2022年6月13更新**：增加seq2seq+前缀树
 - **2022年6月05更新**：增加PromptBert、PET、P-tuning示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus
 - **2022年5月29更新**：transformer_xl、xlnet模型, 修改sinusoid位置向量被init_weight的bug, EMA，sohu情感分类示例
 - **2022年5月17更新**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding)
