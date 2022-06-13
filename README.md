@@ -10,9 +10,10 @@ pip install bert4torch
 ```shell
 pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 ```
-- pip包的发布慢于git上的开发版本，git clone**注意引用路径**
-- 跑测试用例：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本，examples中用到的数据文件后续会放链接
-- 自行训练：针对自己的数据，修改相应的数据处理代码块
+- **注意事项**：pip包的发布慢于git上的开发版本，git clone**注意引用路径**
+- **测试用例**：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本，examples中用到的数据文件后续会放链接
+- **自行训练**：针对自己的数据，修改相应的数据处理代码块
+- **开发环境**：使用`torch==1.10`版本进行开发，如其他版本遇到不适配，欢迎反馈
 
 ## 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/Tutorials.md)
