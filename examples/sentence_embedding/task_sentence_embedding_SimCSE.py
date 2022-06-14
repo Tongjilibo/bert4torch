@@ -1,8 +1,6 @@
 #! -*- coding: utf-8 -*-
 # SimCSE 中文测试
 
-import sys
-from turtle import forward
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
 import numpy as np
