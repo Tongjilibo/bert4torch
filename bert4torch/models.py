@@ -1109,6 +1109,7 @@ class Encoder(BERT):
 
 
 class Decoder(LM_Mask, BERT):
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, with_lm=True, tie_emb_prj_weight=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
@@ -1146,9 +1147,17 @@ class Decoder(LM_Mask, BERT):
         outputs.append(hidden_states)
         if self.with_lm:
             logits = self.final_dense(hidden_states) * self.x_logit_scale # outputs为[btz, seq_len, vocab_size]的logits
+            activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
+            logits = activation(logits)
             outputs.append(logits)
         return outputs
 
+    def variable_mapping(self, prefix='bert'):
+        raw_mapping = super().variable_mapping(prefix)
+        mapping = {}
+        for k, v in raw_mapping.items():
+            mapping[k.replace('encoderLayer', 'decoderLayer')] = v
+        return mapping
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构
@@ -1848,6 +1857,8 @@ def build_transformer_model(
         'roformer_v2': RoFormerV2,
         'gau_alpha': GAU_alpha,
         'electra': ELECTRA,
+        'encoder': Encoder,
+        'decoder': Decoder,
         'transformer': Transformer,
         'bart': BART,
         'gpt': GPT,

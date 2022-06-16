@@ -67,27 +67,29 @@ from task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss import valid_data
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self, pool_method='mean', scale=20.0):
+    def __init__(self, pool_method='mean'):
         super().__init__()
-        self.encoder, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, with_mlm=True, return_model_config=True, segment_vocab_size=0)
-        self.decoder = self.encoder # 这里可以通过使用copy和不使用copy来决定一个模型还是两个独立的模型
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
+        self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='decoder', with_lm=True,  segment_vocab_size=0)
         self.pool_method = pool_method
-        self.scale = scale
+        # 是否绑定encoder和decoder的权重，这里暂未绑定
 
     def forward(self, token_ids_list):
         token_ids1 = token_ids_list[0]
-        hidden_state1, pool_cls1, _ = self.encoder([token_ids1])
+        hidden_state1, pool_cls1 = self.encoder([token_ids1])
         embeddings_a = self.get_pool_emb(hidden_state1, pool_cls1, attention_mask=token_ids1.gt(0).long())
 
         token_ids2 = token_ids_list[1]
-        _, _, mlm_score2 = self.decoder([token_ids2, embeddings_a.unsqueeze(1), torch.ones_like(token_ids1)[:, 0:1]])
+        encoder_embedding = embeddings_a.unsqueeze(1)
+        encoder_attention_mask = torch.ones_like(token_ids1)[:, 0:1][:, None, None, :]
+        _, logits = self.decoder([token_ids2, encoder_embedding, encoder_attention_mask])
 
-        return mlm_score2.reshape(-1, mlm_score2.shape[-1])
+        return logits.reshape(-1, logits.shape[-1])
 
     def encode(self, token_ids):
         self.eval()
         with torch.no_grad():
-            hidden_state, pool_cls, _ = self.encoder([token_ids])
+            hidden_state, pool_cls = self.encoder([token_ids])
             output = self.get_pool_emb(hidden_state, pool_cls, attention_mask=token_ids.gt(0).long())
         return output
     
@@ -109,7 +111,7 @@ model = Model().to(device)
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=nn.CrossEntropyLoss(ignore_index=0),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-4),  # 用足够小的学习率
 )
 
 # 定义评价函数
