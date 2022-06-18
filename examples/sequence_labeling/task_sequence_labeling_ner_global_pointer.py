@@ -2,24 +2,34 @@
 # global_pointer用来做实体识别
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
 # 博客：https://kexue.fm/archives/8373
+# [valid_f1]: 0.95783
 
 import numpy as np
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader
-import torch.nn as nn
 import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import GlobalPointer
+import random
+import os
 
-maxlen = 512
-batch_size = 6
+maxlen = 256
+batch_size = 16
 categories_label2id = {"LOC": 0, "ORG": 1, "PER": 2}
 categories_id2label = dict((value, key) for key,value in categories_label2id.items())
 ner_vocab_size = len(categories_label2id)
 ner_head_size = 64
+
+# 固定seed
+seed = 42
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
 
 # BERT base
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -46,9 +56,7 @@ class MyDataset(ListDataset):
                         label.append([i, i, flag[2:]])
                     elif flag[0] == 'I':
                         label[-1][1] = i
-                text_list = tokenizer.tokenize(text)[1:-1]  #不保留首位[CLS]和末位[SEP]
-                tokens = [j for i in text_list for j in i][:maxlen]
-                data.append((tokens, label))  # label为[[start, end, entity], ...]
+                data.append((text, label))  # label为[[start, end, entity], ...]
         return data
 
 
@@ -56,16 +64,25 @@ class MyDataset(ListDataset):
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
-    batch_token_ids = []
-    max_seq_len = min(max([len(tokens) for tokens, _ in batch]), maxlen)
-    batch_labels = torch.zeros((len(batch), len(categories_label2id), max_seq_len, max_seq_len), device=device)
-    for i, (tokens, labels) in enumerate(batch):
-        batch_token_ids.append(tokenizer.tokens_to_ids(tokens)) # 前面已经限制了长度
-        for s_i in labels:
-            if s_i[1] >= len(tokens):  # 实体的结尾超过文本长度，则不标记
-                continue
-            batch_labels[i, categories_label2id[s_i[-1]], s_i[0], s_i[1]] = 1
+    batch_token_ids, batch_labels = [], []
+    for i, (text, text_labels) in enumerate(batch):
+        tokens = tokenizer.tokenize(text, maxlen=maxlen)
+        mapping = tokenizer.rematch(text, tokens)
+        start_mapping = {j[0]: i for i, j in enumerate(mapping) if j}
+        end_mapping = {j[-1]: i for i, j in enumerate(mapping) if j}
+        token_ids = tokenizer.tokens_to_ids(tokens)
+        labels = np.zeros((len(categories_label2id), maxlen, maxlen))
+        for start, end, label in text_labels:
+            if start in start_mapping and end in end_mapping:
+                start = start_mapping[start]
+                end = end_mapping[end]
+                label = categories_label2id[label]
+                labels[label, start, end] = 1
+
+        batch_token_ids.append(token_ids) # 前面已经限制了长度
+        batch_labels.append(labels[:, :len(token_ids), :len(token_ids)])
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+    batch_labels = torch.tensor(sequence_padding(batch_labels, seq_dims=3), dtype=torch.long, device=device)
     return batch_token_ids, batch_labels
 
 # 转换数据集
