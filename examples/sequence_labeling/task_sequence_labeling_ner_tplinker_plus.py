@@ -12,7 +12,7 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import TplinkerHandshakingKernel
 
-maxlen = 256
+maxlen = 50
 batch_size = 16
 categories_label2id = {"LOC": 0, "ORG": 1, "PER": 2}
 categories_id2label = dict((value, key) for key,value in categories_label2id.items())
