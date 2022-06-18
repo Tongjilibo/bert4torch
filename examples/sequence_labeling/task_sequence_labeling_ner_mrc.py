@@ -14,9 +14,9 @@ from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 from collections import defaultdict
 
-max_c_len = 448
-max_q_len = 64
-batch_size = 2  # 真实的batch_size是 batch_size * 实体类型数
+max_c_len = 224
+max_q_len = 32
+batch_size = 6  # 真实的batch_size是 batch_size * 实体类型数
 categories = ['LOC', 'PER', 'ORG']
 ent2query = {"LOC": "找出下述句子中的地址名",
              "PER": "找出下述句子中的人名",
@@ -26,8 +26,16 @@ ent2query = {"LOC": "找出下述句子中的地址名",
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# 固定seed
+import random, os
+seed = 42
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -213,7 +221,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, epochs=50, steps_per_epoch=2000, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
 
 else: 
 

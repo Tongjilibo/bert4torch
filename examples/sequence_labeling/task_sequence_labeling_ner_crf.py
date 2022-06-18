@@ -15,8 +15,8 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 
-maxlen = 512
-batch_size = 6
+maxlen = 256
+batch_size = 16
 categories = ['O', 'B-LOC', 'I-LOC', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG']
 categories_id2label = {i: k for i, k in enumerate(categories)}
 categories_label2id = {k: i for i, k in enumerate(categories)}
@@ -25,8 +25,8 @@ categories_label2id = {k: i for i, k in enumerate(categories)}
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 # 固定seed
 import random, os
 seed = 42
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
 
 else: 
 
