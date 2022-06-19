@@ -497,7 +497,6 @@ class BERT_BASE(BaseModel):
 
         # 将ckpt的权重load到模型结构中
         self.load_state_dict(state_dict_new, strict=False)
-
     
     # def get_inputs(self):
     #     pass
@@ -688,7 +687,8 @@ class BERT(BERT_BASE):
         
         self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
         if self.attention_bias is not None:
-            attention_mask = attention_mask * self.attention_bias
+            attention_mask = attention_mask * self.attention_bias  # 不可访问padding
+            # attention_mask = self.attention_bias  # 可以访问padding
 
         # pytorch >= 1.5时候会导致StopIteration错误
         # https://github.com/huggingface/transformers/issues/3936
@@ -1157,6 +1157,20 @@ class Decoder(LM_Mask, BERT):
         mapping = {}
         for k, v in raw_mapping.items():
             mapping[k.replace('encoderLayer', 'decoderLayer')] = v
+        # for i in range(self.num_hidden_layers):
+        #     prefix_i = f'{prefix}.encoder.layer.%d.' % i
+        #     mapping.update({
+        #         f'decoderLayer.{i}.crossAttention.q.weight': prefix_i + 'crossattention.self.query.weight',
+        #         f'decoderLayer.{i}.crossAttention.q.bias': prefix_i + 'crossattention.self.query.bias',
+        #         f'decoderLayer.{i}.crossAttention.k.weight': prefix_i + 'crossattention.self.key.weight',
+        #         f'decoderLayer.{i}.crossAttention.k.bias': prefix_i + 'crossattention.self.key.bias',
+        #         f'decoderLayer.{i}.crossAttention.v.weight': prefix_i + 'crossattention.self.value.weight',
+        #         f'decoderLayer.{i}.crossAttention.v.bias': prefix_i + 'crossattention.self.value.bias',
+        #         f'decoderLayer.{i}.crossAttention.o.weight': prefix_i + 'crossattention.output.dense.weight',
+        #         f'decoderLayer.{i}.crossAttention.o.bias': prefix_i + 'crossattention.output.dense.bias',
+        #         f'decoderLayer.{i}.layerNorm3.weight': prefix_i + 'crossattention.output.LayerNorm.weight',
+        #         f'decoderLayer.{i}.layerNorm3.bias': prefix_i + 'crossattention.output.LayerNorm.bias'
+        #         })
         return mapping
 
 class Transformer(BERT_BASE):
