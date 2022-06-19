@@ -1,7 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 语义相似度任务-无监督：训练集为网上pretrain数据, dev集为sts-b
 
-
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
@@ -11,12 +10,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import pearsonr, spearmanr
-import copy
-import random
 import numpy as np
 import re
-random.seed(2022)
-np.random.seed(2002)
 
 maxlen = 256
 batch_size = 8
@@ -107,7 +102,7 @@ class Model(BaseModel):
     
     def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
         if self.pool_method == 'cls':
-            return pool_cls
+            return hidden_state[:, 0, :]
         elif self.pool_method == 'mean':
             hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
             attention_mask = torch.sum(attention_mask, dim=1)[:, None]
@@ -118,7 +113,7 @@ class Model(BaseModel):
         else:
             raise ValueError('pool_method illegal')
 
-model = Model().to(device)
+model = Model(pool_method='cls').to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
@@ -160,7 +155,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=20, 
-            steps_per_epoch=1000, 
+            steps_per_epoch=500, 
             callbacks=[evaluator]
             )
 else:
