@@ -67,19 +67,21 @@ class Model(BaseModel):
         super().__init__()
         self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         # 用bert的权重来初始化decoder，crossAttn部分是随机初始化的
-        self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='decoder', with_lm=True, segment_vocab_size=0)
+        self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, application='lm', is_decoder=True, segment_vocab_size=0)
         self.pool_method = pool_method
 
         # 绑定encoder和decoder的权重
         decoder_names = {k for k, _ in self.decoder.named_parameters()}
         for enc_k, v in self.encoder.named_parameters():
-            dec_k = enc_k.replace('encoder', 'decoder')
+            dec_k = enc_k
             if dec_k in decoder_names:
                 rep_str = f'self.encoder.{enc_k} = self.decoder.{dec_k}'
                 if re.search('\.[0-9]+\.', rep_str):
                     temp = '[' + re.findall('\.[0-9]+\.', rep_str)[0][1:-1] + '].'
                     rep_str = re.sub('\.[0-9]+\.', temp, rep_str)
                 exec(rep_str)
+            else:
+                print(enc_k, dec_k)
 
     def forward(self, token_ids_list):
         token_ids1 = token_ids_list[0]
