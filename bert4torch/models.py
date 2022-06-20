@@ -399,7 +399,7 @@ class BERT_BASE(BaseModel):
         #     layer_norm_cond_hidden_size,
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
-        self.output_all_encoded_layers = True if 'output_all_encoded_layers' in kwargs else False
+        self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
 
     def forward(self, inputs):
         """定义模型的执行流程

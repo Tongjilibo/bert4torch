@@ -7,7 +7,7 @@ import numpy as np
 import scipy.stats
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import sequence_padding
+from bert4torch.snippets import sequence_padding, Callback
 from torch.utils.data import DataLoader
 from torch import optim, nn
 import torch
@@ -30,24 +30,9 @@ def load_data(filename):
     return D
 
 
-def convert_to_ids(data, tokenizer, maxlen=64):
-    """转换文本数据为id形式
-    """
-    a_token_ids, b_token_ids, labels = [], [], []
-    for d in tqdm(data):
-        token_ids = tokenizer.encode(d[0], maxlen=maxlen)[0]
-        a_token_ids.append(token_ids)
-        token_ids = tokenizer.encode(d[1], maxlen=maxlen)[0]
-        b_token_ids.append(token_ids)
-        labels.append(d[2])
-    a_token_ids = sequence_padding(a_token_ids)
-    b_token_ids = sequence_padding(b_token_ids)
-    return a_token_ids, b_token_ids, labels
-
-
 # =============================基本参数=============================
 # model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'first-last-avg', 'ATEC', 0.3  # debug使用
+model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
 assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
 assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
@@ -89,43 +74,55 @@ datasets = {
 }
 
 # 语料id化
-all_names, all_weights, all_token_ids, all_labels = [], [], [], []
-train_token_ids = []
+all_names, all_weights, all_texts = [], [], []
+train_texts = []
 for name, data in datasets.items():
-    a_token_ids, b_token_ids, labels = convert_to_ids(data, tokenizer, maxlen)
     all_names.append(name)
     all_weights.append(len(data))
-    all_token_ids.append((a_token_ids, b_token_ids))
-    all_labels.append(labels)
-    train_token_ids.extend(a_token_ids)
-    train_token_ids.extend(b_token_ids)
+    for a_text, b_text, labels in data:
+        all_texts.append((a_text, b_text, labels))
+        train_texts.append(a_text)
+        train_texts.append(b_text)
 
 if task_name != 'PAWSX':
-    np.random.shuffle(train_token_ids)
-    train_token_ids = train_token_ids[:10000]
+    np.random.shuffle(train_texts)
+    train_texts = train_texts[:10000]
 
 def collate_fn(batch):
     texts_list = [[] for _ in range(2)]
-    for token_ids in batch:
+    for text in batch:
+        token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
         texts_list[0].append(token_ids)
         texts_list[1].append(token_ids)
     for i, texts in enumerate(texts_list):
         texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
     labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
     return texts_list, labels
+train_dataloader = DataLoader(ListDataset(data=train_texts), shuffle=True, batch_size=batch_size, collate_fn=collate_fn)
 
-train_dataloader = DataLoader(ListDataset(data=train_token_ids), shuffle=True, collate_fn=collate_fn)
-
+def collate_fn_eval(batch):
+    texts_list = [[] for _ in range(2)]
+    labels = []
+    for text1, text2, label in batch:
+        texts_list[0].append(tokenizer.encode(text1, maxlen=maxlen)[0])
+        texts_list[1].append(tokenizer.encode(text2, maxlen=maxlen)[0])
+        labels.append(label)
+    for i, texts in enumerate(texts_list):
+        texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
+    labels = torch.tensor(labels, dtype=torch.float, device=device)
+    return texts_list, labels
+valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 建立模型
 class Model(BaseModel):
     def __init__(self, pool_method='cls', scale=20.0):
         super().__init__()
         self.pool_method = pool_method
-        with_pool = 'linear' if pool_method == 'cls' else False
+        with_pool = 'linear' if pool_method == 'cls' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
-        self.bert = build_transformer_model(config_path, checkpoint_path, model=model_type, 
+        self.bert = build_transformer_model(config_path, checkpoint_path, model=model_type, segment_vocab_size=0,
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
+        self.scale = scale
     
     def forward(self, token_ids_list):
         reps = []
@@ -172,27 +169,36 @@ class Model(BaseModel):
 model = Model(pool_method=pooling).to(device)
 model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), 5e-6))
 
-# SimCSE训练
-model.fit(train_dataloader, steps_per_epoch=None, epochs=1)
+class Evaluator(Callback):
+    """评估与保存
+    """
+    def __init__(self):
+        self.best_val_consine = 0.
 
-# =============================模型预测=============================
-# 语料向量化
-all_vecs = []
-for a_token_ids, b_token_ids in all_token_ids:
-    a_vecs = model.encode(torch.tensor(a_token_ids, dtype=torch.long, device=device))
-    b_vecs = model.encode(torch.tensor(b_token_ids, dtype=torch.long, device=device))
-    all_vecs.append((a_vecs.cpu.numpy(), b_vecs.cpu.numpy()))
+    def on_epoch_end(self, global_step, epoch, logs=None):
+        val_consine = evaluate(valid_dataloader)
+        if val_consine > self.best_val_consine:
+            self.best_val_consine = val_consine
+            # model.save_weights('best_model.pt')
+        print(f'val_consine: {val_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
 
-# 标准化，相似度，相关系数
-all_corrcoefs = []
-for (a_vecs, b_vecs), labels in zip(all_vecs, all_labels):
-    a_vecs = torch.nn.functional.normalize(a_vecs, p=2, dim=1)
-    b_vecs = torch.nn.functional.normalize(b_vecs, p=2, dim=1)
-    sims = (a_vecs * b_vecs).sum(axis=1)
-    corrcoef = scipy.stats.spearmanr(labels, sims).correlation
-    all_corrcoefs.append(corrcoef)
+def evaluate(dataloader):
+    # 模型预测
+    # 标准化，相似度，相关系数
+    sims_list, labels = [], []
+    for (a_token_ids, b_token_ids), label in tqdm(dataloader):
+        a_vecs = model.encode(a_token_ids)
+        b_vecs = model.encode(b_token_ids)
+        a_vecs = torch.nn.functional.normalize(a_vecs, p=2, dim=1).cpu().numpy()
+        b_vecs = torch.nn.functional.normalize(b_vecs, p=2, dim=1).cpu().numpy()
+        sims = (a_vecs * b_vecs).sum(axis=1)
+        sims_list.append(sims)
+        labels.append(label.cpu().numpy())
 
-all_corrcoefs.extend([np.average(all_corrcoefs), np.average(all_corrcoefs, weights=all_weights)])
+    corrcoef = scipy.stats.spearmanr(np.concatenate(labels), np.concatenate(sims_list)).correlation
+    return corrcoef
 
-for name, corrcoef in zip(all_names + ['avg', 'w-avg'], all_corrcoefs):
-    print('%s: %s' % (name, corrcoef))
+if  __name__ == '__main__':
+    evaluator = Evaluator()
+    model.fit(train_dataloader, steps_per_epoch=None, epochs=10, callbacks=[evaluator])
+
