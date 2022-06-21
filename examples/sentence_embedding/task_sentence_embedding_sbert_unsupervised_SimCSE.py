@@ -2,7 +2,7 @@
 # SimCSE 中文测试
 # bert4keras链接：https://kexue.fm/archives/8348
 
-# 测试结果均为1个epoch的结果
+# 测试结果均为1个epoch的结果bert+cls
 # |  model |  ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
 # |  ----  |  ----  | ---- |   ----  |   ----  |   ----  |
 # |  BERT  | 33.30  | 49.95|  70.36  |  12.69  |  69.00  |
