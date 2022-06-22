@@ -4,7 +4,7 @@
 # 测试结果均为1个epoch的结果bert+cls
 # |  model |  ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
 # |  ----  |  ----  | ---- |   ----  |   ----  |   ----  |
-# |  BERT  | 33.30  | 49.95|  70.36  |  12.69  |  69.00  |
+# |  BERT  | 33.61  | 50.43| 70.61   |  12.84  |  69.31  |
 
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
@@ -32,12 +32,18 @@ class CollateFunc(object):
         self.dup_rate = dup_rate
         self.tokenizer = tokenizer
 
-    def word_repetition_normal(self, batch_text):
+    def word_repetition(self, batch_text, pre_tokenize=False):
         dst_text = list()
         for text in batch_text:
+            if pre_tokenize:
+                cut_text = jieba.cut(text, cut_all=False)
+                text = list(cut_text)
             actual_len = len(text)
             dup_len = random.randint(a=0, b=max(2, int(self.dup_rate * actual_len)))
-            dup_word_index = random.sample(list(range(1, actual_len)), k=dup_len)
+            try:
+                dup_word_index = random.sample(list(range(1, actual_len)), k=dup_len)
+            except:
+                dup_word_index = set()
 
             dup_text = ''
             for index, word in enumerate(text):
@@ -46,28 +52,6 @@ class CollateFunc(object):
                     dup_text += word
             dst_text.append(dup_text)
         return dst_text
-
-    def word_repetition_chinese(self, batch_text):
-        ''' span duplicated for chinese
-        '''
-        dst_text = list()
-        for text in batch_text:
-            cut_text = jieba.cut(text, cut_all=False)
-            text = list(cut_text)
-
-            actual_len = len(text)
-            dup_len = random.randint(a=0, b=max(
-                2, int(self.dup_rate * actual_len)))
-            dup_word_index = random.sample(
-                list(range(1, actual_len)), k=dup_len)
-
-            dup_text = ''
-            for index, word in enumerate(text):
-                dup_text += word
-                if index in dup_word_index:
-                    dup_text += word
-                dst_text.append(dup_text)
-            return dup_text
 
     def negative_samples(self, batch_src_text):
         batch_size = len(batch_src_text)
@@ -87,7 +71,7 @@ class CollateFunc(object):
         input: batch_text: [batch_text,]
         output: batch_src_text, batch_dst_text, batch_neg_text
         '''
-        batch_pos_text = self.word_repetition_normal(batch_text)
+        batch_pos_text = self.word_repetition(batch_text)
         batch_neg_text = self.negative_samples(batch_text)
         # print(len(batch_pos_text))
 
@@ -126,7 +110,7 @@ def load_data(filename):
 
 # =============================基本参数=============================
 # model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'BQ', 0.3  # debug使用
 # 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
 assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
@@ -213,14 +197,20 @@ class Model(BaseModel):
         self.pool_method = pool_method
         with_pool = 'linear' if pool_method == 'pooler' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
-        self.bert = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
-                                            with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
+        self.encoder = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+                                               with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
+        self.momentum_encoder = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+                                                        with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         self.scale = scale
     
     def forward(self, token_ids_list):
         reps = []
-        for token_ids in token_ids_list:
-            hidden_state1, pooler = self.bert([token_ids])
+        for token_ids in token_ids_list[:2]:
+            hidden_state1, pooler = self.encoder([token_ids])
+            rep = self.get_pool_emb(hidden_state1, pooler, attention_mask=token_ids.gt(0).long())
+            reps.append(rep)
+        if len(token_ids_list) == 3:  # 负样本
+            hidden_state1, pooler = self.momentum_encoder([token_ids_list[2]])
             rep = self.get_pool_emb(hidden_state1, pooler, attention_mask=token_ids.gt(0).long())
             reps.append(rep)
         embeddings_a = reps[0]
@@ -231,7 +221,7 @@ class Model(BaseModel):
     def encode(self, token_ids):
         self.eval()
         with torch.no_grad():
-            hidden_state, pooler = self.bert([token_ids])
+            hidden_state, pooler = self.encoder([token_ids])
             output = self.get_pool_emb(hidden_state, pooler, attention_mask=token_ids.gt(0).long())
         return output
 
@@ -260,7 +250,19 @@ class Model(BaseModel):
         return torch.mm(a_norm, b_norm.transpose(0, 1))
 
 model = Model(pool_method=pooling).to(device)
-model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), 1e-5))
+
+class Momentum(object):
+    ''' 动量更新，这里用scheduler来实现，因为是在optimizer.step()后来调用的
+    '''
+    def __init__(self, gamma=0.95) -> None:
+        self.gamma = gamma
+    def step(self):
+        for encoder_param, moco_encoder_param in zip(model.encoder.parameters(), model.momentum_encoder.parameters()):
+            moco_encoder_param.data = self.gamma * moco_encoder_param.data  + (1. - self.gamma) * encoder_param.data
+
+model.compile(loss=nn.CrossEntropyLoss(), 
+              optimizer=optim.Adam(model.parameters(), 1e-5),
+              scheduler=Momentum(gamma=0.95))
 
 class Evaluator(Callback):
     """评估与保存
