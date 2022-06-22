@@ -18,7 +18,7 @@
 
 ### 文本表示
 - [task_sentence_embedding_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_bert_whitening.py)：文本表示，参考[bert_whitening](https://github.com/bojone/BERT-whitening)
-- [task_sentence_embedding_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embeddinglcqmc__ContrastiveLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
+- [task_sentence_embedding_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_lcqmc__ContrastiveLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_stsb_CosineSimilarityLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_stsb_CosineSimilarityLoss.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_stsb_DimensionalityReduction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_stsb_DimensionalityReduction.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_stsb_model_distillation.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_stsb_model_distillation.py)：文本表示，参考[SentenceTransformer](https://www.sbert.net/index.html)
