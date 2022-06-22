@@ -59,7 +59,7 @@ def get_data(filename):
 
 train_data = get_data('F:/Projects/data/corpus/pretrain/film/film.txt')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-from task_sentence_embedding_sbert_sts_b__CosineSimilarityLoss import valid_dataloader
+from task_sentence_embedding_stsb_CosineSimilarityLoss import valid_dataloader
 
 # 定义bert上的模型结构
 class Model(BaseModel):
