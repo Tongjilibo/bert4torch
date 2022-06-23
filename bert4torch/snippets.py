@@ -1027,3 +1027,43 @@ class WebServing(object):
         """启动服务
         """
         self.bottle.run(host=self.host, port=self.port, server=self.server)
+
+
+def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strategy='cls', custom_layer=None):
+    ''' 获取句向量
+    '''
+    if pool_strategy == 'pooler':
+        return pooler
+    elif pool_strategy == 'cls':
+        if isinstance(hidden_state, (list, tuple)):
+            hidden_state = hidden_state[-1]
+        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} strategy request tensor hidden_state'
+        return hidden_state[:, 0]
+    elif pool_strategy in {'last-avg', 'mean'}:
+        if isinstance(hidden_state, (list, tuple)):
+            hidden_state = hidden_state[-1]
+        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
+        hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
+        attention_mask = torch.sum(attention_mask, dim=1)[:, None]
+        return hidden_state / attention_mask
+    elif pool_strategy in {'last-max', 'max'}:
+        assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
+        seq_state = hidden_state * attention_mask[:, :, None]
+        return torch.max(seq_state, dim=1)
+    elif pool_strategy == 'first-last-avg':
+        assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
+        hid = torch.sum(hidden_state[1] * attention_mask[:, :, None], dim=1) # 这里不取0
+        hid += torch.sum(hidden_state[-1] * attention_mask[:, :, None], dim=1)
+        attention_mask = torch.sum(attention_mask, dim=1)[:, None]
+        return hid / (2 * attention_mask)
+    elif pool_strategy == 'custom':
+        # 取指定层
+        assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
+        assert isinstance(custom_layer, (int, list, tuple)), f'{pool_strategy} pooling strategy request int/list/tuple custom_layer'
+        custom_layer = [custom_layer] if isinstance(custom_layer, int) else custom_layer
+        hid = 0
+        for i, layer in enumerate(custom_layer, start=1):
+            hid += torch.sum(hidden_state[layer] * attention_mask[:, :, None], dim=1)
+        return hid / (i * attention_mask)
+    else:
+        raise ValueError('pool_strategy illegal')

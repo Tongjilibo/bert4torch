@@ -4,7 +4,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -64,12 +64,12 @@ class Model(BaseModel):
 
     def forward(self, token_ids_list):
         token_ids = token_ids_list[0]
-        hidden_state1, pool_cls1 = self.model1([token_ids])
-        embeddings_a = self.get_pool_emb(hidden_state1, pool_cls1, attention_mask=token_ids.gt(0).long())
+        hidden_state1, pooler1 = self.model1([token_ids])
+        embeddings_a = get_pool_emb(hidden_state1, pooler1, token_ids.gt(0).long(), self.pool_method)
 
         token_ids = token_ids_list[1]
-        hidden_state2, pool_cls2 = self.model2([token_ids])
-        embeddings_b = self.get_pool_emb(hidden_state2, pool_cls2, attention_mask=token_ids.gt(0).long())
+        hidden_state2, pooler2 = self.model2([token_ids])
+        embeddings_b = get_pool_emb(hidden_state2, pooler2, token_ids.gt(0).long(), self.pool_method)
 
         scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz]
         return scores
@@ -77,23 +77,10 @@ class Model(BaseModel):
     def encode(self, token_ids):
         self.eval()
         with torch.no_grad():
-            hidden_state, pool_cls = self.model1([token_ids])
-            output = self.get_pool_emb(hidden_state, pool_cls, attention_mask=token_ids.gt(0).long())
+            hidden_state, pooler = self.model1([token_ids])
+            output = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
         return output
-    
-    def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
-        if self.pool_method == 'cls':
-            return pool_cls
-        elif self.pool_method == 'mean':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'max':
-            seq_state = hidden_state * attention_mask[:, :, None]
-            return torch.max(seq_state, dim=1)
-        else:
-            raise ValueError('pool_method illegal')
-    
+        
     @staticmethod
     def cos_sim(a, b):
         a_norm = torch.nn.functional.normalize(a, p=2, dim=1)
@@ -117,9 +104,9 @@ def evaluate(data):
         embeddings2.append(model.encode(batch_token2_ids))
         labels.append(label)
 
-    embeddings1 = torch.concat(embeddings1).cpu().numpy()
-    embeddings2 = torch.concat(embeddings2).cpu().numpy()
-    labels = torch.concat(labels).cpu().numpy()
+    embeddings1 = torch.cat(embeddings1).cpu().numpy()
+    embeddings2 = torch.cat(embeddings2).cpu().numpy()
+    labels = torch.cat(labels).cpu().numpy()
     cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
     eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
     return eval_pearson_cosine

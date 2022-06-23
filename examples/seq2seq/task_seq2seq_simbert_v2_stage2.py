@@ -9,7 +9,8 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, AutoRegressiveDecoder, Callback, truncate_sequences
+from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, get_pool_emb
+from bert4torch.snippets import AutoRegressiveDecoder, Callback, truncate_sequences
 from bert4torch.tokenizers import Tokenizer
 import jieba
 jieba.initialize()
@@ -137,22 +138,9 @@ class Model(BaseModel):
                                             with_pool='linear', with_mlm=True, dropout_rate=0.2, application='unilm')
         self.pool_method = pool_method
 
-    def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
-        if self.pool_method == 'cls':
-            return pool_cls
-        elif self.pool_method == 'mean':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'max':
-            seq_state = hidden_state * attention_mask[:, :, None]
-            return torch.max(seq_state, dim=1)
-        else:
-            raise ValueError('pool_method illegal')
-
     def forward(self, token_ids, segment_ids):
         hidden_state, pool_cls, seq_logit = self.bert([token_ids, segment_ids])
-        sen_emb = self.get_pool_emb(hidden_state, pool_cls, attention_mask=token_ids.gt(0).long())
+        sen_emb = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
         return seq_logit, sen_emb
 
 model = Model(pool_method='cls').to(device)

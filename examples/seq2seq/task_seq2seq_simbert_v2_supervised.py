@@ -7,7 +7,8 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, AutoRegressiveDecoder, Callback, truncate_sequences
+from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate
+from bert4torch.snippets import Callback, truncate_sequences, get_pool_emb
 from bert4torch.tokenizers import Tokenizer
 import json
 import glob
@@ -114,25 +115,12 @@ class Model(BaseModel):
         self.pool_method = pool_method
         self.dense = nn.Linear(768*3, 5, bias=False)
 
-    def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
-        if self.pool_method == 'cls':
-            return pool_cls
-        elif self.pool_method == 'mean':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'max':
-            seq_state = hidden_state * attention_mask[:, :, None]
-            return torch.max(seq_state, dim=1)
-        else:
-            raise ValueError('pool_method illegal')
-
     def forward(self, token_ids, segment_ids):
         hidden_state, pool_cls = self.bert([token_ids, segment_ids])
-        sen_emb = self.get_pool_emb(hidden_state, pool_cls, attention_mask=token_ids.gt(0).long())  # [btz*2, hdsz]
+        sen_emb = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)  # [btz*2, hdsz]
         # 向量合并：a、b、|a-b|拼接
         u, v = sen_emb[::2], sen_emb[1::2]
-        sen_emb_concat = torch.concat([u, v, torch.abs(u-v)], dim=-1)  # [btz, hdsz*3]
+        sen_emb_concat = torch.cat([u, v, torch.abs(u-v)], dim=-1)  # [btz, hdsz*3]
         y_pred = self.dense(sen_emb_concat)  # [btz, 5]
         return y_pred
 

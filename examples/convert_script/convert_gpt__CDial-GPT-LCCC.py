@@ -17,7 +17,7 @@ def convert():
 
     # CDial-GPT的[CLS]是0、[PAD]是1，不符合一般习惯，所以交换一下
     w = torch_weights['transformer.tokens_embed.weight']
-    w = torch.concat([w[1:2], w[:1], w[2:]], axis=0)
+    w = torch.cat([w[1:2], w[:1], w[2:]], axis=0)
     new_weights[f'{prefix}.embeddings.word_embeddings.weight'] = w
 
     w = torch_weights['transformer.positions_embed.weight']

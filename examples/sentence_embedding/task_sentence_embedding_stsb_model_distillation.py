@@ -3,7 +3,7 @@
 # 初测测试指标从80%降到77%左右，未细测
 
 from task_sentence_embedding_stsb_CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
-from bert4torch.snippets import Callback
+from bert4torch.snippets import Callback, get_pool_emb
 import torch.optim as optim
 import torch
 import torch.nn as nn
@@ -30,9 +30,9 @@ class NewModel(Model):
         self.bert, self.config = build_transformer_model(config_path=config_path, with_pool=True, return_model_config=True, segment_vocab_size=0, keep_hidden_layers=[1,4,7])
 
     def forward(self, token_ids):
-        hidden_state, pool_cls = self.bert([token_ids])
+        hidden_state, pooler = self.bert([token_ids])
         attention_mask = token_ids.gt(0).long()
-        output = self.get_pool_emb(hidden_state, pool_cls, attention_mask)
+        output = get_pool_emb(hidden_state, pooler, attention_mask, self.pool_method)
         return output
 
 new_model = NewModel().to(device)

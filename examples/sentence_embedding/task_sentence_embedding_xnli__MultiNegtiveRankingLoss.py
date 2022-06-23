@@ -5,7 +5,7 @@
 import enum
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -83,7 +83,7 @@ class Model(BaseModel):
         reps = []
         for token_ids in token_ids_list:
             hidden_state1, pool_cls1 = self.bert([token_ids])
-            rep = self.get_pool_emb(hidden_state1, pool_cls1, attention_mask=token_ids.gt(0).long())
+            rep = get_pool_emb(hidden_state1, pool_cls1, token_ids.gt(0).long(), self.pool_method)
             reps.append(rep)
         embeddings_a = reps[0]
         embeddings_b = torch.cat(reps[1:])
@@ -94,21 +94,8 @@ class Model(BaseModel):
         self.eval()
         with torch.no_grad():
             hidden_state, pool_cls = self.bert([token_ids])
-            output = self.get_pool_emb(hidden_state, pool_cls, attention_mask=token_ids.gt(0).long())
+            output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
         return output
-    
-    def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
-        if self.pool_method == 'cls':
-            return pool_cls
-        elif self.pool_method == 'mean':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'max':
-            seq_state = hidden_state * attention_mask[:, :, None]
-            return torch.max(seq_state, dim=1)
-        else:
-            raise ValueError('pool_method illegal')
     
     @staticmethod
     def cos_sim(a, b):
@@ -133,9 +120,9 @@ def evaluate(data):
         embeddings2.append(model.encode(batch_token2_ids))
         labels.append(label)
 
-    embeddings1 = torch.concat(embeddings1).cpu().numpy()
-    embeddings2 = torch.concat(embeddings2).cpu().numpy()
-    labels = torch.concat(labels).cpu().numpy()
+    embeddings1 = torch.cat(embeddings1).cpu().numpy()
+    embeddings2 = torch.cat(embeddings2).cpu().numpy()
+    labels = torch.cat(labels).cpu().numpy()
     cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
     eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
     return eval_pearson_cosine

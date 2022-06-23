@@ -451,7 +451,7 @@ class BERT_BASE(BaseModel):
                 except IndexError:
                     ext_embeddings.append(torch.mean(embeddings, 0, keepdim=True))
                     warnings.warn(f'Initialize ext_embeddings from compound_tokens not in embedding index')
-            embeddings = torch.concat([embeddings] + ext_embeddings, 0)
+            embeddings = torch.cat([embeddings] + ext_embeddings, 0)
 
         return embeddings
 

@@ -108,9 +108,9 @@ def evaluate(model_eval, data):
         embeddings1.append(embeddings[::2])
         embeddings2.append(embeddings[1::2])
         labels.append(batch_labels[::2])
-    embeddings1 = torch.concat(embeddings1).cpu().numpy()
-    embeddings2 = torch.concat(embeddings2).cpu().numpy()
-    labels = torch.concat(labels).cpu().numpy()
+    embeddings1 = torch.cat(embeddings1).cpu().numpy()
+    embeddings2 = torch.cat(embeddings2).cpu().numpy()
+    labels = torch.cat(labels).cpu().numpy()
     cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))  # cosine距离是1-paired
     eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
     return eval_pearson_cosine

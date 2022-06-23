@@ -13,7 +13,7 @@ import numpy as np
 import scipy.stats
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import sequence_padding, Callback
+from bert4torch.snippets import sequence_padding, Callback, get_pool_emb
 from torch.utils.data import DataLoader
 from torch import optim, nn
 import torch
@@ -23,18 +23,18 @@ import jieba
 jieba.initialize()
 
 
-def load_data(filename):
+def load_data(filenames):
     """加载数据（带标签）
     单条格式：(文本1, 文本2, 标签)
     """
     D = []
-    with open(filename, encoding='utf-8') as f:
-        for l in f:
-            l = l.strip().split('\t')
-            if len(l) == 3:
-                D.append((l[0], l[1], float(l[2])))
+    for filename in filenames:
+        with open(filename, encoding='utf-8') as f:
+            for l in f:
+                l = l.strip().split('\t')
+                if len(l) == 3:
+                    D.append((l[0], l[1], float(l[2])))
     return D
-
 
 # =============================基本参数=============================
 # model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
@@ -70,38 +70,26 @@ model_dir = {
 config_path = f'{model_dir}/bert_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
+data_path = 'F:/Projects/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# =============================加载数据集=============================
 # 建立分词器
 if model_type in ['RoFormer']:
     tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
 else:
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-# =============================加载数据集=============================
-data_path = 'F:/Projects/data/corpus/sentence_embedding/'
-
-datasets = {
-    '%s-%s' % (task_name, f):
-    load_data('%s%s/%s.%s.data' % (data_path, task_name, task_name, f))
-    for f in ['train', 'valid', 'test']
-}
-
-# 语料id化
-all_names, all_weights, all_texts = [], [], []
-train_texts = []
-for name, data in datasets.items():
-    all_names.append(name)
-    all_weights.append(len(data))
-    for a_text, b_text, labels in data:
-        all_texts.append((a_text, b_text, labels))
-        train_texts.append(a_text)
-        train_texts.append(b_text)
+all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
+print(all_names)
+all_texts = load_data(all_names)
+train_texts = [j for i in all_texts for j in i[:2]]
 
 if task_name != 'PAWSX':
     np.random.shuffle(train_texts)
     train_texts = train_texts[:10000]
 
+# 加载训练数据集
 def collate_fn(batch):
     texts_list = [[] for _ in range(2)]
     for text in batch:
@@ -114,6 +102,7 @@ def collate_fn(batch):
     return texts_list, labels
 train_dataloader = DataLoader(ListDataset(data=train_texts), shuffle=True, batch_size=batch_size, collate_fn=collate_fn)
 
+# 加载测试数据集
 def collate_fn_eval(batch):
     texts_list = [[] for _ in range(2)]
     labels = []
@@ -142,7 +131,7 @@ class Model(BaseModel):
         reps = []
         for token_ids in token_ids_list:
             hidden_state1, pooler = self.bert([token_ids])
-            rep = self.get_pool_emb(hidden_state1, pooler, attention_mask=token_ids.gt(0).long())
+            rep = get_pool_emb(hidden_state1, pooler, token_ids.gt(0).long(), self.pool_method)
             reps.append(rep)
         embeddings_a = reps[0]
         embeddings_b = torch.cat(reps[1:])
@@ -153,26 +142,8 @@ class Model(BaseModel):
         self.eval()
         with torch.no_grad():
             hidden_state, pooler = self.bert([token_ids])
-            output = self.get_pool_emb(hidden_state, pooler, attention_mask=token_ids.gt(0).long())
+            output = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
         return output
-
-    def get_pool_emb(self, hidden_state, pooler, attention_mask):
-        # 'first-last-avg', 'last-avg', 'cls', 'pooler'
-        if self.pool_method == 'pooler':
-            return pooler
-        elif self.pool_method == 'cls':
-            return hidden_state[:, 0]
-        elif self.pool_method == 'last-avg':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'first-last-avg':
-            hidden_state = torch.sum(hidden_state[0] * attention_mask[:, :, None], dim=1)
-            hidden_state += torch.sum(hidden_state[-1] * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / (2 * attention_mask)
-        else:
-            raise ValueError('pool_method illegal')
 
     @staticmethod
     def cos_sim(a, b):

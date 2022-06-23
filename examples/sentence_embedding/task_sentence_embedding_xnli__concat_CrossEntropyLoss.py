@@ -4,7 +4,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -72,11 +72,11 @@ class Model(BaseModel):
         self.fc = nn.Linear(hidden_unit, len(label2id))
 
     def forward(self, token1_ids, token2_ids):
-        hidden_state1, pool_cls1 = self.bert([token1_ids])
-        rep_a = self.get_pool_emb(hidden_state1, pool_cls1, attention_mask=token1_ids.gt(0).long())
+        hidden_state1, pooler1 = self.bert([token1_ids])
+        rep_a = get_pool_emb(hidden_state1, pooler1, token1_ids.gt(0).long(), self.pool_method)
         
-        hidden_state2, pool_cls2 = self.bert([token2_ids])
-        rep_b = self.get_pool_emb(hidden_state2, pool_cls2, attention_mask=token2_ids.gt(0).long())
+        hidden_state2, pooler2 = self.bert([token2_ids])
+        rep_b = get_pool_emb(hidden_state2, pooler2, token2_ids.gt(0).long(), self.pool_method)
 
         vectors_concat = []
         if self.concatenation_sent_rep:
@@ -93,19 +93,6 @@ class Model(BaseModel):
         
         return self.fc(vectors_concat)
     
-    def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
-        if self.pool_method == 'cls':
-            return pool_cls
-        elif self.pool_method == 'mean':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'max':
-            seq_state = hidden_state * attention_mask[:, :, None]
-            return torch.max(seq_state, dim=1)
-        else:
-            raise ValueError('pool_method illegal')
-
 model = Model().to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义

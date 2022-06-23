@@ -3,6 +3,7 @@
 # 从768维压缩到128维，指标从81.82下降到80.10
 
 from task_sentence_embedding_stsb_CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
+from bert4torch.snippets import get_pool_emb
 from sklearn.decomposition import PCA
 import numpy as np
 import torch
@@ -16,7 +17,7 @@ for token_ids_list, labels in train_dataloader:
         train_embeddings.append(model.encode(token_ids))
     # if len(train_embeddings) >= 20:
     #     break
-train_embeddings = torch.concat(train_embeddings, dim=0).cpu().numpy()
+train_embeddings = torch.cat(train_embeddings, dim=0).cpu().numpy()
 print('train_embeddings done, start pca training...')
 
 pca = PCA(n_components=new_dimension)
@@ -36,7 +37,7 @@ class NewModel(Model):
         with torch.no_grad():
             hidden_state, pool_cls = self.bert([token_ids])
             attention_mask = token_ids.gt(0).long()
-            output = self.get_pool_emb(hidden_state, pool_cls, attention_mask)
+            output = get_pool_emb(hidden_state, pool_cls, attention_mask, self.pool_method)
             output = self.dense(output)
         return output
 

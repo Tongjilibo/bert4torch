@@ -4,7 +4,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.snippets import sequence_padding, ListDataset, get_pool_emb
 from bert4torch.layers import BERT_WHITENING
 import torch
 from torch.utils.data import DataLoader
@@ -59,25 +59,12 @@ class Model(BaseModel):
         self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
         self.pool_method = pool_method
    
-    def get_pool_emb(self, hidden_state, pool_cls, attention_mask):
-        if self.pool_method == 'cls':
-            return pool_cls
-        elif self.pool_method == 'mean':
-            hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-            attention_mask = torch.sum(attention_mask, dim=1)[:, None]
-            return hidden_state / attention_mask
-        elif self.pool_method == 'max':
-            seq_state = hidden_state * attention_mask[:, :, None]
-            return torch.max(seq_state, dim=1)
-        else:
-            raise ValueError('pool_method illegal')
-
     def encode(self, token_ids):
         self.eval()
         with torch.no_grad():
             hidden_state, pool_cls = self.bert([token_ids])
             attention_mask = token_ids.gt(0).long()
-            output = self.get_pool_emb(hidden_state, pool_cls, attention_mask)
+            output = get_pool_emb(hidden_state, pool_cls, attention_mask, self.pool_method)
         return output
 
 model = Model().to(device)

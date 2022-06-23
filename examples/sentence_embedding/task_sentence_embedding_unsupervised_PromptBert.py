@@ -3,6 +3,12 @@
 # 官方项目：https://github.com/kongds/Prompt-BERT
 # 参考项目：https://github.com/Macielyoung/sentence_representation_matching
 
+# 测试结果均为1/5个epoch的最优结果bert+cls
+# |  model |  epoch |  ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+# |  ----  |  ----  |  ----  | ---- |   ----  |   ----  |   ----  |
+# |  BERT  |    1   | 33.61  | 47.54| 71.81   |  24.47  |  73.97  |
+# |  BERT  |    5   | 34.35  | 47.54| 71.91   |  25.00  |  74.71  |
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,16 +19,54 @@ from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import ListDataset, sequence_padding, Callback
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr, spearmanr
+import numpy as np
+import jieba
 
 
+# =============================基本参数=============================
+# model_type, pooling, task_name = sys.argv[1:]  # 传入参数
+model_type, pooling, task_name = 'BERT', 'cls', 'ATEC'  # debug使用
+# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
+assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
+assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
+assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
+if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
+    model_name = 'bert'
+elif model_type in {'RoFormer'}:
+    model_name = 'roformer'
+elif model_type in {'NEZHA'}:
+    model_name = 'nezha'
+
+batch_size = 24
 learning_rate = 2.5e-5
-num_train_epochs = 10
-max_len = 120
-batch_size = 12
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+template_len = 15
+
+if task_name == 'PAWSX':
+    maxlen = 128 + template_len
+else:
+    maxlen = 64 + template_len
+
+# bert配置
+model_dir = {
+    'BERT': 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12',
+    'RoBERTa': 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base',
+    'NEZHA': 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base',
+    'RoFormer': 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base',
+    'SimBERT': 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base',
+}[model_type]
+
+config_path = f'{model_dir}/bert_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
+checkpoint_path = f'{model_dir}/pytorch_model.bin'
+dict_path = f'{model_dir}/vocab.txt'
+data_path = 'F:/Projects/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# =============================加载数据集=============================
+# 建立分词器
+if model_type in ['RoFormer']:
+    tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False), add_special_tokens='[X]')
+else:
+    tokenizer = Tokenizer(dict_path, do_lower_case=True, add_special_tokens='[X]')
 
 replace_token = "[X]"
 mask_token = "[MASK]"
@@ -33,65 +77,63 @@ token_dict = load_vocab(dict_path)
 compound_tokens = [[len(token_dict)]]
 token_dict['[X]'] = len(token_dict)
 
-tokenizer = Tokenizer(token_dict, do_lower_case=True, add_special_tokens='[X]')
-
 # 加载数据集
-class MyDataset(ListDataset):
-    @staticmethod
-    def load_data(filename):
-        D = []
+def load_data(filenames):
+    D = []
+    for filename in filenames:
         with open(filename, 'r', encoding='utf-8') as f:
-            for line in tqdm(f.readlines()[:2000], desc='Load data'):
-                sent = line.strip()[:max_len - 15]
-                sentence_pair = []
-                for template in prompt_templates:
-                    sent_num = len(tokenizer.tokenize(sent))
-                    prompt_sent = template.replace(replace_token, sent)
-                    template_sent = template.replace(replace_token, replace_token * sent_num)
-                    sentence_pair.extend([prompt_sent, template_sent])
-                D.append(sentence_pair)
-        return D
+            for line in tqdm(f.readlines(), desc='Load data'):
+                cache = line.split('\t')
+                text1, text2, label = cache[0][:maxlen-template_len], cache[1][:maxlen-template_len], cache[-1]
+                for text in [text1, text2]:
+                    sentence_pair = []
+                    for template in prompt_templates:
+                        sent_num = len(tokenizer.tokenize(text))
+                        prompt_sent = template.replace(replace_token, text)
+                        template_sent = template.replace(replace_token, replace_token * sent_num)
+                        sentence_pair.extend([prompt_sent, template_sent])
+                    D.append((sentence_pair, int(label)))
+    return D
 
+all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
+print(all_names)
+train_texts = load_data(all_names)
+valid_texts = list(zip(train_texts[::2], train_texts[1::2]))
+
+if task_name != 'PAWSX':
+    np.random.shuffle(train_texts)
+    train_texts = train_texts[:10000]
+
+# 加载训练数据集
 def collate_fn(batch):
     batch_tensor = [[] for _ in range(4)]
-    for prompt_data in batch:
+    for prompt_data, _ in batch:
         for i, item in enumerate(prompt_data):
-            batch_tensor[i].append(tokenizer.encode(item, maxlen=max_len)[0])
-
+            batch_tensor[i].append(tokenizer.encode(item, maxlen=maxlen)[0])
     for i, item in enumerate(batch_tensor):
-        batch_tensor[i] = torch.tensor(sequence_padding(item, max_len), dtype=torch.long, device=device)
-    
+        batch_tensor[i] = torch.tensor(sequence_padding(item, maxlen), dtype=torch.long, device=device)
     labels = torch.arange(batch_tensor[0].size(0), device=device)
     return batch_tensor, labels
 
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/pretrain/film/film.txt'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+train_dataloader = DataLoader(ListDataset(data=train_texts), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
-def load_valid_data(filename):
-    D = []
-    with open(filename, "r", encoding="utf-8-sig") as f:
-        for line in f.readlines():
-            cache = line.split('\t')
-            text1, text2, label = cache[0][:max_len-15], cache[1][:max_len-15], cache[-1]
-            text1 = prompt_templates[0].replace("[X]", text1)
-            text2 = prompt_templates[0].replace("[X]", text2)
-            D.append((text1, text2, int(label)))
-    return D
-
+# 加载测试数据集
 def collate_fn_test(batch):
     text1_ids, text2_ids, labels = [], [], []
-    for text1, text2, label in batch:
-        text1_ids.append(tokenizer.encode(text1, maxlen=max_len)[0])
-        text2_ids.append(tokenizer.encode(text2, maxlen=max_len)[0])
+    for text1, text2 in batch:
+        label = text1[-1]
+        text1, text2 = text1[0][0], text2[0][0]
+        text1_ids.append(tokenizer.encode(text1, maxlen=maxlen)[0])
+        text2_ids.append(tokenizer.encode(text2, maxlen=maxlen)[0])
         labels.append(label)
-    
     text1_ids = torch.tensor(sequence_padding(text1_ids), dtype=torch.long, device=device)
     text2_ids = torch.tensor(sequence_padding(text2_ids), dtype=torch.long, device=device)
     labels = torch.tensor(labels, dtype=torch.long, device=device)
     return [text1_ids, text2_ids], labels
 
-valid_datset = load_valid_data('F:/Projects/data/corpus/sentence_embedding/STS-B/STS-B.test.data')
-valid_dataloader = DataLoader(MyDataset(data=valid_datset), batch_size=batch_size, collate_fn=collate_fn_test) 
+valid_dataloader = DataLoader(ListDataset(data=valid_texts), batch_size=batch_size, collate_fn=collate_fn_test) 
 
+# =============================定义模型=============================
 class PromptBert(BaseModel):
     def __init__(self, scale=20.0):
         super().__init__()
@@ -159,9 +201,9 @@ class Evaluator(Callback):
             embeddings2.append(model.predict(text2_ids))
             labels.append(label)
 
-        embeddings1 = torch.concat(embeddings1)
-        embeddings2 = torch.concat(embeddings2)
-        labels = torch.concat(labels)
+        embeddings1 = torch.cat(embeddings1)
+        embeddings2 = torch.cat(embeddings2)
+        labels = torch.cat(labels)
 
         sims = F.cosine_similarity(embeddings1, embeddings2).cpu().numpy()
         labels = labels.cpu().numpy()
@@ -169,4 +211,4 @@ class Evaluator(Callback):
 
 if __name__ == "__main__":
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=5, steps_per_epoch=None, callbacks=[evaluator])
