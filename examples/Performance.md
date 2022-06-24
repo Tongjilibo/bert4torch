@@ -7,7 +7,7 @@
 | bert+cascade+crf | 15/20 | 98.11 | 96.23 | —— | 
 | bert+posseg+crf | 3/20 | 96.74 | 94.93 | loss后续上升提前中止 | 
 | bert+global_pointer | 18/20 | —— | 95.66 | —— | 
-| bert+efficent_global_pointer | 17/20 | —— | 96.55 | —— | 
+| bert+efficient_global_pointer | 17/20 | —— | 96.55 | —— | 
 | bert+mrc | 7/20 | —— | 95.75 | —— |
 | bert+span | 13/20 | —— | 96.31 | —— |
 | bert+tplinker_plus | 8/20 | —— | 95.03 | 长度限制明显 |
