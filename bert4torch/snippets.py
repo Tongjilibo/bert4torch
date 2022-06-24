@@ -1043,13 +1043,15 @@ def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strat
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
         assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
-        hidden_state = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-        attention_mask = torch.sum(attention_mask, dim=1)[:, None]
+        hid = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
+        attention_mask = torch.sum(hid, dim=1)[:, None]
         return hidden_state / attention_mask
     elif pool_strategy in {'last-max', 'max'}:
-        assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
-        seq_state = hidden_state * attention_mask[:, :, None]
-        return torch.max(seq_state, dim=1)
+        if isinstance(hidden_state, (list, tuple)):
+            hidden_state = hidden_state[-1]
+        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
+        hid = hidden_state * attention_mask[:, :, None]
+        return torch.max(hid, dim=1)
     elif pool_strategy == 'first-last-avg':
         assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
         hid = torch.sum(hidden_state[1] * attention_mask[:, :, None], dim=1) # 这里不取0
