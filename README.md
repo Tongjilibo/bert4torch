@@ -20,6 +20,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - [实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)
 - [examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/examples/README.md)
+- [**实验指标**](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md)
 
 ## 版本说明
 - **v0.1.6**：增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug

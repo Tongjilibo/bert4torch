@@ -138,7 +138,7 @@ class Model(BaseModel):
 
 model = Model().to(device)
 
-class Loss(FocalLoss):
+class Loss(nn.CrossEntropyLoss):
     def forward(self, outputs, labels):
         start_logits, end_logits = outputs
         mask, start_ids, end_ids = labels[:3]
@@ -214,7 +214,7 @@ class Evaluator(Callback):
         if f1 > self.best_val_f1:
             self.best_val_f1 = f1
             # model.save_weights('best_model.pt')
-        print(f'[val] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}\n')
+        print(f'[val] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f} best_f1: {self.best_val_f1:.5f}')
 
 
 if __name__ == '__main__':

@@ -12,15 +12,15 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import TplinkerHandshakingKernel
 
-maxlen = 50
+maxlen = 64
 batch_size = 16
 categories_label2id = {"LOC": 0, "ORG": 1, "PER": 2}
 categories_id2label = dict((value, key) for key,value in categories_label2id.items())
 
 # BERT base
-config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
