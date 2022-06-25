@@ -29,7 +29,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
 import random, os
-seed = 2022
+seed = 42
 random.seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)
 np.random.seed(seed)
@@ -97,7 +97,7 @@ class Model(BaseModel):
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
         emission_score = self.fc(sequence_output)  # [btz, seq_len, tag_size]
-        attention_mask = token_ids.gt(0)
+        attention_mask = token_ids.gt(0).long()
         return emission_score, attention_mask
 
     def predict(self, token_ids):

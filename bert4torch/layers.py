@@ -859,11 +859,11 @@ class CRF(nn.Module):
             cur_partition = self.log_sum_exp(cur_values, tag_size)  # [bts, tag_size]
             mask_idx = mask[idx, :].view(bts, 1).expand(bts, tag_size)  # [bts, tag_size]
             """ effective updated partition part, only keep the partition value of mask value = 1 """
-            masked_cur_partition = cur_partition.masked_select(mask_idx)  # [x * tag_size]
+            masked_cur_partition = cur_partition.masked_select(mask_idx.bool())  # [x * tag_size]
             if masked_cur_partition.dim() != 0:
                 mask_idx = mask_idx.contiguous().view(bts, tag_size, 1)  # [bts, tag_size, 1]
                 """ replace the partition where the maskvalue=1, other partition value keeps the same """
-                partition.masked_scatter_(mask_idx, masked_cur_partition)
+                partition.masked_scatter_(mask_idx.bool(), masked_cur_partition)
         # [bts, tag_size, tag_size]
         cur_values = self.transitions.view(1, tag_size, tag_size).expand(bts, tag_size, tag_size) + \
                      partition.contiguous().view(bts, tag_size, 1).expand(bts, tag_size, tag_size)
@@ -888,7 +888,7 @@ class CRF(nn.Module):
 
         # get all energies except end energy
         tg_energy = torch.gather(scores.view(seq_len, btz, -1), 2, new_tags).view(seq_len, btz)  # [seq_len, btz]
-        tg_energy = tg_energy.masked_select(mask.transpose(1, 0))  # list
+        tg_energy = tg_energy.masked_select(mask.transpose(1, 0).bool())  # list
 
         """ transition for label to STOP_TAG """
         # [btz, tag_size]
