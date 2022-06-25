@@ -266,5 +266,5 @@ def evaluate(dataloader):
 
 if  __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, steps_per_epoch=None, epochs=1, callbacks=[evaluator])
+    model.fit(train_dataloader, steps_per_epoch=None, epochs=5, callbacks=[evaluator])
 

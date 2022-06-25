@@ -205,8 +205,8 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
-            epochs=20, 
-            steps_per_epoch=500, 
+            epochs=5, 
+            steps_per_epoch=None, 
             callbacks=[evaluator]
             )
 else:
