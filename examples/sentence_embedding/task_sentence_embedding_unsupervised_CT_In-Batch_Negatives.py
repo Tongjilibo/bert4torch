@@ -1,6 +1,6 @@
 #! -*- coding:utf-8 -*-
-# 语义相似度任务-无监督：训练集为网上pretrain数据, dev集为sts-b
-# loss: 其实就是SimCSE，只是用了两个模型而已 
+# 语义相似度任务-无监督
+# loss: 对比学习损失（和simcse类似），只是用了两个模型而已 
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -12,20 +12,81 @@ from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances, paired_euclidean_distances, paired_manhattan_distances
 from scipy.stats import pearsonr, spearmanr
 import copy
-import random
-random.seed(2022)
+import numpy as np
+from tqdm import tqdm
+import jieba
+jieba.initialize()
 
-maxlen = 256
-batch_size = 8
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
+# =============================基本参数=============================
+# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
+assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
+assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
+assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
+if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
+    model_name = 'bert'
+elif model_type in {'RoFormer'}:
+    model_name = 'roformer'
+elif model_type in {'NEZHA'}:
+    model_name = 'nezha'
+
+dropout_rate = float(dropout_rate)
+batch_size = 32
+
+if task_name == 'PAWSX':
+    maxlen = 128
+else:
+    maxlen = 64
+
+# bert配置
+model_dir = {
+    'BERT': 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12',
+    'RoBERTa': 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base',
+    'NEZHA': 'F:/Projects/pretrain_ckpt/nezha/[github_torch_base]--nezha-cn-base',
+    'RoFormer': 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base',
+    'SimBERT': 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base',
+}[model_type]
+
+config_path = f'{model_dir}/bert_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
+checkpoint_path = f'{model_dir}/pytorch_model.bin'
+dict_path = f'{model_dir}/vocab.txt'
+data_path = 'F:/Projects/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# =============================加载数据集=============================
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+if model_type in ['RoFormer']:
+    tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
+else:
+    tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
+# 读数据
+all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
+print(all_names)
+
+def load_data(filenames):
+    """加载数据（带标签）
+    单条格式：(文本1, 文本2, 标签)
+    """
+    D = []
+    for filename in filenames:
+        with open(filename, encoding='utf-8') as f:
+            for l in f:
+                l = l.strip().split('\t')
+                if len(l) == 3:
+                    D.append((l[0], l[1], float(l[2])))
+    return D
+
+all_texts = load_data(all_names)
+train_texts = [j for i in all_texts for j in i[:2]]
+
+if task_name != 'PAWSX':
+    np.random.shuffle(train_texts)
+    train_texts = train_texts[:10000]
+
+# 加载训练数据集
 def collate_fn(batch):
     texts_list = [[] for _ in range(2)]
     for text in batch:
@@ -37,25 +98,25 @@ def collate_fn(batch):
         texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
     labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
     return texts_list, labels
+train_dataloader = DataLoader(ListDataset(data=train_texts), shuffle=True, batch_size=batch_size, collate_fn=collate_fn)
 
-# 加载数据集
-def get_data(filename):
-    train_data = []
-    with open(filename, encoding='utf-8') as f:
-        for row, l in enumerate(f):
-            if row == 0:  # 跳过首行
-                continue
-            text = l.strip().replace(' ', '')
-            train_data.append(text)
-    return train_data
-
-train_data = get_data('F:/Projects/data/corpus/pretrain/film/film.txt')
-train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-from task_sentence_embedding_stsb_CosineSimilarityLoss import valid_dataloader
+# 加载测试数据集
+def collate_fn_eval(batch):
+    texts_list = [[] for _ in range(2)]
+    labels = []
+    for text1, text2, label in batch:
+        texts_list[0].append(tokenizer.encode(text1, maxlen=maxlen)[0])
+        texts_list[1].append(tokenizer.encode(text2, maxlen=maxlen)[0])
+        labels.append(label)
+    for i, texts in enumerate(texts_list):
+        texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
+    labels = torch.tensor(labels, dtype=torch.float, device=device)
+    return texts_list, labels
+valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self, pool_method='mean', scale=20.0):
+    def __init__(self, pool_method='cls', scale=20.0):
         super().__init__()
         self.model1, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
         self.model2 = copy.deepcopy(self.model1)
@@ -98,16 +159,16 @@ model.compile(
 
 # 定义评价函数
 def evaluate(data):
-    embeddings1, embeddings2, labels = [], [], []
-    for (batch_token1_ids, batch_token2_ids), label in data:
-        embeddings1.append(model.encode(batch_token1_ids))
-        embeddings2.append(model.encode(batch_token2_ids))
+    cosine_scores, labels = [], []
+    for (batch_token1_ids, batch_token2_ids), label in tqdm(data):
+        embeddings1 = model.encode(batch_token1_ids).cpu().numpy()
+        embeddings2 = model.encode(batch_token2_ids).cpu().numpy()
+        cosine_score = 1 - (paired_cosine_distances(embeddings1, embeddings2))
+        cosine_scores.append(cosine_score)
         labels.append(label)
 
-    embeddings1 = torch.cat(embeddings1).cpu().numpy()
-    embeddings2 = torch.cat(embeddings2).cpu().numpy()
+    cosine_scores = np.concatenate(cosine_scores)
     labels = torch.cat(labels).cpu().numpy()
-    cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
     eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
     return eval_pearson_cosine
 
@@ -129,8 +190,8 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
-            epochs=20, 
-            steps_per_epoch=500, 
+            epochs=5, 
+            steps_per_epoch=None, 
             callbacks=[evaluator]
             )
 else:

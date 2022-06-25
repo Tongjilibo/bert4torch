@@ -95,19 +95,6 @@ class CollateFunc(object):
         else:
             return [batch_tokens_list, batch_pos_tokens_list], labels
 
-def load_data(filenames):
-    """加载数据（带标签）
-    单条格式：(文本1, 文本2, 标签)
-    """
-    D = []
-    for filename in filenames:
-        with open(filename, encoding='utf-8') as f:
-            for l in f:
-                l = l.strip().split('\t')
-                if len(l) == 3:
-                    D.append((l[0], l[1], float(l[2])))
-    return D
-
 
 # =============================基本参数=============================
 # model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
@@ -146,15 +133,29 @@ dict_path = f'{model_dir}/vocab.txt'
 data_path = 'F:/Projects/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# =============================加载数据集=============================
 # 建立分词器
 if model_type in ['RoFormer']:
     tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
 else:
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-# =============================加载数据集=============================
 all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
 print(all_names)
+
+def load_data(filenames):
+    """加载数据（带标签）
+    单条格式：(文本1, 文本2, 标签)
+    """
+    D = []
+    for filename in filenames:
+        with open(filename, encoding='utf-8') as f:
+            for l in f:
+                l = l.strip().split('\t')
+                if len(l) == 3:
+                    D.append((l[0], l[1], float(l[2])))
+    return D
+
 all_texts = load_data(all_names)
 train_texts = [j for i in all_texts for j in i[:2]]
 

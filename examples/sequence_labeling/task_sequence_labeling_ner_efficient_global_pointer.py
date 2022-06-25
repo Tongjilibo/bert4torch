@@ -2,7 +2,7 @@
 # efficient_global_pointer用来做实体识别
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
 # 博客：https://kexue.fm/archives/8373
-# [valid_f1]: 0.96112（Epoch 12/50）
+# [valid_f1]: 96.55
 
 import numpy as np
 from bert4torch.models import build_transformer_model, BaseModel

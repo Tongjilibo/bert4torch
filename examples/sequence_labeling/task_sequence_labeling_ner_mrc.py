@@ -1,6 +1,7 @@
 #! -*- coding:utf-8 -*-
 # mrc阅读理解方案
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
+# [valid_f1]: 95.75
 
 import numpy as np
 import torch

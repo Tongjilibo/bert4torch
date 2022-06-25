@@ -1044,8 +1044,8 @@ def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strat
             hidden_state = hidden_state[-1]
         assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
         hid = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
-        attention_mask = torch.sum(hid, dim=1)[:, None]
-        return hidden_state / attention_mask
+        attention_mask = torch.sum(attention_mask, dim=1)[:, None]
+        return hid / attention_mask
     elif pool_strategy in {'last-max', 'max'}:
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
@@ -1066,6 +1066,7 @@ def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strat
         hid = 0
         for i, layer in enumerate(custom_layer, start=1):
             hid += torch.sum(hidden_state[layer] * attention_mask[:, :, None], dim=1)
+        attention_mask = torch.sum(attention_mask, dim=1)[:, None]
         return hid / (i * attention_mask)
     else:
         raise ValueError('pool_strategy illegal')

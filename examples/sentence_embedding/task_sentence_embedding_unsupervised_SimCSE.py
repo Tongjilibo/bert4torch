@@ -18,23 +18,9 @@ from torch.utils.data import DataLoader
 from torch import optim, nn
 import torch
 from bert4torch.snippets import ListDataset
-
 import jieba
 jieba.initialize()
 
-
-def load_data(filenames):
-    """加载数据（带标签）
-    单条格式：(文本1, 文本2, 标签)
-    """
-    D = []
-    for filename in filenames:
-        with open(filename, encoding='utf-8') as f:
-            for l in f:
-                l = l.strip().split('\t')
-                if len(l) == 3:
-                    D.append((l[0], l[1], float(l[2])))
-    return D
 
 # =============================基本参数=============================
 # model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
@@ -80,8 +66,23 @@ if model_type in ['RoFormer']:
 else:
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
+# 读数据
 all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
 print(all_names)
+
+def load_data(filenames):
+    """加载数据（带标签）
+    单条格式：(文本1, 文本2, 标签)
+    """
+    D = []
+    for filename in filenames:
+        with open(filename, encoding='utf-8') as f:
+            for l in f:
+                l = l.strip().split('\t')
+                if len(l) == 3:
+                    D.append((l[0], l[1], float(l[2])))
+    return D
+
 all_texts = load_data(all_names)
 train_texts = [j for i in all_texts for j in i[:2]]
 

@@ -1,7 +1,7 @@
 #! -*- coding:utf-8 -*-
 # bert+crf用来做实体识别
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
-# [valid_f1]  token_level: 0.96563； entity_level: 0.95475
+# [valid_f1]  token_level: 97.02； entity_level: 96.22
 
 
 import numpy as np

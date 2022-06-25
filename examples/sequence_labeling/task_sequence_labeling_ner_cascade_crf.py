@@ -2,6 +2,7 @@
 # bert+crf 级联方法，一阶段识别BIO，二阶段识别对应的分类
 # 参考博客：https://zhuanlan.zhihu.com/p/166496466
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
+# [valid_f1]  token_level: 98.11； entity_level: 96.23
 
 import numpy as np
 import torch

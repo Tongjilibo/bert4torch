@@ -1,5 +1,6 @@
 #! -*- coding:utf-8 -*-
 # tplinker_plus用来做实体识别
+# [valid_f1]: 95.71
 
 import numpy as np
 from bert4torch.models import build_transformer_model, BaseModel
