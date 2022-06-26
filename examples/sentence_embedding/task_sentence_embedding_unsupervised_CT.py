@@ -22,7 +22,7 @@ jieba.initialize()
 
 # =============================基本参数=============================
 model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.1  # debug使用
 print(model_type, pooling, task_name, dropout_rate)
 
 # 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
@@ -134,7 +134,7 @@ valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self, pool_method='cls', scale=20.0):
+    def __init__(self, pool_method='cls'):
         super().__init__()
         with_pool = 'linear' if pool_method == 'pooler' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
@@ -142,7 +142,6 @@ class Model(BaseModel):
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         self.model2 = copy.deepcopy(self.model1)
         self.pool_method = pool_method
-        self.scale = scale
 
     def forward(self, token_ids_list):
         token_ids1 = token_ids_list[0]

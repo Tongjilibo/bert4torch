@@ -21,7 +21,7 @@ jieba.initialize()
 
 # =============================基本参数=============================
 model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.1  # debug使用
 print(model_type, pooling, task_name, dropout_rate)
 
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
