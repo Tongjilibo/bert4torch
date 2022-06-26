@@ -14,14 +14,16 @@ from scipy.stats import pearsonr, spearmanr
 import numpy as np
 import re
 from tqdm import tqdm
+import sys
 import jieba
 jieba.initialize()
 
 
 # =============================基本参数=============================
-# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
-# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
+model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+print(model_type, pooling, task_name, dropout_rate)
+
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
 assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
 assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
@@ -125,11 +127,15 @@ valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self, pool_method='mean'):
+    def __init__(self, pool_method='cls'):
         super().__init__()
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
+        with_pool = 'linear' if pool_method == 'pooler' else True
+        output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
+        self.encoder = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+                                               with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         # 用bert的权重来初始化decoder，crossAttn部分是随机初始化的
-        self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, application='lm', is_decoder=True, segment_vocab_size=0)
+        self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, application='lm', dropout_rate=dropout_rate, 
+                                               output_all_encoded_layers=output_all_encoded_layers, is_decoder=True, segment_vocab_size=0)
         self.pool_method = pool_method
 
         # 绑定encoder和decoder的权重
@@ -164,7 +170,7 @@ class Model(BaseModel):
             output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
         return output
     
-model = Model(pool_method='cls').to(device)
+model = Model(pool_method=pooling).to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

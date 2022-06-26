@@ -2,6 +2,8 @@
 # 情感分类例子，RoPE相对位置编码
 # 官方项目：https://github.com/ZhuiyiTechnology/roformer
 # pytorch参考项目：https://github.com/JunnYu/RoFormer_pytorch
+# valid_acc: 94.85, test_acc: 94.42
+
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -10,14 +12,25 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+import random 
+import os
+import numpy as np
 
-maxlen = 128
+maxlen = 256
 batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# 固定seed
+seed = 42
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -97,14 +110,15 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = evaluate(valid_dataloader)
+        test_acc = evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=500, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

@@ -14,8 +14,8 @@ from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
 from torchinfo import summary
 
-maxlen = 128
-batch_size = 32
+maxlen = 256
+batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
@@ -176,6 +176,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=100, steps_per_epoch=300, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

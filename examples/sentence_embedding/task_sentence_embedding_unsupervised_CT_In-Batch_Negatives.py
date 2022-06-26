@@ -14,13 +14,16 @@ from scipy.stats import pearsonr, spearmanr
 import copy
 import numpy as np
 from tqdm import tqdm
+import sys
 import jieba
 jieba.initialize()
 
 
 # =============================基本参数=============================
-# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+print(model_type, pooling, task_name, dropout_rate)
+
 # 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
 assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
@@ -118,7 +121,10 @@ valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size
 class Model(BaseModel):
     def __init__(self, pool_method='cls', scale=20.0):
         super().__init__()
-        self.model1, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
+        with_pool = 'linear' if pool_method == 'pooler' else True
+        output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
+        self.model1 = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+                                            with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         self.model2 = copy.deepcopy(self.model1)
         self.pool_method = pool_method
         self.scale = scale
@@ -149,7 +155,7 @@ class Model(BaseModel):
         return torch.mm(a_norm, b_norm.transpose(0, 1))
 
 
-model = Model().to(device)
+model = Model(pool_method=pooling).to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

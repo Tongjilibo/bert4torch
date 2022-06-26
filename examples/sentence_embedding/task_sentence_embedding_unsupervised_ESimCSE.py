@@ -17,8 +17,9 @@ from torch.utils.data import DataLoader
 from torch import optim, nn
 import torch
 import random
+import copy
+import sys
 from bert4torch.snippets import ListDataset
-
 import jieba
 jieba.initialize()
 
@@ -97,8 +98,10 @@ class CollateFunc(object):
 
 
 # =============================基本参数=============================
-# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'STS-B', 0.3  # debug使用
+model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'STS-B', 0.3  # debug使用
+print(model_type, pooling, task_name, dropout_rate)
+
 # 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
 assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
@@ -188,8 +191,7 @@ class Model(BaseModel):
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
         self.encoder = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
                                                with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
-        self.momentum_encoder = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
-                                                        with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
+        self.momentum_encoder = copy.deepcopy(self.encoder)
         self.scale = scale
     
     def forward(self, token_ids_list):

@@ -20,15 +20,17 @@ from bert4torch.snippets import ListDataset, sequence_padding, Callback
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr, spearmanr
 import numpy as np
+import sys
 import jieba
+jieba.initialize()
 
 
 # =============================基本参数=============================
-# model_type, pooling, task_name = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name = 'BERT', 'cls', 'ATEC'  # debug使用
-# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
+model_type, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+# model_type, task_name, dropout_rate = 'BERT', 'ATEC', 0.3  # debug使用
+print(model_type, task_name, dropout_rate)
+
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
 assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
 if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
     model_name = 'bert'
@@ -37,8 +39,8 @@ elif model_type in {'RoFormer'}:
 elif model_type in {'NEZHA'}:
     model_name = 'nezha'
 
-batch_size = 24
-learning_rate = 2.5e-5
+dropout_rate = float(dropout_rate)
+batch_size = 32
 template_len = 15
 
 if task_name == 'PAWSX':
@@ -137,7 +139,8 @@ valid_dataloader = DataLoader(ListDataset(data=valid_texts), batch_size=batch_si
 class PromptBert(BaseModel):
     def __init__(self, scale=20.0):
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0, compound_tokens=compound_tokens)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, 
+                                            dropout_rate=dropout_rate, segment_vocab_size=0, compound_tokens=compound_tokens)
         self.scale = scale
 
     def forward(self, prompt0_input, template0_input, prompt1_input, template1_input):

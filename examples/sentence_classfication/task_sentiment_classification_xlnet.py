@@ -2,6 +2,8 @@
 # 情感分类任务: xlnet
 # transformer包中tokenizer是padding在前面的
 # 这里可以使用transformer的tokenizer，也可以使用SpTokenizer，注意取最后一位时候取非padding的最后一位
+# valid_acc: 95.00, test_acc: 94.24
+
 
 from bert4torch.tokenizers import SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -13,12 +15,11 @@ import random, os, numpy as np
 from torch.utils.data import DataLoader
 
 maxlen = 256
-batch_size = 12
+batch_size = 16
 pretrain_model = 'F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
@@ -111,14 +112,15 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = evaluate(valid_dataloader)
+        test_acc = evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=500, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

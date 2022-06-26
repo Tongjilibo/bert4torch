@@ -18,14 +18,16 @@ from torch.utils.data import DataLoader
 from torch import optim, nn
 import torch
 from bert4torch.snippets import ListDataset
+import sys
 import jieba
 jieba.initialize()
 
 
 # =============================基本参数=============================
-# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
-# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
+model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+print(model_type, pooling, task_name, dropout_rate)
+
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
 assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
 assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}

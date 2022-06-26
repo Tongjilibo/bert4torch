@@ -1,5 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 情感分类例子，加载albert_zh权重(https://github.com/brightmart/albert_zh)
+# valid_acc: 94.46, test_acc: 93.98
 
 
 import numpy as np
@@ -11,16 +12,25 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from tensorboardX import SummaryWriter
+import random 
+import os
+import numpy as np
 
-maxlen = 128
+maxlen = 256
 batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_tf_small]--albert_small_zh_google/albert_config_small_google.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_tf_small]--albert_small_zh_google/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_tf_small]--albert_small_zh_google/vocab.txt'
 
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
+
+seed = 42
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -103,14 +113,15 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = evaluate(valid_dataloader)
+        test_acc = evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')
