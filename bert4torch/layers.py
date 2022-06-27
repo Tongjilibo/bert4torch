@@ -1100,7 +1100,7 @@ class EfficientGlobalPointer(nn.Module):
             mask: [bez, seq_len], padding部分为0
         '''
         sequence_output = self.p_dense(inputs)  # [..., head_size*2]
-        qw, kw = sequence_output[..., :self.head_size], sequence_output[..., self.head_size:]  # [..., heads, head_size]
+        qw, kw = sequence_output[..., :self.head_size], sequence_output[..., self.head_size:]  # [..., head_size]
 
         # ROPE编码
         if self.RoPE:
@@ -1108,10 +1108,10 @@ class EfficientGlobalPointer(nn.Module):
             kw = self.position_embedding(kw)
 
         # 计算内积
-        logits = torch.einsum('bmd,bnd->bmn', qw, kw) / self.head_size**0.5  # [btz, seq_len, seq_len]
+        logits = torch.einsum('bmd,bnd->bmn', qw, kw) / self.head_size**0.5  # [btz, seq_len, seq_len], 是否是实体的打分
         bias_input = self.q_dense(sequence_output)  # [..., heads*2]
-        bias = torch.stack(torch.chunk(bias_input, self.heads, dim=-1), dim=-2).transpose(1,2)  # [btz, head_size, seq_len,2]
-        logits = logits.unsqueeze(1) + bias[..., :1] + bias[..., 1:].transpose(2, 3)  # [btz, head_size, seq_len, seq_len]
+        bias = torch.stack(torch.chunk(bias_input, self.heads, dim=-1), dim=-2).transpose(1,2)  # [btz, heads, seq_len, 2]
+        logits = logits.unsqueeze(1) + bias[..., :1] + bias[..., 1:].transpose(2, 3)  # [btz, heads, seq_len, seq_len]
 
         # 排除padding
         if mask is not None:
