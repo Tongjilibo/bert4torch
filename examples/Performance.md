@@ -17,14 +17,18 @@
 # sentence_embedding
 ## unsupervised
 - bert预训练模型+无监督finetune
-- 五个中文数据集+仅跑了一个epoch
+- 五个中文数据集+5个epoch取最优值
 - 继续finetune, 部分数据集有小幅提升
+- 实验显示dropout_rate对结果影响较大
 
-| solution |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
-|   ----   |   ----  | ---- |   ----  |   ----  |   ----  |
-|  SimCSE  |  33.30  | 49.95|  70.36  |  12.69  |  69.00  |
-|  ESimCSE |  33.61  | 50.43|  70.61  |  12.84  |  69.31  |
-|PromptBert|  33.61  | 47.54|  71.81  |  24.47  |  73.97  |
+|     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |   comment   |
+|       ----      |   ----  | ---- |   ----  |   ----  |   ----  |     ----    |
+|        CT       |  30.65  | 44.50|  68.67  |  16.20  |  69.27  | dropout=0.1, 收敛慢跑了10个epoch |
+| CT_In_Batch_Neg |  32.47  | 47.09|  68.56  |  27.50  |  74.00  | dropout=0.1 |
+|       TSDAE     |    ——   | 46.65|  65.30  |  12.54  |    ——   | dropout=0.1, ——表示该指标异常未记录 |
+|      SimCSE     |  33.90  | 50.29|  71.81  |  13.14  |  71.09  | dropout=0.3 |
+|      ESimCSE    |  34.05  | 50.54|  71.58  |  12.53  |  71.27  | dropout=0.3 |
+|    PromptBert   |  33.98  | 49.89|  73.18  |  13.30  |  73.42  | dropout=0.3 |
 
 ## supervised
 待整理

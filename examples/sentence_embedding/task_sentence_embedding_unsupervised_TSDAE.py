@@ -1,6 +1,8 @@
 #! -*- coding:utf-8 -*-
 # 语义相似度任务-无监督
 # 一个encoder输入删减后的句子生成句向量，decoder依据这个句子向量来恢复原句
+# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |      comment       |
+# |       TSDAE     |    ——   | 46.65|  65.30  |  12.54  |    ——   | ——表示该指标异常未记录 |
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel

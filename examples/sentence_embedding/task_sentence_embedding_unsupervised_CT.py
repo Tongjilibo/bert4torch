@@ -1,6 +1,8 @@
 #! -*- coding:utf-8 -*-
 # 语义相似度任务-无监督
 # ContrastiveTensionLoss: 同一个sentence送入两个模型，pooling后的点积要大
+# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+# |        CT       |  30.65  | 44.50|  68.67  |  16.20  |  69.27  |
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel

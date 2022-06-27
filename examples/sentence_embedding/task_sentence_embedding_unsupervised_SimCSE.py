@@ -1,11 +1,8 @@
 #! -*- coding: utf-8 -*-
 # SimCSE 中文测试
 # bert4keras链接：https://kexue.fm/archives/8348
-
-# 测试结果均为1个epoch的结果bert+cls
-# |  model |  ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
-# |  ----  |  ----  | ---- |   ----  |   ----  |   ----  |
-# |  BERT  | 33.30  | 49.95|  70.36  |  12.69  |  69.00  |
+# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+# |      SimCSE     |  33.90  | 50.29|  71.81  |  13.14  |  71.09  |
 
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm

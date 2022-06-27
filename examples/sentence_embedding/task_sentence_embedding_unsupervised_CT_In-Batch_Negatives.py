@@ -1,6 +1,9 @@
 #! -*- coding:utf-8 -*-
 # 语义相似度任务-无监督
 # loss: 对比学习损失（和simcse类似），只是用了两个模型而已 
+# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+# | CT_In_Batch_Neg |  32.47  | 47.09|  68.56  |  27.50  |  74.00  |
+
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel

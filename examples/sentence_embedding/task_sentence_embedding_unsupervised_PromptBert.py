@@ -2,12 +2,8 @@
 # promptbert实现sentence embedding
 # 官方项目：https://github.com/kongds/Prompt-BERT
 # 参考项目：https://github.com/Macielyoung/sentence_representation_matching
-
-# 测试结果均为1/5个epoch的最优结果bert+cls
-# |  model |  epoch |  ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
-# |  ----  |  ----  |  ----  | ---- |   ----  |   ----  |   ----  |
-# |  BERT  |    1   | 33.61  | 47.54| 71.81   |  24.47  |  73.97  |
-# |  BERT  |    5   | 34.35  | 47.54| 71.91   |  25.00  |  74.71  |
+# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+# |    PromptBert   |  33.98  | 49.89|  73.18  |  13.30  |  73.42  |
 
 import torch
 import torch.nn as nn

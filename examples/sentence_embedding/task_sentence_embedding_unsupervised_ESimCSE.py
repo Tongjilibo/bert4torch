@@ -1,10 +1,7 @@
 #! -*- coding: utf-8 -*-
 # ESimCSE 中文测试
-
-# 测试结果均为1个epoch的结果bert+cls
-# |  model |  ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
-# |  ----  |  ----  | ---- |   ----  |   ----  |   ----  |
-# |  BERT  | 33.61  | 50.43| 70.61   |  12.84  |  69.31  |
+# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+# |      ESimCSE    |  34.05  | 50.54|  71.58  |  12.53  |  71.27  |
 
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
