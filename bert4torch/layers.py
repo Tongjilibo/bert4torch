@@ -823,15 +823,23 @@ class RoPEPositionEncoding(nn.Module):
 class CRF(nn.Module):
     '''直接从pytorch版本的bert中移植过来的
     '''
-    def __init__(self, num_labels):
+    def __init__(self, num_labels, init_transitions=None, freeze=False):
         super(CRF, self).__init__()
         self.num_labels = num_labels
         self.START_TAG_IDX = -2
         self.END_TAG_IDX = -1
-        init_transitions = torch.zeros(self.num_labels + 2, self.num_labels + 2)
+        if init_transitions is None:
+            init_transitions = torch.zeros(self.num_labels + 2, self.num_labels + 2)
+        else:
+            assert init_transitions.shape == (self.num_labels + 2, self.num_labels + 2), 'CRF init_weight shape does not match'
+            init_transitions = torch.tensor(init_transitions, dtype=torch.float)
         init_transitions[:, self.START_TAG_IDX] = -10000.0
         init_transitions[self.END_TAG_IDX, :] = -10000.0
-        self.transitions = nn.Parameter(init_transitions)
+        
+        if not freeze:
+            self.transitions = nn.Parameter(init_transitions)
+        else:
+            self.register_buffer('transitions', init_transitions)
 
     # feats: [bts, seq_len, num_labels+2]
     # mask: [bts, seq_len]
