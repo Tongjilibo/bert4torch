@@ -4,9 +4,11 @@
 
 | solution | epoch | f1_token | f1_entity | comment | 
 | ---- | ---- | ---- | ---- | ---- | 
-| bert+crf | 6/20 | 97.02 | 96.22 | —— | 
+| bert+crf | 4/20 | 97.06 | 95.90 | —— | 
+| bert+crf+init | 4/20 | 97.35 | 96.42 | 用训练数据初始化crf权重 | 
+| bert+crf+freeze | 10/20 | 97.15 | 95.92 | 用训练数据生成crf权重(不训练) | 
 | bert+cascade+crf | 15/20 | 98.11 | 96.23 | crf类别少所以f1_token偏高 | 
-| bert+posseg+crf | 8/20 | 97.30 | 96.09 | —— | 
+| bert+posseg+crf | 8/20 | 97.30 | 96.09 | 加了词性输入 | 
 | bert+global_pointer | 18/20 | —— | 95.66 | —— | 
 | bert+efficient_global_pointer | 17/20 | —— | 96.55 | —— | 
 | bert+mrc | 7/20 | —— | 95.75 | —— |

@@ -1,7 +1,8 @@
 #! -*- coding:utf-8 -*-
-# bert+crf用来做实体识别
+# bert+crf用来做实体识别, 测试两种方案，一种是用数据集来生成crf权重，第二种是来初始化
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
-# [valid_f1]  token_level: 97.06； entity_level: 95.90
+# 初始化： [valid_f1]  token_level: 97.35； entity_level: 96.42
+# 固定化： [valid_f1]  token_level: 96.92； entity_level: 95.42
 
 
 import numpy as np
@@ -37,25 +38,23 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 
 # 加载数据集
-class MyDataset(ListDataset):
-    @staticmethod
-    def load_data(filename):
-        D = []
-        with open(filename, encoding='utf-8') as f:
-            f = f.read()
-            for l in f.split('\n\n'):
-                if not l:
-                    continue
-                d = ['']
-                for i, c in enumerate(l.split('\n')):
-                    char, flag = c.split(' ')
-                    d[0] += char
-                    if flag[0] == 'B':
-                        d.append([i, i, flag[2:]])
-                    elif flag[0] == 'I':
-                        d[-1][1] = i
-                D.append(d)
-        return D
+def load_data(filename):
+    D = []
+    with open(filename, encoding='utf-8') as f:
+        f = f.read()
+        for l in f.split('\n\n'):
+            if not l:
+                continue
+            d = ['']
+            for i, c in enumerate(l.split('\n')):
+                char, flag = c.split(' ')
+                d[0] += char
+                if flag[0] == 'B':
+                    d.append([i, i, flag[2:]])
+                elif flag[0] == 'I':
+                    d[-1][1] = i
+            D.append(d)
+    return D
 
 
 # 建立分词器
@@ -83,8 +82,31 @@ def collate_fn(batch):
     return batch_token_ids, batch_labels
 
 # 转换数据集
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
+train_data = load_data('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+valid_data = load_data('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev')
+train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
+
+# 根据训练数据生成权重
+transition_score = np.zeros((len(categories)+2, len(categories)+2))
+for d in tqdm(train_data, desc='Generate init_trasitions'):
+    tokens = tokenizer.tokenize(d[0], maxlen=maxlen)
+    mapping = tokenizer.rematch(d[0], tokens)
+    start_mapping = {j[0]: i for i, j in enumerate(mapping) if j}
+    end_mapping = {j[-1]: i for i, j in enumerate(mapping) if j}
+    token_ids = tokenizer.tokens_to_ids(tokens)
+    labels = np.zeros(len(token_ids))
+    for start, end, label in d[1:]:
+        if start in start_mapping and end in end_mapping:
+            start = start_mapping[start]
+            end = end_mapping[end]
+            labels[start] = categories_label2id['B-'+label]
+            labels[start + 1:end + 1] = categories_label2id['I-'+label]
+    for i in range(len(labels)-1):
+        transition_score[int(labels[i]), int(labels[i+1])] += 1
+    transition_score[-2, int(labels[0])] += 1  # start转移到标签
+    transition_score[int(labels[-1]), -1] += 1  # 标签转移到end
+transition_score = (transition_score - np.min(transition_score)) / (np.max(transition_score) - np.min(transition_score))
 
 # 定义bert上的模型结构
 class Model(BaseModel):
@@ -92,7 +114,7 @@ class Model(BaseModel):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
         self.fc = nn.Linear(768, len(categories)+2)  # 包含首尾
-        self.crf = CRF(len(categories))
+        self.crf = CRF(len(categories), init_transitions=transition_score, freeze=False)  # 控制是否初始化，是否参加训练
 
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
