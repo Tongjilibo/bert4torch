@@ -29,7 +29,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年6月29更新**：增加ner的实验，测试crf不同初始化的效果
+- **2022年6月29更新**：增加ner的实验，测试crf不同初始化的效果，bert-whitening中文实验
 - **2022年6月13更新**：增加seq2seq+前缀树，增加SimCSE/ESimCSE/PromptBert等无监督语义相似度的中文实验
 - **2022年6月05更新**：增加PromptBert、PET、P-tuning示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus
 - **2022年5月29更新**：transformer_xl、xlnet模型, 修改sinusoid位置向量被init_weight的bug, EMA，sohu情感分类示例

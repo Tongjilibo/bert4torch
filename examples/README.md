@@ -17,7 +17,6 @@
 - [basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_xlnet.py): 测试xlnet模型。
 
 ### 文本表示
-- [task_sentence_embedding_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_bert_whitening.py)：参考[bert_whitening](https://github.com/bojone/BERT-whitening)
 - [task_sentence_embedding_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_lcqmc__ContrastiveLoss.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_stsb_CosineSimilarityLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_stsb_CosineSimilarityLoss.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_stsb_DimensionalityReduction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_stsb_DimensionalityReduction.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
@@ -25,6 +24,7 @@
 - [task_sentence_embedding_xnli__concat_CrossEntropyLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_xnli__concat_CrossEntropyLoss.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_xnli__MultiNegtiveRankingLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_xnli__MultiNegtiveRankingLoss.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_CoSENT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_CoSENT.py)：参考[CoSENT](https://kexue.fm/archives/8847)
+- [task_sentence_embedding_unsupervised_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_bert_whitening.py)：参考[bert_whitening](https://github.com/bojone/BERT-whitening)
 - [task_sentence_embedding_unsupervised_CT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_CT.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_unsupervised_CT_In-Batch_Negatives.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_CT_In-Batch_Negatives.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_unsupervised_SimCSE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_SimCSE.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)和[科学空间版中文测试](https://kexue.fm/archives/8348)
