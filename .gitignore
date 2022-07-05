@@ -3,7 +3,7 @@ datasets/
 *.pt
 *.csv
 *.json
-*.ipynb
+bert4torch_test.ipynb
 summary/
 .idea
 .vscode/launch.json

@@ -7,21 +7,31 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_poo
 import torch.nn as nn
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from sklearn.metrics.pairwise import paired_cosine_distances, paired_euclidean_distances, paired_manhattan_distances
-from scipy.stats import pearsonr, spearmanr
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
+from sentence_transformers import evaluation
 import numpy as np
+import pandas as pd
 import random
-random.seed(2022)
+import os
 
-maxlen = 256
-batch_size = 8
-# config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-# checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-# dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-config_path = '/Users/lb/Documents/Project/pretrain_ckpt/bert/[hit_tf_base]chinese_wwm_ext_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = None
-dict_path = '/Users/lb/Documents/Project/pretrain_ckpt/bert/[hit_tf_base]chinese_wwm_ext_L-12_H-768_A-12/vocab.txt'
+# 固定seed
+seed = 42
+random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+
+maxlen = 64
+batch_size = 64
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+train_datapath = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_train.tsv'
+dev_datapath = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_dev.tsv'
+ir_path = 'F:/Projects/data/corpus/qa/FinanceFAQ/ir_corpus.tsv'
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'random'  # raw, random
 
@@ -84,11 +94,21 @@ elif choice == 'random':
                     D[q_std] = D.get(q_std, []) + [q_sim]
             return [[k]+v for k, v in D.items()]
 
-# train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/FinanceFAQ_train.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-# valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/FinanceFAQ_valid.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-train_dataloader = DataLoader(MyDataset('/Users/lb/Documents/Project/data/qa/FinanceFAQ/FinanceFAQ.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('/Users/lb/Documents/Project/data/qa/FinanceFAQ/FinanceFAQ.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(train_datapath), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
+# 验证集
+ir_queries, ir_corpus, ir_relevant_docs = {}, {}, {}
+with open(dev_datapath, 'r', encoding='utf-8') as f:
+    next(f)
+    for line in f:
+        qid, query, duplicate_ids = line.strip().split('\t')
+        duplicate_ids = duplicate_ids.split(',')
+        ir_queries[qid] = query
+        ir_relevant_docs[qid] = set(duplicate_ids)
+ir_corpus_df = pd.read_csv(ir_path, sep='\t')
+ir_corpus_df.qid = ir_corpus_df.qid.astype('str')
+ir_corpus = dict(zip(ir_corpus_df.qid.tolist(), ir_corpus_df.question.tolist()))
+evaluate = evaluation.InformationRetrievalEvaluator(ir_queries, ir_corpus, ir_relevant_docs, name=choice)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
@@ -109,12 +129,23 @@ class Model(BaseModel):
         scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz*2]
         return scores
 
-    def encode(self, token_ids):
+    def encode(self, texts, **kwargs):
+        token_ids_list = []
+        for text in texts:
+            token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+            token_ids_list.append(token_ids)
+        token_ids_tensor = torch.tensor(sequence_padding(token_ids_list), dtype=torch.long, device=device)
+        valid_dataloader = DataLoader(TensorDataset(token_ids_tensor), batch_size=batch_size)
+        valid_sen_emb = []
         self.eval()
         with torch.no_grad():
-            hidden_state, pool_cls = self.bert([token_ids])
-            output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
-        return output
+            for token_ids in tqdm(valid_dataloader, desc='Evaluate'):
+                token_ids = token_ids[0]
+                hidden_state, pool_cls = self.bert([token_ids])
+                output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
+                valid_sen_emb.append(output)
+        valid_sen_emb = torch.cat(valid_sen_emb, dim=0)
+        return valid_sen_emb
     
     @staticmethod
     def cos_sim(a, b):
@@ -131,41 +162,19 @@ model.compile(
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
-# 定义评价函数
-def evaluate(data):
-    embeddings1, embeddings2, labels = [], [], []
-    for (batch_token1_ids, batch_token2_ids), label in data:
-        embeddings1.append(model.encode(batch_token1_ids))
-        embeddings2.append(model.encode(batch_token2_ids))
-        labels.append(label)
-
-    embeddings1 = torch.cat(embeddings1).cpu().numpy()
-    embeddings2 = torch.cat(embeddings2).cpu().numpy()
-    labels = torch.cat(labels).cpu().numpy()
-    cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
-    eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
-    return eval_pearson_cosine
-
-
 class Evaluator(Callback):
-    """评估与保存
-    """
-    def __init__(self):
-        self.best_val_consine = 0.
+    def on_dataloader_end(self, logs=None):
+        model.train_dataloader = DataLoader(MyDataset(train_datapath), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        val_consine = evaluate(valid_dataloader)
-        if val_consine > self.best_val_consine:
-            self.best_val_consine = val_consine
-            # model.save_weights('best_model.pt')
-        print(f'val_consine: {val_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
-
+        evaluate(model, epoch=model.epoch, steps=model.global_step, output_path='./')
+        model.save_weights(f'./{choice}_best_weights_{model.epoch}.pt')
 
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=None, 
+            steps_per_epoch=10, 
             callbacks=[evaluator]
             )
 else:
