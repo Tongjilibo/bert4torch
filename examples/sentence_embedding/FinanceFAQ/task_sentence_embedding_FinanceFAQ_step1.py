@@ -10,46 +10,85 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances, paired_euclidean_distances, paired_manhattan_distances
 from scipy.stats import pearsonr, spearmanr
+import numpy as np
 import random
 random.seed(2022)
 
 maxlen = 256
 batch_size = 8
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
+# config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+# checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+# dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = '/Users/lb/Documents/Project/pretrain_ckpt/bert/[hit_tf_base]chinese_wwm_ext_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = None
+dict_path = '/Users/lb/Documents/Project/pretrain_ckpt/bert/[hit_tf_base]chinese_wwm_ext_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+choice = 'random'  # raw, random
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-def collate_fn(batch):
-    texts_list = [[] for _ in range(2)]
-    for texts in batch:
-        for i, text in enumerate(texts):
-            token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
-            texts_list[i].append(token_ids)
+if choice == 'raw':
+    # 原始模式，可能同一个batch中会出现重复标问
+    def collate_fn(batch):
+        texts_list = [[] for _ in range(2)]
+        for texts in batch:
+            for i, text in enumerate(texts):
+                token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+                texts_list[i].append(token_ids)
 
-    for i, texts in enumerate(texts_list):
-        texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
-    labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
-    return texts_list, labels
+        for i, texts in enumerate(texts_list):
+            texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
+        labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
+        return texts_list, labels
 
-class MyDataset(ListDataset):
-    @staticmethod
-    def load_data(filename):
-        D = []
-        with open(filename, encoding='utf-8') as f:
-            for row, l in enumerate(f):
-                if row == 0:  # 跳过首行
-                    continue
-                text1, text2 = l.strip().split('\t')
-                D.append((text1.replace(' ', ''), text2.replace(' ', '')))
-        return D
+    class MyDataset(ListDataset):
+        @staticmethod
+        def load_data(filename):
+            D = []
+            with open(filename, encoding='utf-8') as f:
+                for row, l in enumerate(f):
+                    if row == 0:  # 跳过首行
+                        continue
+                    q_std, q_sim = l.strip().split('\t')
+                    D.append((q_std.replace(' ', ''), q_sim.replace(' ', '')))
+            return D
 
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/FinanceFAQ_train.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/FinanceFAQ_valid.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+elif choice == 'random':
+    # 以标准问为key的键值对, 保证一个batch内不存在同样q_std的样本
+    def collate_fn(batch):
+        texts_list = [[] for _ in range(2)]
+        for text_list in batch:  # q_std有0.5的概率被抽样到
+            p = [0.5] + [0.5/(len(text_list)-1)] * (len(text_list)-1)
+            texts = np.random.choice(text_list, 2, replace=False, p=p)
+            for i, text in enumerate(texts):
+                token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+                texts_list[i].append(token_ids)
+
+        for i, texts in enumerate(texts_list):
+            texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
+        labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
+        return texts_list, labels
+
+    class MyDataset(ListDataset):
+        @staticmethod
+        def load_data(filename):
+            D = dict()
+            with open(filename, encoding='utf-8') as f:
+                for row, l in enumerate(f):
+                    if row == 0:  # 跳过首行
+                        continue
+                    q_std, q_sim = l.strip().split('\t')
+                    q_std = q_std.replace(' ', '')
+                    q_sim = q_sim.replace(' ', '')
+                    D[q_std] = D.get(q_std, []) + [q_sim]
+            return [[k]+v for k, v in D.items()]
+
+# train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/FinanceFAQ_train.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+# valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/FinanceFAQ_valid.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('/Users/lb/Documents/Project/data/qa/FinanceFAQ/FinanceFAQ.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('/Users/lb/Documents/Project/data/qa/FinanceFAQ/FinanceFAQ.tsv'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+
 
 # 定义bert上的模型结构
 class Model(BaseModel):
