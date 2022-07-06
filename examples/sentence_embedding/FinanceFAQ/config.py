@@ -4,8 +4,8 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 # 一阶段训练
-train_datapath = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_train.tsv'
-dev_datapath = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_dev.tsv'
+fst_train_file = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_train.tsv'
+fst_dev_file = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_dev.tsv'
 ir_path = 'F:/Projects/data/corpus/qa/FinanceFAQ/ir_corpus.tsv'
 
 # 一阶段预测结果

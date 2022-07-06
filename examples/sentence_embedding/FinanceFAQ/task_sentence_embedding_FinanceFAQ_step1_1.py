@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from sentence_transformers import evaluation
-from config import config_path, checkpoint_path, dict_path, train_datapath, dev_datapath, ir_path
+from config import config_path, checkpoint_path, dict_path, fst_train_file, dev_datapath, ir_path
 import numpy as np
 import pandas as pd
 import random
@@ -88,7 +88,7 @@ elif choice == 'random':
                     D[q_std] = D.get(q_std, []) + [q_sim]
             return [[k]+v for k, v in D.items()]
 
-train_dataloader = DataLoader(MyDataset(train_datapath), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
 # 验证集
 ir_queries, ir_corpus, ir_relevant_docs = {}, {}, {}
@@ -158,7 +158,7 @@ model.compile(
 
 class Evaluator(Callback):
     def on_dataloader_end(self, logs=None):
-        model.train_dataloader = DataLoader(MyDataset(train_datapath), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+        model.train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         evaluate(model, epoch=model.epoch, steps=model.global_step, output_path='./')
