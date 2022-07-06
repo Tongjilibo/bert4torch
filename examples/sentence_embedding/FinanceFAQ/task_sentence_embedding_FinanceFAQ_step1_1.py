@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from sentence_transformers import evaluation
+from config import config_path, checkpoint_path, dict_path, train_datapath, dev_datapath, ir_path
 import numpy as np
 import pandas as pd
 import random
@@ -25,13 +26,6 @@ torch.cuda.manual_seed(seed)
 
 maxlen = 64
 batch_size = 64
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-train_datapath = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_train.tsv'
-dev_datapath = 'F:/Projects/data/corpus/qa/FinanceFAQ/FinanceFAQ_dev.tsv'
-ir_path = 'F:/Projects/data/corpus/qa/FinanceFAQ/ir_corpus.tsv'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'random'  # raw, random
 
@@ -174,7 +168,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=10, 
+            steps_per_epoch=None, 
             callbacks=[evaluator]
             )
 else:
