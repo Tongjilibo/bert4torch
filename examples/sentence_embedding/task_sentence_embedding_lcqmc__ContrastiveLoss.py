@@ -94,12 +94,12 @@ model.compile(
 def evaluate(data):
     embeddings1, embeddings2, labels = [], [], []
     for (batch_token1_ids, batch_token2_ids), batch_labels in data:
-        embeddings1.append(model.encode(batch_token1_ids))
-        embeddings2.append(model.encode(batch_token2_ids))
+        embeddings1.append(model.encode(batch_token1_ids).cpu())
+        embeddings2.append(model.encode(batch_token2_ids).cpu())
         labels.append(batch_labels)
-    embeddings1 = torch.cat(embeddings1).cpu().numpy()
-    embeddings2 = torch.cat(embeddings2).cpu().numpy()
-    labels = torch.cat(labels).cpu().numpy()
+    embeddings1 = torch.cat(embeddings1).numpy()
+    embeddings2 = torch.cat(embeddings2).numpy()
+    labels = torch.cat(labels).numpy()
     cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
     auc = roc_auc_score(labels, cosine_scores)
     return auc

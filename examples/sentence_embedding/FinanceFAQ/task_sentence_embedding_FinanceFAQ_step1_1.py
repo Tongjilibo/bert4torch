@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from sentence_transformers import evaluation
-from config import config_path, checkpoint_path, dict_path, fst_train_file, dev_datapath, ir_path
+from config import config_path, checkpoint_path, dict_path, fst_train_file, fst_dev_file, ir_path
 import numpy as np
 import pandas as pd
 import random
@@ -92,7 +92,7 @@ train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, 
 
 # 验证集
 ir_queries, ir_corpus, ir_relevant_docs = {}, {}, {}
-with open(dev_datapath, 'r', encoding='utf-8') as f:
+with open(fst_dev_file, 'r', encoding='utf-8') as f:
     next(f)
     for line in f:
         qid, query, duplicate_ids = line.strip().split('\t')
@@ -123,7 +123,7 @@ class Model(BaseModel):
         scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz*2]
         return scores
 
-    def encode(self, texts, **kwargs):
+    def encode(self, texts, to_cpu=False, **kwargs):
         token_ids_list = []
         for text in texts:
             token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
@@ -137,7 +137,7 @@ class Model(BaseModel):
                 token_ids = token_ids[0]
                 hidden_state, pool_cls = self.bert([token_ids])
                 output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
-                valid_sen_emb.append(output)
+                valid_sen_emb.append(output if not to_cpu else output.cpu())
         valid_sen_emb = torch.cat(valid_sen_emb, dim=0)
         return valid_sen_emb
     
@@ -157,19 +157,26 @@ model.compile(
 )
 
 class Evaluator(Callback):
+    def __init__(self):
+        super().__init__()
+        self.best_perf = 0
+
     def on_dataloader_end(self, logs=None):
         model.train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        evaluate(model, epoch=model.epoch, steps=model.global_step, output_path='./')
-        model.save_weights(f'./{choice}_best_weights_{model.epoch}.pt')
+        perf = evaluate(model, epoch=model.epoch, steps=model.global_step, output_path='./')
+        if perf > self.best_perf:
+            self.best_perf = perf
+            model.save_weights(f'./{choice}_best_weights.pt')
+            print(f'perf: {perf:.2f}, best perf: {self.best_perf:.2f}\n')
 
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=None, 
+            steps_per_epoch=10, 
             callbacks=[evaluator]
             )
 else:
-    model.load_weights('best_model.pt')
+    model.load_weights(f'{choice}_best_weights.pt')
