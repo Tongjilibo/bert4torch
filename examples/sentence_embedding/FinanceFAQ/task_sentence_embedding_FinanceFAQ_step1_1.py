@@ -27,7 +27,7 @@ torch.cuda.manual_seed(seed)
 maxlen = 64
 batch_size = 64
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-choice = 'random'  # raw, random
+choice = 'raw'  # raw, random
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -123,21 +123,26 @@ class Model(BaseModel):
         scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz*2]
         return scores
 
-    def encode(self, texts, to_cpu=False, **kwargs):
+    def predict(self, token_ids):
+        self.eval()
+        with torch.no_grad():
+            hidden_state, pool_cls = self.bert([token_ids])
+            output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
+        return output
+
+    def encode(self, texts, **kwargs):
         token_ids_list = []
         for text in texts:
             token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
             token_ids_list.append(token_ids)
-        token_ids_tensor = torch.tensor(sequence_padding(token_ids_list), dtype=torch.long, device=device)
+        token_ids_tensor = torch.tensor(sequence_padding(token_ids_list), dtype=torch.long)
         valid_dataloader = DataLoader(TensorDataset(token_ids_tensor), batch_size=batch_size)
         valid_sen_emb = []
         self.eval()
-        with torch.no_grad():
-            for token_ids in tqdm(valid_dataloader, desc='Evaluate'):
-                token_ids = token_ids[0]
-                hidden_state, pool_cls = self.bert([token_ids])
-                output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
-                valid_sen_emb.append(output if not to_cpu else output.cpu())
+        for token_ids in tqdm(valid_dataloader, desc='Evaluate'):
+            token_ids = token_ids[0].to(device)
+            output = self.predict(token_ids)
+            valid_sen_emb.append(output.cpu())
         valid_sen_emb = torch.cat(valid_sen_emb, dim=0)
         return valid_sen_emb
     
@@ -175,7 +180,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=10, 
+            steps_per_epoch=None, 
             callbacks=[evaluator]
             )
 else:

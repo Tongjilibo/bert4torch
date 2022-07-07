@@ -15,7 +15,7 @@ ir_path = f'{data_dir}/fst_ir_corpus.tsv'
 fst_q_std_vectors_file = f'{data_dir}/fst_q_std_vectors_file.npy'
 fst_q_corpus_vectors_file = f'{data_dir}/fst_q_corpus_vectors_file.npy'
 fst_std_data_results = f'{data_dir}/fst_std_data_results.tsv'
-fst_eval_path_list = []
+fst_eval_path_list = [f'{data_dir}/fst_eval.tsv']
 
 # 二阶段
 sec_train_file =  f'{data_dir}/sec_train_file.tsv'

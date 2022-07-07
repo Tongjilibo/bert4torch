@@ -56,6 +56,9 @@ def cos_sim4matrix_2(arr, brr):
 
 def cal_performance(texts_embeddings_dict, q_std_sentence_embeddings, q_std_list, texts, df_eval, K=20):
     print(f'计算相似度 K= {K}'.center(60, '-'))
+    df_eval['ifin'] = df_eval.q_std.apply(lambda v: 1 if v in q_std_list else 0)
+    print("目标语料标问是否存在：——>", df_eval.groupby("ifin")["ifin"].count())
+
     print('----计算所有query和q_std的相似度')
     x_texts_embeddings = np.array([texts_embeddings_dict[x_text] for x_text in texts])
     cos_scores = pytorch_cos_sim(x_texts_embeddings, q_std_sentence_embeddings).cpu()
@@ -84,7 +87,6 @@ def cal_performance(texts_embeddings_dict, q_std_sentence_embeddings, q_std_list
     df_eval['t10'] = df_eval.apply(lambda row: 1 if row['q_std'] in row['q_std_pred_list_v1'][0:10] else 0, axis=1)
 
     print('----模型准确率: ', df_eval.t1.sum() / df_eval.shape[0], df_eval.t3.sum() / df_eval.shape[0], df_eval.t5.sum() / df_eval.shape[0], df_eval.t10.sum() / df_eval.shape[0])
-    print('——>')
     df_eval_need = df_eval[df_eval.ifin == 1]
     print('----模型准确率:[有效标问]：', df_eval_need.t1.sum() / df_eval_need.shape[0], df_eval_need.t3.sum() / df_eval_need.shape[0], df_eval_need.t5.sum() / df_eval_need.shape[0], df_eval_need.t10.sum() / df_eval_need.shape[0])
     return df_eval

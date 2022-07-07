@@ -76,12 +76,27 @@ class Model(BaseModel):
         scores = 1 - torch.cosine_similarity(embeddings_a, embeddings_b)
         return scores
 
-    def encode(self, token_ids, to_cpu=False):
+    def predict(self, token_ids):
         self.eval()
         with torch.no_grad():
             hidden_state, pool_cls = self.bert([token_ids])
             output = get_pool_emb(hidden_state, pool_cls, token_ids.gt(0).long(), self.pool_method)
         return output
+    
+    def encode(self, texts):
+        token_ids_list = []
+        for text in texts:
+            token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+            token_ids_list.append(token_ids)
+        token_ids_tensor = torch.tensor(sequence_padding(token_ids_list), dtype=torch.long)
+        valid_dataloader = DataLoader(TensorDataset(token_ids_tensor), batch_size=batch_size)
+        valid_sen_emb = []
+        for token_ids in tqdm(valid_dataloader, desc='Evaluate'):
+            token_ids = token_ids[0].to(device)
+            output = self.predict(token_ids)
+            valid_sen_emb.append(output.cpu())
+        valid_sen_emb = torch.cat(valid_sen_emb, dim=0)
+        return valid_sen_emb
 
 model = Model().to(device)
 
@@ -102,16 +117,16 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_auc = self.evaluate(valid_dataloader)
-        if val_auc > self.best_val_auc:
+        if val_auc >= self.best_val_auc:
             self.best_val_auc = val_auc
-            # model.save_weights('best_model.pt')
+            model.save_weights('best_weights.pt')
         print(f'val_auc: {val_auc:.5f}, best_val_auc: {self.best_val_auc:.5f}\n')
     
     def evaluate(self, data):
         embeddings1, embeddings2, labels = [], [], []
         for (batch_token1_ids, batch_token2_ids), batch_labels in tqdm(data):
-            embeddings1.append(model.encode(batch_token1_ids).cpu())
-            embeddings2.append(model.encode(batch_token2_ids).cpu())
+            embeddings1.append(model.predict(batch_token1_ids).cpu())
+            embeddings2.append(model.predict(batch_token2_ids).cpu())
             labels.append(batch_labels.cpu())
         embeddings1 = torch.cat(embeddings1).numpy()
         embeddings2 = torch.cat(embeddings2).numpy()
@@ -125,7 +140,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=None, 
+            steps_per_epoch=1000, 
             callbacks=[evaluator]
             )
 else:
