@@ -11,3 +11,4 @@ summary/
 bert4torch.egg-info/
 build/
 dist/
+.DS_Store

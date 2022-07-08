@@ -74,9 +74,7 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
     说明：
         1. y_true.shape=[..., num_positive]，
            y_pred.shape=[..., num_classes]；
-        2. 请保证y_pred的值域是全体实数，换言之一般情况下
-           y_pred不用加激活函数，尤其是不能加sigmoid或者
-           softmax；
+        2. 请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax；
         3. 预测阶段则输出y_pred大于0的类；
         4. 详情请看：https://kexue.fm/archives/7359 。
     """

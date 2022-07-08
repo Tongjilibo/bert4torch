@@ -116,7 +116,7 @@ class Evaluator(Callback):
         val_auc = self.evaluate(valid_dataloader)
         if val_auc >= self.best_val_auc:
             self.best_val_auc = val_auc
-            model.save_weights('best_weights.pt')
+            model.save_weights('sec_best_weights.pt')
         print(f'val_auc: {val_auc:.5f}, best_val_auc: {self.best_val_auc:.5f}\n')
     
     def evaluate(self, data):
@@ -144,4 +144,4 @@ if __name__ == '__main__':
             callbacks=[evaluator]
             )
 else:
-    model.load_weights('best_weights.pt')
+    model.load_weights('sec_best_weights.pt')

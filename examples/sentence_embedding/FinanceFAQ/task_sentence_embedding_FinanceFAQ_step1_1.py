@@ -4,6 +4,7 @@
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
+from bert4torch.losses import MultilabelCategoricalCrossentropy
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -27,23 +28,36 @@ torch.cuda.manual_seed(seed)
 maxlen = 64
 batch_size = 64
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-choice = 'raw'  # raw, random
+# raw: 原始的版本
+# random: 同一个标准问(组内)随机采样，组间互为负样本
+# mul_cate_ce: 原始版本修改版，组间也有正样本（标准问一致的时候）
+choice = 'raw'
+print(f'using {choice} mode in step1 model'.center(40, '-'))
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-if choice == 'raw':
+if choice in {'raw', 'mul_cate_ce'}:
     # 原始模式，可能同一个batch中会出现重复标问
     def collate_fn(batch):
+        if choice == 'raw':
+            labels = torch.arange(len(batch), device=device)
+        else:
+            labels = torch.eye(len(batch), dtype=torch.long, device=device)
+            # 定位相同元素
+            for i, (q_std1, _) in enumerate(batch):
+                for j, (q_std2, _) in enumerate(batch[i+1:], start=i+1):
+                    if q_std1 == q_std2:
+                        labels[i, j] = 1
+                        labels[j, i] = 1
+
         texts_list = [[] for _ in range(2)]
         for texts in batch:
             for i, text in enumerate(texts):
                 token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
                 texts_list[i].append(token_ids)
-
         for i, texts in enumerate(texts_list):
             texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
-        labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
         return texts_list, labels
 
     class MyDataset(ListDataset):
@@ -137,12 +151,11 @@ class Model(BaseModel):
         b_norm = torch.nn.functional.normalize(b, p=2, dim=1)
         return torch.mm(a_norm, b_norm.transpose(0, 1))
 
-
 model = Model().to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss=nn.CrossEntropyLoss(),
+    loss = MultilabelCategoricalCrossentropy if choice == 'mul_cate_ce' else nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
@@ -158,7 +171,7 @@ class Evaluator(Callback):
         perf = evaluate(model, epoch=model.epoch, steps=model.global_step, output_path='./')
         if perf > self.best_perf:
             self.best_perf = perf
-            model.save_weights(f'./{choice}_best_weights.pt')
+            model.save_weights(f'./fst_best_weights_{choice}.pt')
             print(f'perf: {perf:.2f}, best perf: {self.best_perf:.2f}\n')
 
 if __name__ == '__main__':
@@ -186,4 +199,4 @@ if __name__ == '__main__':
             callbacks=[evaluator]
             )
 else:
-    model.load_weights(f'{choice}_best_weights.pt')
+    model.load_weights(f'./fst_best_weights_{choice}.pt')
