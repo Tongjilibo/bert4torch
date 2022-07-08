@@ -1,6 +1,7 @@
 #! -*- coding:utf-8 -*-
 # loss: MultiNegativeRankingLoss, 和simcse一样，以batch中其他样本作为负样本
 
+from turtle import forward
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
@@ -31,8 +32,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # raw: 原始的版本
 # random: 同一个标准问(组内)随机采样，组间互为负样本
 # mul_cate_ce: 原始版本修改版，组间也有正样本（标准问一致的时候）
-choice = 'raw'
-print(f'using {choice} mode in step1 model'.center(40, '-'))
+choice = 'mul_cate_ce'
+print(f'using {choice} mode in step1 model'.center(60, '-'))
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -153,9 +154,16 @@ class Model(BaseModel):
 
 model = Model().to(device)
 
+# 多分类
+class Myloss(MultilabelCategoricalCrossentropy):
+    def forward(self, y_pred, y_true):
+        y_pred = y_pred.flatten()[None, :]
+        y_true = y_true.flatten()[None, :]
+        return super().forward(y_pred, y_true)
+
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss = MultilabelCategoricalCrossentropy() if choice == 'mul_cate_ce' else nn.CrossEntropyLoss(),
+    loss = Myloss() if choice == 'mul_cate_ce' else nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
@@ -172,7 +180,7 @@ class Evaluator(Callback):
         if perf > self.best_perf:
             self.best_perf = perf
             model.save_weights(f'./fst_best_weights_{choice}.pt')
-            print(f'perf: {perf:.2f}, best perf: {self.best_perf:.2f}\n')
+        print(f'perf: {perf:.2f}, best perf: {self.best_perf:.2f}\n')
 
 if __name__ == '__main__':
     # 训练集

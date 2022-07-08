@@ -15,9 +15,9 @@ import torch
 from torch import nn, optim
 
 # BERT base
-config_path = 'pre_models/bert_config.json'
-checkpoint_path = 'pre_models/bert_model.ckpt'
-dict_path = 'pre_models/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = f'cuda' if torch.cuda.is_available() else 'cpu'
 
 n = 5   # Cross-validation
@@ -180,6 +180,6 @@ def do_train(df_train):
         del model
 
 if __name__ == '__main__':
-    df_train = pd.read_csv('data/train_set.csv', sep='\t')
+    df_train = pd.read_csv('E:/Github/天池新闻分类/data/train_set.csv', sep='\t')
     df_train['text'] = df_train['text'].apply(lambda x: x.strip().split())
     do_train(df_train)
