@@ -155,7 +155,7 @@ model = Model().to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss = MultilabelCategoricalCrossentropy if choice == 'mul_cate_ce' else nn.CrossEntropyLoss(),
+    loss = MultilabelCategoricalCrossentropy() if choice == 'mul_cate_ce' else nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
