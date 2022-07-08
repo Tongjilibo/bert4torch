@@ -88,21 +88,6 @@ elif choice == 'random':
                     D[q_std] = D.get(q_std, []) + [q_sim]
             return [[k]+v for k, v in D.items()]
 
-train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-
-# 验证集
-ir_queries, ir_corpus, ir_relevant_docs = {}, {}, {}
-with open(fst_dev_file, 'r', encoding='utf-8') as f:
-    next(f)
-    for line in f:
-        qid, query, duplicate_ids = line.strip().split('\t')
-        duplicate_ids = duplicate_ids.split(',')
-        ir_queries[qid] = query
-        ir_relevant_docs[qid] = set(duplicate_ids)
-ir_corpus_df = pd.read_csv(ir_path, sep='\t')
-ir_corpus_df.qid = ir_corpus_df.qid.astype('str')
-ir_corpus = dict(zip(ir_corpus_df.qid.tolist(), ir_corpus_df.question.tolist()))
-evaluate = evaluation.InformationRetrievalEvaluator(ir_queries, ir_corpus, ir_relevant_docs, name=choice)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
@@ -177,6 +162,23 @@ class Evaluator(Callback):
             print(f'perf: {perf:.2f}, best perf: {self.best_perf:.2f}\n')
 
 if __name__ == '__main__':
+    # 训练集
+    train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+
+    # 验证集
+    ir_queries, ir_corpus, ir_relevant_docs = {}, {}, {}
+    with open(fst_dev_file, 'r', encoding='utf-8') as f:
+        next(f)
+        for line in f:
+            qid, query, duplicate_ids = line.strip().split('\t')
+            duplicate_ids = duplicate_ids.split(',')
+            ir_queries[qid] = query
+            ir_relevant_docs[qid] = set(duplicate_ids)
+    ir_corpus_df = pd.read_csv(ir_path, sep='\t')
+    ir_corpus_df.qid = ir_corpus_df.qid.astype('str')
+    ir_corpus = dict(zip(ir_corpus_df.qid.tolist(), ir_corpus_df.question.tolist()))
+    evaluate = evaluation.InformationRetrievalEvaluator(ir_queries, ir_corpus, ir_relevant_docs, name=choice)
+
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 

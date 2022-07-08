@@ -55,9 +55,6 @@ class MyDataset(ListDataset):
                 D.append((text1.replace(' ', ''), text2.replace(' ', ''), int(label)))
         return D
 
-train_dataloader = DataLoader(MyDataset(sec_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-valid_dataloader = DataLoader(MyDataset(sec_dev_file), batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self, pool_method='cls'):
@@ -137,6 +134,9 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
+    train_dataloader = DataLoader(MyDataset(sec_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    valid_dataloader = DataLoader(MyDataset(sec_dev_file), batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
+
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
