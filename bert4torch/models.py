@@ -6,7 +6,7 @@ import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
-from bert4torch.snippets import ProgbarLogger, FGM, PGD, VAT
+from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT
 from bert4torch.activations import get_activation
 import warnings
 
@@ -256,6 +256,10 @@ class BaseModel(nn.Module):
 
                 self.global_step += 1
             self.callback_fun('epoch_end', logs)
+            # earlystop策略
+            callback_tmp = [callback_tmp for callback_tmp in self.callbacks if isinstance(callback_tmp, EarlyStopping)]
+            if callback_tmp and callback_tmp[0].stopped_epoch > 0:
+                break
         self.callback_fun('train_end', logs)
 
     def predict(self, input_tensor_list, return_all=None):
