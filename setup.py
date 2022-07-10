@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='bert4torch',
-    version='0.1.6',
+    version='0.1.7',
     description='an elegant bert4torch',
     long_description='bert4torch: https://github.com/Tongjilibo/bert4torch',
     license='MIT Licence',

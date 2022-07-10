@@ -23,12 +23,14 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - [**实验指标**](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md)
 
 ## 版本说明
+- **v0.1.7**：增加EarlyStop，CRF中自带转bool类型
 - **v0.1.6**：增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug
 - **v0.1.5**：增加GAU-alpha，混合梯度，梯度裁剪，单机多卡(DP、DDP)
 - **v0.1.4**：增加了VAT，修复了linux下apply_embedding返回项有问题的情况
 - **v0.1.3**：初始版本
 
 ## 更新：
+- **2022年7月10更新**：增加金融中文FAQ示例，天池新闻分类top1案例，增加EarlyStop，CRF中自带转bool类型
 - **2022年6月29更新**：增加ner的实验，测试crf不同初始化的效果，bert-whitening中文实验
 - **2022年6月13更新**：增加seq2seq+前缀树，增加SimCSE/ESimCSE/PromptBert等无监督语义相似度的中文实验
 - **2022年6月05更新**：增加PromptBert、PET、P-tuning示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus

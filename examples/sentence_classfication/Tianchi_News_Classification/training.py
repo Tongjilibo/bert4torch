@@ -157,7 +157,7 @@ class Evaluator(Callback):
         if val_f1 > self.best_val_f1:
             self.best_val_f1 = val_f1
             self.model.save_weights(f'best_model_fold{self.fold}.pt')
-        logs['val_f1'] = 1/val_f1  # 这个要设置，否则EarlyStopping不生效
+        logs['val_f1'] = val_f1  # 这个要设置，否则EarlyStopping不生效
         print(f'val_f1: {val_f1:.5f}, best_val_f1: {self.best_val_f1:.5f}\n')
 
 
