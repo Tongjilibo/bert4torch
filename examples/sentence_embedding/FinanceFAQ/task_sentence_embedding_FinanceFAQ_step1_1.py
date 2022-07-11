@@ -1,11 +1,9 @@
 #! -*- coding:utf-8 -*-
 # loss: MultiNegativeRankingLoss, 和simcse一样，以batch中其他样本作为负样本
 
-from turtle import forward
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
-from bert4torch.losses import MultilabelCategoricalCrossentropy
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -31,14 +29,14 @@ batch_size = 64
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # raw: 原始的版本
 # random: 同一个标准问(组内)随机采样，组间互为负样本
-# mul_cate_ce: 原始版本修改版，组间也有正样本（标准问一致的时候）
-choice = 'mul_cate_ce'
+# mul_ce: 原始版本修改版，组间也有正样本（标准问一致的时候）
+choice = 'mul_ce'
 print(f'using {choice} mode in step1 model'.center(60, '-'))
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-if choice in {'raw', 'mul_cate_ce'}:
+if choice in {'raw', 'mul_ce'}:
     # 原始模式，可能同一个batch中会出现重复标问
     def collate_fn(batch):
         if choice == 'raw':
@@ -155,15 +153,14 @@ class Model(BaseModel):
 model = Model().to(device)
 
 # 多分类
-class Myloss(MultilabelCategoricalCrossentropy):
+class Myloss(nn.Module):
     def forward(self, y_pred, y_true):
-        y_pred = y_pred.flatten()[None, :]
-        y_true = y_true.flatten()[None, :]
-        return super().forward(y_pred, y_true)
+        y_pred = torch.log(torch.softmax(y_pred, dim=-1)) * y_true  # [btz, btz]
+        return -y_pred.sum() / len(y_pred)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
-    loss = Myloss() if choice == 'mul_cate_ce' else nn.CrossEntropyLoss(),
+    loss = Myloss() if choice == 'mul_ce' else nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
 )
 
@@ -203,7 +200,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=None, 
+            steps_per_epoch=100, 
             callbacks=[evaluator]
             )
 else:
