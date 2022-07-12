@@ -6,7 +6,7 @@ import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
-from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT
+from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT, IterDataset
 from bert4torch.activations import get_activation
 import warnings
 
@@ -172,6 +172,8 @@ class BaseModel(nn.Module):
                 callback.on_dataloader_end()
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
+        if isinstance(train_dataloader.dataset, IterDataset):
+            assert steps_per_epoch is not None, 'IterDataset should specify steps_per_epoch'
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
         self.global_step = 0

@@ -11,7 +11,7 @@ import time
 import sys
 import collections
 import torch.nn as nn
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 import math
 import gc
 import inspect
@@ -808,6 +808,24 @@ class ListDataset(Dataset):
 
     def __getitem__(self, index):
         return self.data[index]
+
+    @staticmethod
+    def load_data(file_path):
+        return file_path
+
+
+class IterDataset(IterableDataset):
+    '''流式读取文件
+    '''
+    def __init__(self, file_path=None, **kwargs):
+        self.kwargs = kwargs
+        if isinstance(file_path, (str, list)):
+            self.file_path = file_path
+        else:
+            raise ValueError('The input args shall be str format file_path / list format dataset')
+    
+    def __iter__(self):
+        return self.load_data(self.file_path)
 
     @staticmethod
     def load_data(file_path):
