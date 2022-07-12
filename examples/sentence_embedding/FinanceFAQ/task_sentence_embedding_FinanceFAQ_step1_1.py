@@ -157,6 +157,9 @@ class Myloss(nn.Module):
     def forward(self, y_pred, y_true):
         y_pred = torch.log(torch.softmax(y_pred, dim=-1)) * y_true  # [btz, btz]
         return -y_pred.sum() / len(y_pred)
+        # y_pred_pos = (y_pred * y_true).sum(dim=-1)
+        # y_pred_sum = torch.logsumexp(y_pred, dim=-1)
+        # return (y_pred_sum - y_pred_pos).sum() / len(y_pred)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
