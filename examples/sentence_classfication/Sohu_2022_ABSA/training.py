@@ -1,6 +1,8 @@
 #! -*- coding:utf-8 -*-
-# 搜狐2022实体情感分类baseline，https://www.biendata.xyz/competition/sohu_2022/
-# 方案：用实体在句子中首次出现的首尾平均池化，fgm + multi_dropout + cv，f1=0.67176
+# 搜狐2022实体情感分类Top1方案复现，https://www.biendata.xyz/competition/sohu_2022/
+# 链接：https://zhuanlan.zhihu.com/p/533808475
+# 复现方案：类似Prompt，拼接方案：[CLS]+sentence+[SEP]+ent1+[MASK]+ent2+[MASK]+[SEP]，取[MASK]位置进行
+
 import numpy as np
 import random
 import json
@@ -23,10 +25,15 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
-data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
+# config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
+# checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
+# dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+# data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
+config_path = '/Users/lb/Documents/Project/pretrain_ckpt/bert/[hit_tf_base]chinese_wwm_ext_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = None
+dict_path = '/Users/lb/Documents/Project/pretrain_ckpt/bert/[hit_tf_base]chinese_wwm_ext_L-12_H-768_A-12/vocab.txt'
+data_dir = '/Users/lb/Documents/Project/Github/sohu2022/nlp_data'
+
 
 choice = 'train'
 prefix = f'_char_512'
@@ -44,7 +51,6 @@ maxlen = 512
 batch_size = 7
 batch_size_eval = 64
 categories = [-2, -1, 0, 1, 2]
-categories_count = {k+1:0 for k in range(len(categories))}
 
 
 # 固定seed
@@ -57,37 +63,47 @@ torch.cuda.manual_seed(seed)
 
 # 加载数据集
 class MyDataset(IterDataset):
-    @staticmethod
-    def load_data(filename):
+    def load_data(self, filename):
         D = []
         seps, strips = u'\n。！？!?；;，, ', u'；;，, '
         with open(filename, encoding='utf-8') as f:
             for l in f:
                 taskData = json.loads(l.strip())
-                token2 = [tokenizer.tokenize(ent)[1:-1] + ['[MASK]'] for ent in taskData['entity'].keys()]
-                labels = [categories.index(label) for label in taskData['entity'].values()]
-                token2 = [j for i in token2 for j in i] + ['[SEP]']
+                tokens_2 = [tokenizer.tokenize(ent)[1:-1] + ['[MASK]'] for ent in taskData['entity'].keys()]
+                ent_labels = [categories.index(label) for label in taskData['entity'].values()]
+                tokens_2 = [j for i in tokens_2 for j in i] + ['[SEP]']
                 # 按照最长长度和标点符号切分
-                for t in text_segmentate(taskData['content'], maxlen-len(token2)-2, seps, strips):                       
-                    yield taskData['id'], tokenizer.tokenize(t) + token2, labels
+                for t in text_segmentate(taskData['content'], maxlen-len(tokens_2)-2, seps, strips):
+                    tokens_1 = tokenizer.tokenize(t)
+                    ent_ids = self.search(tokens_2, start_idx=len(tokens_1))
+                    yield taskData['id'], tokens_1 + tokens_2, ent_ids, ent_labels
         return D
+
+    def search(self, tokens, start_idx=0):
+        mask_idxs = []
+        for i in range(len(tokens)):
+            if tokens[i] == '[MASK]':
+                mask_idxs.append(i+start_idx)
+        return mask_idxs
 
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
-    batch_token_ids, batch_entity_labels = [], []
+    batch_token_ids, batch_entity_ids, batch_entity_labels = [], [], []
     for d in batch:
-        id, tokens, entity_labels = d[0], d[1], d[2]
+        id, tokens, ent_ids, ent_labels = d
         token_ids = tokenizer.tokens_to_ids(tokens)
-
+        tokens == tokenizer._token_mask
         batch_token_ids.append(token_ids)
-        batch_entity_labels.append(entity_labels)
+        batch_entity_ids.append(ent_ids)
+        batch_entity_labels.append(ent_labels)
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+    batch_entity_ids = torch.tensor(sequence_padding(batch_entity_ids), dtype=torch.long, device=device)
     batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, value=-1), dtype=torch.long, device=device)  # [btz, 实体个数]
-    return batch_token_ids, batch_entity_labels
+    return [batch_token_ids, batch_entity_ids], batch_entity_labels
 
 # 转换数据集
 train_dataloader = DataLoader(MyDataset(f'{data_dir}/train.txt'), batch_size=batch_size, collate_fn=collate_fn) 
@@ -100,39 +116,28 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.dropout = [nn.Dropout(0.1), nn.Dropout(0.3), nn.Dropout(0.5), nn.Dropout(0.7)]
-        self.dense = nn.Linear(768, 5+1)  # 包含padding
+        self.dropout = nn.Dropout(0.1)
+        self.dense = nn.Linear(768, 5)  # 包含padding
 
     def forward(self, inputs):
         token_ids, entity_ids = inputs[0], inputs[1]
         last_hidden_state = self.bert([token_ids])  # [btz, seq_len, hdsz]
 
-        btz, entity_count, _ = entity_ids.shape
         hidden_size = last_hidden_state.shape[-1]
-        entity_ids = entity_ids.reshape(btz, -1, 1).repeat(1, 1, hidden_size)
-        entity_states = torch.gather(last_hidden_state, dim=1, index=entity_ids).reshape(btz, entity_count, -1, hidden_size)
-        entity_states = torch.mean(entity_states, dim=2)  # 取实体首尾hidden_states的均值
-        entity_logits = []
-        for dropout in self.dropout:
-            entity_logits.append(self.dense(dropout(entity_states)))
+        entity_ids = entity_ids.unsqueeze(2).repeat(1, 1, hidden_size)
+        entity_states = torch.gather(last_hidden_state, dim=1, index=entity_ids)
+        entity_logits = self.dense(self.dropout(entity_states))
         return entity_logits
 
 
 model = Model().to(device)
 
-print(categories_count)
-class Loss(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.loss_fn = FocalLoss(ignore_index=0)
-
-    def forward(self, entity_logits, labels):
-        loss = 0
-        for entity_logit in entity_logits:
-            loss += self.loss_fn(entity_logit.reshape(-1, entity_logit.shape[-1]), labels.flatten())
+class Loss(nn.CrossEntropyLoss):
+    def forward(self, entity_logit, labels):
+        loss = self.loss_fn(entity_logit.reshape(-1, entity_logit.shape[-1]), labels.flatten())
         return loss
 
-model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=1e-5), adversarial_train={'name': 'fgm'})
+model.compile(loss=Loss(ignore_index=-1), optimizer=optim.Adam(model.parameters(), lr=1e-5), adversarial_train={'name': 'fgm'})
 
 def evaluate(data):
     valid_true, valid_pred = [], []
