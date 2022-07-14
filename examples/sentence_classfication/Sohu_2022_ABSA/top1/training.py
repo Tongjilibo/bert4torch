@@ -4,21 +4,18 @@
 # 复现方案：类似Prompt，拼接方案：[CLS]+sentence+[SEP]+ent1+[MASK]+ent2+[MASK]+[SEP]，取[MASK]位置进行
 
 import numpy as np
-import random
 import json
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.optim.swa_utils import AveragedModel, SWALR
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, IterDataset, text_segmentate
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 from sklearn.metrics import f1_score, classification_report, accuracy_score
-import random
-import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -34,25 +31,19 @@ save_path = f'./section1{prefix}.txt'
 save_path_dev = f'./dev{prefix}.txt'
 ckpt_path = f'./best_model{prefix}.pt'
 device = f'cuda' if torch.cuda.is_available() else 'cpu'
-seed = 42
+use_swa = True
 
 # 模型设置
 epochs = 10
 steps_per_epoch = None
 total_eval_step = None
+num_warmup_steps = 4000
 maxlen = 512
 batch_size = 7
 batch_size_eval = 64
 categories = [-2, -1, 0, 1, 2]
 
-
-# 固定seed
-random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-
+seed_everything(42) # 估计随机数
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -103,6 +94,10 @@ def collate_fn(batch):
     batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, value=-1), dtype=torch.long, device=device)  # [btz, 实体个数]
     return [batch_token_ids, batch_entity_ids], batch_entity_labels
 
+# 转换数据集
+train_dataloader = DataLoader(MyDataset(f'{data_dir}/train_90.txt'), batch_size=batch_size, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(f'{data_dir}/dev_10.txt'), batch_size=batch_size_eval, collate_fn=collate_fn)
+
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self):
@@ -130,11 +125,14 @@ class Loss(nn.CrossEntropyLoss):
     def forward(self, entity_logit, labels):
         loss = super().forward(entity_logit.reshape(-1, entity_logit.shape[-1]), labels.flatten())
         return loss
-optimizer = optim.Adam(model.parameters(), lr=5e-5)
-model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, adversarial_train={'name': 'fgm'})
-# def average_function(ax: torch.Tensor, x: torch.Tensor, num: int) -> torch.Tensor:
-#     return ax + (x - ax) / (num + 1)
-# swa_model = torch.optim.swa_utils.AveragedModel(model, avg_fn=average_function)
+optimizer = optim.Adam(model.parameters(), lr=2e-5)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps=len(train_dataloader)*epochs, last_epoch=-1)
+model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, adversarial_train={'name': 'fgm'})
+# swa
+if use_swa:
+    def average_function(ax: torch.Tensor, x: torch.Tensor, num: int) -> torch.Tensor:
+        return ax + (x - ax) / (num + 1)
+    swa_model = torch.optim.swa_utils.AveragedModel(model, avg_fn=average_function)
 
 class Evaluator(Callback):
     """评估与保存
@@ -148,7 +146,8 @@ class Evaluator(Callback):
             self.best_val_f1 = f1
             model.save_weights(ckpt_path)
         print(f'[val-entity] f1: {f1:.5f}, acc: {acc:.5f} best_f1: {self.best_val_f1:.5f}\n')
-        # swa_model.update_parameters(model)
+        if use_swa:
+            swa_model.update_parameters(model)
 
     @staticmethod
     def evaluate(data):
@@ -156,7 +155,12 @@ class Evaluator(Callback):
         eval_step = 0
         result = dict()
         for (token_ids, entity_ids), entity_labels in tqdm(data):
-            entity_logit = F.softmax(model.predict([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
+            if use_swa:
+                swa_model.eval()
+                with torch.no_grad():
+                    entity_logit = F.softmax(swa_model([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
+            else:
+                entity_logit = F.softmax(model.predict([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
             _, entity_pred = torch.max(entity_logit, dim=-1)  # [btz, 实体个数]
             # v_pred和v_true是实体的预测结果
             valid_index = (entity_ids.flatten()>0).nonzero().squeeze(-1)
@@ -178,10 +182,6 @@ class Evaluator(Callback):
         return f1, acc, result
 
 if __name__ == '__main__':
-    # 转换数据集
-    train_dataloader = DataLoader(MyDataset(f'{data_dir}/train_90.txt'), batch_size=batch_size, collate_fn=collate_fn) 
-    valid_dataloader = DataLoader(MyDataset(f'{data_dir}/dev_10.txt'), batch_size=batch_size_eval, collate_fn=collate_fn)
-
     if choice == 'train':
         evaluator = Evaluator()
         model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])

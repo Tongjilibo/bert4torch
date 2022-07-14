@@ -19,6 +19,7 @@ import json
 import torch.nn.functional as F
 import random
 import warnings
+import os
 
 
 is_py2 = six.PY2
@@ -1147,3 +1148,19 @@ def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strat
         return hid / (i * attention_mask)
     else:
         raise ValueError('pool_strategy illegal')
+
+
+def seed_everything(seed=None):
+    max_seed_value = np.iinfo(np.uint32).max
+    min_seed_value = np.iinfo(np.uint32).min
+
+    if (seed is None) or not (min_seed_value <= seed <= max_seed_value):
+        random.randint(np.iinfo(np.uint32).min, np.iinfo(np.uint32).max)
+    print(f"Global seed set to {seed}")
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    return seed
