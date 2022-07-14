@@ -9,7 +9,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import GlobalPointer
@@ -30,13 +30,7 @@ dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
-import random, os
-seed = 42
-random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
+seed_everything(42)
 
 # 加载数据集
 class MyDataset(ListDataset):

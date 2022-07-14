@@ -7,7 +7,7 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModelDDP
-from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -32,12 +32,7 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 # 固定seed
-seed = 42
-random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
+seed_everything(42)
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)

@@ -7,7 +7,7 @@
 
 from bert4torch.tokenizers import SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -23,12 +23,7 @@ spm_path = pretrain_model + 'spiece.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
-seed = 42
-random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
+seed_everything(42)
 
 # 建立分词器
 tokenizer = SpTokenizer(spm_path, token_start=None, token_end='<cls>')

@@ -3,7 +3,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb, seed_everything
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -17,12 +17,7 @@ import random
 import os
 
 # 固定seed
-seed = 42
-random.seed(seed)
-os.environ['PYTHONHASHSEED'] = str(seed)
-np.random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
+seed_everything(42)
 
 maxlen = 64
 batch_size = 64
