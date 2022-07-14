@@ -35,7 +35,7 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-ro
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
 
-choice = 'eval'
+choice = 'train'
 prefix = f'_char_512_cv_{fileid}'
 save_path = f'./output/section1{prefix}.txt'
 save_path_dev = f'./output/dev{prefix}.txt'
@@ -45,7 +45,7 @@ seed = 42
 
 # 模型设置
 epochs = 10
-steps_per_epoch = None
+steps_per_epoch = 1000
 total_eval_step = None
 maxlen = 512
 batch_size = 7

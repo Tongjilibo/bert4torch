@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.optim.swa_utils import AveragedModel, SWALR
-from bert4torch.snippets import sequence_padding, Callback, IterDataset, text_segmentate
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, IterDataset, text_segmentate
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
@@ -38,10 +38,10 @@ seed = 42
 
 # 模型设置
 epochs = 10
-steps_per_epoch = 10000
+steps_per_epoch = None
 total_eval_step = None
 maxlen = 512
-batch_size = 8
+batch_size = 7
 batch_size_eval = 64
 categories = [-2, -1, 0, 1, 2]
 
@@ -55,34 +55,25 @@ torch.cuda.manual_seed(seed)
 
 
 # 加载数据集
-class MyDataset(IterDataset):
+class MyDataset(ListDataset):
     def load_data(self, filename):
         D = []
         seps, strips = u'\n。！？!?；;，, ', u'；;，, '
         with open(filename, encoding='utf-8') as f:
-            for l in f:
+            for l in tqdm(f.readlines(), desc="Loading data"):
                 taskData = json.loads(l.strip())
-                tokens_2 = [tokenizer.tokenize(ent)[1:-1] + ['[MASK]'] for ent in taskData['entity'].keys()]
-                tokens_2 = [j for i in tokens_2 for j in i] + ['[SEP]']
-                # 按照最长长度和标点符号切分
-                for t in text_segmentate(taskData['content'], maxlen-len(tokens_2)-2, seps, strips):
-                    tokens_1 = tokenizer.tokenize(t)
-                    ent_ids_raw = self.search(tokens_2, start_idx=len(tokens_1))
-                    # 不在原文中的实体，其[MASK]标记不用于计算loss
-                    ent_labels, ent_ids = [], []
-                    for i, (ent, label) in enumerate(taskData['entity'].items()):
-                        if ent in t:
-                            ent_ids.append(ent_ids_raw[i])
-                            ent_labels.append(categories.index(label))
-                    yield tokens_1 + tokens_2, ent_ids, ent_labels
+                text2 = ''.join([ent+'[MASK]' for ent in taskData['entity'].keys()]) + '[SEP]'
+                text2_len = sum([len(ent)+1 for ent in taskData['entity'].keys()]) + 1
+                for t in text_segmentate(taskData['content'], maxlen-text2_len-2, seps, strips):
+                    D.append((t, text2, taskData['entity']))
         return D
 
-    def search(self, tokens, start_idx=0):
-        mask_idxs = []
-        for i in range(len(tokens)):
-            if tokens[i] == '[MASK]':
-                mask_idxs.append(i+start_idx)
-        return mask_idxs
+def search(tokens, start_idx=0):
+    mask_idxs = []
+    for i in range(len(tokens)):
+        if tokens[i] == '[MASK]':
+            mask_idxs.append(i+start_idx)
+    return mask_idxs
 
 
 # 建立分词器
@@ -90,10 +81,20 @@ tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     batch_token_ids, batch_entity_ids, batch_entity_labels = [], [], []
-    for d in batch:
-        tokens, ent_ids, ent_labels = d
-        token_ids = tokenizer.tokens_to_ids(tokens)
-        batch_token_ids.append(token_ids)
+    for text1, text2, entity in batch:
+        token_ids1 = tokenizer.encode(text1)[0]
+        tokens2 = tokenizer.tokenize(text2)[1:-1]
+        token_ids2 = tokenizer.tokens_to_ids(tokens2)
+        ent_ids_raw = search(tokens2, start_idx=len(token_ids1))
+        # 不在原文中的实体，其[MASK]标记不用于计算loss
+        ent_labels, ent_ids = [], []
+        for i, (ent, label) in enumerate(entity.items()):
+            if ent in text1:
+                assert tokens2[ent_ids_raw[i]-len(token_ids1)] == '[MASK]'
+                ent_ids.append(ent_ids_raw[i])
+                ent_labels.append(categories.index(label))
+
+        batch_token_ids.append(token_ids1 + token_ids2)
         batch_entity_ids.append(ent_ids)
         batch_entity_labels.append(ent_labels)
 
@@ -102,17 +103,17 @@ def collate_fn(batch):
     batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, value=-1), dtype=torch.long, device=device)  # [btz, 实体个数]
     return [batch_token_ids, batch_entity_ids], batch_entity_labels
 
-# 转换数据集
-train_dataloader = DataLoader(MyDataset(f'{data_dir}/train_90.txt'), batch_size=batch_size, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(f'{data_dir}/dev_10.txt'), batch_size=batch_size_eval, collate_fn=collate_fn) 
-
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(768, 5)  # 包含padding
+        self.classifier = nn.Sequential(
+                nn.Linear(768, 768),
+                nn.LeakyReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(768, 5)
+                )
 
     def forward(self, inputs):
         token_ids, entity_ids = inputs[0], inputs[1]
@@ -121,7 +122,7 @@ class Model(BaseModel):
         hidden_size = last_hidden_state.shape[-1]
         entity_ids = entity_ids.unsqueeze(2).repeat(1, 1, hidden_size)
         entity_states = torch.gather(last_hidden_state, dim=1, index=entity_ids)
-        entity_logits = self.dense(self.dropout(entity_states))
+        entity_logits = self.classifier(entity_states)
         return entity_logits
 model = Model().to(device)
 
@@ -177,6 +178,10 @@ class Evaluator(Callback):
         return f1, acc, result
 
 if __name__ == '__main__':
+    # 转换数据集
+    train_dataloader = DataLoader(MyDataset(f'{data_dir}/train_90.txt'), batch_size=batch_size, collate_fn=collate_fn) 
+    valid_dataloader = DataLoader(MyDataset(f'{data_dir}/dev_10.txt'), batch_size=batch_size_eval, collate_fn=collate_fn)
+
     if choice == 'train':
         evaluator = Evaluator()
         model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])

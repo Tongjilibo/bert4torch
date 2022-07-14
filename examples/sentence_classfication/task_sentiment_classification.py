@@ -18,9 +18,9 @@ batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
+choice = 'train'  # train表示训练，infer表示推理
 
 # 固定seed
 seed = 42
@@ -89,16 +89,6 @@ model.compile(
     metrics=['accuracy']
 )
 
-# 定义评价函数
-def evaluate(data):
-    total, right = 0., 0.
-    for x_true, y_true in data:
-        y_pred = model.predict(x_true).argmax(axis=1)
-        total += len(y_true)
-        right += (y_true == y_pred).sum().item()
-    return right / total
-
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -112,16 +102,38 @@ class Evaluator(Callback):
     #         writer.add_scalar(f"valid/acc", val_acc, global_step)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        val_acc = evaluate(valid_dataloader)
-        test_acc = evaluate(test_dataloader)
+        val_acc = self.evaluate(valid_dataloader)
+        test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
-            # model.save_weights('best_model.pt')
+            model.save_weights('best_model.pt')
         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
+    # 定义评价函数
+    def evaluate(self, data):
+        total, right = 0., 0.
+        for x_true, y_true in data:
+            y_pred = model.predict(x_true).argmax(axis=1)
+            total += len(y_true)
+            right += (y_true == y_pred).sum().item()
+        return right / total
+
+def inference(texts):
+    '''单条样本推理
+    '''
+    for text in texts:
+        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        token_ids = torch.tensor(token_ids, dtype=torch.long, device=device)[None, :]
+        segment_ids = torch.tensor(segment_ids, dtype=torch.long, device=device)[None, :]
+
+        logit = model.predict([token_ids, segment_ids])
+        y_pred = torch.argmax(torch.softmax(logit, dim=-1)).cpu().numpy()
+        print(text, ' ----> ', y_pred)
 
 if __name__ == '__main__':
-    evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
-else:
-    model.load_weights('best_model.pt')
+    if choice == 'train':
+        evaluator = Evaluator()
+        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+    else:
+        model.load_weights('best_model.pt')
+        inference(['我今天特别开心', '我今天特别生气'])
