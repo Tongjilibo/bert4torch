@@ -96,9 +96,9 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.dense1 = nn.Linear(768, 3 + 2)  # 包含首尾
+        self.dense1 = nn.Linear(768, len(categories))
         self.dense2 = nn.Linear(768, len(categories)+1)  # 包含padding
-        self.crf = CRF(3)
+        self.crf = CRF(len(categories))
 
     def forward(self, inputs):
         # 一阶段的输出
@@ -124,7 +124,7 @@ class Model(BaseModel):
             last_hidden_state = self.bert([token_ids])  # [btz, seq_len, hdsz]
             emission_score = self.dense1(last_hidden_state)  # [bts, seq_len, tag_size]
             attention_mask = token_ids.gt(0)
-            best_path = self.crf(emission_score, attention_mask)  # [bts, seq_len]
+            best_path = self.crf.decode(emission_score, attention_mask)  # [bts, seq_len]
 
             # 二阶段推理
             batch_entity_ids = []
@@ -166,7 +166,7 @@ class Loss(nn.Module):
     def forward(self, outputs, labels):
         emission_score, attention_mask, entity_logit = outputs
         seq_labels, entity_labels = labels
-        loss1 = model.crf.neg_log_likelihood_loss(emission_score, attention_mask, seq_labels)
+        loss1 = model.crf(emission_score, attention_mask, seq_labels)
         loss2 = self.loss2(entity_logit.reshape(-1, entity_logit.shape[-1]), entity_labels.flatten())
         return {'loss': loss1+loss2, 'loss1': loss1, 'loss2': loss2}
 

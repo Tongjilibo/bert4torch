@@ -107,7 +107,7 @@ class Model(BaseModel):
         layer_add_embs = nn.Embedding(len(psg_map)+1, 768)
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0, 
                                             layer_add_embs=layer_add_embs)
-        self.fc = nn.Linear(768, len(categories)+2)  # 包含首尾
+        self.fc = nn.Linear(768, len(categories))
         self.crf = CRF(len(categories))
 
     def forward(self, token_ids, psg_ids):
@@ -120,14 +120,14 @@ class Model(BaseModel):
         self.eval()
         with torch.no_grad():
             emission_score, attention_mask = self.forward(token_ids, psg_ids)
-            best_path = self.crf(emission_score, attention_mask)  # [bts, seq_len]
+            best_path = self.crf.decode(emission_score, attention_mask)  # [bts, seq_len]
         return best_path
 
 model = Model().to(device)
 
 class Loss(nn.Module):
     def forward(self, outputs, labels):
-        return model.crf.neg_log_likelihood_loss(*outputs, labels)
+        return model.crf(*outputs, labels)
 
 model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 

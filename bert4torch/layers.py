@@ -5,6 +5,7 @@ import numpy as np
 import math
 from bert4torch.snippets import get_sinusoid_encoding_table
 from bert4torch.activations import get_activation
+from typing import List, Optional
 
 
 class LayerNorm(nn.Module):
@@ -821,188 +822,252 @@ class RoPEPositionEncoding(nn.Module):
 
 
 class CRF(nn.Module):
-    '''直接从pytorch版本的bert中移植过来的
+    '''Conditional random field: https://github.com/lonePatient/BERT-NER-Pytorch/blob/master/models/layers/crf.py
     '''
-    def __init__(self, num_labels, init_transitions=None, freeze=False):
-        super(CRF, self).__init__()
-        self.num_labels = num_labels
-        self.START_TAG_IDX = -2
-        self.END_TAG_IDX = -1
-        if init_transitions is None:
-            init_transitions = torch.zeros(self.num_labels + 2, self.num_labels + 2)
-        else:
-            assert init_transitions.shape == (self.num_labels + 2, self.num_labels + 2), 'CRF init_weight shape does not match'
-            init_transitions = torch.tensor(init_transitions, dtype=torch.float)
-        init_transitions[:, self.START_TAG_IDX] = -10000.0
-        init_transitions[self.END_TAG_IDX, :] = -10000.0
-        
-        if not freeze:
-            self.transitions = nn.Parameter(init_transitions)
-        else:
-            self.register_buffer('transitions', init_transitions)
+    def __init__(self, num_tags: int, init_transitions: Optional[List[np.ndarray]] = None, freeze=False) -> None:
+        if num_tags <= 0:
+            raise ValueError(f'invalid number of tags: {num_tags}')
+        super().__init__()
+        self.num_tags = num_tags
+        if (init_transitions is None) and (not freeze):
+            self.start_transitions = nn.Parameter(torch.empty(num_tags))
+            self.end_transitions = nn.Parameter(torch.empty(num_tags))
+            self.transitions = nn.Parameter(torch.empty(num_tags, num_tags))
+            nn.init.uniform_(self.start_transitions, -0.1, 0.1)
+            nn.init.uniform_(self.end_transitions, -0.1, 0.1)
+            nn.init.uniform_(self.transitions, -0.1, 0.1)
+        elif init_transitions is not None:
+            transitions = torch.tensor(init_transitions[0], dtype=torch.float)
+            start_transitions = torch.tensor(init_transitions[1], dtype=torch.float)
+            end_transitions = torch.tensor(init_transitions[2], dtype=torch.float)
 
-    # feats: [bts, seq_len, num_labels+2]
-    # mask: [bts, seq_len]
-    def _forward_alg(self, feats, mask):
-        bts, seq_len, tag_size = feats.size()
-        ins_num = bts * seq_len
-
-        mask = mask.transpose(1, 0).contiguous()  # [seq_len, bsz]
-
-        # [seq_len * bts, tag_size, tag_size]
-        feats = feats.transpose(1, 0).contiguous().view(ins_num, 1, tag_size).expand(ins_num, tag_size, tag_size)
-
-        # [seq_len * bts, tag_size, tag_size]
-        scores = feats + self.transitions.view(1, tag_size, tag_size).expand(ins_num, tag_size, tag_size)
-        scores = scores.view(seq_len, bts, tag_size, tag_size)  # [seq_len, bts, tag_size, tag_size]
-        seq_iter = enumerate(scores)
-
-        """ only need start from start_tag """
-        _, inivalues = next(seq_iter)  # [bts, tag_size, tag_size]
-        partition = inivalues[:, self.START_TAG_IDX, :].clone().view(bts, tag_size, 1)  # [bts, tag_size, 1]
-
-        for idx, cur_values in seq_iter:  # scalar, [bts, tag_size, tag_size]
-            # [bts, tag_size, tag_size]
-            cur_values = cur_values + partition.contiguous().view(bts, tag_size, 1).expand(bts, tag_size, tag_size)
-            cur_partition = self.log_sum_exp(cur_values, tag_size)  # [bts, tag_size]
-            mask_idx = mask[idx, :].view(bts, 1).expand(bts, tag_size)  # [bts, tag_size]
-            """ effective updated partition part, only keep the partition value of mask value = 1 """
-            masked_cur_partition = cur_partition.masked_select(mask_idx.bool())  # [x * tag_size]
-            if masked_cur_partition.dim() != 0:
-                mask_idx = mask_idx.contiguous().view(bts, tag_size, 1)  # [bts, tag_size, 1]
-                """ replace the partition where the maskvalue=1, other partition value keeps the same """
-                partition.masked_scatter_(mask_idx.bool(), masked_cur_partition)
-        # [bts, tag_size, tag_size]
-        cur_values = self.transitions.view(1, tag_size, tag_size).expand(bts, tag_size, tag_size) + \
-                     partition.contiguous().view(bts, tag_size, 1).expand(bts, tag_size, tag_size)
-        cur_partition = self.log_sum_exp(cur_values, tag_size)  # [bts, tag_size]
-        final_partition = cur_partition[:, self.END_TAG_IDX]  # [bts]
-        return final_partition.sum(), scores
-
-    # scores: [seq_len, bts, tag_size, tag_size]
-    # mask: [bts, seq_len]
-    # tags: [bts, seq_len]
-    def _score_sentence(self, scores, mask, tags):
-        seq_len, btz, tag_size, _ = scores.size()
-
-        """ convert tag value into a new format, recorded label bigram information to index """
-        new_tags = torch.empty(btz, seq_len, requires_grad=True).to(tags)  # [btz, seq_len]
-        for idx in range(seq_len):
-            if idx == 0:
-                new_tags[:, 0] = (tag_size - 2) * tag_size + tags[:, 0]  # `tag_size - 2` account for `START_TAG_IDX`
+            if not freeze:
+                self.transitions = nn.Parameter(transitions)
+                self.start_transitions = nn.Parameter(start_transitions)
+                self.end_transitions = nn.Parameter(end_transitions)
             else:
-                new_tags[:, idx] = tags[:, idx - 1] * tag_size + tags[:, idx]
-        new_tags = new_tags.transpose(1, 0).contiguous().view(seq_len, btz, 1)  # [seq_len, btz, 1]
+                self.register_buffer('transitions', transitions)
+                self.register_buffer('start_transitions', start_transitions)
+                self.register_buffer('end_transitions', end_transitions)
 
-        # get all energies except end energy
-        tg_energy = torch.gather(scores.view(seq_len, btz, -1), 2, new_tags).view(seq_len, btz)  # [seq_len, btz]
-        tg_energy = tg_energy.masked_select(mask.transpose(1, 0).bool())  # list
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(num_tags={self.num_tags})'
 
-        """ transition for label to STOP_TAG """
-        # [btz, tag_size]
-        end_transition = self.transitions[:, self.END_TAG_IDX].contiguous().view(1, tag_size).expand(btz, tag_size)
-        """ length for batch,  last word position = length - 1 """
-        length_mask = torch.sum(mask, dim=1, keepdim=True).long()  # [bts, 1]
-        """ index the label id of last word """
-        end_ids = torch.gather(tags, 1, length_mask - 1)  # [bts, 1]
-        """ index the transition score for end_id to STOP_TAG """
-        end_energy = torch.gather(end_transition, 1, end_ids)  # [bts, 1]
+    def forward(self, emissions: torch.Tensor, mask: torch.ByteTensor,
+                tags: torch.LongTensor, reduction: str = 'mean') -> torch.Tensor:
+        """Compute the conditional log likelihood of a sequence of tags given emission scores.
+            emissions: [btz, seq_len, num_tags]
+            mask: [btz, seq_len]
+            tags: [btz, seq_len]
+        """
+        if reduction not in ('none', 'sum', 'mean', 'token_mean'):
+            raise ValueError(f'invalid reduction: {reduction}')
+        if mask.dtype != torch.uint8:
+            mask = mask.byte()
+        self._validate(emissions, tags=tags, mask=mask)
 
-        gold_score = tg_energy.sum() + end_energy.sum()
+        # shape: (batch_size,)
+        numerator = self._compute_score(emissions, tags, mask)
+        # shape: (batch_size,)
+        denominator = self._compute_normalizer(emissions, mask)
+        # shape: (batch_size,)
+        llh = denominator - numerator
 
-        return gold_score
+        if reduction == 'none':
+            return llh
+        if reduction == 'sum':
+            return llh.sum()
+        if reduction == 'mean':
+            return llh.mean()
+        return llh.sum() / mask.float().sum()
 
-    # feats: [bts, seq_len, num_labels+2]
-    # mask: [bts, seq_len]
-    # tags: [bts, seq_len]
-    def neg_log_likelihood_loss(self, feats, mask, tags):
-        bts = feats.size(0)
-        # scalar, [seq_len, bts, tag_size, tag_size]
-        forward_score, scores = self._forward_alg(feats, mask)
-        gold_score = self._score_sentence(scores, mask, tags)
-        return (forward_score - gold_score) / bts
+    def decode(self, emissions: torch.Tensor, mask: Optional[torch.ByteTensor] = None,
+               nbest: Optional[int] = None, pad_tag: Optional[int] = None) -> List[List[List[int]]]:
+        """Find the most likely tag sequence using Viterbi algorithm.
+        """
+        if nbest is None:
+            nbest = 1
+        if mask is None:
+            mask = torch.ones(emissions.shape[:2], dtype=torch.uint8, device=emissions.device)
+        if mask.dtype != torch.uint8:
+            mask = mask.byte()
+        self._validate(emissions, mask=mask)
 
-    # feats: [bts, seq_len, num_labels+2]
-    # mask: [bts, seq_len]
-    def _viterbi_decode(self, feats, mask):
-        bts, seq_len, tag_size = feats.size()
-        ins_num = seq_len * bts
-        """ calculate sentence length for each sentence """
-        length_mask = torch.sum(mask, dim=1, keepdim=True).long()  # [bts, 1]
-        mask = mask.transpose(1, 0).contiguous()  # [seq_len, bts]
+        best_path = self._viterbi_decode_nbest(emissions, mask, nbest, pad_tag)
+        return best_path[0] if nbest == 1 else best_path
 
-        # [seq_len * bts, tag_size, tag_size]
-        feats = feats.transpose(1, 0).contiguous().view(ins_num, 1, tag_size).expand(ins_num, tag_size, tag_size)
+    def _validate(self, emissions: torch.Tensor, tags: Optional[torch.LongTensor] = None,
+                  mask: Optional[torch.ByteTensor] = None) -> None:
+        if emissions.dim() != 3:
+            raise ValueError(f'emissions must have dimension of 3, got {emissions.dim()}')
+        if emissions.size(2) != self.num_tags:
+            raise ValueError(f'expected last dimension of emissions is {self.num_tags}, '
+                             f'got {emissions.size(2)}')
+        if tags is not None:
+            if emissions.shape[:2] != tags.shape:
+                raise ValueError('the first two dimensions of emissions and tags must match, '
+                                 f'got {tuple(emissions.shape[:2])} and {tuple(tags.shape)}')
+        if mask is not None:
+            if emissions.shape[:2] != mask.shape:
+                raise ValueError('the first two dimensions of emissions and mask must match, '
+                    f'got {tuple(emissions.shape[:2])} and {tuple(mask.shape)}')
+            no_empty_seq_bf = mask[:, 0].all()
+            if not no_empty_seq_bf:
+                raise ValueError('mask of the first timestep must all be on')
 
-        # [seq_len * bts, tag_size, tag_size]
-        scores = feats + self.transitions.view(1, tag_size, tag_size).expand(ins_num, tag_size, tag_size)
-        scores = scores.view(seq_len, bts, tag_size, tag_size)  # [seq_len, bts, tag_size, tag_size]
+    def _compute_score(self, emissions: torch.Tensor, tags: torch.LongTensor, mask: torch.ByteTensor) -> torch.Tensor:
+        # emissions: (batch_size, seq_length, num_tags)
+        # tags: (batch_size, seq_length)
+        # mask: (batch_size, seq_length)
+        batch_size, seq_length = tags.shape
+        mask = mask.float()
 
-        seq_iter = enumerate(scores)
-        # record the position of the best score
-        back_points = []
-        partition_history = []
-        mask = (1 - mask.long()).bool()  # [seq_len, bts]
-        _, inivalues = next(seq_iter)  # [bts, tag_size, tag_size]
-        """ only need start from start_tag """
-        partition = inivalues[:, self.START_TAG_IDX, :].clone().view(bts, tag_size, 1)  # [bts, tag_size,1]
-        partition_history.append(partition)
+        # Start transition score and first emission
+        # shape: (batch_size,)
+        score = self.start_transitions[tags[:, 0]]
+        score += emissions[torch.arange(batch_size), 0, tags[:, 0]]
 
-        for idx, cur_values in seq_iter:  # scalar, [bts, tag_size, tag_size]
-            # [bts, tag_size, tag_size]
-            cur_values = cur_values + partition.contiguous().view(bts, tag_size, 1).expand(bts, tag_size, tag_size)
-            """ do not consider START_TAG/STOP_TAG """
-            partition, cur_bp = torch.max(cur_values, 1)  # [bts, tag_size], [bts, tag_size]
-            partition_history.append(partition.unsqueeze(-1))
-            """ set padded label as 0, which will be filtered in post processing"""
-            cur_bp.masked_fill_(mask[idx].view(bts, 1).expand(bts, tag_size), 0)  # [bts, tag_size]
-            back_points.append(cur_bp)
+        for i in range(1, seq_length):
+            # Transition score to next tag, only added if next timestep is valid (mask == 1)
+            # shape: (batch_size,)
+            score += self.transitions[tags[:, i - 1], tags[:, i]] * mask[:, i]
+            # Emission score for next tag, only added if next timestep is valid (mask == 1)
+            # shape: (batch_size,)
+            score += emissions[torch.arange(batch_size), i, tags[:, i]] * mask[:, i]
 
-        # [bts, seq_len, tag_size]
-        partition_history = torch.cat(partition_history).view(seq_len, bts, -1).transpose(1, 0).contiguous()
-        """ get the last position for each setences, and select the last partitions using gather() """
-        last_position = length_mask.view(bts, 1, 1).expand(bts, 1, tag_size) - 1  # [bts, 1, tag_size]
-        # [bts, tag_size, 1]
-        last_partition = torch.gather(partition_history, 1, last_position).view(bts, tag_size, 1)
-        """ calculate the score from last partition to end state (and then select the STOP_TAG from it) """
-        # [bts, tag_size, tag_size]
-        last_values = last_partition.expand(bts, tag_size, tag_size) + \
-                      self.transitions.view(1, tag_size, tag_size).expand(bts, tag_size, tag_size)
-        _, last_bp = torch.max(last_values, 1)  # [bts, tag_size]
-        """ select end ids in STOP_TAG """
-        pointer = last_bp[:, self.END_TAG_IDX]  # [bts]
+        # End transition score
+        # shape: (batch_size,)
+        seq_ends = mask.long().sum(dim=1) - 1
+        # shape: (batch_size,)
+        last_tags = tags[torch.arange(batch_size), seq_ends]
+        # shape: (batch_size,)
+        score += self.end_transitions[last_tags]
 
-        pad_zero = torch.zeros(bts, tag_size, requires_grad=True).to(mask).long()  # [bts, tag_size]
-        back_points.append(pad_zero)
-        back_points = torch.cat(back_points).view(seq_len, bts, tag_size)  # [seq_len, bts, tag_size]
+        return score
 
-        insert_last = pointer.contiguous().view(bts, 1, 1).expand(bts, 1, tag_size)  # [bts, 1, tag_size]
-        back_points = back_points.transpose(1, 0).contiguous()  # [bts, seq_len, tag_size]
-        """move the end ids(expand to tag_size) to the corresponding position of back_points to replace the 0 values """
-        back_points.scatter_(1, last_position, insert_last)  # [bts, seq_len, tag_size]
+    def _compute_normalizer(self, emissions: torch.Tensor, mask: torch.ByteTensor) -> torch.Tensor:
+        # emissions: (batch_size, seq_length, num_tags)
+        # mask: (batch_size, seq_length)
+        seq_length = emissions.size(1)
 
-        back_points = back_points.transpose(1, 0).contiguous()  # [seq_len, bts, tag_size]
-        """ decode from the end, padded position ids are 0, which will be filtered if following evaluation """
-        decode_idx = torch.empty(seq_len, bts, requires_grad=True).to(pointer)  # [seq_len, bts]
-        decode_idx[-1] = pointer.data
-        for idx in range(len(back_points) - 2, -1, -1):
-            pointer = torch.gather(back_points[idx], 1, pointer.contiguous().view(bts, 1))
-            decode_idx[idx] = pointer.view(-1).data
-        decode_idx = decode_idx.transpose(1, 0)  # [bts, seq_len]
-        return decode_idx
+        # Start transition score and first emission; score has size of
+        # (batch_size, num_tags) where for each batch, the j-th column stores
+        # the score that the first timestep has tag j
+        # shape: (batch_size, num_tags)
+        score = self.start_transitions + emissions[:, 0]
 
-    # feats: [bts, seq_len, num_labels+2]
-    # mask: [bts, seq_len]
-    def forward(self, feats, mask):
-        best_path = self._viterbi_decode(feats, mask)  # [bts, seq_len]
-        return best_path
-    
-    @staticmethod
-    def log_sum_exp(vec, m_size):
-        _, idx = torch.max(vec, 1)  # B * 1 * M
-        max_score = torch.gather(vec, 1, idx.view(-1, 1, m_size)).view(-1, 1, m_size)  # B * M
-        return max_score.view(-1, m_size) + torch.log(torch.sum(
-            torch.exp(vec - max_score.expand_as(vec)), 1)).view(-1, m_size)
+        for i in range(1, seq_length):
+            # Broadcast score for every possible next tag
+            # shape: (batch_size, num_tags, 1)
+            broadcast_score = score.unsqueeze(2)
+
+            # Broadcast emission score for every possible current tag
+            # shape: (batch_size, 1, num_tags)
+            broadcast_emissions = emissions[:, i].unsqueeze(1)
+
+            # Compute the score tensor of size (batch_size, num_tags, num_tags) where
+            # for each sample, entry at row i and column j stores the sum of scores of all
+            # possible tag sequences so far that end with transitioning from tag i to tag j
+            # and emitting
+            # shape: (batch_size, num_tags, num_tags)
+            next_score = broadcast_score + self.transitions + broadcast_emissions
+
+            # Sum over all possible current tags, but we're in score space, so a sum
+            # becomes a log-sum-exp: for each sample, entry i stores the sum of scores of
+            # all possible tag sequences so far, that end in tag i
+            # shape: (batch_size, num_tags)
+            next_score = torch.logsumexp(next_score, dim=1)
+
+            # Set score to the next score if this timestep is valid (mask == 1)
+            # shape: (batch_size, num_tags)
+            score = torch.where(mask[:, i].unsqueeze(1).bool(), next_score, score)
+
+        # End transition score
+        # shape: (batch_size, num_tags)
+        score += self.end_transitions
+
+        # Sum (log-sum-exp) over all possible tags
+        # shape: (batch_size,)
+        return torch.logsumexp(score, dim=1)
+
+    def _viterbi_decode_nbest(self, emissions: torch.FloatTensor, mask: torch.ByteTensor,
+                              nbest: int, pad_tag: Optional[int] = None) -> List[List[List[int]]]:
+        # emissions: (batch_size, seq_length, num_tags)
+        # mask: (batch_size, seq_length)
+        # return: (nbest, batch_size, seq_length)
+        if pad_tag is None:
+            pad_tag = 0
+
+        device = emissions.device
+        batch_size, seq_length = mask.shape
+
+        # Start transition and first emission
+        # shape: (batch_size, num_tags)
+        score = self.start_transitions + emissions[:, 0]
+        history_idx = torch.zeros((batch_size, seq_length, self.num_tags, nbest), dtype=torch.long, device=device)
+        oor_idx = torch.zeros((batch_size, self.num_tags, nbest), dtype=torch.long, device=device)
+        oor_tag = torch.full((batch_size, seq_length, nbest), pad_tag, dtype=torch.long, device=device)
+
+        # - score is a tensor of size (batch_size, num_tags) where for every batch,
+        #   value at column j stores the score of the best tag sequence so far that ends
+        #   with tag j
+        # - history_idx saves where the best tags candidate transitioned from; this is used
+        #   when we trace back the best tag sequence
+        # - oor_idx saves the best tags candidate transitioned from at the positions
+        #   where mask is 0, i.e. out of range (oor)
+
+        # Viterbi algorithm recursive case: we compute the score of the best tag sequence
+        # for every possible next tag
+        for i in range(1, seq_length):
+            if i == 1:
+                broadcast_score = score.unsqueeze(-1)
+                broadcast_emission = emissions[:, i].unsqueeze(1)
+                # shape: (batch_size, num_tags, num_tags)
+                next_score = broadcast_score + self.transitions + broadcast_emission
+            else:
+                broadcast_score = score.unsqueeze(-1)
+                broadcast_emission = emissions[:, i].unsqueeze(1).unsqueeze(2)
+                # shape: (batch_size, num_tags, nbest, num_tags)
+                next_score = broadcast_score + self.transitions.unsqueeze(1) + broadcast_emission
+
+            # Find the top `nbest` maximum score over all possible current tag
+            # shape: (batch_size, nbest, num_tags)
+            next_score, indices = next_score.view(batch_size, -1, self.num_tags).topk(nbest, dim=1)
+
+            if i == 1:
+                score = score.unsqueeze(-1).expand(-1, -1, nbest)
+                indices = indices * nbest
+
+            # convert to shape: (batch_size, num_tags, nbest)
+            next_score = next_score.transpose(2, 1)
+            indices = indices.transpose(2, 1)
+
+            # Set score to the next score if this timestep is valid (mask == 1)
+            # and save the index that produces the next score
+            # shape: (batch_size, num_tags, nbest)
+            score = torch.where(mask[:, i].unsqueeze(-1).unsqueeze(-1).bool(), next_score, score)
+            indices = torch.where(mask[:, i].unsqueeze(-1).unsqueeze(-1).bool(), indices, oor_idx)
+            history_idx[:, i - 1] = indices
+
+        # End transition score shape: (batch_size, num_tags, nbest)
+        end_score = score + self.end_transitions.unsqueeze(-1)
+        _, end_tag = end_score.view(batch_size, -1).topk(nbest, dim=1)
+
+        # shape: (batch_size,)
+        seq_ends = mask.long().sum(dim=1) - 1
+
+        # insert the best tag at each sequence end (last position with mask == 1)
+        history_idx.scatter_(1, seq_ends.view(-1, 1, 1, 1).expand(-1, 1, self.num_tags, nbest),
+                             end_tag.view(-1, 1, 1, nbest).expand(-1, 1, self.num_tags, nbest))
+
+        # The most probable path for each sequence
+        best_tags_arr = torch.zeros((batch_size, seq_length, nbest), dtype=torch.long, device=device)
+        best_tags = torch.arange(nbest, dtype=torch.long, device=device).view(1, -1).expand(batch_size, -1)
+        for idx in range(seq_length - 1, -1, -1):
+            best_tags = torch.gather(history_idx[:, idx].view(batch_size, -1), 1, best_tags)
+            best_tags_arr[:, idx] = torch.div(best_tags.data.view(batch_size, -1), nbest, rounding_mode='floor')
+
+        return torch.where(mask.unsqueeze(-1).bool(), best_tags_arr, oor_tag).permute(2, 0, 1)
 
 
 class BERT_WHITENING():

@@ -82,7 +82,9 @@ train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_siz
 valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
 
 # 根据训练数据生成权重
-transition_score = np.zeros((len(categories)+2, len(categories)+2))
+transition = np.zeros((len(categories), len(categories)))
+start_transition = np.zeros(len(categories))
+end_transition = np.zeros(len(categories))
 for d in tqdm(train_data, desc='Generate init_trasitions'):
     tokens = tokenizer.tokenize(d[0], maxlen=maxlen)
     mapping = tokenizer.rematch(d[0], tokens)
@@ -97,18 +99,22 @@ for d in tqdm(train_data, desc='Generate init_trasitions'):
             labels[start] = categories_label2id['B-'+label]
             labels[start + 1:end + 1] = categories_label2id['I-'+label]
     for i in range(len(labels)-1):
-        transition_score[int(labels[i]), int(labels[i+1])] += 1
-    transition_score[-2, int(labels[0])] += 1  # start转移到标签
-    transition_score[int(labels[-1]), -1] += 1  # 标签转移到end
-transition_score = (transition_score - np.min(transition_score)) / (np.max(transition_score) - np.min(transition_score))
+        transition[int(labels[i]), int(labels[i+1])] += 1
+    start_transition[int(labels[0])] += 1  # start转移到标签
+    end_transition[int(labels[-1])] += 1  # 标签转移到end
+max_v = np.max([np.max(transition), np.max(start_transition), np.max(end_transition)])
+min_v = np.min([np.min(transition), np.min(start_transition), np.min(end_transition)])
+transition = (transition - min_v) / (max_v - min_v)
+start_transition = (start_transition - min_v) / (max_v - min_v)
+end_transition = (end_transition - min_v) / (max_v - min_v)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.fc = nn.Linear(768, len(categories)+2)  # 包含首尾
-        self.crf = CRF(len(categories), init_transitions=transition_score, freeze=False)  # 控制是否初始化，是否参加训练
+        self.fc = nn.Linear(768, len(categories))
+        self.crf = CRF(len(categories), init_transitions=[transition, start_transition, end_transition], freeze=True)  # 控制是否初始化，是否参加训练
 
     def forward(self, token_ids):
         sequence_output = self.bert([token_ids])  # [btz, seq_len, hdsz]
@@ -120,14 +126,14 @@ class Model(BaseModel):
         self.eval()
         with torch.no_grad():
             emission_score, attention_mask = self.forward(token_ids)
-            best_path = self.crf(emission_score, attention_mask)  # [btz, seq_len]
+            best_path = self.crf.decode(emission_score, attention_mask)  # [btz, seq_len]
         return best_path
 
 model = Model().to(device)
 
 class Loss(nn.Module):
     def forward(self, outputs, labels):
-        return model.crf.neg_log_likelihood_loss(*outputs, labels)
+        return model.crf(*outputs, labels)
 
 model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
