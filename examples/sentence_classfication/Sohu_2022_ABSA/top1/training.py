@@ -12,17 +12,19 @@ import torch.optim as optim
 import torch.nn.functional as F
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything
 from bert4torch.optimizers import get_linear_schedule_with_warmup
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import Tokenizer, SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
+import transformers
+import random
 from sklearn.metrics import f1_score, classification_report, accuracy_score
 import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+pretrain_model = 'F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base'
+config_path = pretrain_model + '/bert4torch_config.json'
+checkpoint_path = pretrain_model + '/pytorch_model.bin'
 data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
 
 choice = 'train'
@@ -31,79 +33,74 @@ save_path = f'./section1{prefix}.txt'
 save_path_dev = f'./dev{prefix}.txt'
 ckpt_path = f'./best_model{prefix}.pt'
 device = f'cuda' if torch.cuda.is_available() else 'cpu'
-use_swa = True
+use_swa = False
+use_adv_train = False
 
 # 模型设置
 epochs = 10
 steps_per_epoch = None
 total_eval_step = None
 num_warmup_steps = 4000
-maxlen = 512
-batch_size = 7
+maxlen = 900
+batch_size = 6
 batch_size_eval = 64
+grad_accumulation_steps = 3
 categories = [-2, -1, 0, 1, 2]
+mask_symbol = '<mask>'
 
-seed_everything(42) # 估计随机数
+seed_everything(19260817) # 估计随机数
 
 # 加载数据集
 def load_data(filename):
     D = []
-    seps, strips = u'\n。！？!?；;，, ', u'；;，, '
     with open(filename, encoding='utf-8') as f:
         for l in tqdm(f.readlines(), desc="Loading data"):
             taskData = json.loads(l.strip())
-            text2 = ''.join([ent+'[MASK]' for ent in taskData['entity'].keys()]) + '[SEP]'
-            text2_len = sum([len(ent)+1 for ent in taskData['entity'].keys()]) + 1
-            for t in text_segmentate(taskData['content'], maxlen-text2_len-2, seps, strips):
-                D.append((t, text2, taskData['entity']))
+            text2 = ''.join([ent+mask_symbol for ent in taskData['entity'].keys()])
+            D.append((taskData['content'], text2, taskData['entity']))
     return D
 
-def search(tokens, start_idx=0):
+def search(tokens, search_token, start_idx=0):
     mask_idxs = []
     for i in range(len(tokens)):
-        if tokens[i] == '[MASK]':
+        if tokens[i] == search_token:
             mask_idxs.append(i+start_idx)
     return mask_idxs
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = transformers.XLNetTokenizerFast.from_pretrained(pretrain_model)
 
 def collate_fn(batch):
-    batch_token_ids, batch_entity_ids, batch_entity_labels = [], [], []
-    for text1, text2, entity in batch:
-        token_ids1 = tokenizer.encode(text1)[0]
-        tokens2 = tokenizer.tokenize(text2)[1:-1]
-        token_ids2 = tokenizer.tokens_to_ids(tokens2)
-        ent_ids_raw = search(tokens2, start_idx=len(token_ids1))
-        # 不在原文中的实体，其[MASK]标记不用于计算loss
-        ent_labels, ent_ids = [], []
-        for i, (ent, label) in enumerate(entity.items()):
-            if ent in text1:
-                assert tokens2[ent_ids_raw[i]-len(token_ids1)] == '[MASK]'
-                ent_ids.append(ent_ids_raw[i])
-                ent_labels.append(categories.index(label))
+    batch_token_ids, batch_segment_ids, batch_entity_ids, batch_entity_labels = [], [], [], []
+    for text, prompt, entity in batch:
+        inputs = tokenizer.__call__(text=text, text_pair=prompt, add_special_tokens=True, max_length=maxlen, truncation="only_first")
+        token_ids, segment_ids = inputs['input_ids'], inputs['token_type_ids']
+        ent_ids = search(token_ids, tokenizer.mask_token_id)
 
-        batch_token_ids.append(token_ids1 + token_ids2)
+        batch_token_ids.append(token_ids)
+        batch_segment_ids.append(segment_ids)
         batch_entity_ids.append(ent_ids)
-        batch_entity_labels.append(ent_labels)
+        batch_entity_labels.append([categories.index(label) for label in entity.values()])
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     batch_entity_ids = torch.tensor(sequence_padding(batch_entity_ids), dtype=torch.long, device=device)
     batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, value=-1), dtype=torch.long, device=device)  # [btz, 实体个数]
-    return [batch_token_ids, batch_entity_ids], batch_entity_labels
+    return [batch_token_ids, batch_segment_ids, batch_entity_ids], batch_entity_labels
 
 # 转换数据集
 all_data = load_data(f'{data_dir}/train.txt')
-split_index = int(len(all_data)*0.9)
-train_dataloader = DataLoader(ListDataset(data=all_data[:split_index]), batch_size=batch_size, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(ListDataset(data=all_data[split_index:]), batch_size=batch_size_eval, collate_fn=collate_fn)
+random.shuffle(all_data)
+split_index = 2000 # int(len(all_data)*0.9)
+train_dataloader = DataLoader(ListDataset(data=all_data[split_index:]), batch_size=batch_size, shuffle=False, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(ListDataset(data=all_data[:split_index]), batch_size=batch_size_eval, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self):
-        super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
+        super().__init__() 
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='xlnet')
         hidden_size = self.bert.configs['hidden_size']
         self.classifier = nn.Sequential(
                 nn.Linear(hidden_size, hidden_size),
@@ -113,11 +110,10 @@ class Model(BaseModel):
                 )
 
     def forward(self, inputs):
-        token_ids, entity_ids = inputs[0], inputs[1]
-        last_hidden_state = self.bert([token_ids])  # [btz, seq_len, hdsz]
+        token_ids, segment_ids, entity_ids = inputs
+        last_hidden_state = self.bert([token_ids, segment_ids])  # [btz, seq_len, hdsz]
 
-        hidden_size = last_hidden_state.shape[-1]
-        entity_ids = entity_ids.unsqueeze(2).repeat(1, 1, hidden_size)
+        entity_ids = entity_ids.unsqueeze(2).repeat(1, 1, last_hidden_state.shape[-1])
         entity_states = torch.gather(last_hidden_state, dim=1, index=entity_ids)
         entity_logits = self.classifier(entity_states)
         return entity_logits
@@ -127,9 +123,10 @@ class Loss(nn.CrossEntropyLoss):
     def forward(self, entity_logit, labels):
         loss = super().forward(entity_logit.reshape(-1, entity_logit.shape[-1]), labels.flatten())
         return loss
-optimizer = optim.Adam(model.parameters(), lr=2e-5)
+optimizer = optim.AdamW(model.parameters(), lr=5e-5)
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps=len(train_dataloader)*epochs, last_epoch=-1)
-model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, adversarial_train={'name': 'fgm'})
+model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, max_grad_norm=1.0, adversarial_train={'name': 'fgm' if use_adv_train else ''})
+
 # swa
 if use_swa:
     def average_function(ax: torch.Tensor, x: torch.Tensor, num: int) -> torch.Tensor:
@@ -186,7 +183,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
+        model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, grad_accumulation_steps=grad_accumulation_steps, callbacks=[evaluator])
 
     model.load_weights(ckpt_path)
     f1, acc, pred_result, pred_result_prob = Evaluator.evaluate(valid_dataloader)

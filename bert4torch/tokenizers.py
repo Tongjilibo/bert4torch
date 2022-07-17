@@ -59,33 +59,16 @@ def whitespace_tokenize(text):
 class TokenizerBase(object):
     """分词器基类
     """
-    def __init__(
-        self,
-        token_start='[CLS]',
-        token_end='[SEP]',
-        token_unk='[UNK]',
-        token_pad='[PAD]',
-        token_mask='[MASK]',
-        add_special_tokens=None,
-        pre_tokenize=None,
-        token_translate=None
-    ):
+    def __init__(self, token_start='[CLS]', token_end='[SEP]', token_unk='[UNK]', token_pad='[PAD]', token_mask='[MASK]', 
+                 add_special_tokens=None, pre_tokenize=None, token_translate=None):
         """参数说明：
-        token_unk:
-            未知词标记
-        token_end:
-            句子切分标记，当只有一句话作为输入时，此标记知识作为结束符；当有两句话作为输入时，此标记作为分隔符、最后一句话的结束符
-        pad_token:
-            padding填充标记
-        token_start:
-            分类标记，位于整个序列的第一个
-        mask_token:
-            mask标记
-        pre_tokenize：外部传入的分词函数，用作对文本进行预分词。如果传入
-                      pre_tokenize，则先执行pre_tokenize(text)，然后在它
-                      的基础上执行原本的tokenize函数；
-        token_translate：映射字典，主要用在tokenize之后，将某些特殊的token
-                         替换为对应的token。
+        token_unk: 未知词标记
+        token_end: 句子切分标记，当只有一句话作为输入时，此标记知识作为结束符；当有两句话作为输入时，此标记作为分隔符、最后一句话的结束符
+        pad_token: padding填充标记
+        token_start: 分类标记，位于整个序列的第一个
+        mask_token: mask标记
+        pre_tokenize: 外部传入的分词函数，用作对文本进行预分词。如果传入pre_tokenize，则先执行pre_tokenize(text)，然后在它的基础上执行原本的tokenize函数；
+        token_translate: 映射字典，主要用在tokenize之后，将某些特殊的token替换为对应的token。
         """
         self._token_pad = token_pad
         self._token_unk = token_unk
@@ -101,10 +84,7 @@ class TokenizerBase(object):
         self.tokens_trie = self._create_trie(self.never_split)  # trie树主要是为了special_tokens的分词
         self._pre_tokenize = pre_tokenize
         self._token_translate = token_translate or {}
-        self._token_translate_inv = {
-            v: k
-            for k, v in self._token_translate.items()
-        }
+        self._token_translate_inv = {v: k for k, v in self._token_translate.items()}
 
     def _create_trie(self, unique_no_split_tokens):
         trie = Trie()
@@ -137,20 +117,10 @@ class TokenizerBase(object):
         """
         return [self.token_to_id(token) for token in tokens]
 
-    def encode(
-        self,
-        first_text,
-        second_text=None,
-        maxlen=None,
-        pattern='S*E*E',
-        truncate_from='right'
-    ):
+    def encode(self, first_text, second_text=None, maxlen=None, pattern='S*E*E', truncate_from='right'):
         """输出文本对应token id和segment id
         """
-        if is_string(first_text):
-            first_tokens = self.tokenize(first_text)
-        else:
-            first_tokens = first_text
+        first_tokens = self.tokenize(first_text) if is_string(first_text) else first_text
 
         if second_text is None:
             second_tokens = None
@@ -160,6 +130,7 @@ class TokenizerBase(object):
             second_tokens = second_text
 
         if maxlen is not None:
+            # 这里截断思路是优先截断最长的子句
             if truncate_from == 'right':
                 index = -int(self._token_end is not None) - 1
             elif truncate_from == 'left':
@@ -231,7 +202,7 @@ class Tokenizer(TokenizerBase):
 
         self.do_basic_tokenize = do_basic_tokenize
         if do_basic_tokenize:
-          self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case, never_split=self.never_split)
+            self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case, never_split=self.never_split)
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self._token_dict, unk_token=self._token_unk, do_tokenize_unk=do_tokenize_unk)
 
         for token in ['pad', 'unk', 'mask', 'start', 'end']:
@@ -421,11 +392,8 @@ class Tokenizer(TokenizerBase):
 class BasicTokenizer(object):
     """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""
 
-    def __init__(self,
-                 do_lower_case=True,
-                 never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
+    def __init__(self, do_lower_case=True, never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]")):
         """Constructs a BasicTokenizer.
-
         Args:
           do_lower_case: Whether to lower case the input.
         """
@@ -676,10 +644,7 @@ class SpTokenizer(TokenizerBase):
     def decode(self, ids):
         """转为可读文本
         """
-        tokens = [
-            self._token_translate_inv.get(token) or token
-            for token in self.ids_to_tokens(ids)
-        ]
+        tokens = [self._token_translate_inv.get(token) or token for token in self.ids_to_tokens(ids)]
         text = self.sp_model.decode_pieces(tokens)
         return convert_to_unicode(text)
 

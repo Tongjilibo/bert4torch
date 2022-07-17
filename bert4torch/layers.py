@@ -536,7 +536,8 @@ class XlnetLayer(BertLayer):
                 self.r_w_bias = r_w_bias
                 self.r_s_bias = r_s_bias
             if segment_vocab_size > 0:
-                self.seg_embed = nn.Embedding(segment_vocab_size, self.hidden_size)
+                # self.seg_embed = nn.Embedding(segment_vocab_size, self.hidden_size)
+                self.seg_embed = nn.Parameter(torch.FloatTensor(segment_vocab_size, self.num_attention_heads, self.attention_head_size))
 
             self.r = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
             self.rel_shift_opt = kwargs.get('rel_shift_opt')
@@ -578,9 +579,6 @@ class XlnetLayer(BertLayer):
             w_head_q = self.transpose_for_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
             w_head_k = self.transpose_for_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
             w_head_v = self.transpose_for_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
-            if hasattr(self, 'seg_embed'):
-                w_head_s = self.seg_embed(seg_mat)  # [btz, q_len, klen, hdsz]
-                w_head_s = w_head_s.reshape(*w_head_s.shape[:3], self.num_attention_heads, self.attention_head_size)
 
             r_head_k = self.r(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
             r_head_k = r_head_k.view(rlen, self.num_attention_heads, self.attention_head_size)  # rlen x n_head x d_head
@@ -594,8 +592,15 @@ class XlnetLayer(BertLayer):
             BD = self.rel_shift_bnij(BD, klen=AC.shape[3]) if self.rel_shift_opt == 'xlnet' else self.rel_shift(BD)
 
             if hasattr(self, 'seg_embed') and (self.r_r_bias is not None):
-                rs_head_q = w_head_q + self.r_s_bias.unsqueeze(1)
-                EF = torch.einsum('bnid,bijnd->bnij', (rs_head_q, w_head_s))  # [btz, n_head, q_len, k_len]
+                # # 之前的方式，需要配合Embedding，以及load_variable和variable_mapping，显存容易爆炸
+                # w_head_s = self.seg_embed(seg_mat)  # [btz, q_len, klen, hdsz]
+                # w_head_s = w_head_s.reshape(*w_head_s.shape[:3], self.num_attention_heads, self.attention_head_size)
+                # rs_head_q = w_head_q + self.r_s_bias.unsqueeze(1)
+                # EF = torch.einsum('bnid,bijnd->bnij', (rs_head_q, w_head_s))  # [btz, n_head, q_len, k_len]
+                
+                seg_mat = F.one_hot(seg_mat, 2).float()
+                EF = torch.einsum("bnid,snd->ibns", w_head_q + self.r_s_bias.unsqueeze(1), self.seg_embed)
+                EF = torch.einsum("bijs,ibns->bnij", seg_mat, EF)
             else:
                 EF = 0
 

@@ -1812,7 +1812,8 @@ class XLNET(Transformer_XL):
             return self.load_embeddings(variable)
         elif re.search('rel_attn\.(q|k|v|r)$', name):
             return variable.reshape(variable.shape[0], -1).T
-        elif re.search('rel_attn\.(o|seg_embed)$', name):
+        # elif re.search('rel_attn\.(o|seg_embed)$', name):
+        elif re.search('rel_attn\.(o)$', name):
             return variable.reshape(variable.shape[0], -1)
         else:
             return variable
@@ -1833,7 +1834,8 @@ class XLNET(Transformer_XL):
                             f'encoderLayer.{i}.multiHeadAttention.r_r_bias': prefix_i + 'rel_attn.r_r_bias',
                             f'encoderLayer.{i}.multiHeadAttention.r_s_bias': prefix_i + 'rel_attn.r_s_bias',
                             f'encoderLayer.{i}.multiHeadAttention.r_w_bias': prefix_i + 'rel_attn.r_w_bias',
-                            f'encoderLayer.{i}.multiHeadAttention.seg_embed.weight': prefix_i + 'rel_attn.seg_embed',
+                            # f'encoderLayer.{i}.multiHeadAttention.seg_embed.weight': prefix_i + 'rel_attn.seg_embed',
+                            f'encoderLayer.{i}.multiHeadAttention.seg_embed': prefix_i + 'rel_attn.seg_embed',
                             f'encoderLayer.{i}.layerNorm1.weight': prefix_i + 'rel_attn.layer_norm.weight',
                             f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'rel_attn.layer_norm.bias',
                             f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'ff.layer_1.weight',
