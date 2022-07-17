@@ -113,8 +113,8 @@ class BERT_THESEUS(BERT):
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=BERT_THESEUS, return_model_config=True)
-        self.dense = nn.Linear(self.config['hidden_size'], num_classes)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=BERT_THESEUS)
+        self.dense = nn.Linear(self.bert.configs['hidden_size'], num_classes)
 
     def forward(self, token_ids, segment_ids):
         encoded_layers = self.bert([token_ids, segment_ids])

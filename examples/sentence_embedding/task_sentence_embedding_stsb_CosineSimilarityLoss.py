@@ -60,7 +60,7 @@ test_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embeddi
 class Model(BaseModel):
     def __init__(self, pool_method='mean'):
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.pool_method = pool_method
 
     def forward(self, token1_ids, token2_ids):

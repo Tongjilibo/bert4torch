@@ -117,7 +117,7 @@ train_dataloader = DataLoader(MyDataset(all_names), batch_size=batch_size, shuff
 class Model(BaseModel):
     def __init__(self, pool_method='mean'):
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.pool_method = pool_method
    
     def encode(self, token_ids):

@@ -406,6 +406,7 @@ class BERT_BASE(BaseModel):
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
+        
 
     def forward(self, inputs):
         """定义模型的执行流程
@@ -1851,7 +1852,6 @@ def build_transformer_model(
         checkpoint_path=None,
         model='bert',
         application='encoder',
-        return_model_config=False,
         **kwargs
 ):
     """根据配置文件构建模型，可选加载checkpoint权重
@@ -1923,8 +1923,6 @@ def build_transformer_model(
     transformer.apply(transformer.init_model_weights)  # 初始化权重
 
     if checkpoint_path is not None:
-        transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)
-    if return_model_config:
-        return transformer, configs
-    else:
-        return transformer
+        transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
+    transformer.configs = configs
+    return transformer

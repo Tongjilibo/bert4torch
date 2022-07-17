@@ -66,9 +66,9 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.config['hidden_size'], 2)
+        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
     def forward(self, token_ids, segment_ids):
         _, pooled_output = self.bert([token_ids, segment_ids])

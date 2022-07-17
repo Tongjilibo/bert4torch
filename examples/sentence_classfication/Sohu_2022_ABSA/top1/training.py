@@ -46,18 +46,17 @@ categories = [-2, -1, 0, 1, 2]
 seed_everything(42) # 估计随机数
 
 # 加载数据集
-class MyDataset(ListDataset):
-    def load_data(self, filename):
-        D = []
-        seps, strips = u'\n。！？!?；;，, ', u'；;，, '
-        with open(filename, encoding='utf-8') as f:
-            for l in tqdm(f.readlines(), desc="Loading data"):
-                taskData = json.loads(l.strip())
-                text2 = ''.join([ent+'[MASK]' for ent in taskData['entity'].keys()]) + '[SEP]'
-                text2_len = sum([len(ent)+1 for ent in taskData['entity'].keys()]) + 1
-                for t in text_segmentate(taskData['content'], maxlen-text2_len-2, seps, strips):
-                    D.append((t, text2, taskData['entity']))
-        return D
+def load_data(filename):
+    D = []
+    seps, strips = u'\n。！？!?；;，, ', u'；;，, '
+    with open(filename, encoding='utf-8') as f:
+        for l in tqdm(f.readlines(), desc="Loading data"):
+            taskData = json.loads(l.strip())
+            text2 = ''.join([ent+'[MASK]' for ent in taskData['entity'].keys()]) + '[SEP]'
+            text2_len = sum([len(ent)+1 for ent in taskData['entity'].keys()]) + 1
+            for t in text_segmentate(taskData['content'], maxlen-text2_len-2, seps, strips):
+                D.append((t, text2, taskData['entity']))
+    return D
 
 def search(tokens, start_idx=0):
     mask_idxs = []
@@ -95,19 +94,22 @@ def collate_fn(batch):
     return [batch_token_ids, batch_entity_ids], batch_entity_labels
 
 # 转换数据集
-train_dataloader = DataLoader(MyDataset(f'{data_dir}/train_90.txt'), batch_size=batch_size, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(f'{data_dir}/dev_10.txt'), batch_size=batch_size_eval, collate_fn=collate_fn)
+all_data = load_data(f'{data_dir}/train.txt')
+split_index = int(len(all_data)*0.9)
+train_dataloader = DataLoader(ListDataset(data=all_data[:split_index]), batch_size=batch_size, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(ListDataset(data=all_data[split_index:]), batch_size=batch_size_eval, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
+        hidden_size = self.bert.configs['hidden_size']
         self.classifier = nn.Sequential(
-                nn.Linear(768, 768),
+                nn.Linear(hidden_size, hidden_size),
                 nn.LeakyReLU(),
                 nn.Dropout(0.1),
-                nn.Linear(768, 5)
+                nn.Linear(hidden_size, 5)
                 )
 
     def forward(self, inputs):

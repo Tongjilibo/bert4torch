@@ -66,9 +66,9 @@ test_dataloader = DataLoader(MyDataset('E:/Github/bert4torch/examples/datasets/s
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path, checkpoint_path, model='albert', with_pool=True, return_model_config=True)  # 建立模型，加载权重
+        self.bert = build_transformer_model(config_path, checkpoint_path, model='albert', with_pool=True)  # 建立模型，加载权重
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.config['hidden_size'], 2)
+        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
     def forward(self, token_ids, segment_ids):
         _, pooled_output = self.bert([token_ids, segment_ids])  # 这里用pool_output，也可以用seq_output的第一位

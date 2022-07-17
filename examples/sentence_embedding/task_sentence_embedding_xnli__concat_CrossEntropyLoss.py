@@ -59,7 +59,7 @@ valid_dataloader = DataLoader(ListDataset(data=dev_data), batch_size=batch_size,
 class Model(BaseModel):
     def __init__(self, pool_method='mean', concatenation_sent_rep=True, concatenation_sent_difference=True, concatenation_sent_multiplication=False):
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.pool_method = pool_method
         self.concatenation_sent_rep = concatenation_sent_rep
         self.concatenation_sent_difference = concatenation_sent_difference

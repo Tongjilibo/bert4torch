@@ -4,17 +4,16 @@
 
 | solution | epoch | f1_token | f1_entity | comment | 
 | ---- | ---- | ---- | ---- | ---- | 
-| bert+crf | 4/20 | 97.06 | 95.90 | —— | 
-| bert+crf+init | 4/20 | 97.35 | 96.42 | 用训练数据初始化crf权重 | 
-| bert+crf+freeze | 10/20 | 97.15 | 95.92 | 用训练数据生成crf权重(不训练) | 
-| bert+cascade+crf | 15/20 | 98.11 | 96.23 | crf类别少所以f1_token偏高 | 
-| bert+posseg+crf | 8/20 | 97.30 | 96.09 | 加了词性输入 | 
+| bert+crf | 18/20 | 96.89 | 96.05 | —— |
+| bert+crf+init | 18/20 | 96.93 | 96.08 | 用训练数据初始化crf权重 | 
+| bert+crf+freeze | 11/20 | 96.89 | 96.13 | 用训练数据生成crf权重(不训练) |
+| bert+cascade+crf | 5/20 | 98.10 | 96.26 | crf类别少所以f1_token偏高 | 
+| bert+crf+posseg | 13/20 | 97.32 | 96.55 | 加了词性输入 | 
 | bert+global_pointer | 18/20 | —— | 95.66 | —— | 
 | bert+efficient_global_pointer | 17/20 | —— | 96.55 | —— | 
 | bert+mrc | 7/20 | —— | 95.75 | —— |
 | bert+span | 13/20 | —— | 96.31 | —— |
 | bert+tplinker_plus | 20/20 | —— | 95.71 | 长度限制明显 |
-
 
 # sentence_embedding
 ## unsupervised

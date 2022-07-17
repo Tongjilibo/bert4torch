@@ -27,7 +27,7 @@ class NewModel(Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-        self.bert, self.config = build_transformer_model(config_path=config_path, with_pool=True, return_model_config=True, segment_vocab_size=0, keep_hidden_layers=[1,4,7])
+        self.bert = build_transformer_model(config_path=config_path, with_pool=True, segment_vocab_size=0, keep_hidden_layers=[1,4,7])
 
     def forward(self, token_ids):
         hidden_state, pooler = self.bert([token_ids])

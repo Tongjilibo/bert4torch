@@ -101,7 +101,7 @@ elif choice == 'random':
 class Model(BaseModel):
     def __init__(self, pool_method='cls', scale=20.0):
         super().__init__()
-        self.bert, self.config = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, return_model_config=True, segment_vocab_size=0)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.pool_method = pool_method
         self.scale = scale
 
