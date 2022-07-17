@@ -23,6 +23,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - [**实验指标**](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md)
 
 ## 版本说明
+- **v0.1.8**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
 - **v0.1.7**：增加EarlyStop，CRF中自带转bool类型
 - **v0.1.6**：增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug
 - **v0.1.5**：增加GAU-alpha，混合梯度，梯度裁剪，单机多卡(DP、DDP)
