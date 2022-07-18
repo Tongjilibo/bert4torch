@@ -68,7 +68,7 @@ def search(tokens, search_token, start_idx=0):
     return mask_idxs
 
 
-# 建立分词器
+# 建立分词器，这里使用transformer自带的
 tokenizer = transformers.XLNetTokenizerFast.from_pretrained(pretrain_model)
 
 def collate_fn(batch):
@@ -186,4 +186,4 @@ if __name__ == '__main__':
         model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, grad_accumulation_steps=grad_accumulation_steps, callbacks=[evaluator])
 
     model.load_weights(ckpt_path)
-    f1, acc, pred_result, pred_result_prob = Evaluator.evaluate(valid_dataloader)
+    f1, acc, pred_result = Evaluator.evaluate(valid_dataloader)
