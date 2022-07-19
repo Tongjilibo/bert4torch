@@ -31,6 +31,7 @@
 - [task_sentence_embedding_unsupervised_ESimCSE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_ESimCSE.py)：参考[ESimCSE论文](https://arxiv.org/pdf/2109.04380.pdf)和[第三方实现](https://github.com/shuxinyin/SimCSE-Pytorch)
 - [task_sentence_embedding_unsupervised_TSDAE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_TSDAE.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [task_sentence_embedding_unsupervised_PromptBert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsupervised_PromptBert.py)：[PromptBert](https://github.com/kongds/Prompt-BERT)方式
+- [FinanceFAQ](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/FinanceFAQ)：金融领域FAQ两阶段(召回+排序)pipline
 
 ### 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：句子对分类任务。
@@ -43,9 +44,10 @@
 - [task_sentiment_classification_roformer_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_roformer_v2.py)：情感分类任务，加载roformer_v2权重
 - [task_sentiment_classification_electra.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_electra.py)：情感分类任务，加载electra权重
 - [task_sentiment_classification_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_GAU_alpha.py)：情感分类任务，加载GAU-alpha权重
-- [task_sentiment_sohu.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_sohu.py)：搜狐2022实体情感分类baseline，f1=0.67176
 - [task_sentiment_classification_PET.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_PET.py)：情感分类项目，[Pattern-Exploiting-Training](https://github.com/bojone/Pattern-Exploiting-Training), [bert4keras示例](https://github.com/bojone/Pattern-Exploiting-Training)
 - [task_sentiment_classification_P_tuning.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_P_tuning.py)：情感分类项目，[P-tuning](https://github.com/THUDM/P-tuning), [bert4keras示例](https://github.com/bojone/P-tuning)
+- [Sohu_2022_ABSA](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/Sohu_2022_ABSA)：搜狐2022实体情感分类Top1方案复现和自己的baseline
+- [Tianchi_News_Classification](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/Tianchi_News_Classification)：天池零基础入门NLP-新闻分类Top1方案复现
 
 ### 文本生成
 - [task_seq2seq_autotitle.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。

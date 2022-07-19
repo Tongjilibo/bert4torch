@@ -25,7 +25,7 @@ df_test['text'] = df_test['text'].apply(lambda x: x.strip().split())
 test_data = load_data(df_test)
 dev_dataloader = DataLoader(ListDataset(data=test_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
-f1_score = [0.9, 0.9, 0.9, 0.9, 0.9]
+f1_score = [0.97083, 0.97074, 0.96914, 0.96892, 0.96613]
 y_pred_final = 0
 for i in range(5):
     model = Model().to(device)
