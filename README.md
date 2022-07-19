@@ -1,6 +1,8 @@
 # bert4torch
 **一款用pytorch来复现bert4keras的简洁训练框架**
 
+[![licence](https://img.shields.io/github/license/Tongjilibo/bert4torch.svg?maxAge=3600)](https://github.com/Tongjilibo/bert4torch/blob/master/LICENSE) [![GitHub release](https://img.shields.io/github/release/Tongjilibo/bert4torch.svg?maxAge=3600)](https://github.com/Tongjilibo/bert4torch/releases) [![TotalDownloads](https://static.pepy.tech/badge/bert4torch)](https://pypi.org/project/bert4torch/) [![Downloads](https://static.pepy.tech/badge/bert4torch/month)](https://pypi.org/project/bert4torch/)
+
 ## 下载安装
 安装稳定版
 ```shell
