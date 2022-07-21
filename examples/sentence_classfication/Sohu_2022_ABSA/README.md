@@ -13,8 +13,8 @@
 
 | 复现方案 | 方案 | 指标 |
 | ---- | ---- | ---- |
-| Top1_github | 前2000为dev, 不使用swa, 有warmup, 无label_smoothing, 无fgm, 梯度累积=3, 无rdrop | Epoch 4/10: f1=0.7697|
-| Top1_bert4torch复现1 | 参数同上 | Epoch 10/10: f1=0.7556 |
+| Top1_github | 前2000为dev, 不使用swa, 有warmup, 无label_smoothing, 无fgm, 梯度累积=3, 无rdrop | Epoch 5/10: f1=0.7697|
+| Top1_bert4torch复现1 | 参数同上 | Epoch 8/10: f1=0.7556 |
 | Top1_bert4torch复现2 | 参数同上+fgm+swa | Epoch 5/10: f1=0.7877 |
 
 
