@@ -7,21 +7,17 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import random 
-import os
-import numpy as np
 
 maxlen = 256
 batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v2_char_base/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v2_char_base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v2_char_base/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed

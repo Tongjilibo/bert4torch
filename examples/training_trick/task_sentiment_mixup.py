@@ -1,6 +1,5 @@
 #! -*- coding:utf-8 -*-
 # 情感分类任务, 加载bert权重
-# valid_acc: 94.72, test_acc: 94.11
 
 
 from bert4torch.tokenizers import Tokenizer
@@ -13,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 maxlen = 256
-batch_size = 16
+batch_size = 8
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
@@ -62,7 +61,7 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self, mixup_method='encoder') -> None:
+    def __init__(self, mixup_method='embed') -> None:
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
@@ -70,7 +69,7 @@ class Model(BaseModel):
         self.mixup = MixUp(method=mixup_method)
 
     def forward(self, inputs):
-        model_output, lam, index = self.mixup(self.bert, inputs)
+        model_output, lam, index = self.mixup.encode(self.bert, inputs)
         pooled_output = model_output[-1]
         output = self.dropout(pooled_output)
         y_pred = self.dense(output)
@@ -81,7 +80,7 @@ model = Model().to(device)
 class Loss(nn.Module):
     def forward(self, outputs, y_true):
         y_pred, lam, index = outputs
-        return model.mixup(nn.CrossEntropyLoss(), y_pred, lam, index, y_true)
+        return model.mixup(nn.CrossEntropyLoss(), y_pred, y_true, lam, index)
     
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
@@ -108,7 +107,7 @@ class Evaluator(Callback):
     def evaluate(self, data):
         total, right = 0., 0.
         for x_true, y_true in data:
-            y_pred = model.predict(x_true).argmax(axis=1)
+            y_pred = model.predict(x_true)[0].argmax(axis=1)
             total += len(y_true)
             right += (y_true == y_pred).sum().item()
         return right / total

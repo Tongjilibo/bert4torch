@@ -7,7 +7,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -66,15 +66,17 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self) -> None:
+    def __init__(self, pool_method='cls') -> None:
         super().__init__()
+        self.pool_method = pool_method
         # 指定好model和对应的ckpt地址
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', with_pool=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
     def forward(self, token_ids, segment_ids):
-        _, pooled_output = self.bert([token_ids, segment_ids])
+        hidden_states, pooling = self.bert([token_ids, segment_ids])
+        pooled_output = get_pool_emb(hidden_states, pooling, token_ids.gt(0).long(), self.pool_method)
         output = self.dropout(pooled_output)
         output = self.dense(output)
         return output

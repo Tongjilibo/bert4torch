@@ -1296,11 +1296,10 @@ class MixUp(nn.Module):
     '''mixup方法实现
         method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理
     '''
-    def __init__(self, method='encoder', dropout=0.1, alpha=0.5):
+    def __init__(self, method='encoder', alpha=0.5):
+        super().__init__()
         assert method in {'embed', 'encoder', None}
         self.method = method
-        if method in {None, 'encoder'}:
-            self.dropout = nn.Dropout(dropout)
         self.alpha = alpha
     
     def encode(self, model, inputs):
@@ -1310,11 +1309,14 @@ class MixUp(nn.Module):
         index = torch.randperm(batch_size).to(device)
         inputs1 = [inp[index] for inp in inputs]
 
-        if self.method in {None, 'encoder'}:
-            output = self.dropout(model(inputs))
-            output1 = self.dropout(model(inputs1))
-            if self.method is None:
-                return [output, output1], lam, index
+        if self.method is None:
+            output = model(inputs)
+            output1 = model(inputs1)
+            return [output, output1], lam, index
+
+        elif self.method == 'encoder':
+            output = model(inputs)
+            output1 = model(inputs1)
 
             if isinstance(output, torch.Tensor):
                 output_final = lam * output + (1.0-lam) * output1
@@ -1330,8 +1332,13 @@ class MixUp(nn.Module):
             output1 = model.apply_embeddings(inputs1)
 
             output_final = []
-            for i in range(len(output)): 
-                output_final.append(lam * output[i] + (1.0-lam) * output1[i])
+            for i in range(len(output)):
+                if i == 1: # attention_mask
+                    output_final.append(torch.max(output[i], output1[i]))
+                elif isinstance(output[i], torch.Tensor):
+                    output_final.append(lam * output[i] + (1.0-lam) * output1[i])
+                else: # conditional_emb=None
+                    output_final.append(output[i])
             # Main
             output_final = model.apply_main_layers(output_final)
             # Final
