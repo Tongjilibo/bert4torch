@@ -1151,6 +1151,8 @@ def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strat
 
 
 def seed_everything(seed=None):
+    '''固定seed
+    '''
     max_seed_value = np.iinfo(np.uint32).max
     min_seed_value = np.iinfo(np.uint32).min
 

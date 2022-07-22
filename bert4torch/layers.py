@@ -1,3 +1,4 @@
+from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -1289,3 +1290,56 @@ class TplinkerHandshakingKernel(nn.Module):
         #     concat_hidden_states = concat_hidden_states.reshape(btz, -1, 2, hdsz)  # concat方式 [btz, pair_len, 2, hdsz]
         #     shaking_hiddens = torch.cat(torch.chunk(concat_hidden_states, chunks=2, dim=-2), dim=-1).squeeze(-2)  # [btz, pair_len, hdsz*2]
         #     return shaking_hiddens
+
+
+class MixUp(nn.Module):
+    '''mixup方法实现
+        method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理
+    '''
+    def __init__(self, method='encoder', dropout=0.1, alpha=0.5):
+        assert method in {'embed', 'encoder', None}
+        self.method = method
+        if method in {None, 'encoder'}:
+            self.dropout = nn.Dropout(dropout)
+        self.alpha = alpha
+    
+    def encode(self, model, inputs):
+        batch_size = inputs[0].shape[0]
+        device = inputs[0].device
+        lam = np.random.beta(self.alpha, self.alpha)
+        index = torch.randperm(batch_size).to(device)
+        inputs1 = [inp[index] for inp in inputs]
+
+        if self.method in {None, 'encoder'}:
+            output = self.dropout(model(inputs))
+            output1 = self.dropout(model(inputs1))
+            if self.method is None:
+                return [output, output1], lam, index
+
+            if isinstance(output, torch.Tensor):
+                output_final = lam * output + (1.0-lam) * output1
+            elif isinstance(output, (list, tuple)):
+                output_final = []
+                for i in range(len(output)):
+                    output_final.append(lam * output[i] + (1.0-lam) * output1[i])
+            else:
+                raise ValueError('Illegal model output')
+
+        elif self.method == 'embed':
+            output = model.apply_embeddings(inputs)
+            output1 = model.apply_embeddings(inputs1)
+
+            output_final = []
+            for i in range(len(output)): 
+                output_final.append(lam * output[i] + (1.0-lam) * output1[i])
+            # Main
+            output_final = model.apply_main_layers(output_final)
+            # Final
+            output_final = model.apply_final_layers(output_final)
+        return output_final, lam, index
+    
+    def forward(self, criterion, y_pred, y_true, lam, index):
+        '''计算loss
+        '''
+        y_true1 = y_true[index]
+        return lam * criterion(y_pred, y_true) + (1 - lam) * criterion(y_pred, y_true1)
