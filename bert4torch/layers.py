@@ -1296,7 +1296,7 @@ class MixUp(nn.Module):
     '''mixup方法实现
         method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理
     '''
-    def __init__(self, method='encoder', alpha=0.5):
+    def __init__(self, method='encoder', alpha=1):
         super().__init__()
         assert method in {'embed', 'encoder', None}
         self.method = method

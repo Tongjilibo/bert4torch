@@ -2,6 +2,7 @@
 # 情感分类任务, 加载bert权重
 
 
+from tkinter.tix import Y_REGION
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.layers import MixUp
@@ -61,7 +62,7 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self, mixup_method='embed') -> None:
+    def __init__(self, mixup_method='encoder') -> None:
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
@@ -74,6 +75,15 @@ class Model(BaseModel):
         output = self.dropout(pooled_output)
         y_pred = self.dense(output)
         return y_pred, lam, index
+    
+    def predict(self, inputs):
+        self.eval()
+        with torch.no_grad():
+            model_output = self.bert(inputs)
+            pooled_output = model_output[-1]
+            output = self.dropout(pooled_output)
+        y_pred = self.dense(output)
+        return y_pred
 
 model = Model().to(device)
 
@@ -86,7 +96,6 @@ class Loss(nn.Module):
 model.compile(
     loss=Loss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
-    metrics=['accuracy']
 )
 
 class Evaluator(Callback):
@@ -107,7 +116,7 @@ class Evaluator(Callback):
     def evaluate(self, data):
         total, right = 0., 0.
         for x_true, y_true in data:
-            y_pred = model.predict(x_true)[0].argmax(axis=1)
+            y_pred = model.predict(x_true).argmax(axis=1)
             total += len(y_true)
             right += (y_true == y_pred).sum().item()
         return right / total
