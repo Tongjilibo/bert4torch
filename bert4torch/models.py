@@ -521,6 +521,16 @@ class BERT_BASE(BaseModel):
 
     def apply_final_layers(self, inputs):
         raise NotImplementedError
+    
+    def apply_on_layer_begin(self, l_i, *inputs):
+        '''新增对layer block输入进行操作的函数
+        '''
+        return inputs
+    
+    def apply_on_layer_end(self, l_i, *inputs):
+        '''新增对layer block输出进行操作的函数
+        '''
+        return inputs
 
     def compute_attention_bias(self, inputs=None):
         """定义每一层的Attention Bias
@@ -744,8 +754,13 @@ class BERT(BERT_BASE):
             encoder_hidden_state, encoder_attention_mask = None, None
 
         encoded_layers = [hidden_states] # 添加embedding的输出
-        for layer_module in self.encoderLayer:
-            hidden_states = layer_module(hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask)
+        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
+        for l_i, layer_module in enumerate(self.encoderLayer):
+            layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
+            hidden_states = layer_module(layer_inputs)
+            layer_inputs[0] = hidden_states
+            layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
+
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
@@ -863,8 +878,13 @@ class ALBERT(BERT):
             encoder_hidden_state, encoder_attention_mask = None, None
 
         encoded_layers = [hidden_states] # 添加embedding的输出
-        for _ in range(self.num_hidden_layers):
-            hidden_states = self.encoderLayer[0](hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask)
+        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
+        for l_i in range(self.num_hidden_layers):
+            layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
+            hidden_states = self.encoderLayer[0](layer_inputs)
+            layer_inputs[0] = hidden_states
+            layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
+
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
@@ -949,8 +969,13 @@ class ALBERT_Unshared(ALBERT):
             encoder_hidden_state, encoder_attention_mask = None, None
 
         encoded_layers = [hidden_states] # 添加embedding的输出
+        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
         for i in range(self.num_hidden_layers):
-            hidden_states = self.encoderLayer[i](hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask)
+            layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
+            hidden_states = self.encoderLayer[i](layer_inputs)
+            layer_inputs[0] = hidden_states
+            layer_inputs = self.apply_on_layer_end(i, layer_inputs)
+
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
@@ -1151,8 +1176,13 @@ class Decoder(LM_Mask, BERT):
         """
         hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask = inputs[:5]
         decoded_layers = [hidden_states] # 添加embedding的输出
+        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
         for i, layer_module in enumerate(self.decoderLayer):
-            hidden_states = layer_module(hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask)
+            layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
+            hidden_states = layer_module(layer_inputs)
+            layer_inputs[0] = hidden_states
+            layer_inputs = self.apply_on_layer_end(i, layer_inputs)
+
             if self.output_all_encoded_layers:
                 decoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
@@ -1749,9 +1779,14 @@ class Transformer_XL(BERT):
         hidden_states, segment_ids, pos_emb, attention_mask, conditional_emb = inputs[:5]
         encoded_layers = [hidden_states] # 添加embedding的输出
 
+        layer_inputs = [hidden_states, segment_ids, pos_emb, attention_mask, None, conditional_emb]
         for i, layer_module in enumerate(self.encoderLayer):
             mems_i = None if self.mems is None else self.mems[i]
-            hidden_states = layer_module(hidden_states, segment_ids, pos_emb, attention_mask, mems_i, conditional_emb)
+            layer_inputs[-2] = mems_i
+            layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
+            hidden_states = layer_module(layer_inputs)
+            layer_inputs[0] = hidden_states
+            layer_inputs = self.apply_on_layer_end(i, layer_inputs)
             encoded_layers.append(hidden_states)
         
         # 原实现中word_emb, pos_emb和core_out(hidden_states)使用同一个dropout

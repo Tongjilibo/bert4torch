@@ -1,5 +1,6 @@
 from turtle import forward
 import torch
+from torch.functional import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -7,6 +8,7 @@ import math
 from bert4torch.snippets import get_sinusoid_encoding_table
 from bert4torch.activations import get_activation
 from typing import List, Optional
+import random
 
 
 class LayerNorm(nn.Module):
@@ -1294,57 +1296,89 @@ class TplinkerHandshakingKernel(nn.Module):
 
 class MixUp(nn.Module):
     '''mixup方法实现
-        method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理
+        method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理, hidden表示对隐含层做mixup
     '''
-    def __init__(self, method='encoder', alpha=1):
+    def __init__(self, method='encoder', alpha=1, layer_mix=None):
         super().__init__()
-        assert method in {'embed', 'encoder', None}
+        assert method in {'embed', 'encoder', 'hidden', None}
         self.method = method
         self.alpha = alpha
         self.perm_index = None
         self.lam = 0
+        self.layer_mix = layer_mix  # 需要mix的隐含层index
     
-    def encode(self, model, inputs):
+    def get_perm(self, inputs):
+        if isinstance(inputs, torch.Tensor):
+            return inputs[self.perm_index]
+        elif isinstance(inputs, (list, tuple)):
+            return [inp[self.perm_index] if isinstance(inp, torch.Tensor) else inp for inp in inputs]
+    
+    def mix_up(self, output, output1):
+        if isinstance(output, torch.Tensor):
+            return self.lam * output + (1.0-self.lam) * output1
+        elif isinstance(output, (list, tuple)):
+            output_final = []
+            for i in range(len(output)):
+                if output[i] is None: # conditional_emb=None
+                    output_final.append(output[i])
+                elif (not output[i].requires_grad) and (output[i].dtype in {torch.long, torch.int}):
+                    # 不是embedding形式的
+                    output_final.append(torch.max(output[i], output1[i]))
+                else:
+                    output_final.append(self.lam * output[i] + (1.0-self.lam) * output1[i])
+            return output_final
+        else:
+            raise ValueError('Illegal model output')
+
+    def encode(self, model, inputs: List[torch.Tensor]):
         batch_size = inputs[0].shape[0]
         device = inputs[0].device
         self.lam = np.random.beta(self.alpha, self.alpha)
         self.perm_index = torch.randperm(batch_size).to(device)
-        inputs1 = [inp[self.perm_index] for inp in inputs]
 
         if self.method is None:
             output = model(inputs)
-            output1 = model(inputs1)
+            output1 = self.get_perm(output)
             return [output, output1]
 
         elif self.method == 'encoder':
             output = model(inputs)
-            output1 = model(inputs1)
-
-            if isinstance(output, torch.Tensor):
-                output_final = self.lam * output + (1.0-self.lam) * output1
-            elif isinstance(output, (list, tuple)):
-                output_final = []
-                for i in range(len(output)):
-                    output_final.append(self.lam * output[i] + (1.0-self.lam) * output1[i])
-            else:
-                raise ValueError('Illegal model output')
+            output1 = self.get_perm(output)
+            output_final = self.mix_up(output, output1)
 
         elif self.method == 'embed':
             output = model.apply_embeddings(inputs)
-            output1 = model.apply_embeddings(inputs1)
-
-            output_final = []
-            for i in range(len(output)):
-                if i == 1: # attention_mask
-                    output_final.append(torch.max(output[i], output1[i]))
-                elif isinstance(output[i], torch.Tensor):
-                    output_final.append(self.lam * output[i] + (1.0-self.lam) * output1[i])
-                else: # conditional_emb=None
-                    output_final.append(output[i])
+            output1 = self.get_perm(output)
+            output_final = self.mix_up(output, output1)
             # Main
             output_final = model.apply_main_layers(output_final)
             # Final
             output_final = model.apply_final_layers(output_final)
+        
+        elif self.method == 'hidden':
+            if self.layer_mix is None:
+                # 这里暂时只考虑encoderLayer, 不考虑decoderLayer和seq2seq模型结构
+                try:
+                    layer_mix = random.randint(len(model.encoderLayer))
+                except:
+                    layer_mix = 0
+            else:
+                layer_mix = self.layer_mix
+            output = model.apply_embeddings(inputs)
+            
+            def apply_on_layer_end(l_i, inputs):
+                if l_i == layer_mix:
+                    output1 = self.get_perm(output)
+                    return self.mix_up(output, output1)
+                else:
+                    return inputs
+            model.apply_on_layer_end = apply_on_layer_end
+
+            # Main
+            output_final = model.apply_main_layers(output)
+            # Final
+            output_final = model.apply_final_layers(output_final)
+
         return output_final
     
     def forward(self, criterion, y_pred, y_true):
