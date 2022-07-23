@@ -1,8 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 情感分类任务, 加载bert权重
 
-
-from tkinter.tix import Y_REGION
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.layers import MixUp
@@ -70,11 +68,11 @@ class Model(BaseModel):
         self.mixup = MixUp(method=mixup_method)
 
     def forward(self, inputs):
-        model_output, lam, index = self.mixup.encode(self.bert, inputs)
+        model_output = self.mixup.encode(self.bert, inputs)
         pooled_output = model_output[-1]
         output = self.dropout(pooled_output)
         y_pred = self.dense(output)
-        return y_pred, lam, index
+        return y_pred
     
     def predict(self, inputs):
         self.eval()
@@ -88,9 +86,8 @@ class Model(BaseModel):
 model = Model().to(device)
 
 class Loss(nn.Module):
-    def forward(self, outputs, y_true):
-        y_pred, lam, index = outputs
-        return model.mixup(nn.CrossEntropyLoss(), y_pred, y_true, lam, index)
+    def forward(self, y_pred, y_true):
+        return model.mixup(nn.CrossEntropyLoss(), y_pred, y_true)
     
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

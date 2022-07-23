@@ -1301,29 +1301,31 @@ class MixUp(nn.Module):
         assert method in {'embed', 'encoder', None}
         self.method = method
         self.alpha = alpha
+        self.perm_index = None
+        self.lam = 0
     
     def encode(self, model, inputs):
         batch_size = inputs[0].shape[0]
         device = inputs[0].device
-        lam = np.random.beta(self.alpha, self.alpha)
-        index = torch.randperm(batch_size).to(device)
-        inputs1 = [inp[index] for inp in inputs]
+        self.lam = np.random.beta(self.alpha, self.alpha)
+        self.perm_index = torch.randperm(batch_size).to(device)
+        inputs1 = [inp[self.perm_index] for inp in inputs]
 
         if self.method is None:
             output = model(inputs)
             output1 = model(inputs1)
-            return [output, output1], lam, index
+            return [output, output1]
 
         elif self.method == 'encoder':
             output = model(inputs)
             output1 = model(inputs1)
 
             if isinstance(output, torch.Tensor):
-                output_final = lam * output + (1.0-lam) * output1
+                output_final = self.lam * output + (1.0-self.lam) * output1
             elif isinstance(output, (list, tuple)):
                 output_final = []
                 for i in range(len(output)):
-                    output_final.append(lam * output[i] + (1.0-lam) * output1[i])
+                    output_final.append(self.lam * output[i] + (1.0-self.lam) * output1[i])
             else:
                 raise ValueError('Illegal model output')
 
@@ -1336,17 +1338,17 @@ class MixUp(nn.Module):
                 if i == 1: # attention_mask
                     output_final.append(torch.max(output[i], output1[i]))
                 elif isinstance(output[i], torch.Tensor):
-                    output_final.append(lam * output[i] + (1.0-lam) * output1[i])
+                    output_final.append(self.lam * output[i] + (1.0-self.lam) * output1[i])
                 else: # conditional_emb=None
                     output_final.append(output[i])
             # Main
             output_final = model.apply_main_layers(output_final)
             # Final
             output_final = model.apply_final_layers(output_final)
-        return output_final, lam, index
+        return output_final
     
-    def forward(self, criterion, y_pred, y_true, lam, index):
+    def forward(self, criterion, y_pred, y_true):
         '''计算loss
         '''
-        y_true1 = y_true[index]
-        return lam * criterion(y_pred, y_true) + (1 - lam) * criterion(y_pred, y_true1)
+        y_true1 = y_true[self.perm_index]
+        return self.lam * criterion(y_pred, y_true) + (1 - self.lam) * criterion(y_pred, y_true1)
