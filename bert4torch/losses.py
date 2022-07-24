@@ -1,3 +1,4 @@
+from ast import arg
 from tracemalloc import start
 import torch
 import torch.nn as nn
@@ -136,23 +137,33 @@ class RDropLoss(nn.Module):
     def __init__(self, alpha=4, rank='adjacent'):
         super().__init__()
         self.alpha = alpha
+        # 支持两种方式，一种是奇偶相邻排列，一种是上下排列
         assert rank in {'adjacent', 'updown'}, "rank kwarg only support 'adjacent' and 'updown' "
         self.rank = rank
         self.loss_sup = nn.CrossEntropyLoss()
         self.loss_rdrop = nn.KLDivLoss(reduction='none')
 
-    def forward(self, y_pred, y_true):
-        '''支持两种方式，一种是奇偶相邻排列，一种是上下排列
+    def forward(self, *args):
+        '''支持两种方式: 一种是y_pred, y_true, 另一种是y_pred1, y_pred2, y_true
         '''
-        loss_sup = self.loss_sup(y_pred, y_true)
+        assert len(args) in {2, 3}, 'RDropLoss only support 2 or 3 input args'
+        # y_pred是1个Tensor
+        if len(args) == 2:
+            y_pred, y_true = args
+            loss_sup = self.loss_sup(y_pred, y_true)  # 两个都算
 
-        if self.rank == 'adjacent':
-            y_pred1 = y_pred[1::2]
-            y_pred2 = y_pred[::2]
-        elif self.rank == 'updown':
-            half_btz = y_true.shape[0] // 2
-            y_pred1 = y_pred[:half_btz]
-            y_pred2 = y_pred[half_btz:]
+            if self.rank == 'adjacent':
+                y_pred1 = y_pred[1::2]
+                y_pred2 = y_pred[::2]
+            elif self.rank == 'updown':
+                half_btz = y_true.shape[0] // 2
+                y_pred1 = y_pred[:half_btz]
+                y_pred2 = y_pred[half_btz:]
+        # y_pred是两个tensor
+        else:
+            y_pred1, y_pred2, y_true = args
+            loss_sup = self.loss_sup(y_pred1, y_true)
+
         loss_rdrop1 = self.loss_rdrop(F.log_softmax(y_pred1, dim=-1), F.softmax(y_pred2, dim=-1))
         loss_rdrop2 = self.loss_rdrop(F.log_softmax(y_pred2, dim=-1), F.softmax(y_pred1, dim=-1))
         return loss_sup + torch.mean(loss_rdrop1 + loss_rdrop2) / 4 * self.alpha
@@ -209,3 +220,52 @@ class UDALoss(nn.Module):
             scale = 5
             threshold = 1 - math.exp((-training_progress) * scale)
         return threshold * (end - start) + start
+
+
+class TemporalEnsemblingLoss(nn.Module):
+    '''TemporalEnsembling的实现，官方项目：https://github.com/s-laine/tempens
+    '''
+    def __init__(self, epochs, max_val, mult, alpha=0.2):
+        super().__init__()
+        self.loss_sup = nn.CrossEntropyLoss()
+        self.loss_unsup = nn.MSELoss()
+        self.max_epochs = epochs
+        self.max_val = max_val
+        self.mult = mult
+        self.alpha = alpha
+        self.hist_unsup = []
+        self.hist_sup = []
+
+    def forward(self, y_pred_sup, y_pred_unsup, y_true_sup, epoch, bti):
+        sup_ratio = float(len(y_pred_sup)) / (len(y_pred_sup) + len(y_pred_unsup))
+        w = self.weight_schedule(epoch, sup_ratio)
+        sup_loss, unsup_loss = self.temporal_loss(y_pred_sup, y_pred_unsup, y_true_sup, bti)
+        # 更新
+        self.hist_unsup[bti] = self.update(self.hist_unsup[bti], y_pred_unsup, epoch)
+        self.hist_sup[bti] = self.update(self.hist_sup[bti], y_pred_sup, epoch)
+        return sup_loss + w * unsup_loss
+
+    def update(self, hist, y_pred, epoch):
+        '''更新参数
+        '''
+        Z = self.alpha * hist + (1. -self.alpha) * y_pred
+        return Z * (1. / (1. - self.alpha ** (epoch + 1)))
+
+    def weight_schedule(self, epoch, sup_ratio):
+        max_val = self.max_val * sup_ratio
+        if epoch == 0:
+            return 0.
+        elif epoch >= self.max_epochs:
+            return max_val
+        return max_val * np.exp(self.mult * (1. - float(epoch) / self.max_epochs) ** 2)
+
+    def temporal_loss(self, y_pred_sup, y_pred_unsup, y_true_sup, bti):
+        # MSE between current and temporal outputs
+        def mse_loss(out1, out2):
+            quad_diff = torch.sum((F.softmax(out1, dim=1) - F.softmax(out2, dim=1)) ** 2)
+            return quad_diff / out1.data.nelement()
+        
+        sup_loss = F.cross_entropy(y_pred_sup, y_true_sup)
+        unsup_loss = mse_loss(y_pred_unsup, self.hist_unsup[bti])
+        unsup_loss += mse_loss(y_pred_sup, self.hist_sup[bti])
+        return sup_loss, unsup_loss
