@@ -1330,7 +1330,7 @@ class MixUp(nn.Module):
         else:
             raise ValueError('Illegal model output')
 
-    def encode(self, model, inputs: List[torch.Tensor]):
+    def encode(self, model, inputs):
         batch_size = inputs[0].shape[0]
         device = inputs[0].device
         self.lam = np.random.beta(self.alpha, self.alpha)
@@ -1359,7 +1359,7 @@ class MixUp(nn.Module):
             if self.layer_mix is None:
                 # 这里暂时只考虑encoderLayer, 不考虑decoderLayer和seq2seq模型结构
                 try:
-                    layer_mix = random.randint(len(model.encoderLayer))
+                    layer_mix = random.randint(0, len(model.encoderLayer))
                 except:
                     layer_mix = 0
             else:
