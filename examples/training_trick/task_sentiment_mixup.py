@@ -1,5 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 情感分类任务, 加载bert权重
+# Mixup策略，包含embedding，hidden, encoder的mixup
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel

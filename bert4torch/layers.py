@@ -9,6 +9,7 @@ from bert4torch.snippets import get_sinusoid_encoding_table
 from bert4torch.activations import get_activation
 from typing import List, Optional
 import random
+import warnings
 
 
 class LayerNorm(nn.Module):
@@ -1298,7 +1299,7 @@ class MixUp(nn.Module):
     '''mixup方法实现
         method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理, hidden表示对隐含层做mixup
     '''
-    def __init__(self, method='encoder', alpha=1, layer_mix=None):
+    def __init__(self, method='encoder', alpha=1.0, layer_mix=None):
         super().__init__()
         assert method in {'embed', 'encoder', 'hidden', None}
         self.method = method
@@ -1361,24 +1362,19 @@ class MixUp(nn.Module):
                 try:
                     layer_mix = random.randint(0, len(model.encoderLayer))
                 except:
+                    warnings.warn('LayerMix random failded')
                     layer_mix = 0
             else:
                 layer_mix = self.layer_mix
-            output = model.apply_embeddings(inputs)
             
-            def apply_on_layer_end(l_i, inputs):
+            def apply_on_layer_end(l_i, output):
                 if l_i == layer_mix:
                     output1 = self.get_perm(output)
                     return self.mix_up(output, output1)
                 else:
-                    return inputs
+                    return output
             model.apply_on_layer_end = apply_on_layer_end
-
-            # Main
-            output_final = model.apply_main_layers(output)
-            # Final
-            output_final = model.apply_final_layers(output_final)
-
+            output_final = model(inputs)
         return output_final
     
     def forward(self, criterion, y_pred, y_true):
