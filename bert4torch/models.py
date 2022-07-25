@@ -1129,26 +1129,17 @@ class Encoder(BERT):
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
     
-    def apply_embeddings(self, inputs):
-        outputs = super().apply_embeddings(inputs)
-        self.encoder_attention_mask = [outputs[1]]
-        return outputs
-    
-    def apply_final_layers(self, inputs):
-        outputs = super().apply_final_layers(inputs)
-        return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + self.encoder_attention_mask
-
-    # def forward(self, inputs):
-    #     """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
-    #     """
-    #     # Embedding
-    #     outputs = self.apply_embeddings(inputs)
-    #     encoder_attention_mask = [outputs[1]]
-    #     # Main
-    #     outputs = self.apply_main_layers(outputs)
-    #     # Final
-    #     outputs = self.apply_final_layers(outputs)
-    #     return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + encoder_attention_mask
+    def forward(self, inputs):
+        """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
+        """
+        # Embedding
+        outputs = self.apply_embeddings(inputs)
+        encoder_attention_mask = [outputs[1]]
+        # Main
+        outputs = self.apply_main_layers(outputs)
+        # Final
+        outputs = self.apply_final_layers(outputs)
+        return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + encoder_attention_mask
 
 
 class Decoder(LM_Mask, BERT):
@@ -1713,14 +1704,6 @@ class Transformer_XL(BERT):
                 new_mems.append(cat[:, beg_idx:end_idx].detach())
         self.mems = new_mems
 
-    def apply_embeddings(self, inputs):
-        self.mems = self.init_mems(inputs[0].size(0)) 
-        return super().apply_embeddings(inputs)
-
-    # def forward(self, inputs):
-    #     self.mems = self.init_mems(inputs[0].size(0)) 
-    #     return super().forward(inputs)
-
     def relative_positional_encoding(self, qlen, klen, device):
         # 生成pos_emb, 这里使用sincos的位置编码，为了和xlnet入参一致
         pos_seq = torch.arange(klen-1, -1, -1.0, device=device, dtype=torch.long)
@@ -1744,6 +1727,8 @@ class Transformer_XL(BERT):
     def apply_embeddings(self, inputs):
         '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入
         '''
+        self.mems = self.init_mems(inputs[0].size(0))  # 生成mems
+
         # 精简后embeddings中只计算word_emdedding
         word_emb = self.dropout(self.embeddings(inputs[0]))
         index_ = 1
