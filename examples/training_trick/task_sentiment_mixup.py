@@ -105,7 +105,7 @@ class Evaluator(Callback):
         test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
-            model.save_weights('best_model.pt')
+            # model.save_weights('best_model.pt')
         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
     # 定义评价函数
@@ -117,17 +117,6 @@ class Evaluator(Callback):
             right += (y_true == y_pred).sum().item()
         return right / total
 
-def inference(texts):
-    '''单条样本推理
-    '''
-    for text in texts:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        token_ids = torch.tensor(token_ids, dtype=torch.long, device=device)[None, :]
-        segment_ids = torch.tensor(segment_ids, dtype=torch.long, device=device)[None, :]
-
-        logit = model.predict([token_ids, segment_ids])
-        y_pred = torch.argmax(torch.softmax(logit, dim=-1)).cpu().numpy()
-        print(text, ' ----> ', y_pred)
 
 if __name__ == '__main__':
     if choice == 'train':
@@ -135,4 +124,3 @@ if __name__ == '__main__':
         model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
     else:
         model.load_weights('best_model.pt')
-        inference(['我今天特别开心', '我今天特别生气'])

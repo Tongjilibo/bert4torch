@@ -103,7 +103,7 @@ class Evaluator(Callback):
         test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
-            model.save_weights('best_model.pt')
+            # model.save_weights('best_model.pt')
         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
     # 定义评价函数

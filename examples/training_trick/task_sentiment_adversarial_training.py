@@ -6,7 +6,6 @@
 # 梯度惩罚：https://kexue.fm/archives/7234
 
 
-import json
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader
@@ -14,8 +13,7 @@ import torch.nn as nn
 import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, get_pool_emb, seed_everything
 from bert4torch.tokenizers import Tokenizer
-from tqdm import tqdm
-from torchinfo import summary
+import sys
 
 maxlen = 256
 batch_size = 16
@@ -80,10 +78,15 @@ class Model(BaseModel):
         output = self.dense(output)
         return output
 model = Model().to(device)
-summary(model, input_data=next(iter(train_dataloader))[0])
 
+# 传参方式
+mode = sys.argv[1]
+adversarial_train = {'name': mode}
+print(f'Using {mode}'.center(60, '='))
+
+# debug方式
 # 具体参数设置可以到bert4torch.models/bert4torch.snippets里
-adversarial_train = {'name': 'fgm'}  # fgm方式
+# adversarial_train = {'name': 'fgm'}  # fgm方式
 # adversarial_train = {'name': 'pgd'}  # pgd方式
 # adversarial_train = {'name': 'gradient_penalty'}  # 梯度惩罚
 # adversarial_train = {'name': 'vat'}  # 虚拟对抗，这里仅为使用有监督数据的示例
@@ -98,12 +101,13 @@ class Evaluator(Callback):
     def __init__(self):
         self.best_val_acc = 0.
 
-    def on_epoch_end(self, steps, epoch, logs=None):
+    def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = self.evaluate(valid_dataloader)
+        test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(u'val_acc: %.5f, best_val_acc: %.5f\n' %(val_acc, self.best_val_acc))
+        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
     
     # 定义评价函数
     def evaluate(self, data):
@@ -114,25 +118,9 @@ class Evaluator(Callback):
             right += (y_true == y_pred).sum().item()
         return right / total
 
-def predict_to_file(in_file, out_file):
-    """输出预测结果到文件
-    结果文件可以提交到 https://www.cluebenchmarks.com 评测。
-    """
-    fw = open(out_file, 'w')
-    with open(in_file) as fr:
-        for l in tqdm(fr):
-            l = json.loads(l)
-            text = l['sentence']
-            token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-            label = model.predict([[token_ids], [segment_ids]])[0].argmax()
-            l = json.dumps({'id': str(l['id']), 'label': str(label)})
-            fw.write(l + '\n')
-    fw.close()
-
 
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else: 
     model.load_weights('best_model.pt')
-    # predict_to_file('/root/CLUE-master/baselines/CLUEdataset/iflytek/test.json', 'iflytek_predict.json')

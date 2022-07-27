@@ -103,17 +103,6 @@ model.compile(
     metrics=['loss_sup', 'loss_unsup']  # Loss返回的key会自动计入metrics，下述metrics不写仍可以打印具体的Loss
 )
 
-# 定义评价函数
-def evaluate(data):
-    total, right = 0., 0.
-    for inputs, y_true in data:
-        inputs = [inputs[0][:y_true.size(0)]]
-        y_pred = model.predict(inputs).argmax(axis=1)
-        total += len(y_true)
-        right += (y_true == y_pred).sum().item()
-    return right / total
-
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -121,11 +110,22 @@ class Evaluator(Callback):
         self.best_val_acc = 0.
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        val_acc = evaluate(valid_dataloader)
+        val_acc = self.evaluate(valid_dataloader)
+        test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+
+    # 定义评价函数
+    def evaluate(self, data):
+        total, right = 0., 0.
+        for inputs, y_true in data:
+            inputs = [inputs[0][:y_true.size(0)]]
+            y_pred = model.predict(inputs).argmax(axis=1)
+            total += len(y_true)
+            right += (y_true == y_pred).sum().item()
+        return right / total
 
 
 if __name__ == '__main__':

@@ -80,18 +80,6 @@ model.compile(
     metrics=['accuracy']
 )
 
-# 定义评价函数
-def evaluate(data):
-    ema_schedule.apply_ema_weights()  # 使用滑动平均的ema权重
-    total, right = 0., 0.
-    for x_true, y_true in data:
-        y_pred = model.predict(x_true).argmax(axis=1)
-        total += len(y_true)
-        right += (y_true == y_pred).sum().item()
-    ema_schedule.restore_raw_weights()  # 恢复原来模型的参数
-    return right / total
-
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -99,12 +87,23 @@ class Evaluator(Callback):
         self.best_val_acc = 0.
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        val_acc = evaluate(valid_dataloader)
+        val_acc = self.evaluate(valid_dataloader)
+        test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
+    # 定义评价函数
+    def evaluate(self, data):
+        ema_schedule.apply_ema_weights()  # 使用滑动平均的ema权重
+        total, right = 0., 0.
+        for x_true, y_true in data:
+            y_pred = model.predict(x_true).argmax(axis=1)
+            total += len(y_true)
+            right += (y_true == y_pred).sum().item()
+        ema_schedule.restore_raw_weights()  # 恢复原来模型的参数
+        return right / total
 
 if __name__ == '__main__':
     evaluator = Evaluator()
