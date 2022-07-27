@@ -3,7 +3,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything
 from bert4torch.losses import UDALoss
 import torch.nn as nn
 import torch
@@ -12,13 +12,13 @@ from torch.utils.data import DataLoader
 import numpy as np
 import random
 
-maxlen = 128
-batch_size = 8
+maxlen = 256
+batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+seed_everything(42)
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -130,6 +130,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

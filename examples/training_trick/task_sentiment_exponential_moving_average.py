@@ -17,8 +17,6 @@ config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-7
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-# 固定seed
 seed_everything(42)
 
 # 建立分词器
@@ -64,7 +62,7 @@ class Model(BaseModel):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.bert.config['hidden_size'], 2)
+        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
     def forward(self, token_ids, segment_ids):
         _, pooled_output = self.bert([token_ids, segment_ids])
@@ -110,6 +108,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=500, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')
