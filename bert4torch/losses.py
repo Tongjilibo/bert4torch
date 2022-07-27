@@ -224,8 +224,9 @@ class UDALoss(nn.Module):
 
 class TemporalEnsemblingLoss(nn.Module):
     '''TemporalEnsembling的实现，官方项目：https://github.com/s-laine/tempens
+       pytorch第三方实现：https://github.com/ferretj/temporal-ensembling
     '''
-    def __init__(self, epochs, max_val, mult, alpha=0.2):
+    def __init__(self, epochs, max_val=30.0, mult=-5.0, alpha=0.2, max_batch_num=100, hist_device='cpu'):
         super().__init__()
         self.loss_sup = nn.CrossEntropyLoss()
         self.loss_unsup = nn.MSELoss()
@@ -233,22 +234,28 @@ class TemporalEnsemblingLoss(nn.Module):
         self.max_val = max_val
         self.mult = mult
         self.alpha = alpha
+        self.max_batch_num = max_batch_num
         self.hist_unsup = []
         self.hist_sup = []
+        self.hist_device = hist_device
 
     def forward(self, y_pred_sup, y_pred_unsup, y_true_sup, epoch, bti):
-        sup_ratio = float(len(y_pred_sup)) / (len(y_pred_sup) + len(y_pred_unsup))
-        w = self.weight_schedule(epoch, sup_ratio)
-        sup_loss, unsup_loss = self.temporal_loss(y_pred_sup, y_pred_unsup, y_true_sup, bti)
-        # 更新
-        self.hist_unsup[bti] = self.update(self.hist_unsup[bti], y_pred_unsup, epoch)
-        self.hist_sup[bti] = self.update(self.hist_sup[bti], y_pred_sup, epoch)
-        return sup_loss + w * unsup_loss
+        if bti < self.max_batch_num:
+            self.init_hist(bti, y_pred_sup, y_pred_unsup)  # 初始化历史
+            sup_ratio = float(len(y_pred_sup)) / (len(y_pred_sup) + len(y_pred_unsup))
+            w = self.weight_schedule(epoch, sup_ratio)
+            sup_loss, unsup_loss = self.temporal_loss(y_pred_sup, y_pred_unsup, y_true_sup, bti)
+            # 更新
+            self.hist_unsup[bti] = self.update(self.hist_unsup[bti], y_pred_unsup.detach(), epoch)
+            self.hist_sup[bti] = self.update(self.hist_sup[bti], y_pred_sup.detach(), epoch)
+            return sup_loss + w * unsup_loss
+        else:
+            return F.cross_entropy(y_pred_sup, y_true_sup)
 
     def update(self, hist, y_pred, epoch):
         '''更新参数
         '''
-        Z = self.alpha * hist + (1. -self.alpha) * y_pred
+        Z = self.alpha * hist.to(y_pred) + (1. -self.alpha) * y_pred
         return Z * (1. / (1. - self.alpha ** (epoch + 1)))
 
     def weight_schedule(self, epoch, sup_ratio):
@@ -266,6 +273,14 @@ class TemporalEnsemblingLoss(nn.Module):
             return quad_diff / out1.data.nelement()
         
         sup_loss = F.cross_entropy(y_pred_sup, y_true_sup)
-        unsup_loss = mse_loss(y_pred_unsup, self.hist_unsup[bti])
-        unsup_loss += mse_loss(y_pred_sup, self.hist_sup[bti])
+        unsup_loss = mse_loss(y_pred_unsup, self.hist_unsup[bti].to(y_pred_unsup))
+        unsup_loss += mse_loss(y_pred_sup, self.hist_sup[bti].to(y_pred_sup))
         return sup_loss, unsup_loss
+    
+    def init_hist(self, bti, y_pred_sup, y_pred_unsup):
+        try:
+            self.hist_sup[bti]
+            self.hist_unsup[bti]
+        except:
+            self.hist_sup.append(torch.zeros_like(y_pred_sup).to(self.hist_device))
+            self.hist_unsup.append(torch.zeros_like(y_pred_unsup).to(self.hist_device))
