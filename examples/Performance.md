@@ -41,7 +41,7 @@
 | solution | epoch | valid_acc | test_acc | comment | 
 | ---- | ---- | ---- | ---- | ---- | 
 | albert_small | 10/10 | 94.46 | 93.98 | small版本 | 
-| bert | 6/10 | 94.72 | 94.11 | —— | 
+| bert | 6/10 | 94.72 | 94.11 | pooling分类 | 
 | robert | 4/10 | 94.77 | 94.64 | —— | 
 | nezha | 7/10 | 95.07 | 94.72 | —— | 
 | xlnet | 6/10 | 95.00 | 94.24 | —— | 
@@ -50,11 +50,11 @@
 | roformer_v2 | 3/10 | 95.78 | 96.09 | —— | 
 | gau_alpha | 2/10 | 95.25 | 94.46 | —— | 
 
-- 各种trick测试
+- 各种trick测试+cls分类+无segment_input
 
 | solution | epoch | valid_acc | test_acc | comment | 
 | ---- | ---- | ---- | ---- | ---- | 
-| bert | 10/10 | 94.99 | 94.50 | 和上述实验随机数不同 | 
+| bert | 10/10 | 94.99 | 94.50 | cls位置 | 
 | fgm | 7/10 | 95.51 | 94.77 | —— | 
 | pgd | 10/10 | 95.38 | 95.25 | —— | 
 | gradient_penalty | 10/10 | 94.99 | 94.37 | —— | 
