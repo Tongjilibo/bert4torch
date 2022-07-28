@@ -5,7 +5,6 @@
 # 虚拟对抗训练：https://kexue.fm/archives/7466
 # 梯度惩罚：https://kexue.fm/archives/7234
 
-
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
 from torch.utils.data import DataLoader

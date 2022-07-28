@@ -979,8 +979,11 @@ class VAT():
     
     def forward_(self, train_X, new_embed):
         # 把原来的train_X中的token_ids换成embedding形式
-        new_train_X = [new_embed] + train_X[1:]
-        adv_output = self.model.forward(*new_train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(new_train_X)
+        if isinstance(train_X, (tuple, list)):
+            new_train_X = [new_embed] + train_X[1:]
+            adv_output = self.model.forward(*new_train_X) if self.model.forward.__code__.co_argcount >= 3 else self.model.forward(new_train_X)
+        elif isinstance(train_X, torch.Tensor):
+            adv_output = self.model.forward(new_embed)
         return adv_output
 
     def virtual_adversarial_training(self, train_X, logits):

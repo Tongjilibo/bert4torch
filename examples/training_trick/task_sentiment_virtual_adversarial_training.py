@@ -50,7 +50,7 @@ def collate_fn(batch):
     # batch_token_ids包含两部部分，第一部分是有监督数据，第二部分是无监督数据
     batch_token_ids, batch_labels = [[], []], []
     for text, label in batch:
-        token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+        token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
         batch_token_ids[0].append(token_ids)
         batch_labels.append([label])
         # 无监督部分
@@ -61,7 +61,7 @@ def collate_fn(batch):
     batch_token_ids = [j for i in batch_token_ids for j in i]
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids], batch_labels.flatten()
+    return batch_token_ids, batch_labels.flatten()
 
 # 加载数据集
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -78,7 +78,7 @@ class Model(BaseModel):
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
     def forward(self, token_ids):
-        hidden_states, pooling = self.bert(token_ids)
+        hidden_states, pooling = self.bert([token_ids])
         pooled_output = get_pool_emb(hidden_states, pooling, token_ids[0].gt(0).long(), self.pool_method)
         output = self.dropout(pooled_output)
         output = self.dense(output)
