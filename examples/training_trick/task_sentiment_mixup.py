@@ -5,7 +5,7 @@
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.layers import MixUp
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -40,17 +40,15 @@ class MyDataset(ListDataset):
         return D
 
 def collate_fn(batch):
-    batch_token_ids, batch_segment_ids, batch_labels = [], [], []
+    batch_token_ids, batch_labels = [], [], []
     for text, label in batch:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
         batch_token_ids.append(token_ids)
-        batch_segment_ids.append(segment_ids)
         batch_labels.append([label])
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
+    return batch_token_ids, batch_labels.flatten()
 
 # 加载数据集
 train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -61,14 +59,14 @@ test_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/
 class Model(BaseModel):
     def __init__(self, mixup_method='encoder') -> None:
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
         self.mixup = MixUp(method=mixup_method)
 
-    def forward(self, inputs):
-        model_output = self.mixup.encode(self.bert, inputs)
-        pooled_output = model_output[-1]
+    def forward(self, token_ids):
+        hidden_states, pooling = self.mixup.encode(self.bert, [token_ids])
+        pooled_output = get_pool_emb(hidden_states, pooling, token_ids.gt(0).long(), self.pool_method)
         output = self.dropout(pooled_output)
         y_pred = self.dense(output)
         return y_pred
