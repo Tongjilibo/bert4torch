@@ -72,13 +72,13 @@ class Model(BaseModel):
         y_pred = self.dense(output)
         return y_pred
     
-    def predict(self, inputs):
+    def predict(self, token_ids):
         self.eval()
         with torch.no_grad():
-            model_output = self.bert(inputs)
-            pooled_output = model_output[-1]
+            hidden_states, pooling = self.bert([token_ids])
+            pooled_output = get_pool_emb(hidden_states, pooling, token_ids.gt(0).long(), self.pool_method)
             output = self.dropout(pooled_output)
-        y_pred = self.dense(output)
+            y_pred = self.dense(output)
         return y_pred
 
 model = Model().to(device)

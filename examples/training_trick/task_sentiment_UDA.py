@@ -124,9 +124,8 @@ class Evaluator(Callback):
     # 定义评价函数
     def evaluate(self, data):
         total, right = 0., 0.
-        for inputs, y_true in data:
-            inputs = [inputs[0][:y_true.size(0)]]
-            y_pred = model.predict(inputs).argmax(axis=1)
+        for token_ids, y_true in data:
+            y_pred = model.predict(token_ids[:y_true.size(0)]).argmax(axis=1)
             total += len(y_true)
             right += (y_true == y_pred).sum().item()
         return right / total
