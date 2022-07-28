@@ -40,7 +40,7 @@ class MyDataset(ListDataset):
         return D
 
 def collate_fn(batch):
-    batch_token_ids, batch_labels = [], [], []
+    batch_token_ids, batch_labels = [], []
     for text, label in batch:
         token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
         batch_token_ids.append(token_ids)

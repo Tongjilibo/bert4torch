@@ -61,7 +61,7 @@ def collate_fn(batch):
     batch_token_ids = [j for i in batch_token_ids for j in i]
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return batch_token_ids, batch_labels.flatten()
+    return [batch_token_ids], batch_labels.flatten()
 
 # 加载数据集
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -70,15 +70,16 @@ test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=co
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self):
+    def __init__(self, pool_method='cls'):
         super().__init__()
+        self.pool_method = pool_method
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
     def forward(self, token_ids):
-        hidden_states, pooling = self.bert([token_ids])
-        pooled_output = get_pool_emb(hidden_states, pooling, token_ids.gt(0).long(), self.pool_method)
+        hidden_states, pooling = self.bert(token_ids)
+        pooled_output = get_pool_emb(hidden_states, pooling, token_ids[0].gt(0).long(), self.pool_method)
         output = self.dropout(pooled_output)
         output = self.dense(output)
         return output

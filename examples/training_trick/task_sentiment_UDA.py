@@ -80,8 +80,9 @@ test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=co
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self):
+    def __init__(self, pool_method='cls'):
         super().__init__()
+        self.pool_method = pool_method
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
