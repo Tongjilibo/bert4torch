@@ -31,7 +31,7 @@ dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def process_data():
-    if os.path.exists('E:/Github/bert4torch/examples/datasets/qa/train_data.json'):
+    if os.path.exists('F:/Projects/data/corpus/qa/CIPS-SOGOU/train_data.json'):
         return
 
     # 标注数据
@@ -49,8 +49,8 @@ def process_data():
     train_data.extend(train_data)
     train_data.extend(webqa_data)  # 将SogouQA和WebQA按2:1的比例混合
 
-    json.dump(train_data, open('E:/Github/bert4torch/examples/datasets/qa/train_data.json', 'w', encoding='utf-8'), indent=4)
-    json.dump(valid_data, open('E:/Github/bert4torch/examples/datasets/qa/valid_data.json', 'w', encoding='utf-8'), indent=4)
+    json.dump(train_data, open('F:/Projects/data/corpus/qa/CIPS-SOGOU/train_data.json', 'w', encoding='utf-8'), indent=4)
+    json.dump(valid_data, open('F:/Projects/data/corpus/qa/CIPS-SOGOU/valid_data.json', 'w', encoding='utf-8'), indent=4)
 
 process_data()
 
@@ -94,9 +94,9 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(MyDataset('E:/Github/bert4torch/examples/datasets/qa/train_data.json'), 
+train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/qa/CIPS-SOGOU/train_data.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('E:/Github/bert4torch/examples/datasets/qa/valid_data.json')
+valid_dataset = MyDataset('F:/Projects/data/corpus/qa/CIPS-SOGOU/valid_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 model = build_transformer_model(

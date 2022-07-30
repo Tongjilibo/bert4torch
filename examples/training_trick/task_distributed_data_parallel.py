@@ -67,7 +67,7 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids, batch_labels.flatten()], None
 
 # 加载数据集
-train_dataset = MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data'])
+train_dataset = MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
 train_sampler = DistributedSampler(train_dataset)
 train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=batch_size, collate_fn=collate_fn) 
 

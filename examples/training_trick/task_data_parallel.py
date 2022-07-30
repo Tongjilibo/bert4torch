@@ -57,7 +57,7 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids, batch_labels.flatten()], None
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构，这里loss并不是放在模型里计算的
 class Model(nn.Module):

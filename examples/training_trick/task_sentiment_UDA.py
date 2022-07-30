@@ -39,9 +39,9 @@ class MyDataset(ListDataset):
                         D.append((t, int(label)))
         return D
 
-train_dataset = MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data'])
-valid_dataset = MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.valid.data'])
-test_dataset = MyDataset(['E:/Github/bert4torch/examples/datasets/sentiment/sentiment.test.data'])
+train_dataset = MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+valid_dataset = MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data'])
+test_dataset = MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data'])
 
 # 理论上应该收集任务领域类的无监督数据，这里用所有的监督数据来作无监督数据
 unsup_dataset =  [sen for sen, _ in (train_dataset.data + valid_dataset.data + test_dataset.data)]

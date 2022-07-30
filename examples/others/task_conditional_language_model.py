@@ -67,9 +67,9 @@ def collate_fn(batch):
 
 # 加载数据集
 train_dataloader = DataLoader(MyDataset([
-    'E:/Github/bert4torch/examples/datasets/sentiment/sentiment.train.data',
-    'E:/Github/bert4torch/examples/datasets/sentiment/sentiment.valid.data',
-    'E:/Github/bert4torch/examples/datasets/sentiment/sentiment.test.data']), 
+    'F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data',
+    'F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data',
+    'F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']), 
     batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
