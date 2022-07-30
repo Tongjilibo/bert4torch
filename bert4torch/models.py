@@ -479,12 +479,17 @@ class BERT_BASE(BaseModel):
     def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None):
         """根据mapping从checkpoint加载权重
         """
-        # 加载模型文件
-        file_state_dict = torch.load(checkpoint, map_location='cpu')
+        file_state_dict = torch.load(checkpoint, map_location='cpu')  # 加载模型文件
         mapping = mapping or self.variable_mapping()
+        parameters_set = set([i[0] for i in self.named_parameters()])  # 可更新的变量
+        
+        # 如果模型文件和模型结构中同时存在，且不在预设的mapping中，则更新mapping
+        # 主要是如为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
+        for layer_name in parameters_set:
+            if (layer_name in file_state_dict) and (layer_name not in mapping):
+                mapping.update({layer_name: layer_name})
 
         state_dict_new ={}
-        parameters_set = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         for new_key, old_key in mapping.items():
             if new_key not in self.state_dict():
                 continue

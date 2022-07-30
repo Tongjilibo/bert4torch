@@ -117,7 +117,7 @@ class TokenizerBase(object):
         """
         return [self.token_to_id(token) for token in tokens]
 
-    def encode(self, first_text, second_text=None, maxlen=None, pattern='S*E*E', truncate_from='right'):
+    def _encode(self, first_text, second_text=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False):
         """输出文本对应token id和segment id
         """
         first_tokens = self.tokenize(first_text) if is_string(first_text) else first_text
@@ -153,7 +153,39 @@ class TokenizerBase(object):
             first_token_ids.extend(second_token_ids)
             first_segment_ids.extend(second_segment_ids)
 
-        return first_token_ids, first_segment_ids
+        if return_offsets:
+            mapping = self.rematch(first_text, first_tokens) + self.rematch(second_text, second_tokens)
+            return first_token_ids, first_segment_ids, mapping
+        else:
+            return first_token_ids, first_segment_ids
+
+    def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False):
+        '''可以处理多条或者单条
+        '''
+        return_list = False if isinstance(first_texts, str) else True
+        first_texts = [first_texts] if isinstance(first_texts, str) else first_texts
+        second_texts = [second_texts] if isinstance(second_texts, str) else second_texts
+
+        first_token_ids, first_segment_ids, offsets = [], [], []
+        if second_texts is None:
+            second_texts = [None] * len(first_texts)
+        assert len(first_texts) == len(second_texts), 'first_texts and second_texts should be same length'
+        
+        # 循环处理每条样本
+        for first_text, second_text in zip(first_texts, second_texts):
+            outputs = self._encode(first_text, second_text, maxlen, pattern, truncate_from, return_offsets)
+            first_token_ids.append(outputs[0])
+            first_segment_ids.append(outputs[1])
+            if len(outputs) >= 3:
+                offsets.append(outputs[2])
+
+        if return_list:
+            if not return_offsets:
+                return first_token_ids, first_segment_ids
+            else:
+                return first_token_ids, first_segment_ids, offsets
+        else:
+            return first_token_ids[0], first_segment_ids[0]
 
     def id_to_token(self, i):
         """id序列为对应的token
@@ -174,6 +206,11 @@ class TokenizerBase(object):
         """基本分词函数
         """
         raise NotImplementedError
+    
+    def rematch(self):
+        """生成text和tokens之间的对应关系
+        """
+        pass
 
 
 class Tokenizer(TokenizerBase):
