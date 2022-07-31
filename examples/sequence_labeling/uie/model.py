@@ -49,11 +49,10 @@ class UIE(BERT):
 
         return start_prob, end_prob
     
-    # def predict(self, token_ids, token_type_ids):
-    #     self.eval()
-    #     with torch.no_grad():
-    #         start_prob, end_prob = self.forward(token_ids, token_type_ids)
-    #     # 解析结果
-    #     return
+    @torch.no_grad()
+    def predict(self, token_ids, token_type_ids):
+        self.eval()
+        start_prob, end_prob = self.forward(token_ids, token_type_ids)
+        return start_prob, end_prob
 
 uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=UIE, with_pool=True)

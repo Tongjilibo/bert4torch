@@ -97,7 +97,7 @@ class MyLoss(nn.Module):
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=MyLoss(),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 
 # 定义评价函数

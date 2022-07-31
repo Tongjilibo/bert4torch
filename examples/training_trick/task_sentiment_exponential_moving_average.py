@@ -75,7 +75,7 @@ ema_schedule = extend_with_exponential_moving_average(model, decay=0.99)
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=nn.CrossEntropyLoss(),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),
     scheduler=ema_schedule,
     metrics=['accuracy']
 )

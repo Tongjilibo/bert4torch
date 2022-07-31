@@ -152,12 +152,15 @@ class TokenizerBase(object):
             second_segment_ids = [1] * len(second_token_ids)
             first_token_ids.extend(second_token_ids)
             first_segment_ids.extend(second_segment_ids)
-
-        if return_offsets:
-            mapping = self.rematch(first_text, first_tokens) + self.rematch(second_text, second_tokens)
-            return first_token_ids, first_segment_ids, mapping
-        else:
-            return first_token_ids, first_segment_ids
+        
+        encode_output = [first_token_ids, first_segment_ids]
+        if return_offsets != False:
+            offset = self.rematch(first_text, first_tokens) + self.rematch(second_text, second_tokens)
+            if return_offsets == 'transformers':  # transformers包中tokenizer的形式
+                encode_output.append([[0, 0] if not k else [k[0], k[-1]+1] for k in offset])
+            else:
+                encode_output.append(offset)
+        return encode_output
 
     def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False):
         '''可以处理多条或者单条
@@ -179,13 +182,13 @@ class TokenizerBase(object):
             if len(outputs) >= 3:
                 offsets.append(outputs[2])
 
-        if return_list:
-            if not return_offsets:
-                return first_token_ids, first_segment_ids
-            else:
-                return first_token_ids, first_segment_ids, offsets
-        else:
-            return first_token_ids[0], first_segment_ids[0]
+        encode_outputs = [first_token_ids, first_segment_ids]
+        if return_offsets:
+            encode_outputs.append(offsets)
+
+        if not return_list:  # 如果输入是string
+            encode_outputs = [item[0] for item in encode_outputs]
+        return encode_outputs
 
     def id_to_token(self, i):
         """id序列为对应的token

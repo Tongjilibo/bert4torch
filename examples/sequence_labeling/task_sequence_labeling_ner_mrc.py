@@ -9,7 +9,6 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
-from bert4torch.losses import FocalLoss
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm

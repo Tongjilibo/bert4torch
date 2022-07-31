@@ -103,7 +103,7 @@ class Loss(UDALoss):
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=Loss(tsa_schedule='linear_schedule', start_p=0.8),  # 这里可换用不同的策略, 不为None时候要给定model
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),
     metrics=['loss_sup', 'loss_unsup']  # Loss返回的key会自动计入metrics，下述metrics不写仍可以打印具体的Loss
 )
 

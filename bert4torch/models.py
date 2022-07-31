@@ -264,13 +264,13 @@ class BaseModel(nn.Module):
                 break
         self.callback_fun('train_end', logs)
 
+    @torch.no_grad()
     def predict(self, input_tensor_list, return_all=None):
         self.eval()
-        with torch.no_grad():
-            if self.forward.__code__.co_argcount >= 3:
-                output = self.forward(*input_tensor_list)
-            else:
-                output = self.forward(input_tensor_list)
+        if self.forward.__code__.co_argcount >= 3:
+            output = self.forward(*input_tensor_list)
+        else:
+            output = self.forward(input_tensor_list)
         if return_all is None:
             return output
         elif isinstance(output, (tuple, list)) and isinstance(return_all, int) and return_all < len(output):

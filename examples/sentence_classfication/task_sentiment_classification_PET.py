@@ -130,7 +130,7 @@ class MyLoss(nn.CrossEntropyLoss):
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=MyLoss(ignore_index=0),
-    optimizer=Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=Adam(model.parameters(), lr=2e-5),
 )
 
 class Evaluator(Callback):

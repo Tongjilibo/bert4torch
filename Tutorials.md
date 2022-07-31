@@ -227,7 +227,7 @@ from bert4torch.models import BaseModelDP
 model = BaseModelDP(model)  # 指定DP模式使用多gpu
 model.compile(
     loss=lambda x, _: x.mean(),  # 多个gpu计算的loss的均值
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 ```
 
@@ -252,7 +252,7 @@ model = BaseModelDDP(model, master_rank=0, device_ids=[args.local_rank], output_
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=lambda x, _: x,  # 直接把forward计算的loss传出来
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 ```
 

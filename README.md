@@ -33,7 +33,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年7月27更新**：增加mixup/manifold_mixup策略, 修复pgd策略param.grad为空的问题
+- **2022年7月27更新**：增加mixup/manifold_mixup策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
 - **2022年7月16更新**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
 - **2022年7月10更新**：增加金融中文FAQ示例，天池新闻分类top1案例，增加EarlyStop，CRF中自带转bool类型
 - **2022年6月29更新**：增加ner的实验，测试crf不同初始化的效果，bert-whitening中文实验

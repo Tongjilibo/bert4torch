@@ -38,7 +38,7 @@ class NewModel(Model):
 new_model = NewModel().to(device)
 new_model.compile(
     loss=nn.MSELoss(),
-    optimizer=optim.Adam(new_model.parameters(), lr=2e-5),  # 用足够小的学习率
+    optimizer=optim.Adam(new_model.parameters(), lr=2e-5),
 )
 new_model.load_weights('best_model.pt', strict=False)  # 加载大模型的部分层
 val_consine = evaluate(new_model, valid_dataloader)

@@ -145,7 +145,7 @@ elif choice == 'finetune_all':
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=MyLoss(ignore_index=0),
-    optimizer=Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=6e-4),  # 用足够小的学习率
+    optimizer=Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=6e-4),
 )
 
 class Evaluator(Callback):

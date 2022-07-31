@@ -177,7 +177,7 @@ model = Model(pool_method=pooling).to(device)
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=nn.CrossEntropyLoss(ignore_index=0),
-    optimizer=optim.Adam(model.parameters(), lr=2e-4),  # 用足够小的学习率
+    optimizer=optim.Adam(model.parameters(), lr=2e-4),
 )
 
 # 定义评价函数
