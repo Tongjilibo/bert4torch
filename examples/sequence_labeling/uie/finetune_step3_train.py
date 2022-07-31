@@ -11,10 +11,10 @@ from utils import get_bool_ids_greater_than, get_span
 
 batch_size = 16
 learning_rate = 1e-5
-train_path = 'E:/Github/bert4torch/examples/sequence_labeling/uie/data/cner/final_data/train.txt'
-dev_path = 'E:/Github/bert4torch/examples/sequence_labeling/uie/data/cner/final_data/dev.txt'
+train_path = 'E:/Github/bert4torch/examples/sequence_labeling/uie/data/final_data/train.txt'
+dev_path = 'E:/Github/bert4torch/examples/sequence_labeling/uie/data/final_data/dev.txt'
 save_dir = './'
-max_seq_len = 512
+max_seq_len = 256
 num_epochs = 10
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -265,5 +265,5 @@ class SpanEvaluator(Callback):
 
 if __name__ == "__main__":
     evaluator = SpanEvaluator()
-    print(evaluator.evaluate(valid_dataloader))
+    print('zero_shot performance: ', evaluator.evaluate(valid_dataloader))
     uie_model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=None, callbacks=[evaluator])
