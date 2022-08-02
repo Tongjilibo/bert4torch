@@ -74,6 +74,7 @@
 - [task_sequence_labeling_ner_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_tplinker_plus.py)：ner例子，改造了关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)
 - [task_sequence_labeling_ner_mrc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_mrc.py)：ner例子，[mrc方案](https://github.com/z814081807/DeepNER)，用阅读理解的方式来做
 - [task_sequence_labeling_ner_span.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_span.py)：ner例子，[span方案](https://github.com/z814081807/DeepNER)，用半指针-半标注方式来做
+- [uie](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/uie)：ner例子，[uie方案](https://github.com/universal-ie/UIE)，prompt+mrc模型结构
 
 ### 关系提取
 - [task_relation_extraction.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction.py)：结合BERT以及自行设计的“半指针-半标注”结构来做[关系抽取](https://kexue.fm/archives/7161)。

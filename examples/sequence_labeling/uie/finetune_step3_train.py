@@ -172,7 +172,6 @@ uie_model.compile(
 class SpanEvaluator(Callback):
     """SpanEvaluator computes the precision, recall and F1-score for span detection.
     """
-
     def __init__(self):
         self.num_infer_spans = 0
         self.num_label_spans = 0
@@ -194,7 +193,7 @@ class SpanEvaluator(Callback):
             num_correct, num_infer, num_label = self.compute(start_prob, end_prob, start_ids, end_ids)
             self.update(num_correct, num_infer, num_label)
         precision, recall, f1 = self.accumulate()
-        return precision, recall, f1
+        return f1, precision, recall
 
     def compute(self, start_probs, end_probs, gold_start_ids, gold_end_ids):
         """Computes the precision, recall and F1-score for span detection.
