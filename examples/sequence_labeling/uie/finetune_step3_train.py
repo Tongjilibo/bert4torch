@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import json
 from utils import get_bool_ids_greater_than, get_span
+from random import sample
 
 
 batch_size = 16
@@ -24,10 +25,14 @@ uie_model.to(device)
 class IEDataset(Dataset):
     """信息抽取
     """
-    def __init__(self, file_path, tokenizer, max_seq_len) -> None:
+    def __init__(self, file_path, tokenizer, max_seq_len, fewshot=None) -> None:
         super().__init__()
         self.file_path = file_path
-        self.dataset = list(self.reader(file_path))
+        if fewshot is None:
+            self.dataset = list(self.reader(file_path))
+        else:
+            assert isinstance(fewshot, int)
+            self.dataset = sample(list(self.reader(file_path)), fewshot)
         self.tokenizer = tokenizer
         self.max_seq_len = max_seq_len
 
@@ -151,7 +156,7 @@ def map_offset(ori_offset, offset_mapping):
     return -1
 
 # 数据准备
-train_ds = IEDataset(train_path, tokenizer=tokenizer, max_seq_len=max_seq_len)
+train_ds = IEDataset(train_path, tokenizer=tokenizer, max_seq_len=max_seq_len, fewshot=None)
 dev_ds = IEDataset(dev_path, tokenizer=tokenizer, max_seq_len=max_seq_len) 
 train_dataloader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 valid_dataloader = DataLoader(dev_ds, batch_size=batch_size, collate_fn=collate_fn)
@@ -183,7 +188,7 @@ class SpanEvaluator(Callback):
         if f1 > self.best_val_f1:
             self.best_val_f1 = f1
             # model.save_weights('best_model.pt')
-        print(f'[val-token level] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}')
+        print(f'[val-entity level] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}')
 
     def evaluate(self, dataloder):
         self.reset()

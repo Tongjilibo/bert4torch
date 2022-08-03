@@ -14,7 +14,7 @@
 | bert+mrc | 7/20 | —— | 95.75 | —— |
 | bert+span | 13/20 | —— | 96.31 | —— |
 | bert+tplinker_plus | 20/20 | —— | 95.71 | 长度限制明显 |
-| uie | 20/20 | —— | 96.57 | zeroshot有60.8 |
+| uie | 20/20 | —— | 96.57 | zeroshot:f1=60.8, fewshot-100样本:f1=85.82, 200样本:f1=86.40 |
 
 # sentence_embedding
 ## unsupervised
