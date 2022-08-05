@@ -220,7 +220,7 @@ class UIEPredictor(object):
             batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=self._device)
             batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=self._device)
 
-            start_prob, end_prob = self.model.predict([batch_token_ids, batch_segment_ids])
+            start_prob, end_prob = self.model.predict(batch_token_ids, batch_segment_ids)
             start_prob_concat.append(start_prob.cpu().numpy())
             end_prob_concat.append(end_prob.cpu().numpy())
         start_prob_concat = np.concatenate(start_prob_concat)
