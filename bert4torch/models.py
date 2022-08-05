@@ -15,7 +15,7 @@ class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
         # 这里主要是为了外面调用用到
-        self.global_step, self.total_steps, self.epoch, self.train_dataloader = 0, 0, 0, None
+        self.global_step, self.local_step, self.total_steps, self.epoch, self.train_dataloader = 0, 0, 0, 0, None
         self.callbacks = []
     
     def compile(self, loss, optimizer, scheduler=None, max_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
@@ -157,10 +157,10 @@ class BaseModel(nn.Module):
                 callback.on_epoch_begin(self.global_step, self.epoch, logs)
         elif mode == 'batch_begin':
             for callback in self.callbacks:
-                callback.on_batch_begin(self.global_step, self.bti, logs)
+                callback.on_batch_begin(self.global_step, self.local_step, logs)
         elif mode == 'batch_end':
             for callback in self.callbacks:
-                callback.on_batch_end(self.global_step, self.bti, logs)
+                callback.on_batch_end(self.global_step, self.local_step, logs)
         elif mode == 'epoch_end':
             for callback in self.callbacks:
                 callback.on_epoch_end(self.global_step, self.epoch, logs)
@@ -177,23 +177,29 @@ class BaseModel(nn.Module):
         steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
         self.total_steps = steps_per_epoch * epochs
         self.global_step = 0
+        self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
+        train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
         self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         self.callback_fun('train_begin')
 
-        self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
-        train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
+        # epoch：当前epoch
+        # global_step：当前全局训练步数
+        # local_step: 当前epoch内的训练步数，不同epoch中相同local_step对应的batch数据不一定相同，在steps_per_epoch=None时相同
+        # bti：在dataloader中的index，不同epoch中相同的bti对应的batch数据一般相同，除非重新生成dataloader
         for epoch in range(epochs):
             self.epoch = epoch
             self.callback_fun('epoch_begin')
-            for bti in range(steps_per_epoch):
-                self.bti = bti
+            self.bti = 0
+            for local_step in range(steps_per_epoch):
+                self.local_step = local_step
                 # 循环dataloader, 不要试用itertools的cycle，遇到过变量不释放的问题
                 try:
                     batch = next(train_dataloader_iter)
                 except StopIteration:
                     self.callback_fun('dataloader_end')  # 适用于数据量较大时，动态读取文件并重新生成dataloader的情况，如预训练
                     train_dataloader_iter = iter(self.train_dataloader)
+                    self.bti = 0
                     batch = next(train_dataloader_iter)
                 train_X, train_y = batch
 
@@ -207,7 +213,7 @@ class BaseModel(nn.Module):
                     btz = train_X.size(0)
                 else:
                     raise ValueError('Input only support [list, tuple, tensor]')
-                logs = {'batch': bti, 'size': btz}
+                logs = {'batch': self.local_step, 'size': btz}
                 self.callback_fun('batch_begin', logs)
 
                 self.train()  # 设置为train模式
@@ -256,6 +262,7 @@ class BaseModel(nn.Module):
                         logs[metric] = tmp
                 self.callback_fun('batch_end', logs)
 
+                self.bti += 1
                 self.global_step += 1
             self.callback_fun('epoch_end', logs)
             # earlystop策略

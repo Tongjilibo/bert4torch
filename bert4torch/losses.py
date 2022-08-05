@@ -241,7 +241,7 @@ class TemporalEnsemblingLoss(nn.Module):
         assert (self.alpha >= 0) & (self.alpha < 1)  # 等于1的时候upata写分母为0
 
     def forward(self, y_pred_sup, y_pred_unsup, y_true_sup, epoch, bti):
-        if bti < self.max_batch_num:
+        if (self.max_batch_num is None) or (bti < self.max_batch_num):
             self.init_hist(bti, y_pred_sup, y_pred_unsup)  # 初始化历史
             sup_ratio = float(len(y_pred_sup)) / (len(y_pred_sup) + len(y_pred_unsup))  # 监督样本的比例
             w = self.weight_schedule(epoch, sup_ratio)
