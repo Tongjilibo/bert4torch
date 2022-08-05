@@ -1,6 +1,7 @@
 #! -*- coding:utf-8 -*-
-# 通过R-Drop增强模型的泛化性能
-# 官方项目：https://github.com/dropreg/R-Drop
+# 通过TemporalEnsembling提升模型泛化
+# 官方项目：https://github.com/s-laine/tempens
+# pytorch第三方实现：https://github.com/ferretj/temporal-ensembling
 # 数据集：情感分类数据集
 
 from bert4torch.models import build_transformer_model, BaseModel
