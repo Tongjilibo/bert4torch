@@ -136,8 +136,11 @@ class BaseModel(nn.Module):
         elif isinstance(loss_detail, dict):
             loss = loss_detail['loss']  # 还存在其他loss，仅用于打印
             del loss_detail['loss']
+        elif isinstance(loss_detail, (tuple, list)):
+            loss = loss_detail[0]
+            loss_detail = {f'loss{i}':v for i, v in enumerate(loss_detail[1:], start=1)}
         else:
-            raise ValueError('Return loss only support Tensor and dict format')
+            raise ValueError('Return loss only support Tensor/dict/tuple/list format')
         # 梯度累积
         loss = loss / grad_accumulation_steps if grad_accumulation_steps > 1 else loss
         return output, loss, loss_detail

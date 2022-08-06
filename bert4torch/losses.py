@@ -281,9 +281,8 @@ class TemporalEnsemblingLoss(nn.Module):
         return sup_loss, unsup_loss
     
     def init_hist(self, bti, y_pred_sup, y_pred_unsup):
-        try:
-            self.hist_sup[bti]
-            self.hist_unsup[bti]
-        except:
+        if bti >= len(self.hist_sup):
             self.hist_sup.append(torch.zeros_like(y_pred_sup).to(self.hist_device))
             self.hist_unsup.append(torch.zeros_like(y_pred_unsup).to(self.hist_device))
+        else:
+            print()

@@ -3,6 +3,7 @@
 # 官方项目：https://github.com/s-laine/tempens
 # pytorch第三方实现：https://github.com/ferretj/temporal-ensembling
 # 数据集：情感分类数据集
+# 本示例是把监督数据当成无监督数据使用
 
 from bert4torch.models import build_transformer_model, BaseModel
 import torch
@@ -14,7 +15,8 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import TemporalEnsemblingLoss
 
 maxlen = 256
-batch_size = 8
+batch_size = 16
+epochs = 10
 
 # BERT base
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -46,9 +48,8 @@ def collate_fn(batch):
     batch_token_ids, batch_labels = [], []
     for text, label in batch:
         token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
-        for _ in range(2):
-            batch_token_ids.append(token_ids)
-            batch_labels.append([label])
+        batch_token_ids.append(token_ids)
+        batch_labels.append([label])
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
     return batch_token_ids, batch_labels.flatten()
@@ -77,9 +78,10 @@ model = Model().to(device)
 
 class MyLoss(TemporalEnsemblingLoss):
     def forward(self, y_pred, y_true):
-        y_pred_sup, y_pred_unsup, y_true_sup = y_pred[0::2], y_pred[1::2], y_true[0::2]
+        # 监督数据当成无监督数据使用，真实场景中可以用大量的无监督数据来使用
+        y_pred_sup, y_pred_unsup, y_true_sup = y_pred, y_pred, y_true
         return super().forward(y_pred_sup, y_pred_unsup, y_true_sup, model.epoch, model.bti)
-loss = MyLoss(epochs=10)
+loss = MyLoss(epochs=epochs, max_batch_num=None)
 model.compile(loss=loss, optimizer=optim.Adam(model.parameters(), lr=2e-5), metrics=['accuracy'])
 
 class Evaluator(Callback):
@@ -108,6 +110,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=epochs, steps_per_epoch=None, callbacks=[evaluator])
 else: 
     model.load_weights('best_model.pt')
