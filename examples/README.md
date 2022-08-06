@@ -15,6 +15,7 @@
 - [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_simple_web_serving_simbert.py): 测试自带的WebServing（将模型转化为Web接口）。
 - [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
 - [basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_xlnet.py): 测试xlnet模型。
+- [basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
 
 ### 文本表示
 - [task_sentence_embedding_lcqmc__ContrastiveLoss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_lcqmc__ContrastiveLoss.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
