@@ -226,33 +226,52 @@ class TemporalEnsemblingLoss(nn.Module):
     '''TemporalEnsembling的实现，思路是在监督loss的基础上，增加一个mse的一致性损失loss
        官方项目：https://github.com/s-laine/tempens
        pytorch第三方实现：https://github.com/ferretj/temporal-ensembling
+       使用的时候，train_dataloader的shffle必须未False
     '''
-    def __init__(self, epochs, max_val=30.0, ramp_up_mult=-5.0, alpha=0.6, max_batch_num=100, hist_device='cpu'):
+    def __init__(self, epochs, max_val=10.0, ramp_up_mult=-5.0, alpha=0.5, max_batch_num=100, hist_device='cpu'):
         super().__init__()
         self.loss_sup = nn.CrossEntropyLoss()
         self.max_epochs = epochs
         self.max_val = max_val
         self.ramp_up_mult = ramp_up_mult
         self.alpha = alpha
-        self.max_batch_num = max_batch_num
-        self.hist_unsup = []
-        self.hist_sup = []
+        self.max_batch_num = max_batch_num  # 设置未None表示记录全部数据历史，数据量大时耗资源
+        self.hist_unsup = []  # 历史无监督logit
+        self.hist_sup = []  # 历史监督信息logit
         self.hist_device = hist_device
+        self.hist_input_y = []  # 历史监督标签y
         assert (self.alpha >= 0) & (self.alpha < 1)  # 等于1的时候upata写分母为0
 
     def forward(self, y_pred_sup, y_pred_unsup, y_true_sup, epoch, bti):
+        self.same_batch_check(y_pred_sup, y_pred_unsup, y_true_sup, bti)
+        
         if (self.max_batch_num is None) or (bti < self.max_batch_num):
             self.init_hist(bti, y_pred_sup, y_pred_unsup)  # 初始化历史
             sup_ratio = float(len(y_pred_sup)) / (len(y_pred_sup) + len(y_pred_unsup))  # 监督样本的比例
             w = self.weight_schedule(epoch, sup_ratio)
             sup_loss, unsup_loss = self.temporal_loss(y_pred_sup, y_pred_unsup, y_true_sup, bti)
+
             # 更新
             self.hist_unsup[bti] = self.update(self.hist_unsup[bti], y_pred_unsup.detach(), epoch)
             self.hist_sup[bti] = self.update(self.hist_sup[bti], y_pred_sup.detach(), epoch)
-            return sup_loss + w * unsup_loss
+            # if bti == 0:  $ 用于检查每个epoch数据顺序是否一致
+            #     print(w, sup_loss.item(), w * unsup_loss.item())
+            #     print(y_true_sup)
+            return sup_loss + w * unsup_loss, sup_loss, w * unsup_loss
         else:
             return self.loss_sup(y_pred_sup, y_true_sup)
 
+    def same_batch_check(self, y_pred_sup, y_pred_unsup, y_true_sup, bti):
+        '''检测数据的前几个batch必须是一致的, 这里写死是10个
+        '''
+        if bti >= 10:
+            return
+        if bti >= len(self.hist_input_y):
+            self.hist_input_y.append(y_true_sup.to(self.hist_device))
+        else:  # 检测
+            err_msg = 'TemporalEnsemblingLoss requests the same sort dataloader, you may need to set train_dataloader shuffle=False'
+            assert self.hist_input_y[bti].equal(y_true_sup.to(self.hist_device)), err_msg
+        
     def update(self, hist, y_pred, epoch):
         '''更新历史logit，利用alpha门控来控制比例
         '''
@@ -284,5 +303,3 @@ class TemporalEnsemblingLoss(nn.Module):
         if bti >= len(self.hist_sup):
             self.hist_sup.append(torch.zeros_like(y_pred_sup).to(self.hist_device))
             self.hist_unsup.append(torch.zeros_like(y_pred_unsup).to(self.hist_device))
-        else:
-            print()

@@ -190,10 +190,10 @@ class BaseModel(nn.Module):
         # global_step：当前全局训练步数
         # local_step: 当前epoch内的训练步数，不同epoch中相同local_step对应的batch数据不一定相同，在steps_per_epoch=None时相同
         # bti：在dataloader中的index，不同epoch中相同的bti对应的batch数据一般相同，除非重新生成dataloader
+        self.bti = 0
         for epoch in range(epochs):
             self.epoch = epoch
             self.callback_fun('epoch_begin')
-            self.bti = 0
             for local_step in range(steps_per_epoch):
                 self.local_step = local_step
                 # 循环dataloader, 不要试用itertools的cycle，遇到过变量不释放的问题
@@ -201,7 +201,7 @@ class BaseModel(nn.Module):
                     batch = next(train_dataloader_iter)
                 except StopIteration:
                     self.callback_fun('dataloader_end')  # 适用于数据量较大时，动态读取文件并重新生成dataloader的情况，如预训练
-                    train_dataloader_iter = iter(self.train_dataloader)
+                    train_dataloader_iter = iter(self.train_dataloader)  # shuffle=True时候，其实顺序也重新生成了
                     self.bti = 0
                     batch = next(train_dataloader_iter)
                 train_X, train_y = batch
