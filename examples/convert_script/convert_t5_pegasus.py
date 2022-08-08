@@ -68,3 +68,20 @@ for k, v in mapping.items():
         torch_state_dict[v] = ts
 
 torch.save(torch_state_dict, torch_path)
+
+# config文件
+'''
+{
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "initializer_range": 0.02,
+  "intermediate_size": 2048,
+  "num_attention_heads": 12,
+  "attention_head_size": 64,
+  "num_hidden_layers": 12,
+  "vocab_size": 50000,
+  "hidden_act": "gelu",
+  "relative_attention_num_buckets": 32
+}
+'''

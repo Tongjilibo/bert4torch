@@ -44,3 +44,60 @@ for i in range(18):
     qkv_net = torch_weights[f'transformer.layers.{i}.dec_attn.qkv_net.weight']
     model_new[f'encoderLayer.{i}.multiHeadAttention.q.weight'], model_new[f'encoderLayer.{i}.multiHeadAttention.k.weight'], model_new[f'encoderLayer.{i}.multiHeadAttention.v.weight'] = qkv_net.chunk(3, dim=0)
 torch.save(model_new, 'F:/Projects/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/bert4torch_pytorch_model.bin')
+
+# config文件
+'''
+{
+  "adaptive": true,
+  "architectures": [
+    "TransfoXLLMHeadModel"
+  ],
+  "attn_type": 0,
+  "clamp_len": 1000,
+  "cutoffs": [
+    20000,
+    40000,
+    200000
+  ],
+  "d_embed": 1024,
+  "d_head": 64,
+  "intermediate_size": 4096,
+  "hidden_size": 1024,
+  "div_val": 4,
+  "is_dropout": true,
+  "adaptive_embedding": true,
+  "attention_probs_dropout_prob": 0.0,
+  "hidden_dropout_prob": 0.1,
+  "hidden_act": "relu", 
+  "eos_token_id": 0,
+  "ext_len": 0,
+  "init": "normal",
+  "init_range": 0.01,
+  "init_std": 0.02,
+  "layer_norm_epsilon": 1e-05,
+  "mem_len": 1600,
+  "model_type": "transfo-xl",
+  "num_attention_heads": 16,
+  "num_hidden_layers": 18,
+  "pre_lnorm": false,
+  "proj_init_std": 0.01,
+  "same_length": true,
+  "sample_softmax": -1, 
+  "task_specific_params": {
+    "text-generation": {
+      "do_sample": true,
+      "max_length": 250
+    }
+  },
+  "tgt_len": 128,
+  "tie_projs": [
+    false,
+    true,
+    true,
+    true
+  ],
+  "tie_weight": true,
+  "untie_r": true,
+  "vocab_size": 267735
+}
+'''

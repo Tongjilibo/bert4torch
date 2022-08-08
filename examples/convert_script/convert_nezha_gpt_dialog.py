@@ -50,3 +50,23 @@ torch_state_dict['cls.predictions.decoder.weight'] = torch_state_dict[f'{prefix}
 torch_state_dict['cls.predictions.decoder.bias'] = torch_state_dict['cls.predictions.bias']
 
 torch.save(torch_state_dict, 'F:/Projects/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/pytorch_model.bin')
+
+
+# config文件
+'''
+{
+  "attention_probs_dropout_prob": 0.1,
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "max_position_embeddings": 512,
+  "max_relative_position": 64,
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "type_vocab_size": 2,
+  "vocab_size": 14195,
+  "use_relative_position": true
+}
+'''

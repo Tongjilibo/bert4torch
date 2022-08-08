@@ -1003,7 +1003,8 @@ class NEZHA(BERT):
     链接：https://arxiv.org/abs/1909.00204
     """
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'typical_relative', 'max_relative_position': kwargs.get('max_relative_position')})  # p_bias来控制embedding阶段无pos_embedding
+        # p_bias来控制embedding阶段无pos_embedding, max_relative_position默认取64
+        kwargs.update({'p_bias': 'typical_relative', 'max_relative_position': kwargs.get('max_relative_position', 64)})
         super(NEZHA, self).__init__(*args, **kwargs)
 
 

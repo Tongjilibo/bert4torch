@@ -84,3 +84,22 @@ def convert():
 
 if __name__ == '__main__':
     convert()
+
+# config文件
+'''
+{
+  "attention_probs_dropout_prob": 0.1, 
+  "directionality": "bidi", 
+  "hidden_act": "gelu", 
+  "hidden_dropout_prob": 0.1, 
+  "hidden_size": 768, 
+  "initializer_range": 0.02, 
+  "intermediate_size": 3072, 
+  "max_position_embeddings": 513, 
+  "num_attention_heads": 12, 
+  "num_hidden_layers": 12, 
+  "vocab_size": 13088,
+  "type_vocab_size": 3,
+  "shared_segment_embeddings": true
+}
+'''
