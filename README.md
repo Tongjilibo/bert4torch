@@ -25,6 +25,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - [**实验指标**](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md)
 
 ## 版本说明
+- **v0.1.9**：增加mixup/manifold_mixup/temporal_ensembling策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量
 - **v0.1.8**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
 - **v0.1.7**：增加EarlyStop，CRF中自带转bool类型
 - **v0.1.6**：增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug
@@ -33,7 +34,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年7月27更新**：增加mixup/manifold_mixup策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
+- **2022年7月27更新**：增加mixup/manifold_mixup/temporal_ensembling策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
 - **2022年7月16更新**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
 - **2022年7月10更新**：增加金融中文FAQ示例，天池新闻分类top1案例，增加EarlyStop，CRF中自带转bool类型
 - **2022年6月29更新**：增加ner的实验，测试crf不同初始化的效果，bert-whitening中文实验
