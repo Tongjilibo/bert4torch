@@ -1,3 +1,6 @@
+# 用 语言模型+棋谱 的方式监督训练一个下中国象棋模型
+# 介绍：https://kexue.fm/archives/7877
+# 只是转换苏神已经train好的模型，注意不是预训练模型
 import numpy as np
 import h5py
 import torch

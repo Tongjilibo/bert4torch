@@ -1,4 +1,5 @@
 # t5_pegasus从tf转为bert4torch适配的pytorch版本
+# 权重链接：https://github.com/ZhuiyiTechnology/t5-pegasus
 import torch
 import tensorflow as tf
 import json

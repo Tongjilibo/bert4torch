@@ -1,3 +1,4 @@
+# tensorflow权重链接：https://github.com/ZhuiyiTechnology/GAU-alpha
 # 这里直接映射到GAU_alpha的结构上了，因此不需要mapping
 import torch
 import tensorflow as tf

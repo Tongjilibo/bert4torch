@@ -1,5 +1,5 @@
 # 转换huggingface上bert-base-chinese权重
-# 链接：https://huggingface.co/bert-base-chinese
+# 权重链接：https://huggingface.co/bert-base-chinese
 # 由于key和框架的key没有完全对齐，主要里面用的都是Laynorm.gamma和Laynorm.beta来保存权重和偏置
 
 import torch
