@@ -66,7 +66,7 @@ test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classi
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        # 指定好model=nezha和对应的ckpt地址
+        # 指定好model和对应的ckpt地址
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='electra')
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(768, 2)

@@ -8,9 +8,9 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.snippets import AutoRegressiveDecoder
 
-config_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_noah_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_noah_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_noah_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
