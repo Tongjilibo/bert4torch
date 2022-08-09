@@ -1,4 +1,4 @@
-# NEZHA模型做闲聊任务，苏神已经finetune好的权重，直接转换
+# NEZHA模型做闲聊任务，苏神已经finetune好的权重，注意不是预训练模型
 # 源项目：https://github.com/bojone/nezha_gpt_dialog 
 
 import torch
