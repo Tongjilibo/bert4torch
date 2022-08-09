@@ -1,3 +1,5 @@
+# 权重链接: https://pan.baidu.com/s/1-FB0yl1uxYDCGIRvU1XNzQ 提取码: xynn，这里使用的是转pytorch后的模型文件
+# 参考项目：https://github.com/bojone/chinese-gen 
 import torch
 import tensorflow as tf
 
