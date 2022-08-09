@@ -89,7 +89,7 @@
 - [task_sentiment_UDA.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_UDA.py)：通过[UDA](https://arxiv.org/abs/1904.12848)半监督学习提升分类效果，在原来Losss上加一致性损失。
 - [task_sentiment_mixup.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_mixup.py)：通过[Mixup](https://github.com/vikasverma1077/manifold_mixup)提升模型泛化性能。
 - [task_sentiment_exponential_moving_average.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_exponential_moving_average.py)：EMA指数滑动平均
-- [task_sentiment_TemporalEnsembling.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_TemporalEnsembling.py)：通过[TemporalEnsembling](https://github.com/s-laine/tempens)[pytorch第三方](https://github.com/ferretj/temporal-ensembling)提升模型泛化性能。
+- [task_sentiment_TemporalEnsembling.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_TemporalEnsembling.py)：通过[TemporalEnsembling官方项目](https://github.com/s-laine/tempens)和[pytorch第三方实现](https://github.com/ferretj/temporal-ensembling)提升模型泛化性能。
 - [task_sentiment_R-Drop.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_R-Drop.py)：通过[R-Drop](https://github.com/dropreg/R-Drop)提升分类效果，可以视为用dropout加噪下的UDA。
 - [task_amp.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_amp.py)：Pytorch的amp混合精度训练
 - [task_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_data_parallel.py)：DataParallel模式的多GPU训练方式
@@ -112,6 +112,7 @@
 |  ----  |  ----  |  ----  |
 |人民日报数据集|实体识别|[china-people-daily-ner-corpus](http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz)
 |百度关系抽取|关系抽取|[BD_Knowledge_Extraction](http://ai.baidu.com/broad/download?dataset=sked)
+|Sentiment|情感分类|[Sentiment](https://github.com/bojone/bert4keras/blob/master/examples/datasets/sentiment.zip)
 |THUCNews|文本分类、文本生成|[THUCNews](http://thuctc.thunlp.org/#%E4%B8%AD%E6%96%87%E6%96%87%E6%9C%AC%E5%88%86%E7%B1%BB%E6%95%B0%E6%8D%AE%E9%9B%86THUCNews)
 |ATEC| 文本相似度 | [ATEC](https://github.com/IceFlameWorm/NLP_Datasets/tree/master/ATEC)
 |BQ| 文本相似度 | [BQ](http://icrc.hitsz.edu.cn/info/1037/1162.htm)
