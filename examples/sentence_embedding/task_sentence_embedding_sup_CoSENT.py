@@ -1,29 +1,31 @@
 #! -*- coding:utf-8 -*-
-# 语义相似度任务：数据集sts-b
-# loss: CosineSimilarityLoss（cos + mse_loss）
+# 原项目：https://kexue.fm/archives/8847
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb, seed_everything
 import torch.nn as nn
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
 import sys
 
-task_name = sys.argv[1]
-# task_name = 'STS-B'  # 测试使用
+# =============================基本参数=============================
+# pooling, task_name = sys.argv[1:]  # 传入参数
+pooling, task_name = 'cls', 'ATEC'  # debug使用
+print('pooling: ', pooling, ' task_name: ', task_name)
 assert task_name in ['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B']
+assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
 
 maxlen = 64 if task_name != 'PAWSX' else 128
 batch_size = 32
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+seed_everything(42)
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -52,7 +54,7 @@ def collate_fn(batch):
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.float, device=device)
-    return [batch_token_ids], batch_labels.flatten()
+    return batch_token_ids, batch_labels.flatten()
 
 # 加载数据集
 train_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -61,13 +63,18 @@ test_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedd
 
 # 定义bert上的模型结构
 class Model(BaseModel):
-    def __init__(self):
+    def __init__(self, pool_method='cls'):
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
+        self.pool_method = pool_method
+        with_pool = 'linear' if pool_method == 'pooler' else True
+        output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
+        self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0,
+                                            with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
 
     def forward(self, token_ids):
-        hidden_state = self.bert(token_ids)
-        return hidden_state[:, 0, :]
+        hidden_state, pooler = self.bert([token_ids])
+        sem_emb = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
+        return sem_emb
 
 model = Model().to(device)
 
@@ -100,22 +107,6 @@ model.compile(
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 
-# 定义评价函数
-def evaluate(model_eval, data):
-    embeddings1, embeddings2, labels = [], [], []
-    for batch_token_ids, batch_labels in data:
-        embeddings = model_eval.predict(batch_token_ids)
-        embeddings1.append(embeddings[::2])
-        embeddings2.append(embeddings[1::2])
-        labels.append(batch_labels[::2])
-    embeddings1 = torch.cat(embeddings1).cpu().numpy()
-    embeddings2 = torch.cat(embeddings2).cpu().numpy()
-    labels = torch.cat(labels).cpu().numpy()
-    cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))  # cosine距离是1-paired
-    eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
-    return eval_pearson_cosine
-
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -123,15 +114,31 @@ class Evaluator(Callback):
         self.best_val_consine = 0.
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        val_consine = evaluate(model, test_dataloader)
+        val_consine = self.evaluate(valid_dataloader)
+        test_consine = self.evaluate(test_dataloader)
+
         if val_consine > self.best_val_consine:
             self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
-        print(f'test_consine: {val_consine:.5f}, best_test_consine: {self.best_val_consine:.5f}\n')
+        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_test_consine: {self.best_val_consine:.5f}\n')
 
+    # 定义评价函数
+    def evaluate(self, data):
+        embeddings1, embeddings2, labels = [], [], []
+        for batch_token_ids, batch_labels in data:
+            embeddings = model.predict(batch_token_ids)
+            embeddings1.append(embeddings[::2])
+            embeddings2.append(embeddings[1::2])
+            labels.append(batch_labels[::2])
+        embeddings1 = torch.cat(embeddings1).cpu().numpy()
+        embeddings2 = torch.cat(embeddings2).cpu().numpy()
+        labels = torch.cat(labels).cpu().numpy()
+        cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))  # cosine距离是1-paired
+        eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
+        return eval_pearson_cosine
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=5, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

@@ -2,7 +2,7 @@
 # 模型压缩，仅保留bert-base部分层
 # 初测测试指标从80%降到77%左右，未细测
 
-from task_sentence_embedding_stsb_CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
+from task_sentence_embedding_sup_CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
 from bert4torch.snippets import Callback, get_pool_emb
 import torch.optim as optim
 import torch

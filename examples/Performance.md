@@ -52,7 +52,7 @@
 # 3. 文本表示
 ## 3.1 无监督语义相似度
 - bert预训练模型+无监督finetune
-- 五个中文数据集+5个epoch取最优值
+- 五个中文数据集+5个epoch取最优值+valid指标
 - 继续finetune, 部分数据集有小幅提升
 - 实验显示dropout_rate对结果影响较大
 
@@ -67,7 +67,12 @@
 |    PromptBert   |  33.98  | 49.89|  73.18  |  13.30  |  73.42  | dropout=0.3 |
 
 ## 3.2 有监督语义相似度
-- 待整理
+- bert预训练模型+训练数据finetune
+
+|     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |   comment   |
+|       ----      |   ----  | ---- |   ----  |   ----  |   ----  |     ----    |
+| CoSENT  |     |  |    |     |     |     |
+
 
 # 4. 关系提取
 - 待整理

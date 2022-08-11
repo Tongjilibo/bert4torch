@@ -105,7 +105,8 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
 
 
 class ContrastiveLoss(nn.Module):
-    """对比损失：减小正例之间的距离，增大正例和反例之间的距离，labels * distance_matrix.pow(2) + (1-labels)*F.relu(margin-distance_matrix).pow(2)
+    """对比损失：减小正例之间的距离，增大正例和反例之间的距离
+    公式：labels * distance_matrix.pow(2) + (1-labels)*F.relu(margin-distance_matrix).pow(2)
     https://www.sbert.net/docs/package_reference/losses.html
     """
     def __init__(self, margin=0.5, size_average=True, online=False):
