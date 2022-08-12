@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# loss: concat后走分类，CrossEntropyLoss
+# loss: 句向量concat后 (u, v, u-v, u*v) 走CrossEntropyLoss
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -8,6 +8,8 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from sklearn.metrics.pairwise import paired_cosine_distances
+from scipy.stats import spearmanr
 import sys
 
 # =============================基本参数=============================
@@ -105,6 +107,14 @@ class Model(BaseModel):
         
         return self.fc(vectors_concat)
     
+    def predict(self, token_ids):
+        self.eval()
+        with torch.no_grad():
+            hidden_state, pooler = self.bert([token_ids])
+            attention_mask = token_ids.gt(0).long()
+            output = get_pool_emb(hidden_state, pooler, attention_mask, self.pool_method)
+        return output
+    
 model = Model().to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
@@ -113,30 +123,37 @@ model.compile(
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 
-# 定义评价函数
-def evaluate(data):
-    total, right = 0., 0.
-    for x_true, y_true in data:
-        y_pred = model.predict(x_true).argmax(axis=1)  # 这里取不取softmax不影响结果
-        total += len(y_true)
-        right += (y_true == y_pred).sum().item()
-    return right / total
-
 class Evaluator(Callback):
     """评估与保存
     """
     def __init__(self):
-        self.best_val_acc = 0.
+        self.best_val_consine = 0.
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        val_acc = evaluate(valid_dataloader)
-        test_acc = evaluate(test_dataloader)
-        if val_acc > self.best_val_acc:
-            self.best_val_acc = val_acc
+        val_consine = self.evaluate(valid_dataloader)
+        test_consine = self.evaluate(test_dataloader)
+
+        if val_consine > self.best_val_consine:
+            self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
 
+    # 定义评价函数
+    # 定义评价函数
+    def evaluate(self, data):
+        embeddings1, embeddings2, labels = [], [], []
+        for (batch_token1_ids, batch_token2_ids), batch_labels in data:
+            embeddings1.append(model.predict(batch_token1_ids).cpu())
+            embeddings2.append(model.predict(batch_token2_ids).cpu())
+            labels.append(batch_labels)
+        embeddings1 = torch.cat(embeddings1).numpy()
+        embeddings2 = torch.cat(embeddings2).numpy()
+        labels = torch.cat(labels).cpu().numpy()
+        cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
+        eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
+        return eval_pearson_cosine
 
+        
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 

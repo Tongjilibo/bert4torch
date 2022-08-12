@@ -50,7 +50,7 @@ def collate_fn(batch):
         for text in [text1, text2]:
             token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
             batch_token_ids.append(token_ids)
-            batch_labels.append([label])
+            batch_labels.append([int(label > 2.5) if task_name == 'STS-B' else label])
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.float, device=device)
@@ -120,7 +120,7 @@ class Evaluator(Callback):
         if val_consine > self.best_val_consine:
             self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
-        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_test_consine: {self.best_val_consine:.5f}\n')
+        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
 
     # 定义评价函数
     def evaluate(self, data):
@@ -133,7 +133,7 @@ class Evaluator(Callback):
         embeddings1 = torch.cat(embeddings1).cpu().numpy()
         embeddings2 = torch.cat(embeddings2).cpu().numpy()
         labels = torch.cat(labels).cpu().numpy()
-        cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))  # cosine距离是1-paired
+        cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
         eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
         return eval_pearson_cosine
 

@@ -1,6 +1,7 @@
 #! -*- coding:utf-8 -*-
-# 语义相似度任务：训练集xnli, dev集为sts-b
-# loss: MultiNegativeRankingLoss, 和simcse一样，以batch中其他样本作为负样本
+# loss: InfoNCE(即sentence_transformer中的MultiNegativeRankingLoss)
+# 样本都是正负样本对，因此构造(正，正，负)的三元组时候，正样本对(正，正1)随机抽样负样本为（正，正1，负）
+# 负样本对（正，负）重复正样本对（正，正，负）
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -11,6 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
+import random
 import sys
 
 # =============================基本参数=============================
@@ -31,6 +33,51 @@ seed_everything(42)
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
+# ===========================数据预处理===========================
+# 训练
+def collate_fn(batch):
+    texts_list = [[] for _ in range(3)]
+    for texts in batch:
+        for i, text in enumerate(texts):
+            token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
+            texts_list[i].append(token_ids)
+
+    for i, texts in enumerate(texts_list):
+        texts_list[i] = torch.tensor(sequence_padding(texts), dtype=torch.long, device=device)
+    labels = torch.arange(texts_list[0].size(0), device=texts_list[0].device)
+    return texts_list, labels
+
+# 加载数据集
+def get_data(filename):
+    train_data, all_texts = {}, []
+    with open(filename, encoding='utf-8') as f:
+        for l in f:
+            text1, text2, label = l.strip().split('\t')
+            if text1 not in train_data:
+                train_data[text1] = {'0': set(), '1': set()}
+            train_data[text1][label].add(text2)
+            if text2 not in train_data:
+                train_data[text2] = {'0': set(), '1': set()}
+            train_data[text2][label].add(text1)
+            all_texts.extend([text1, text2])
+
+    train_samples = []
+    for sent1, others in train_data.items():
+        if len(others['1']) == 0:
+            others['1'] = [sent1]  # 没有正样本，使用自身作为正阳本，这里其实就是无监督
+        elif len(others['0']) == 0:
+            others['0'] = [random.choice(all_texts)]  # 没有负样本，随机挑选一个负样本
+
+        # sentence bert的逻辑是下面两个都加进去，这样的问题是如果shuffle=False，处于同一个batch中，相似句可能label给的负样本
+        if random.random() < 0.5:
+            train_samples.append((sent1, random.choice(list(others['1'])), random.choice(list(others['0']))))
+        else:
+            train_samples.append((random.choice(list(others['1'])), sent1, random.choice(list(others['0']))))
+    return train_samples
+
+train_data = get_data(f'/Users/lb/Documents/Project/data/sentence_embedding/{task_name}/{task_name}.train.data')
+train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+
 class MyDataset(ListDataset):
     @staticmethod
     def load_data(filename):
@@ -45,7 +92,7 @@ class MyDataset(ListDataset):
                     D.append((l[0], l[1], int(l[2])))
         return D
 
-def collate_fn(batch):
+def collate_fn_eval(batch):
     batch_token1_ids, batch_token2_ids, batch_labels = [], [], []
     for text1, text2, label in batch:
         token1_ids, _ = tokenizer.encode(text1, maxlen=maxlen)
@@ -61,9 +108,8 @@ def collate_fn(batch):
     return (batch_token1_ids, batch_token2_ids), batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
-test_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn)
+valid_dataloader = DataLoader(MyDataset(f'/Users/lb/Documents/Project/data/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
+test_dataloader = DataLoader(MyDataset(f'/Users/lb/Documents/Project/data/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 建立模型
 class Model(BaseModel):
@@ -122,7 +168,7 @@ class Evaluator(Callback):
         if val_consine > self.best_val_consine:
             self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
-        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_test_consine: {self.best_val_consine:.5f}\n')
+        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
 
     # 定义评价函数
     def evaluate(self, data):

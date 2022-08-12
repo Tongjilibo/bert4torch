@@ -125,7 +125,7 @@ class Evaluator(Callback):
         if val_consine > self.best_val_consine:
             self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
-        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_test_consine: {self.best_val_consine:.5f}\n')
+        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
     
 if __name__ == '__main__':
     evaluator = Evaluator()

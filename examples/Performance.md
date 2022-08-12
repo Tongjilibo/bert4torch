@@ -51,7 +51,7 @@
 
 # 3. 文本表示
 ## 3.1 无监督语义相似度
-- bert预训练模型+无监督finetune
+- bert预训练模型+无监督finetune+cls位句向量(PromptBert除外)
 - 五个中文数据集+5个epoch取最优值+valid指标
 - 继续finetune, 部分数据集有小幅提升
 - 实验显示dropout_rate对结果影响较大
@@ -67,12 +67,14 @@
 |    PromptBert   |  33.98  | 49.89|  73.18  |  13.30  |  73.42  | dropout=0.3 |
 
 ## 3.2 有监督语义相似度
-- bert预训练模型+训练数据finetune
+- bert预训练模型+训练数据finetune+cls位句向量
+- 五个中文数据集+5个epoch取最优值+valid/test指标
 
-|     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |   comment   |
-|       ----      |   ----  | ---- |   ----  |   ----  |   ----  |     ----    |
-| CoSENT  |     |  |    |     |     |     |
-
+|    solution   |     ATEC    |     BQ      |    LCQMC    |    PAWSX    |    STS-B    |    comment   |
+|      ----     |     ----    |    ----     |     ----    |     ----    |     ----    |      ----    |
+|     CoSENT    |50.61 / 49.81|72.84 / 71.61|77.79 / 78.74|55.00 / 56.00|83.48 / 80.06|              |
+|ContrastiveLoss|50.02 / 49.19|72.52 / 70.98|77.49 / 78.27|58.21 / 57.65|69.87 / 68.58|STS-B的5->2分类|
+|    InfoNCE    |47.77 / 46.99|    ----     |     ----    |     ----    |     ----    |      ----    |
 
 # 4. 关系提取
 - 待整理

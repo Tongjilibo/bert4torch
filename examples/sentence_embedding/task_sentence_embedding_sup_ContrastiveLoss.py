@@ -40,8 +40,9 @@ class MyDataset(ListDataset):
         D = []
         with open(filename, encoding='utf-8') as f:
             for l in f:
-                text1, text2, label = l.strip().split('\t')
-                D.append((text1, text2, int(label)))
+                l = l.strip().split('\t')
+                if len(l) == 3:
+                    D.append((l[0], l[1], int(l[2])))
         return D
 
 def collate_fn(batch):
@@ -60,9 +61,9 @@ def collate_fn(batch):
     return (batch_token1_ids, batch_token2_ids), batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
-test_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.test.data'), batch_size=batch_size, collate_fn=collate_fn)
+train_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
+test_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
@@ -81,7 +82,8 @@ class Model(BaseModel):
         hidden_state2, pool_cls2 = self.bert([token2_ids])
         pool_emb2 = get_pool_emb(hidden_state2, pool_cls2, token2_ids.gt(0).long(), self.pool_method)
 
-        return 1- torch.cosine_similarity(pool_emb1, pool_emb2)
+        distance = 1- torch.cosine_similarity(pool_emb1, pool_emb2)
+        return distance
     
     def predict(self, token_ids):
         self.eval()
@@ -112,7 +114,7 @@ class Evaluator(Callback):
         if val_consine > self.best_val_consine:
             self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
-        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_test_consine: {self.best_val_consine:.5f}\n')
+        print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
 
     # 定义评价函数
     def evaluate(self, data):
