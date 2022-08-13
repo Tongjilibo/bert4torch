@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# loss: CosineSimilarityLoss（cos + mse_loss）
+# loss: CosineMSELoss（cos + mse_loss）
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
+from tqdm import tqdm
 import sys
 
 # =============================基本参数=============================
@@ -39,8 +40,12 @@ class MyDataset(ListDataset):
         D = []
         with open(filename, encoding='utf-8') as f:
             for l in f:
-                text1, text2, label = l.strip().split('\t')
-                D.append((text1, text2, int(label)/5.0))
+                l = l.strip().split('\t')
+                if len(l) != 3:
+                    continue
+                text1, text2, label = l
+                label = int(label)/5 if task_name == 'STS-B' else int(label)
+                D.append((text1, text2, label))
         return D
 
 def collate_fn(batch):
@@ -95,13 +100,13 @@ model = Model().to(device)
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
     loss=nn.MSELoss(),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),
+    optimizer=optim.Adam(model.parameters(), lr=2e-5)
 )
 
 # 定义评价函数
 def evaluate(model, data):
     embeddings1, embeddings2, labels = [], [], []
-    for (batch_token1_ids, batch_token2_ids), batch_labels in data:
+    for (batch_token1_ids, batch_token2_ids), batch_labels in tqdm(data, desc='Evaluate'):
         embeddings1.append(model.encode(batch_token1_ids))
         embeddings2.append(model.encode(batch_token2_ids))
         labels.append(batch_labels)

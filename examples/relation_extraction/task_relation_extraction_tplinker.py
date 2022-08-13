@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 
 maxlen = 50
-batch_size = 16
+batch_size = 64
 config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
@@ -268,7 +268,7 @@ class Evaluator(Callback):
         self.best_val_f1 = 0.
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        f1, precision, recall = evaluate(valid_dataset.data[:1000])
+        f1, precision, recall = evaluate(valid_dataset.data)
         if f1 >= self.best_val_f1:
             self.best_val_f1 = f1
             # model.save_weights('best_model.pt')
@@ -277,6 +277,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, steps_per_epoch=500, epochs=50, callbacks=[evaluator])
+    model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
 import random
+from tqdm import tqdm
 import sys
 
 # =============================基本参数=============================
@@ -52,7 +53,11 @@ def get_data(filename):
     train_data, all_texts = {}, []
     with open(filename, encoding='utf-8') as f:
         for l in f:
-            text1, text2, label = l.strip().split('\t')
+            l = l.strip().split('\t')
+            if len(l) != 3:
+                continue
+            text1, text2, label = l
+            label = str(int(int(label) > 2.5)) if task_name == 'STS-B' else label
             if text1 not in train_data:
                 train_data[text1] = {'0': set(), '1': set()}
             train_data[text1][label].add(text2)
@@ -75,7 +80,7 @@ def get_data(filename):
             train_samples.append((random.choice(list(others['1'])), sent1, random.choice(list(others['0']))))
     return train_samples
 
-train_data = get_data(f'/Users/lb/Documents/Project/data/sentence_embedding/{task_name}/{task_name}.train.data')
+train_data = get_data(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 class MyDataset(ListDataset):
@@ -108,8 +113,8 @@ def collate_fn_eval(batch):
     return (batch_token1_ids, batch_token2_ids), batch_labels.flatten()
 
 # 加载数据集
-valid_dataloader = DataLoader(MyDataset(f'/Users/lb/Documents/Project/data/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
-test_dataloader = DataLoader(MyDataset(f'/Users/lb/Documents/Project/data/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
+valid_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
+test_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 建立模型
 class Model(BaseModel):
@@ -169,11 +174,15 @@ class Evaluator(Callback):
             self.best_val_consine = val_consine
             # model.save_weights('best_model.pt')
         print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
+        
+        # 重新生成dataloader，重新random选择样本
+        train_data = get_data(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data')
+        model.train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
     # 定义评价函数
     def evaluate(self, data):
         embeddings1, embeddings2, labels = [], [], []
-        for (batch_token_ids1, batch_token_ids2), batch_labels in data:
+        for (batch_token_ids1, batch_token_ids2), batch_labels in tqdm(data, desc='Evaluate'):
             embeddings1.append(model.predict(batch_token_ids1))
             embeddings2.append(model.predict(batch_token_ids2))
             labels.append(batch_labels)
@@ -187,7 +196,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
-            epochs=5, 
+            epochs=10, 
             steps_per_epoch=None, 
             callbacks=[evaluator]
             )

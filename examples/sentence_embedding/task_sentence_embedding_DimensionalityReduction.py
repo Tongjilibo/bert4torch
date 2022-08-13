@@ -2,7 +2,7 @@
 # 利用pca压缩句向量
 # 从768维压缩到128维，指标从81.82下降到80.10
 
-from task_sentence_embedding_sup_CosineSimilarityLoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
+from task_sentence_embedding_sup_CosineMSELoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
 from bert4torch.snippets import get_pool_emb
 from sklearn.decomposition import PCA
 import numpy as np

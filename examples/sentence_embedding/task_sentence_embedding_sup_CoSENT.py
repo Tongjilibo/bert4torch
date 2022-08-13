@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
+from tqdm import tqdm
 import sys
 
 # =============================基本参数=============================
@@ -50,7 +51,7 @@ def collate_fn(batch):
         for text in [text1, text2]:
             token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
             batch_token_ids.append(token_ids)
-            batch_labels.append([int(label > 2.5) if task_name == 'STS-B' else label])
+            batch_labels.append([label])
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.float, device=device)
@@ -125,7 +126,7 @@ class Evaluator(Callback):
     # 定义评价函数
     def evaluate(self, data):
         embeddings1, embeddings2, labels = [], [], []
-        for batch_token_ids, batch_labels in data:
+        for batch_token_ids, batch_labels in tqdm(data, desc='Evaluate'):
             embeddings = model.predict(batch_token_ids)
             embeddings1.append(embeddings[::2])
             embeddings2.append(embeddings[1::2])

@@ -17,7 +17,7 @@ import torch.optim as optim
 import torch.nn as nn
 
 maxlen = 128
-batch_size = 48
+batch_size = 64
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
@@ -297,7 +297,7 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, steps, epoch, logs=None):
         # optimizer.apply_ema_weights()
-        f1, precision, recall = evaluate(valid_dataset.data[:1000])
+        f1, precision, recall = evaluate(valid_dataset.data)
         if f1 >= self.best_val_f1:
             self.best_val_f1 = f1
             # train_model.save_weights('best_model.pt')
@@ -312,7 +312,7 @@ if __name__ == '__main__':
 
     evaluator = Evaluator()
 
-    train_model.fit(train_dataloader, steps_per_epoch=200, epochs=20, callbacks=[evaluator])
+    train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
 
 else:
 

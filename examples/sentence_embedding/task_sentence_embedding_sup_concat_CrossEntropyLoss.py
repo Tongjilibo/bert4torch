@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
+from tqdm import tqdm
 import sys
 
 # =============================基本参数=============================
@@ -49,6 +50,7 @@ class MyDataset(ListDataset):
 def collate_fn(batch):
     batch_token1_ids, batch_token2_ids, batch_labels = [], [], []
     for text1, text2, label in batch:
+        label = int(label > 2.5) if task_name == 'STS-B' else label
         token1_ids, _ = tokenizer.encode(text1, maxlen=maxlen)
         batch_token1_ids.append(token1_ids)
         token2_ids, _ = tokenizer.encode(text2, maxlen=maxlen)
@@ -121,6 +123,7 @@ model = Model().to(device)
 model.compile(
     loss=nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
+    metrics=['accuracy']
 )
 
 class Evaluator(Callback):
@@ -139,10 +142,9 @@ class Evaluator(Callback):
         print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
 
     # 定义评价函数
-    # 定义评价函数
     def evaluate(self, data):
         embeddings1, embeddings2, labels = [], [], []
-        for (batch_token1_ids, batch_token2_ids), batch_labels in data:
+        for (batch_token1_ids, batch_token2_ids), batch_labels in tqdm(data, desc='Evaluate'):
             embeddings1.append(model.predict(batch_token1_ids).cpu())
             embeddings2.append(model.predict(batch_token2_ids).cpu())
             labels.append(batch_labels)
