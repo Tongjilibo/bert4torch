@@ -1,13 +1,9 @@
 #! -*- coding: utf-8 -*-
-# 微调多国语言版T5做Seq2Seq任务
-# 介绍链接：https://kexue.fm/archives/7867
+# 微调uer版T5做Seq2Seq任务
 # 数据集：https://github.com/CLUEbenchmark/CLGE 中的CSL数据集
-# 补充了评测指标bleu、rouge-1、rouge-2、rouge-l
-# mt5主要特点：gated-gelu, decoder的最后的dense层独立权重，rmsnorm
 
-import json, os
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import SpTokenizer, load_vocab
+from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, seed_everything
 from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 from tqdm import tqdm
@@ -15,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
+import json
 from rouge import Rouge  # pip install rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
@@ -25,14 +22,11 @@ batch_size = 16
 epochs = 20
 steps_per_epoch = None
 valid_len = 1000
-token_pad_ids = -100
 
 # bert配置
-config_path = 'F:/Projects/pretrain_ckpt/t5/[google_mt5_torch_base]/bert4torch_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/t5/[google_mt5_torch_base]/pytorch_model.bin'
-# 下面两个config是从bert4keras中拿的，项目连接https://github.com/bojone/t5_in_bert4keras
-spm_path = 'F:/Projects/pretrain_ckpt/t5/[google_mt5_bert4keras]/sentencepiece_cn.model'
-keep_tokens_path = 'F:/Projects/pretrain_ckpt/t5/[google_mt5_bert4keras]/sentencepiece_cn_keep_tokens.json'
+config_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/bert4torch_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
@@ -50,23 +44,26 @@ class MyDataset(ListDataset):
                 D.append((title, content))
         return D
 
-
-tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>')
-keep_tokens = json.load(open(keep_tokens_path))
+# 加载并精简词表，建立分词器
+token_dict, keep_tokens = load_vocab(
+    dict_path=dict_path,
+    simplified=True,
+    startswith=['[PAD]', '[UNK]', '[CLS]', '[SEP]'],
+)
+tokenizer = Tokenizer(token_dict, do_lower_case=True)
 
 def collate_fn(batch):
     """单条样本格式：content：[CLS]文章[SEP]  tgt: [CLS]标题[SEP]
     """
     batch_content_ids, batch_titile_ids = [], []
-    for title, content in batch:
+    for content, title in batch:
         token_ids, _ = tokenizer.encode(content, maxlen=max_c_len)
         batch_content_ids.append(token_ids)
-
         token_ids, _ = tokenizer.encode(title, maxlen=max_t_len)
-        batch_titile_ids.append([0] + token_ids)
+        batch_titile_ids.append(token_ids)
 
-    batch_content_ids = torch.tensor(sequence_padding(batch_content_ids, value=token_pad_ids), dtype=torch.long, device=device)
-    batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids, value=token_pad_ids), dtype=torch.long, device=device)
+    batch_content_ids = torch.tensor(sequence_padding(batch_content_ids), dtype=torch.long, device=device)
+    batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids), dtype=torch.long, device=device)
     return [[batch_content_ids], [batch_titile_ids[:, :-1]]], batch_titile_ids[:, 1:].flatten()
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
@@ -76,13 +73,11 @@ valid_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_pub
 model = build_transformer_model(
     config_path,
     checkpoint_path,
-    model='mt5.1.1',
+    model='t5.1.0',
     segment_vocab_size=0,
     attention_scale=False,
     is_dropout=True,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    tie_emb_prj_weight=False,  # 独立权重
-    token_pad_ids=token_pad_ids,  # 也可以指定custom_attention_mask并传入attention_mask来实现
 ).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
@@ -92,14 +87,13 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         _, _, y_pred = outputs
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=token_pad_ids), optimizer=optim.Adam(model.parameters(), 2e-4))
+model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 2e-4))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器
     """
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
-        # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
 
     def generate(self, text, topk=1):
@@ -107,9 +101,9 @@ class AutoTitle(AutoRegressiveDecoder):
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
         output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
-        return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
+        return tokenizer.decode(output_ids.cpu().numpy())
 
-autotitle = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
+autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
 
 class Evaluator(Callback):
     """评估与保存
@@ -144,7 +138,7 @@ class Evaluator(Callback):
                                       smoothing_function=self.smooth)
         rouge_1, rouge_2, rouge_l, bleu = rouge_1/total, rouge_2/total, rouge_l/total, bleu/total
         return {'rouge-1': rouge_1, 'rouge-2': rouge_2, 'rouge-l': rouge_l, 'bleu': bleu}
-
+    
 
 def just_show():
     s1 = u'抽象了一种基于中心的战术应用场景与业务,并将网络编码技术应用于此类场景的实时数据多播业务中。在分析基于中心网络与Many-to-all业务模式特性的基础上,提出了仅在中心节点进行编码操作的传输策略以及相应的贪心算法。分析了网络编码多播策略的理论增益上界,仿真试验表明该贪心算法能够获得与理论相近的性能增益。最后的分析与仿真试验表明,在这种有中心网络的实时数据多播应用中,所提出的多播策略的实时性能要明显优于传统传输策略。'
@@ -153,8 +147,9 @@ def just_show():
         print(u'生成标题:', autotitle.generate(s))
 
 if __name__ == '__main__':
+
     evaluator = Evaluator()
-    just_show()
+
     model.fit(
         train_dataloader,
         steps_per_epoch=steps_per_epoch,

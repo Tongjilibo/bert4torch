@@ -6,7 +6,7 @@
 import json, os
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
-from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import sequence_padding, seed_everything
 from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 from tqdm import tqdm
 import torch
@@ -21,9 +21,10 @@ jieba.initialize()
 # 基本参数
 max_c_len = 256
 max_t_len = 32
-batch_size = 8
-epochs = 40
-
+batch_size = 16
+epochs = 20
+steps_per_epoch = None
+valid_len = 1000
 
 # bert配置
 pretrain_model = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_base]--chinese_t5_pegasus_base/'
@@ -31,6 +32,7 @@ config_path = pretrain_model + 'config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 dict_path = pretrain_model + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+seed_everything(42)
 
 class MyDataset(ListDataset):
     @staticmethod
@@ -45,7 +47,6 @@ class MyDataset(ListDataset):
                 title, content = l['title'], l['abst']
                 D.append((title, content))
         return D
-
 
 tokenizer = Tokenizer(
     dict_path,
@@ -118,12 +119,12 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, steps, epoch, logs=None):
         just_show()
-        # metrics = self.evaluate(valid_dataset)  # 评测模型
-        # if metrics['bleu'] > self.best_bleu:
-        #     self.best_bleu = metrics['bleu']
-        #     # model.save_weights('./best_model.pt')  # 保存模型
-        # metrics['best_bleu'] = self.best_bleu
-        # print('valid_data:', metrics)
+        metrics = self.evaluate(valid_dataset.data[:valid_len])  # 评测模型
+        if metrics['bleu'] > self.best_bleu:
+            self.best_bleu = metrics['bleu']
+            # model.save_weights('./best_model.pt')  # 保存模型
+        metrics['best_bleu'] = self.best_bleu
+        print('valid_data:', metrics)
     
     def evaluate(self, data, topk=1):
         total = 0
@@ -137,21 +138,10 @@ class Evaluator(Callback):
                 rouge_1 += scores[0]['rouge-1']['f']
                 rouge_2 += scores[0]['rouge-2']['f']
                 rouge_l += scores[0]['rouge-l']['f']
-                bleu += sentence_bleu(
-                    references=[title.split(' ')],
-                    hypothesis=pred_title.split(' '),
-                    smoothing_function=self.smooth
-                )
-        rouge_1 /= total
-        rouge_2 /= total
-        rouge_l /= total
-        bleu /= total
-        return {
-            'rouge-1': rouge_1,
-            'rouge-2': rouge_2,
-            'rouge-l': rouge_l,
-            'bleu': bleu,
-        }
+                bleu += sentence_bleu(references=[title.split(' ')], hypothesis=pred_title.split(' '),
+                                      smoothing_function=self.smooth)
+        rouge_1, rouge_2, rouge_l, bleu = rouge_1/total, rouge_2/total, rouge_l/total, bleu/total
+        return {'rouge-1': rouge_1, 'rouge-2': rouge_2, 'rouge-l': rouge_l, 'bleu': bleu}
 
 
 def just_show():
@@ -162,10 +152,10 @@ def just_show():
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-
+    just_show()
     model.fit(
         train_dataloader,
-        steps_per_epoch=100,
+        steps_per_epoch=steps_per_epoch,
         epochs=epochs,
         callbacks=[evaluator]
     )

@@ -11,7 +11,6 @@ from bert4torch.snippets import sequence_padding, text_segmentate
 from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 from tqdm import tqdm
 import torch
-from torchinfo import summary
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
@@ -21,8 +20,9 @@ from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 # 基本参数
 maxlen = 256
 batch_size = 16
-steps_per_epoch = 1000
-epochs = 10000
+epochs = 20
+steps_per_epoch = None
+valid_len = 1000
 
 # bert配置
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -54,7 +54,7 @@ token_dict, keep_tokens = load_vocab(
 tokenizer = Tokenizer(token_dict, do_lower_case=True)
 
 def collate_fn(batch):
-    """单条样本格式：[CLS]篇章[SEP]答案[SEP]问题[SEP]
+    """单条样本格式：[CLS]文章[SEP]标题[SEP]
     """
     batch_token_ids, batch_segment_ids = [], []
     for content, title in batch:
@@ -77,7 +77,6 @@ model = build_transformer_model(
     application='unilm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)
-summary(model, input_data=[next(iter(train_dataloader))[0]])
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -96,7 +95,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         y_true = (y_true*y_mask).flatten()
         return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
+model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 2e-5))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器
@@ -118,7 +117,6 @@ class AutoTitle(AutoRegressiveDecoder):
 
 autotitle = AutoTitle(start_id=None, end_id=tokenizer._token_end_id, maxlen=32, device=device)
 
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -128,7 +126,8 @@ class Evaluator(Callback):
         self.best_bleu = 0.
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        metrics = self.evaluate(valid_dataset)  # 评测模型
+        just_show()
+        metrics = self.evaluate(valid_dataset.data[:valid_len])  # 评测模型
         if metrics['bleu'] > self.best_bleu:
             self.best_bleu = metrics['bleu']
             # model.save_weights('./best_model.pt')  # 保存模型
@@ -147,29 +146,24 @@ class Evaluator(Callback):
                 rouge_1 += scores[0]['rouge-1']['f']
                 rouge_2 += scores[0]['rouge-2']['f']
                 rouge_l += scores[0]['rouge-l']['f']
-                bleu += sentence_bleu(
-                    references=[title.split(' ')],
-                    hypothesis=pred_title.split(' '),
-                    smoothing_function=self.smooth
-                )
-        rouge_1 /= total
-        rouge_2 /= total
-        rouge_l /= total
-        bleu /= total
-        return {
-            'rouge-1': rouge_1,
-            'rouge-2': rouge_2,
-            'rouge-l': rouge_l,
-            'bleu': bleu,
-        }
+                bleu += sentence_bleu(references=[title.split(' ')], hypothesis=pred_title.split(' '),
+                                      smoothing_function=self.smooth)
+        rouge_1, rouge_2, rouge_l, bleu = rouge_1/total, rouge_2/total, rouge_l/total, bleu/total
+        return {'rouge-1': rouge_1, 'rouge-2': rouge_2, 'rouge-l': rouge_l, 'bleu': bleu}
+
+def just_show():
+    s1 = u'抽象了一种基于中心的战术应用场景与业务,并将网络编码技术应用于此类场景的实时数据多播业务中。在分析基于中心网络与Many-to-all业务模式特性的基础上,提出了仅在中心节点进行编码操作的传输策略以及相应的贪心算法。分析了网络编码多播策略的理论增益上界,仿真试验表明该贪心算法能够获得与理论相近的性能增益。最后的分析与仿真试验表明,在这种有中心网络的实时数据多播应用中,所提出的多播策略的实时性能要明显优于传统传输策略。'
+    s2 = u'普适计算环境中未知移动节点的位置信息是定位服务要解决的关键技术。在普适计算二维空间定位过程中,通过对三角形定位单元区域的误差分析,提出了定位单元布局(LUD)定理。在此基础上,对多个定位单元布局进行了研究,定义了一个新的描述定位单元中定位参考点覆盖效能的物理量——覆盖基,提出了在误差最小情况下定位单元布局的覆盖基定理。仿真实验表明定位单元布局定理能更好地满足对普适终端实时定位的需求,且具有较高的精度和最大覆盖效能。'
+    for s in [s1, s2]:
+        print(u'生成标题:', autotitle.generate(s))
 
 if __name__ == '__main__':
-
+    just_show()
     evaluator = Evaluator()
 
     model.fit(
         train_dataloader,
-        steps_per_epoch=None,
+        steps_per_epoch=steps_per_epoch,
         epochs=epochs,
         callbacks=[evaluator]
     )

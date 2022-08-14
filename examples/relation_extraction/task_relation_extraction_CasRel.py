@@ -8,7 +8,6 @@ import numpy as np
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.optimizers import ExponentialMovingAverage
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from tqdm import tqdm
 import torch

@@ -52,7 +52,7 @@
 # 3. 文本表示
 ## 3.1 无监督语义相似度
 - bert预训练模型 + 无监督finetune + cls位句向量(PromptBert除外)
-- 五个中文数据集 + 5个epoch取最优值 + valid指标
+- 五个中文数据集 + 5个epoch取最优值 + valid的spearmanr相关系数
 - 继续finetune, 部分数据集有小幅提升
 - 实验显示dropout_rate对结果影响较大
 
@@ -68,7 +68,7 @@
 
 ## 3.2 有监督语义相似度
 - bert预训练模型 + 训练数据finetune + cls位句向量
-- 五个中文数据集 + 5个epoch取最优值 + valid/test指标
+- 五个中文数据集 + 5个epoch取最优值 + valid/test的spearmanr相关系数
 - STS-B任务是5分类，其余是2分类
 
 |      solution     |     ATEC    |     BQ      |    LCQMC    |    PAWSX    |    STS-B    |      comment     |
@@ -77,17 +77,25 @@
 |  ContrastiveLoss  |50.02 / 49.19|72.52 / 70.98|77.49 / 78.27|58.21 / 57.65|69.87 / 68.58|   STS-B转为2分类  |
 |      InfoNCE      |47.77 / 46.99|69.86 / 68.14|71.74 / 74.54|52.82 / 54.21|83.31 / 78.72|   STS-B转为2分类  |
 |concat CrossEntropy|48.71 / 47.62|72.16 / 70.07|78.44 / 78.77|51.46 / 52.28|61.31 / 56.62|   STS-B转为2分类  |
-|   CosineMSELoss   |46.89 / 45.86|72.27 / 71.35|             |             |             |  STS-B标准化到0-1 |
+|   CosineMSELoss   |46.89 / 45.86|72.27 / 71.35|75.29 / 77.19|54.92 / 54.35|81.64 / 77.76|  STS-B标准化到0-1 |
 
 # 4. 关系提取
 - [百度关系提取数据集](http://ai.baidu.com/broad/download?dataset=sked)
 
 |      solution     |     f1    |    comment  |
 |        ----       |    ----   |    ----     |
-|       CasRel      |    ----   |    ----     |
-|     gplinker      |    ----   |    ----     |
-|     tplinker      |    ----   |    ----     |
-|    tplinker_plus  |    ----   |    ----     |
+|       CasRel      |   81.87   |    ----     |
+|     gplinker      |   81.78   |    ----     |
+|     tplinker      |   62.84   |  seq_len=64 |
+|    tplinker_plus  |   79.22   |  seq_len=64 |
 
 # 5. 文本生成
-- 待整理
+- [CSL数据集](https://github.com/CLUEbenchmark/CLGE)
+
+| solution |  Rouge-L  |  Rouge-1  |  Rouge-2  |    BLEU   |    comment  |
+|   ----   |    ----   |    ----   |    ----   |    ----   |    ----     |
+|bert+unlim|    ----   |    ----   |    ----   |    ----   |    ----     |
+|   bart   |    ----   |    ----   |    ----   |    ----   |    ----     |
+|   mt5    |    ----   |    ----   |    ----   |    ----   |    ----     |
+|t5_pegasus|    ----   |    ----   |    ----   |    ----   |    ----     |
+|  uer_t5  |    ----   |    ----   |    ----   |    ----   |    ----     |
