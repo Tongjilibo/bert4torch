@@ -57,7 +57,7 @@ def collate_fn(batch):
     """单条样本格式：content：[CLS]文章[SEP]  tgt: [CLS]标题[SEP]
     """
     batch_content_ids, batch_titile_ids = [], []
-    for content, title in batch:
+    for title, content in batch:
         token_ids, _ = tokenizer.encode(content, maxlen=max_c_len)
         batch_content_ids.append(token_ids)
         token_ids, _ = tokenizer.encode(title, maxlen=max_t_len)

@@ -27,6 +27,21 @@ is_py2 = six.PY2
 if not is_py2:
     basestring = str
 
+def take_along_dim(input_tensor, indices, dim=None):
+    '''兼容部分低版本pytorch没有torch.take_along_dim
+    '''
+    if torch.__version__ >= '1.9.0':
+        return torch.take_along_dim(input_tensor, indices, dim)
+    else:
+        # 该逻辑仅在少量数据上测试，如有bug，欢迎反馈
+        if dim is None:
+            res = input_tensor.flatten()[indices]
+        else:
+            res = np.take_along_axis(input_tensor.cpu().numpy(), indices.cpu().numpy(), axis=dim)
+            res = torch.from_numpy(res).to(input_tensor.device)
+        # assert res.equal(torch.take_along_dim(input_tensor, indices, dim))
+        return res
+
 def is_string(s):
     """判断是否是字符串
     """
@@ -699,7 +714,7 @@ class AutoRegressiveDecoder(object):
             indices_1 = torch.div(indices, scores.shape[1], rounding_mode='trunc')  # 行索引
             indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
             output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
-            output_scores = torch.take_along_dim(scores, indices, dim=None)  # 更新得分
+            output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分
             is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
             end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
             if output_ids.shape[1] >= self.minlen:  # 最短长度判断
@@ -744,11 +759,11 @@ class AutoRegressiveDecoder(object):
                 output_ids = output_ids.repeat([n]+[1]*(len(output_ids.shape)-1))
             if topk is not None:
                 k_indices = probas.argsort(dim=-1, descending=True)[:, :topk]  # 仅保留topk
-                probas = torch.take_along_dim(probas, k_indices, dim=1)  # topk概率
+                probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
                 probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
             if topp is not None:
                 p_indices = probas.argsort(dim=-1, descending=True)  # 从高到低排序
-                probas = torch.take_along_dim(probas, p_indices, dim=-1)  # 排序概率
+                probas = take_along_dim(probas, p_indices, dim=-1)  # 排序概率
                 cumsum_probas = torch.cumsum(probas, dim=-1)  # 累积概率
                 flag = torch.roll(cumsum_probas >= topp, 1, dims=1)  # 标记超过topp的部分
                 flag[:, 0] = False  # 结合上面的torch.roll，实现平移一位的效果
@@ -759,9 +774,9 @@ class AutoRegressiveDecoder(object):
             sample_ids = torch.stack([sample_func(p) for p in probas])
             sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
             if topp is not None:
-                sample_ids = torch.take_along_dim(p_indices, sample_ids, dim=1)  # 对齐原id
+                sample_ids = take_along_dim(p_indices, sample_ids, dim=1)  # 对齐原id
             if topk is not None:
-                sample_ids = torch.take_along_dim(k_indices, sample_ids, dim=1)  # 对齐原id
+                sample_ids = take_along_dim(k_indices, sample_ids, dim=1)  # 对齐原id
             output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
             is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
             end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记

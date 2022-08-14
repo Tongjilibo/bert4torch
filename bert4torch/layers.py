@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
-from bert4torch.snippets import get_sinusoid_encoding_table
+from bert4torch.snippets import get_sinusoid_encoding_table, take_along_dim
 from bert4torch.activations import get_activation
 from typing import List, Optional
 import random
@@ -741,7 +741,7 @@ class RelativePositionsEncoding(nn.Module):
         # position_embeddings = position_embeddings.view(my_shape)
 
         # 实现方式2
-        # position_embeddings = torch.take_along_dim(embeddings_table, final_mat.flatten().unsqueeze(1), dim=0)
+        # position_embeddings = take_along_dim(embeddings_table, final_mat.flatten().unsqueeze(1), dim=0)
         # position_embeddings = position_embeddings.reshape(*final_mat.shape, embeddings_table.shape[-1])  # [seq_len, seq_len, hdsz]
         # self.register_buffer('position_embeddings', position_embeddings)
         

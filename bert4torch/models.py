@@ -6,7 +6,7 @@ import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
-from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT, IterDataset
+from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT, IterDataset, take_along_dim
 from bert4torch.activations import get_activation
 import warnings
 
@@ -480,8 +480,9 @@ class BERT_BASE(BaseModel):
             embeddings = embeddings - alpha * embeddings[:1]
             embeddings = embeddings / (1 - alpha)
             position_index = torch.arange(self.max_position)[:, None]
-            embeddings_x = torch.take_along_dim(embeddings,  torch.div(position_index, embeddings.size(0), rounding_mode='trunc'), dim=0)
-            embeddings_y = torch.take_along_dim(embeddings, position_index % embeddings.size(0), dim=0)
+            # 为兼容低版本pytorch没有take_along_dim
+            embeddings_x = take_along_dim(embeddings,  torch.div(position_index, embeddings.size(0), rounding_mode='trunc'), dim=0)
+            embeddings_y = take_along_dim(embeddings, position_index % embeddings.size(0), dim=0)
             embeddings = alpha * embeddings_x + (1 - alpha) * embeddings_y
 
         return embeddings

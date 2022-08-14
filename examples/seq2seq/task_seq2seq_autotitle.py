@@ -125,7 +125,7 @@ class Evaluator(Callback):
         just_show()
 
 if __name__ == '__main__':
-
+    just_show()
     evaluator = Evaluator()
 
     model.fit(
