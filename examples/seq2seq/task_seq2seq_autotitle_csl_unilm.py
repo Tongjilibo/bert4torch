@@ -95,7 +95,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         y_true = (y_true*y_mask).flatten()
         return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 2e-5))
+model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器
