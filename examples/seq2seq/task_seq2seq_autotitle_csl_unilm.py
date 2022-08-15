@@ -20,7 +20,7 @@ from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 # 基本参数
 maxlen = 256
 batch_size = 16
-epochs = 20
+epochs = 50
 steps_per_epoch = None
 valid_len = 1000
 

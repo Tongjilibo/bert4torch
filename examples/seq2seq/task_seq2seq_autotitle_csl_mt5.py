@@ -22,7 +22,7 @@ from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 max_c_len = 256
 max_t_len = 32
 batch_size = 16
-epochs = 20
+epochs = 50
 steps_per_epoch = None
 valid_len = 1000
 token_pad_ids = -100
@@ -92,7 +92,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         _, _, y_pred = outputs
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=token_pad_ids), optimizer=optim.Adam(model.parameters(), 2e-4))
+model.compile(loss=CrossEntropyLoss(ignore_index=token_pad_ids), optimizer=optim.Adam(model.parameters(), 1e-4))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

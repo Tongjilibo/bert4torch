@@ -19,7 +19,7 @@ from rouge import Rouge
 max_c_len = 256
 max_t_len = 32
 batch_size = 16
-epochs = 20
+epochs = 50
 steps_per_epoch = None
 valid_len = 1000
 
