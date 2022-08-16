@@ -25,7 +25,7 @@ valid_len = 1000
 
 # bert配置
 config_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/bert4torch_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/pytorch_model.bin'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/bert4torch_pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bart/[FudanNLP_torch_base]/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -61,7 +61,7 @@ def collate_fn(batch):
         token_ids, _ = tokenizer.encode(content, maxlen=max_c_len)
         batch_content_ids.append(token_ids)
         token_ids, _ = tokenizer.encode(title, maxlen=max_t_len)
-        batch_titile_ids.append(token_ids)
+        batch_titile_ids.append([tokenizer._token_end_id] + token_ids)  # 预训练时候是用[SEP]开头的
 
     batch_content_ids = torch.tensor(sequence_padding(batch_content_ids), dtype=torch.long, device=device)
     batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids), dtype=torch.long, device=device)
@@ -96,7 +96,7 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
-autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
+autotitle = AutoTitle(start_id=tokenizer._token_end_id, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
 
 def just_show():
     s1 = u'抽象了一种基于中心的战术应用场景与业务,并将网络编码技术应用于此类场景的实时数据多播业务中。在分析基于中心网络与Many-to-all业务模式特性的基础上,提出了仅在中心节点进行编码操作的传输策略以及相应的贪心算法。分析了网络编码多播策略的理论增益上界,仿真试验表明该贪心算法能够获得与理论相近的性能增益。最后的分析与仿真试验表明,在这种有中心网络的实时数据多播应用中,所提出的多播策略的实时性能要明显优于传统传输策略。'

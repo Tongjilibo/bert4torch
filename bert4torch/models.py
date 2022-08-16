@@ -1161,7 +1161,7 @@ class Encoder(BERT):
 
 class Decoder(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, with_lm=True, tie_emb_prj_weight=True, **kwargs):
+    def __init__(self, *args, with_lm=True, tie_emb_prj_weight=True, logit_scale=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -1174,6 +1174,7 @@ class Decoder(LM_Mask, BERT):
             self.final_dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
             if tie_emb_prj_weight:  # decoder底层的embedding和顶层的全连接共享
                 self.final_dense.weight = self.embeddings.word_embeddings.weight
+            if logit_scale:  # T5默认会有logit_scale, bart默认没有，所以bart要传入false
                 self.x_logit_scale = (self.hidden_size ** -0.5)
             else:
                 self.x_logit_scale = 1.
@@ -1273,6 +1274,7 @@ class BART(Transformer):
     '''encoder-decoder结构
     '''
     def __init__(self, *args, tie_emb_src_tgt_weight=True, **kwargs):
+        kwargs['logit_scale'] = kwargs.get('logit_scale', False)
         super(BART, self).__init__(*args, tie_emb_src_tgt_weight=tie_emb_src_tgt_weight, **kwargs)
         self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
 

@@ -34,7 +34,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim
+- **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题
 - **2022年7月27更新**：增加mixup/manifold_mixup/temporal_ensembling策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
 - **2022年7月16更新**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
 - **2022年7月10更新**：增加金融中文FAQ示例，天池新闻分类top1案例，增加EarlyStop，CRF中自带转bool类型
@@ -83,4 +83,4 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | t5 | UER | HuggingFace: [small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall), [base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)
 | mt5 | 谷歌 | [HuggingFace](https://huggingface.co/google/mt5-base)
 | t5_pegasus | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
-| bart | 复旦 | [Github](https://github.com/fastnlp/CPT)
+| bart | 复旦 | [Github](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fundanNLP.py)
