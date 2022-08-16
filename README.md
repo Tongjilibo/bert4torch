@@ -83,4 +83,4 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | t5 | UER | HuggingFace: [small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall), [base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)
 | mt5 | 谷歌 | [HuggingFace](https://huggingface.co/google/mt5-base)
 | t5_pegasus | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
-| bart | 复旦 | [Github](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fundanNLP.py)
+| bart | 复旦 | [Github](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
