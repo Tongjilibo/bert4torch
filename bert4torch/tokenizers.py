@@ -651,7 +651,7 @@ def convert_to_unicode(text):
 class SpTokenizer(TokenizerBase):
     """基于SentencePiece模型的封装，使用上跟Tokenizer基本一致。
     """
-    def __init__(self, sp_model_path, **kwargs):
+    def __init__(self, sp_model_path, remove_space=True, keep_accents=False, do_lower_case=False, **kwargs):
         super(SpTokenizer, self).__init__(**kwargs)
         import sentencepiece as spm
         self.sp_model = spm.SentencePieceProcessor()
@@ -659,6 +659,9 @@ class SpTokenizer(TokenizerBase):
         self._token_pad = self.sp_model.id_to_piece(self.sp_model.pad_id())
         self._token_unk = self.sp_model.id_to_piece(self.sp_model.unk_id())
         self._vocab_size = self.sp_model.get_piece_size()
+        self.remove_space = remove_space
+        self.keep_accents = keep_accents
+        self.do_lower_case = do_lower_case
 
         for token in ['pad', 'unk', 'mask', 'start', 'end']:
             try:
@@ -668,6 +671,22 @@ class SpTokenizer(TokenizerBase):
             except:
                 pass
 
+    def preprocess_text(self, inputs):
+        '''从transformers包的tokenization_xlnet移植过来，主要区别是对标点符号的处理
+        '''
+        if self.remove_space:
+            outputs = " ".join(inputs.strip().split())
+        else:
+            outputs = inputs
+        outputs = outputs.replace("``", '"').replace("''", '"')
+
+        if not self.keep_accents:
+            outputs = unicodedata.normalize("NFKD", outputs)
+            outputs = "".join([c for c in outputs if not unicodedata.combining(c)])
+        if self.do_lower_case:
+            outputs = outputs.lower()
+
+        return outputs
     def token_to_id(self, token):
         """token转换为对应的id
         """
@@ -694,6 +713,7 @@ class SpTokenizer(TokenizerBase):
         if self._pre_tokenize is not None:
             text = ' '.join(self._pre_tokenize(text))
 
+        text = self.preprocess_text(text)  # 是否去空格，转符号，转小写
         tokens = self.sp_model.encode_as_pieces(text)
         return tokens
 
