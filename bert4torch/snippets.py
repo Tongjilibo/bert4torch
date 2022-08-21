@@ -18,6 +18,7 @@ import inspect
 import json
 import torch.nn.functional as F
 import random
+from datetime import datetime
 import warnings
 import os
 
@@ -502,7 +503,8 @@ class ProgbarLogger(Callback):
 
     def on_epoch_begin(self, global_step=None, epoch=None, logs=None):
         if self.verbose:
-            print('Epoch %d/%d' % (epoch + 1, self.epochs))
+            time_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            print('%s | Epoch %d/%d' % (time_start, epoch + 1, self.epochs))
             self.target = self.params['steps']
             self.progbar = Progbar(target=self.target, verbose=self.verbose, stateful_metrics=self.stateful_metrics)
         self.seen = 0

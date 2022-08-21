@@ -46,6 +46,7 @@
 - [task_sequence_labeling_ner_mrc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_mrc.py)：ner例子，[mrc方案](https://github.com/z814081807/DeepNER)，用阅读理解的方式来做
 - [task_sequence_labeling_ner_span.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_span.py)：ner例子，[span方案](https://github.com/z814081807/DeepNER)，用半指针-半标注方式来做
 - [uie](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/uie)：ner例子，[uie方案](https://github.com/universal-ie/UIE)，prompt+mrc模型结构
+- [task_sequence_labeling_ner_W2NER.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_W2NER.py)：ner例子，[W2NER](https://github.com/ljynlp/W2NER)
 
 ### 文本表示
 - [task_sentence_embedding_unsup_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsup_bert_whitening.py)：参考[bert_whitening](https://github.com/bojone/BERT-whitening)
