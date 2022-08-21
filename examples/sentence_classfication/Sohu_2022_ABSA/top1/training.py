@@ -125,7 +125,7 @@ class Loss(nn.CrossEntropyLoss):
         return loss
 optimizer = optim.AdamW(model.parameters(), lr=5e-5)
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps=len(train_dataloader)*epochs, last_epoch=-1)
-model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, max_grad_norm=1.0, adversarial_train={'name': 'fgm' if use_adv_train else ''})
+model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=1.0, adversarial_train={'name': 'fgm' if use_adv_train else ''})
 
 # swa
 if use_swa:

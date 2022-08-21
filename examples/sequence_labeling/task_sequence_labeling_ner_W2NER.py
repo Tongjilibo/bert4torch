@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -17,9 +18,21 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from collections import defaultdict, deque
 from sklearn.metrics import precision_recall_fscore_support
 
-# 模型参数
-maxlen = 256
-batch_size = 1
+# 模型参数：训练
+epochs = 20  # 训练轮数
+steps_per_epoch = 100  # 每轮步数
+maxlen = 256  # 最大长度
+batch_size = 8  # 根据gpu显存设置
+learning_rate = 1e-3
+clip_grad_norm = 5.0
+bert_learning_rate = 5e-6
+warm_factor = 0.1
+weight_decay = 0
+use_bert_last_4_layers = True
+categories = {'LOC':2, 'PER':3, 'ORG':4}
+label_num = len(categories) + 2
+
+# 模型参数：网络结构
 dist_emb_size = 20
 type_emb_size = 20
 lstm_hid_size = 512
@@ -31,9 +44,6 @@ dilation = [1, 2, 3]
 emb_dropout = 0.5
 conv_dropout = 0.5
 out_dropout = 0.33
-use_bert_last_4_layers = True
-categories = {'LOC':2, 'PER':3, 'ORG':4}
-label_num = len(categories) + 2
 
 # BERT base
 config_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/config.json'
@@ -88,7 +98,8 @@ class MyDataset(ListDataset):
                         d.append([i, i, flag[2:]])
                     elif flag[0] == 'I':
                         d[-1][1] = i
-
+                if len(sentence) > maxlen - 2:
+                    continue
                 tokens = [tokenizer.tokenize(word)[1:-1] for word in sentence[:maxlen-2]]
                 pieces = [piece for pieces in tokens for piece in pieces]
                 tokens_ids = [tokenizer._token_start_id] + tokenizer.tokens_to_ids(pieces) + [tokenizer._token_end_id]
@@ -135,8 +146,6 @@ class MyDataset(ListDataset):
                     _grid_labels[index[-1], index[0]] = categories[e_type]
                 _entity_text = set([convert_index_to_text(list(range(e[0], e[1]+1)), categories[e[-1]]) for e in d])
                 D.append((tokens_ids, _pieces2word, _dist_inputs, _grid_labels, _grid_mask2d, _entity_text))
-                # if len(D) > 400:
-                #     return D
         return D
 
 
@@ -166,6 +175,9 @@ def collate_fn(data):
 
     return [tokens_ids, pieces2word, dist_inputs, sent_length, grid_mask2d], [grid_labels, grid_mask2d, _entity_text]
 
+# 加载数据
+train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class ConvolutionLayer(nn.Module):
@@ -332,9 +344,28 @@ model = Model(use_bert_last_4_layers).to(device)
 class Loss(nn.CrossEntropyLoss):
     def forward(self, outputs, labels):
         grid_labels, grid_mask2d, _ = labels
+        grid_mask2d = grid_mask2d.clone()
         return super().forward(outputs[grid_mask2d], grid_labels[grid_mask2d])
 
-model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
+bert_params = set(model.bert.parameters())
+other_params = list(set(model.parameters()) - bert_params)
+no_decay = ['bias', 'LayerNorm.weight']
+params = [
+    {'params': [p for n, p in model.bert.named_parameters() if not any(nd in n for nd in no_decay)],
+        'lr': bert_learning_rate,
+        'weight_decay': weight_decay},
+    {'params': [p for n, p in model.bert.named_parameters() if any(nd in n for nd in no_decay)],
+        'lr': bert_learning_rate,
+        'weight_decay': 0.0},
+    {'params': other_params,
+        'lr': learning_rate,
+        'weight_decay': weight_decay},
+]
+
+optimizer = optim.Adam(params, lr=learning_rate, weight_decay=weight_decay)
+updates_total = (len(train_dataloader) if steps_per_epoch is None else steps_per_epoch) * epochs
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warm_factor * updates_total, num_training_steps=updates_total)
+model.compile(loss=Loss(), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=5.0)
 
 class Evaluator(Callback):
     """评估与保存
@@ -447,13 +478,7 @@ class Evaluator(Callback):
         return ent_c, ent_p, ent_r, decode_entities
 
 if __name__ == '__main__':
-    # 加载数据
-    train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-    valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
-
     evaluator = Evaluator()
-    evaluator.evaluate(valid_dataloader)
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
-
+    model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
 else: 
     model.load_weights('best_model.pt')

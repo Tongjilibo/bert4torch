@@ -504,7 +504,7 @@ class ProgbarLogger(Callback):
     def on_epoch_begin(self, global_step=None, epoch=None, logs=None):
         if self.verbose:
             time_start = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print('%s | Epoch %d/%d' % (time_start, epoch + 1, self.epochs))
+            print('%s - Epoch: %d/%d' % (time_start, epoch + 1, self.epochs))
             self.target = self.params['steps']
             self.progbar = Progbar(target=self.target, verbose=self.verbose, stateful_metrics=self.stateful_metrics)
         self.seen = 0

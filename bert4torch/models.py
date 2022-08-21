@@ -18,19 +18,19 @@ class BaseModel(nn.Module):
         self.global_step, self.local_step, self.total_steps, self.epoch, self.train_dataloader = 0, 0, 0, 0, None
         self.callbacks = []
     
-    def compile(self, loss, optimizer, scheduler=None, max_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
+    def compile(self, loss, optimizer, scheduler=None, clip_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
         '''定义loss, optimizer, metrics, 是否在计算loss前reshape
         loss: loss
         optimizer: 优化器
         scheduler: scheduler
-        max_grad_norm: 是否使用梯度裁剪, 默认不启用
+        clip_grad_norm: 是否使用梯度裁剪, 默认不启用
         use_amp: 是否使用混合精度，默认不启用
         metrics: 训练过程中需要打印的指标, loss相关指标默认会打印, 目前支持accuracy
         '''
         self.criterion = loss
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.max_grad_norm = max_grad_norm
+        self.clip_grad_norm = clip_grad_norm
         self.use_amp = use_amp
         if use_amp:
             assert adversarial_train['name'] not in {'vat', 'gradient_penalty'}, 'Amp and adversarial_train both run is not supported in current version'
@@ -239,14 +239,14 @@ class BaseModel(nn.Module):
                     # 混合精度
                     if self.use_amp:
                         self.scaler.unscale_(self.optimizer)
-                        if self.max_grad_norm is not None:  # 梯度裁剪
-                            torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+                        if self.clip_grad_norm is not None:  # 梯度裁剪
+                            torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip_grad_norm)
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
                         skip_scheduler = self.scaler.get_scale() != scale_before_step
                     else:
-                        if self.max_grad_norm is not None:  # 梯度裁剪
-                            torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+                        if self.clip_grad_norm is not None:  # 梯度裁剪
+                            torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip_grad_norm)
                         self.optimizer.step()
 
                     self.optimizer.zero_grad()  # 清梯度
