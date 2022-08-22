@@ -17,6 +17,12 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **自行训练**：针对自己的数据，修改相应的数据处理代码块
 - **开发环境**：使用`torch==1.10`版本进行开发，如其他版本遇到不适配，欢迎反馈
 
+## 功能
+- **核心功能**：加载bert、roberta、albert、xlnet、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha等预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
+- **丰富示例**：包含[pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain)、[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)等多种解决方案
+- **易用trick**：集成了常见的[trick](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick), 即插即用
+- **其他特性**：可[加载transformers库模型](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)一起使用；调用方式和bert4keras基本一致，简洁高效；实现基于keras的训练进度条动态展示；兼容torchinfo，实现打印各层参数量功能；自定义fit过程，满足高阶需求
+
 ## 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/Tutorials.md)
 - [实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
@@ -55,11 +61,6 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 ## 背景
 - 用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)
 - 初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
-
-## 功能
-- **核心功能**：加载bert、roberta、albert、xlnet、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha等预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
-- **丰富示例**：包含[pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain)、[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)等多种解决方案
-- **其他特性**：可[加载transformers库模型](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)一起使用；调用方式和bert4keras基本一致，简洁高效；实现基于keras的训练进度条动态展示；兼容torchinfo，实现打印各层参数量功能；自定义fit过程，满足高阶需求
 
 ## 预训练权重
 | 模型分类 |  权重来源 | 权重链接 | 转换说明(若有) | 
