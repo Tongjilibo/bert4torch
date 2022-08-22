@@ -1189,3 +1189,82 @@ def seed_everything(seed=None):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     return seed
+
+
+def parallel_apply_generator(func, iterable, workers, max_queue_size, dummy=False, random_seeds=True):
+    """多进程或多线程地将func应用到iterable的每个元素中（直接从bert4keras中移植过来）。
+    注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。结果将作为一个
+    generator返回，其中每个item是输入的序号以及该输入对应的处理结果。
+    参数：
+        dummy: False是多进程/线性，True则是多线程/线性；
+        random_seeds: 每个进程的随机种子。
+    """
+    if dummy:
+        from multiprocessing.dummy import Pool, Queue
+    else:
+        from multiprocessing import Pool, Queue
+
+    in_queue, out_queue, seed_queue = Queue(max_queue_size), Queue(), Queue()
+    if random_seeds is True:
+        random_seeds = [None] * workers
+    elif random_seeds is None or random_seeds is False:
+        random_seeds = []
+    for seed in random_seeds:
+        seed_queue.put(seed)
+
+    def worker_step(in_queue, out_queue):
+        """单步函数包装成循环执行
+        """
+        if not seed_queue.empty():
+            np.random.seed(seed_queue.get())
+        while True:
+            i, d = in_queue.get()
+            r = func(d)
+            out_queue.put((i, r))
+
+    # 启动多进程/线程
+    pool = Pool(workers, worker_step, (in_queue, out_queue))
+
+    # 存入数据，取出结果
+    in_count, out_count = 0, 0
+    for i, d in enumerate(iterable):
+        in_count += 1
+        while True:
+            try:
+                in_queue.put((i, d), block=False)
+                break
+            except six.moves.queue.Full:
+                while out_queue.qsize() > max_queue_size:
+                    yield out_queue.get()
+                    out_count += 1
+        if out_queue.qsize() > 0:
+            yield out_queue.get()
+            out_count += 1
+
+    while out_count != in_count:
+        yield out_queue.get()
+        out_count += 1
+
+    pool.terminate()
+
+
+def parallel_apply(func, iterable, workers, max_queue_size, callback=None, dummy=False, random_seeds=True, unordered=True):
+    """多进程或多线程地将func应用到iterable的每个元素中（直接从bert4keras中移植过来）。
+    注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。
+    参数：
+        callback: 处理单个输出的回调函数；
+        dummy: False是多进程/线性，True则是多线程/线性；windows需设置dummy=True
+        random_seeds: 每个进程的随机种子；
+        unordered: 若为False，则按照输入顺序返回，仅当callback为None时生效。
+    """
+    generator = parallel_apply_generator(func, iterable, workers, max_queue_size, dummy, random_seeds)
+
+    if callback is None:
+        if unordered:
+            return [d for i, d in generator]
+        else:
+            results = sorted(generator, key=lambda d: d[0])
+            return [d for i, d in results]
+    else:
+        for i, d in generator:
+            callback(d)
