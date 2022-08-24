@@ -74,12 +74,12 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | xlnet | 哈工大xlnet | [Github](https://github.com/ymcui/Chinese-XLNet)
 | electra | 哈工大electra | [Github](https://github.com/ymcui/Chinese-ELECTRA)
 | macbert | 哈工大macbert | [Github](https://github.com/ymcui/MacBERT)
-| roformer | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer) |  HuggingFace搜索
-| roformer_v2 | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer-v2) | HuggingFace搜索
-| simbert | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/simbert) | HuggingFace搜索
-| roformer-sim | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer-sim) | HuggingFace搜索
+| roformer | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer), [HuggingFace第三方](https://huggingface.co/junnyu/roformer_chinese_base) |  
+| roformer_v2 | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer-v2), [HuggingFace第三方](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
+| simbert | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/simbert), [HuggingFace第三方](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
+| roformer-sim | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer-sim), [HuggingFace第三方](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
 | gau-alpha | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
-| nezha | 华为 | [Github](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow) | HuggingFace搜索
+| nezha | 华为 | [Github官方](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow), [Github第三方](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | [官方转换脚本](https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/NEZHA-PyTorch/convert_tf_checkpoint_to_pytorch.py)
 | gpt | CDial-GPT | [Github](https://github.com/thu-coai/CDial-GPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt__CDial-GPT-LCCC.py)
 | gpt2 | 清华26亿 cmp_lm | [Github](https://github.com/TsinghuaAI/CPM-1-Generate) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__cmp_lm_2.6b.py)
 | gpt2 | 中文GPT2_ML模型 | [Github](https://github.com/imcaspar/gpt2-ml) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__gpt2-ml.py)
