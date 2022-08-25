@@ -1,7 +1,12 @@
 # bert4torch
 **一款用pytorch来复现bert4keras的简洁训练框架**
 
-[![licence](https://img.shields.io/github/license/Tongjilibo/bert4torch.svg?maxAge=3600)](https://github.com/Tongjilibo/bert4torch/blob/master/LICENSE) [![GitHub release](https://img.shields.io/github/release/Tongjilibo/bert4torch.svg?maxAge=3600)](https://github.com/Tongjilibo/bert4torch/releases) [![PyPI](https://img.shields.io/pypi/v/bert4torch?label=pypi%20package)](https://pypi.org/project/bert4torch/) [![PyPI - Downloads](https://img.shields.io/pypi/dm/bert4torch)](https://pypistats.org/packages/bert4torch)
+[![licence](https://img.shields.io/github/license/Tongjilibo/bert4torch.svg?maxAge=3600)](https://github.com/Tongjilibo/bert4torch/blob/master/LICENSE) 
+[![GitHub release](https://img.shields.io/github/release/Tongjilibo/bert4torch.svg?maxAge=3600)](https://github.com/Tongjilibo/bert4torch/releases) 
+[![PyPI](https://img.shields.io/pypi/v/bert4torch?label=pypi%20package)](https://pypi.org/project/bert4torch/) 
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/bert4torch)](https://pypistats.org/packages/bert4torch)
+[![GitHub stars](https://img.shields.io/github/stars/Tongjilibo/bert4torch?style=social)](https://github.com/Tongjilibo/bert4torch)
+[![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/Tongjilibo/bert4torch/issues)
 
 ## 下载安装
 安装稳定版
@@ -66,24 +71,24 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 ## 预训练权重
 | 模型分类 |  权重来源 | 权重链接 | 转换说明(若有) | 
 |  ----  |  ----  | ----  | ----  |
-|  bert  | 谷歌原版bert | [Github](https://github.com/google-research/bert) | [转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)
-|  bert  | 哈工大bert | [Github](https://github.com/ymcui/Chinese-BERT-wwm), [HuggingFace](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
-| bert | bert-base-chinese(HuggingFace) | [HuggingFace](https://huggingface.co/bert-base-chinese) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
-| robert | 哈工大robert | [Github](https://github.com/ymcui/Chinese-BERT-wwm), HuggingFace: [base](hfl/chinese-roberta-wwm-ext), [large](https://huggingface.co/hfl/chinese-roberta-wwm-ext-large)
-| albert | brightmart | [Github](https://github.com/brightmart/albert_zh)
-| xlnet | 哈工大xlnet | [Github](https://github.com/ymcui/Chinese-XLNet)
-| electra | 哈工大electra | [Github](https://github.com/ymcui/Chinese-ELECTRA)
-| macbert | 哈工大macbert | [Github](https://github.com/ymcui/MacBERT)
-| roformer | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer), [HuggingFace第三方](https://huggingface.co/junnyu/roformer_chinese_base) |  
-| roformer_v2 | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer-v2), [HuggingFace第三方](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
-| simbert | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/simbert), [HuggingFace第三方](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
-| roformer-sim | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/roformer-sim), [HuggingFace第三方](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
-| gau-alpha | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
-| nezha | 华为 | [Github官方](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow), [Github第三方](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | [官方转换脚本](https://github.com/huawei-noah/Pretrained-Language-Model/blob/master/NEZHA-PyTorch/convert_tf_checkpoint_to_pytorch.py)
-| gpt | CDial-GPT | [Github](https://github.com/thu-coai/CDial-GPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt__CDial-GPT-LCCC.py)
-| gpt2 | 清华26亿 cmp_lm | [Github](https://github.com/TsinghuaAI/CPM-1-Generate) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__cmp_lm_2.6b.py)
-| gpt2 | 中文GPT2_ML模型 | [Github](https://github.com/imcaspar/gpt2-ml) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__gpt2-ml.py)
-| t5 | UER | HuggingFace: [small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall), [base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)
-| mt5 | 谷歌 | [HuggingFace](https://huggingface.co/google/mt5-base)
-| t5_pegasus | 追一科技 | [Github](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
-| bart | 复旦 | [Github](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
+|  bert  | 谷歌原版bert | [tf](https://github.com/google-research/bert) | [转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)
+|  bert  | 哈工大chinese-bert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
+| bert | bert-base-chinese | [pytorch](https://huggingface.co/bert-base-chinese) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
+| robert | 哈工大chinese-robert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-roberta-wwm-ext)
+| albert | brightmart | [tf](https://github.com/brightmart/albert_zh), [pytorch](https://github.com/lonePatient/albert_pytorch)
+| xlnet | 哈工大xlnet | [tf/pytorch](https://github.com/ymcui/Chinese-XLNet)
+| electra | 哈工大electra | [tf](https://github.com/ymcui/Chinese-ELECTRA), [pytorch](https://huggingface.co/hfl/chinese-electra-base-discriminator)
+| macbert | 哈工大macbert | [tf](https://github.com/ymcui/MacBERT), [pytorch](https://huggingface.co/hfl/chinese-macbert-base)
+| roformer | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer), [pytorch](https://huggingface.co/junnyu/roformer_chinese_base) |  
+| roformer_v2 | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-v2), [pytorch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
+| simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert), [pytorch](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
+| roformer-sim | 追一科技 | [ft](https://github.com/ZhuiyiTechnology/roformer-sim), [pytorch](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
+| gau-alpha | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
+| nezha | 华为 | [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow), [pytorch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | 
+| gpt | CDial-GPT | [pytorch](https://github.com/thu-coai/CDial-GPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt__CDial-GPT-LCCC.py)
+| gpt2 | 清华26亿 cmp_lm | [pytorch](https://github.com/TsinghuaAI/CPM-1-Generate) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__cmp_lm_2.6b.py)
+| gpt2 | 中文GPT2_ML模型 | [tf](https://github.com/imcaspar/gpt2-ml), [pytorch](https://github.com/ghosthamlet/gpt2-ml-torch) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__gpt2-ml.py)
+| t5 | UER | [pytorch](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)
+| mt5 | 谷歌 | [pytorch](https://huggingface.co/google/mt5-base)
+| t5_pegasus | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
+| bart | 复旦 | [pytorch](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
