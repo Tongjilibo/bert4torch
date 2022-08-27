@@ -69,6 +69,8 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - 初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
 ## 预训练权重
+- 部分权重是要加载修改的[config.json](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
+
 | 模型分类 |  权重来源 | 权重链接 | 转换说明(若有) | 
 |  ----  |  ----  | ----  | ----  |
 |  bert  | 谷歌原版bert | [tf](https://github.com/google-research/bert) | [转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)
