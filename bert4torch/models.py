@@ -692,6 +692,8 @@ class BERT(BERT_BASE):
         """BERT的embedding是token、position、segment三者embedding之和
         默认顺序是token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)
         """
+        assert isinstance(inputs, (list, tuple)), f'Inputs only support list,tuple format but passed {type(inputs)}'
+
         token_ids = inputs[0]
         index_ = 1
         if self.segment_vocab_size > 0:
@@ -1746,8 +1748,9 @@ class Transformer_XL(BERT):
     def apply_embeddings(self, inputs):
         '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入
         '''
-        self.mems = self.init_mems(inputs[0].size(0))  # 生成mems
+        assert isinstance(inputs, (list, tuple)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
+        self.mems = self.init_mems(inputs[0].size(0))  # 生成mems
         # 精简后embeddings中只计算word_emdedding
         word_emb = self.dropout(self.embeddings(inputs[0]))
         index_ = 1
