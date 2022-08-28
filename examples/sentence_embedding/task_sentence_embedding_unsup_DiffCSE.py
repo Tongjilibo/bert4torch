@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# DiffCSE中文测试
+# DiffCSE中文测试：model, electra部分的gennerator和discriminator都是用的同样的bert模型
 # 源项目: https://github.com/voidism/DiffCSE
 
 from bert4torch.snippets import sequence_padding

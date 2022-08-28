@@ -713,7 +713,10 @@ class AutoRegressiveDecoder(object):
                 inputs = [i.repeat([topk]+[1]*(len(i.shape)-1)) for i in inputs]
             scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
             indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
-            indices_1 = torch.div(indices, scores.shape[1], rounding_mode='trunc')  # 行索引
+            if torch.__version__ <= '1.7.1':
+                indices_1 = indices // scores.shape[1]  # 兼容老版本
+            else:
+                indices_1 = torch.div(indices, scores.shape[1], rounding_mode='floor')  # 行索引
             indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
             output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
             output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分
