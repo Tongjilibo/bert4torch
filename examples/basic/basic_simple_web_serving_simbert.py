@@ -19,7 +19,7 @@ else:
     args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base"
     args_model = 'roformer'
 
-# 加载simbert权重或roformer_v2
+# 加载simbert权重或simbert_v2
 root_model_path = args_model_path
 dict_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
