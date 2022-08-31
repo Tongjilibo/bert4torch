@@ -8,10 +8,9 @@
 # 整句的[CLS]用来做conds连接符判断: {0:"", 1:"and", 2:"or"}
 # col的[CLS]用来预测该列是否被select+agg聚合判断: {0:"", 1:"AVG", 2:"MAX", 3:"MIN", 4:"COUNT", 5:"SUM", 6:"不被select"}
 
-from turtle import forward
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
+from bert4torch.snippets import sequence_padding, Callback
 import json
 import codecs
 import numpy as np
@@ -160,7 +159,7 @@ def collate_fn(batch):
     cop = torch.tensor(sequence_padding(cop, length=x1.shape[1]), dtype=torch.long, device=device)
     return [x1, h, hm], [sel, conn, csel, cop, xm, hm]
 
-datadir = 'F:/Projects/data/corpus/other/追一科技首届中文NL2SQL挑战赛'
+datadir = 'F:/Projects/data/corpus/other/ZhuiyiTechnology_NL2SQL'
 train_dataloader = DataLoader(MyDataset(*read_data(f'{datadir}/train/train.json', f'{datadir}/train/train.tables.json')), 
                               batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_data, valid_table = read_data(f'{datadir}/val/val.json', f'{datadir}/val/val.tables.json')
