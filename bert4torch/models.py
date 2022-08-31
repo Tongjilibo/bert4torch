@@ -25,7 +25,7 @@ class BaseModel(nn.Module):
         scheduler: scheduler
         clip_grad_norm: 是否使用梯度裁剪, 默认不启用
         use_amp: 是否使用混合精度，默认不启用
-        metrics: 训练过程中需要打印的指标, loss相关指标默认会打印, 目前支持accuracy
+        metrics: 训练过程中需要打印的指标, loss相关指标默认会打印, 目前支持accuracy, 也支持自定义metric，形式为{key: func}
         '''
         self.criterion = loss
         self.optimizer = optimizer
@@ -38,10 +38,21 @@ class BaseModel(nn.Module):
             self.autocast = autocast
             self.scaler = torch.cuda.amp.GradScaler()
 
+        # 训练过程观测的指标
+        self.metrics, self.metrics_str = ['loss'], ['loss']
         if metrics is None:
             metrics = []
-        self.metrics = ['loss'] + [i for i in metrics if i!='loss']
-        
+        elif isinstance(metrics, dict):
+            metrics = [metrics]
+        assert isinstance(metrics, (list, tuple, dict)), 'Custom metrics only support (list, tuple, dict) format'
+        for i in metrics:
+            # 字符类型，目前仅支持accuracy, 或者字典形式 {key: func}
+            if (isinstance(i, str) and i != 'loss') or isinstance(i, dict):
+                self.metrics.append(i)
+                self.metrics_str.extend(list(i.keys()))
+            else:
+                raise ValueError('Args metrics only support String or Dict input')
+
         # 对抗训练
         self.adversarial = adversarial_train
         self.adversarial_initialize()
@@ -183,7 +194,7 @@ class BaseModel(nn.Module):
         self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
         train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
-        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
+        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics_str)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         self.callback_fun('train_begin')
 
         # epoch：当前epoch
@@ -253,16 +264,20 @@ class BaseModel(nn.Module):
                     if (self.scheduler is not None) and not skip_scheduler:
                         self.scheduler.step()
 
-                # 添加log打印
+                # 添加loss至log打印
                 logs.update({'loss': loss.item()})
                 logs_loss_detail = {k: v.item() if isinstance(v, torch.Tensor) else v for k, v in loss_detail.items()}
                 logs.update(logs_loss_detail)
                 if self.global_step == 0:
                     self.callbacks[0].add_metrics(list(logs_loss_detail.keys()), add_position=1)
+                # 添加metric至log打印
                 for metric in self.metrics:
                     tmp = metric_mapping(metric, output, train_y)  # 内置的一些accuracy指标
-                    if tmp is not None:
+                    if isinstance(tmp, (int, float)):
                         logs[metric] = tmp
+                    elif isinstance(tmp, dict):
+                        for key, val in tmp.items():
+                            logs[key] = val
                 self.callback_fun('batch_end', logs)
 
                 self.bti += 1

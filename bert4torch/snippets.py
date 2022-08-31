@@ -605,6 +605,14 @@ def metric_mapping(metric, y_pred, y_true):
         y_pred = torch.argmax(y_pred, dim=-1)
         acc = torch.sum(y_pred.eq(y_true)).item() / y_true.size(0)
         return acc
+    # {metric1: func1, metric2: func2}的回调函数形式
+    elif isinstance(metric, dict):
+        metric_res = {}
+        for key, func in metric.items():
+            if inspect.isfunction(func):
+                metric_res[key] = func(y_pred, y_true)
+                assert isinstance(metric_res[key], (int, float)), 'Custom metrics callbacks should return int/float values'
+        return metric_res
     return None
 
 def softmax(x, axis=-1):
