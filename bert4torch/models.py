@@ -47,7 +47,10 @@ class BaseModel(nn.Module):
         assert isinstance(metrics, (list, tuple, dict)), 'Custom metrics only support (list, tuple, dict) format'
         for i in metrics:
             # 字符类型，目前仅支持accuracy, 或者字典形式 {key: func}
-            if (isinstance(i, str) and i != 'loss') or isinstance(i, dict):
+            if isinstance(i, str) and i != 'loss':
+                self.metrics.append(i)
+                self.metrics_str.append(i)
+            elif isinstance(i, dict):
                 self.metrics.append(i)
                 self.metrics_str.extend(list(i.keys()))
             else:
