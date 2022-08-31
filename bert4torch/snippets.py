@@ -598,21 +598,18 @@ class EarlyStopping(Callback):
                 (self.monitor, ','.join(list(logs.keys()))), RuntimeWarning)
         return monitor_value
 
-def metric_mapping(metric, y_pred, y_true):
-    if metric == 'accuracy':
-        if isinstance(y_pred, (list, tuple)):
-            y_pred = y_pred[0]
-        y_pred = torch.argmax(y_pred, dim=-1)
-        acc = torch.sum(y_pred.eq(y_true)).item() / y_true.size(0)
-        return acc
-    # {metric1: func1, metric2: func2}的回调函数形式
-    elif isinstance(metric, dict):
-        metric_res = {}
-        for key, func in metric.items():
-            if inspect.isfunction(func):
-                metric_res[key] = func(y_pred, y_true)
-                assert isinstance(metric_res[key], (int, float)), 'Custom metrics callbacks should return int/float values'
+def metric_mapping(metric, func, y_pred, y_true):
+    # 自定义metrics
+    if inspect.isfunction(func):
+        metric_res = func(y_pred, y_true)
+        assert isinstance(metric_res, (int, float)), 'Custom metrics callbacks should return int/float values'
         return metric_res
+    # 自带metrics
+    elif metric == 'accuracy':
+        y_pred = y_pred[0] if isinstance(y_pred, (list, tuple)) else y_pred
+        y_pred = torch.argmax(y_pred, dim=-1)
+        acc = torch.sum(y_pred.eq(y_true)).item() / y_true.numel()
+        return acc
     return None
 
 def softmax(x, axis=-1):

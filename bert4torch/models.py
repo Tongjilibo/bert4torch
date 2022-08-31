@@ -8,6 +8,7 @@ from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
 from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT, IterDataset, take_along_dim
 from bert4torch.activations import get_activation
+from collections import OrderedDict
 import warnings
 
 
@@ -39,22 +40,21 @@ class BaseModel(nn.Module):
             self.scaler = torch.cuda.amp.GradScaler()
 
         # 训练过程观测的指标
-        self.metrics, self.metrics_str = ['loss'], ['loss']
+        self.metrics = OrderedDict({'loss': None})
         if metrics is None:
             metrics = []
         elif isinstance(metrics, dict):
             metrics = [metrics]
         assert isinstance(metrics, (list, tuple, dict)), 'Custom metrics only support (list, tuple, dict) format'
+
         for i in metrics:
             # 字符类型，目前仅支持accuracy, 或者字典形式 {key: func}
             if isinstance(i, str) and i != 'loss':
-                self.metrics.append(i)
-                self.metrics_str.append(i)
+                self.metrics[i] = None
             elif isinstance(i, dict):
-                self.metrics.append(i)
-                self.metrics_str.extend(list(i.keys()))
+                self.metrics.update(i)
             else:
-                raise ValueError('Args metrics only support String or Dict input')
+                raise ValueError('Args metrics only support "Dict, List[String], List[Dict], List[String, Dict]" format')
 
         # 对抗训练
         self.adversarial = adversarial_train
@@ -197,7 +197,7 @@ class BaseModel(nn.Module):
         self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
         train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
-        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, self.metrics_str)] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
+        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, list(self.metrics.keys()))] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         self.callback_fun('train_begin')
 
         # epoch：当前epoch
@@ -274,13 +274,10 @@ class BaseModel(nn.Module):
                 if self.global_step == 0:
                     self.callbacks[0].add_metrics(list(logs_loss_detail.keys()), add_position=1)
                 # 添加metric至log打印
-                for metric in self.metrics:
-                    tmp = metric_mapping(metric, output, train_y)  # 内置的一些accuracy指标
-                    if isinstance(tmp, (int, float)):
-                        logs[metric] = tmp
-                    elif isinstance(tmp, dict):
-                        for key, val in tmp.items():
-                            logs[key] = val
+                for metric, func in self.metrics.items():
+                    perf = metric_mapping(metric, func, output, train_y)  # 内置的一些accuracy指标
+                    if perf is not None:
+                        logs[metric] = perf
                 self.callback_fun('batch_end', logs)
 
                 self.bti += 1
