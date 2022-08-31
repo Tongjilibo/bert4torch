@@ -24,7 +24,7 @@ import torch.nn.functional as F
 from torch import nn, optim
 import re
 
-batch_size = 8
+batch_size = 16
 maxlen = 160
 num_agg = 7 # agg_sql_dict = {0:"", 1:"AVG", 2:"MAX", 3:"MIN", 4:"COUNT", 5:"SUM", 6:"不被select"}
 num_op = 5 # {0:">", 1:"<", 2:"==", 3:"!=", 4:"不被select"}
@@ -99,7 +99,6 @@ def most_similar_2(w, s):
     sl.extend([''.join(i) for i in zip(sw, sw[1:], sw[2:])])
     return most_similar(w, sl)
 
-
 class MyDataset(Dataset):
     def __init__(self, data, tables):
         self.data = data
@@ -116,6 +115,8 @@ class MyDataset(Dataset):
             _x1 = tokenizer.encode(j)[0]
             h.append(len(x1))
             x1.extend(_x1)
+        if len(x1) > maxlen:
+            return
         hm = [1] * len(h)  # 列的mask
 
         # 列是否被选择
@@ -148,7 +149,7 @@ class MyDataset(Dataset):
         return x1, xm, h, hm, sel, conn, csel, cop
 
 def collate_fn(batch):
-    x1, xm, h, hm, sel, conn, csel, cop = zip(*batch)
+    x1, xm, h, hm, sel, conn, csel, cop = zip(*[i for i in batch if i])
     x1 = torch.tensor(sequence_padding(x1), dtype=torch.long, device=device)
     xm = torch.tensor(sequence_padding(xm, length=x1.shape[1]), dtype=torch.long, device=device)
     h = torch.tensor(sequence_padding(h), dtype=torch.long, device=device)
@@ -239,11 +240,12 @@ def nl2sql(question, table):
         torch.tensor([h], dtype=torch.long, device=device),
         torch.tensor([hm], dtype=torch.long, device=device)
     ])
+    pconn, psel, pcop, pcsel = pconn.cpu().numpy(), psel.cpu().numpy(), pcop.cpu().numpy(), pcsel.cpu().numpy()
     R = {'agg': [], 'sel': []}
     for i, j in enumerate(psel[0].argmax(1)):
         if j != num_agg - 1: # num_agg-1类是不被select的意思
             R['sel'].append(i)
-            R['agg'].append(j)
+            R['agg'].append(int(j))
     conds = []
     v_op = -1
     for i, j in enumerate(pcop[0, :len(question)+1].argmax(1)):
@@ -279,12 +281,12 @@ def nl2sql(question, table):
                     if k in v:
                         i = table['header2id'][r]
                         break
-        R['conds'].add((i, j, k))
+        R['conds'].add((int(i), int(j), str(k)))
     R['conds'] = list(R['conds'])
     if len(R['conds']) <= 1: # 条件数少于等于1时，条件连接符直接为0
         R['cond_conn_op'] = 0
     else:
-        R['cond_conn_op'] = 1 + pconn[0, 1:].argmax() # 不能是0
+        R['cond_conn_op'] = 1 + int(pconn[0, 1:].argmax()) # 不能是0
     return R
 
 
@@ -314,7 +316,7 @@ class Evaluate(Callback):
     def evaluate(self, data, tables):
         right = 0.
         pbar = tqdm()
-        F = open('evaluate_pred.json', 'w')
+        F = open('evaluate_pred.json', 'w', encoding='utf-8')
         for i, d in enumerate(data):
             question = d['question']
             table = tables[d['table_id']]
@@ -323,8 +325,11 @@ class Evaluate(Callback):
             pbar.update(1)
             pbar.set_description('< acc: %.5f >' % (right / (i + 1)))
             d['sql_pred'] = R
-            s = json.dumps(d, ensure_ascii=False, indent=4)
-            F.write(s.encode('utf-8') + '\n')
+            try:
+                s = json.dumps(d, ensure_ascii=False, indent=4)
+            except:
+                continue
+            F.write(s + '\n')
         F.close()
         pbar.close()
         return right / len(data)
@@ -343,15 +348,13 @@ class Evaluate(Callback):
         pbar.close()
 
 
-
 if __name__ == '__main__':
     evaluator = Evaluate()
     model.fit(
         train_dataloader,
-        steps_per_epoch=10,
+        steps_per_epoch=None,
         epochs=15,
         callbacks=[evaluator]
     )
 else:
     model.load_weights('best_model.weights')
-    

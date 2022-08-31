@@ -602,7 +602,12 @@ def metric_mapping(metric, func, y_pred, y_true):
     # 自定义metrics
     if inspect.isfunction(func):
         metric_res = func(y_pred, y_true)
-        assert isinstance(metric_res, (int, float)), 'Custom metrics callbacks should return int/float values'
+        if inspect.isfunction(metric):
+            # 如果直接传入回调函数（无key），要求回调函数返回Dict[String: Int/Float]类型
+            assert isinstance(metric_res, dict), 'Custom metrics callbacks should return "Dict[String: Int/Float]" value'
+        elif isinstance(metric, str):
+            # 如果直接传入回调函数（有key），要求回调函数返回Int/Float类型
+            assert isinstance(metric_res, (int, float)), 'Custom metrics callbacks should return "Int, Float" value'
         return metric_res
     # 自带metrics
     elif metric == 'accuracy':

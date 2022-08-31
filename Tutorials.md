@@ -45,7 +45,7 @@ model.compile(
     loss=nn.CrossEntropyLoss(), # 可以自定义Loss
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 可以自定义优化器
     scheduler=None, # 可以自定义scheduler
-    metrics=['accuracy']
+    metrics=['accuracy']  # 可以自定义回调函数
 )
 
 # 定义评价函数
@@ -73,6 +73,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
+    # 指定训练的epochs，每轮的steps_per_epoch(不设置或者设置为None表示自动计算)，梯度累积grad_accumulation_steps
     model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, callbacks=[evaluator])
 ```
 
@@ -92,7 +93,9 @@ tokenizer = Tokenizer(token_dict, do_lower_case=True)  # 若无需精简，仅�
 - `tokenizer.encode()`: 把text转成token_ids，默认句首添加[CLS]，句尾添加[SEP]，返回token_ids和segment_ids，相当于同时调用`tokenizer.tokenize()`和`tokenizer.tokens_to_ids()`
 - `tokenizer.decode()`: 把token_ids转成text，默认会删除[CLS], [SEP], [UNK]等特殊字符，相当于调用`tokenizer.ids_to_tokens()`并做了一些后处理
 - `sequence_padding`: 将序列padding到同一长度, 传入一个元素为list, ndarray, tensor的list，返回ndarry或tensor
-
+- `parallel_apply()`: 多进程或多线程地将func应用到iterable的每个元素中
+- `get_pool_emb()`: 根据参数设置，多种方式获取句向量
+- `seed_everything()`: 固定全局seed
 
 ### 2) 模型定义部分
 - 模型创建
@@ -111,20 +114,29 @@ build_transformer_model(
     with_mlm=False,  # 是否包含MLM部分
     return_model_config=False,  # 是否返回模型配置参数
     output_all_encoded_layers=False,  # 是否返回所有hidden_state层
+    layer_add_embs=nn.Embedding(2, 768),  # 自定义额外的embedding输入
 )
 ```
 
-- 定义loss，optimizer，scheduler等
+- 定义loss，optimizer，scheduler, metrics等
 ```python
 '''
-定义使用的loss和optimizer，这里支持自定义
+定义使用的loss、optimizer和metrics，这里支持自定义
 '''
+def eval(y_pred, y_true):
+    # 仅做示意
+    return {'rouge-1': random.random(), 'rouge-2': random.random(), 'rouge-l': random.random(), 'bleu': random.random()}
+
+def f1(y_pred, y_true):
+    # 仅做示意
+    return random.random()
+
 model.compile(
     loss=nn.CrossEntropyLoss(), # 可以自定义Loss
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 可以自定义优化器
     scheduler=None, # 可以自定义scheduler
     adversarial_train={'name': 'fgm'},  # 训练trick方案设置，支持fgm, pgd, gradient_penalty, vat
-    metrics=['accuracy']  # loss等默认打印的字段无需设置
+    metrics=['accuracy', eval, {'f1': f1}]  # loss等默认打印的字段无需设置，可多种方式自定义回调函数
 )
 ```
 
@@ -194,6 +206,10 @@ class Evaluator(Callback):
     """
     def __init__(self):
         self.best_val_acc = 0.
+    def on_dataloader_end():
+        # 可用于重新生成dataloader
+        # 比如多个数据文件时，动态读取一个文件并重新生成dataloader的情况，如预训练
+        pass
     def on_train_begin(self, logs=None):  # 训练开始时候
         pass
     def on_train_end(self, logs=None):  # 训练结束时候

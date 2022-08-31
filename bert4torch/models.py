@@ -1,3 +1,4 @@
+from inspect import isfunction
 import torch
 import torch.nn as nn
 import copy
@@ -43,18 +44,21 @@ class BaseModel(nn.Module):
         self.metrics = OrderedDict({'loss': None})
         if metrics is None:
             metrics = []
-        elif isinstance(metrics, dict):
+        elif isinstance(metrics, (str, dict)) or isfunction(metrics):
             metrics = [metrics]
-        assert isinstance(metrics, (list, tuple, dict)), 'Custom metrics only support (list, tuple, dict) format'
 
-        for i in metrics:
-            # 字符类型，目前仅支持accuracy, 或者字典形式 {key: func}
-            if isinstance(i, str) and i != 'loss':
-                self.metrics[i] = None
-            elif isinstance(i, dict):
-                self.metrics.update(i)
+        for metric in metrics:
+            # 字符类型，目前仅支持accuracy
+            if isinstance(metric, str) and metric != 'loss':
+                self.metrics[metric] = None
+            # 字典形式 {metric: func}
+            elif isinstance(metric, dict):
+                self.metrics.update(metric)
+            # 函数形式，key和value都赋值metric
+            elif isfunction(metric):
+                self.metrics.update({metric: metric})
             else:
-                raise ValueError('Args metrics only support "Dict, List[String], List[Dict], List[String, Dict]" format')
+                raise ValueError('Args metrics only support "String, Dict, Callback, List[String, Dict, Callback]" format')
 
         # 对抗训练
         self.adversarial = adversarial_train
@@ -197,7 +201,8 @@ class BaseModel(nn.Module):
         self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
         train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
-        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, list(self.metrics.keys()))] + (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
+        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, [i for i in self.metrics.keys() if isinstance(i, str)])] + \
+                          (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         self.callback_fun('train_begin')
 
         # epoch：当前epoch
@@ -273,11 +278,18 @@ class BaseModel(nn.Module):
                 logs.update(logs_loss_detail)
                 if self.global_step == 0:
                     self.callbacks[0].add_metrics(list(logs_loss_detail.keys()), add_position=1)
-                # 添加metric至log打印
+                    
+                # 添加metrics至log打印
                 for metric, func in self.metrics.items():
                     perf = metric_mapping(metric, func, output, train_y)  # 内置的一些accuracy指标
                     if perf is not None:
-                        logs[metric] = perf
+                        if isfunction(metric):  # 直接传入回调函数(无key)
+                            if self.global_step == 0:
+                                self.callbacks[0].add_metrics(list(perf.keys()))
+                            logs.update(perf)
+                        elif isinstance(metric, str):  # 直接传入回调函数(有key)
+                            logs[metric] = perf
+
                 self.callback_fun('batch_end', logs)
 
                 self.bti += 1
