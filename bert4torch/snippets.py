@@ -485,11 +485,14 @@ class ProgbarLogger(Callback):
         self.verbose = verbose
         self.epochs = epochs
 
-    def add_metrics(self, metrics, add_position=None):
+    def add_metrics(self, metrics, stateful_metrics=None, add_position=None):
         if add_position is None:
             add_position = len(self.params['metrics'])
-        if isinstance(metrics, str):
-            metrics = [metrics]
+        metrics = [metrics] if isinstance(metrics, str) else metrics
+        if stateful_metrics:
+            stateful_metrics = [stateful_metrics] if isinstance(stateful_metrics, str) else stateful_metrics
+            self.stateful_metrics.update(set(stateful_metrics))
+            self.progbar.stateful_metrics.update(set(stateful_metrics))
 
         add_metrics = []
         for metric in metrics:

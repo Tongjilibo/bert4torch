@@ -297,7 +297,7 @@ class BaseModel(nn.Module):
                 logs.update({'loss': loss.item()})
                 logs_loss_detail = {k: v.item() if isinstance(v, torch.Tensor) else v for k, v in loss_detail.items()}
                 logs.update(logs_loss_detail)
-                if self.global_step == 0:
+                if self.global_step == resume_step:
                     self.callbacks[0].add_metrics(list(logs_loss_detail.keys()), add_position=1)
                     
                 # 添加metrics至log打印
@@ -305,7 +305,7 @@ class BaseModel(nn.Module):
                     perf = metric_mapping(metric, func, output, train_y)  # 内置的一些accuracy指标
                     if perf is not None:
                         if isfunction(metric):  # 直接传入回调函数(无key)
-                            if self.global_step == 0:
+                            if self.global_step == resume_step:
                                 self.callbacks[0].add_metrics(list(perf.keys()))
                             logs.update(perf)
                         elif isinstance(metric, str):  # 直接传入回调函数(有key)
