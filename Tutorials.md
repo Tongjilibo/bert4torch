@@ -180,8 +180,14 @@ prefix: 是否以原始的key来保存，如word_embedding原始key为bert.embed
 默认为None表示不启用, 若基于BaseModel自定义模型，需指定为bert模型对应的成员变量名，直接使用设置为''
 主要是为了别的训练框架容易加载
 '''
-model.save_weights(save_path, prefix=None)
-model.load_weights(load_path, strict=True, prefix=None)
+model.save_weights(save_path, prefix=None)  # 保存模型权重
+model.save_steps_params(save_path)  # 保存训练进度参数，当前的epoch和step，断点续训使用
+torch.save(optimizer.state_dict(), save_path)  # 保存优化器，断点续训使用
+
+model.load_weights(save_path)  # 加载模型权重
+model.load_steps_params(save_path)  # 加载训练进度参数，断点续训使用
+state_dict = torch.load(save_path, map_location='cpu')  # 加载优化器，断点续训使用
+optimizer.load_state_dict(state_dict)
 ```
 
 - [加载transformers模型进行训练](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)

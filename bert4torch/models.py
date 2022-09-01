@@ -336,11 +336,15 @@ class BaseModel(nn.Module):
             raise ValueError('Return format error')
     
     def load_weights(self, load_path, strict=True, prefix=None):
+        '''加载模型权重
+           save_path: 权重加载路径
+           prefix: None表示按照当前的key加载, 传入string表示按照variable_mapping()中原始的key加载
+        '''
         state_dict = torch.load(load_path, map_location='cpu')
         if prefix is None:
             self.load_state_dict(state_dict, strict=strict)
         else:
-            # 加载save_weights中to_raw_format=True的情形
+            # 按照variable_mapping()中原始的key加载
             eval_str = 'self.variable_mapping()' if prefix == '' else f'self.{prefix}.variable_mapping()'
             mapping = {v:k for k, v in eval(eval_str).items()}
             mapping = mapping if prefix == '' else {k:f'{prefix}.{v}' for k,v in mapping.items()}
@@ -351,6 +355,10 @@ class BaseModel(nn.Module):
             self.load_state_dict(state_dict_raw, strict=strict)
 
     def save_weights(self, save_path, prefix=None):
+        '''保存模型权重
+           save_path: 权重保存路径
+           prefix: None表示按照当前的key加载, 传入string表示按照variable_mapping()中原始的key保存
+        '''
         if prefix is None:
             torch.save(self.state_dict(), save_path)
         else:  
