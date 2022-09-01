@@ -18,7 +18,7 @@ pip install bert4torch
 pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 ```
 - **注意事项**：pip包的发布慢于git上的开发版本，git clone**注意引用路径**
-- **测试用例**：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本，examples中用到的数据文件后续会放链接
+- **测试用例**：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本
 - **自行训练**：针对自己的数据，修改相应的数据处理代码块
 - **开发环境**：使用`torch==1.10`版本进行开发，如其他版本遇到不适配，欢迎反馈
 
@@ -46,7 +46,8 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年8月28更新**：增加W2NER示例，打印Epoch开始的时间戳，增加parallel_apply，增加DiffCSE示例, 兼容torch<=1.7.1的torch.div无rounding_mode, 增加nl2sql示例, 增加自定义metrics，支持断点续训
+- **2022年8月28更新**：增加nl2sql示例, 增加自定义metrics，支持断点续训
+- **2022年8月21更新**：增加W2NER示例，打印Epoch开始的时间戳，增加parallel_apply，增加DiffCSE示例, 兼容torch<=1.7.1的torch.div无rounding_mode
 - **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换
 - **2022年7月27更新**：增加mixup/manifold_mixup/temporal_ensembling策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
 - **2022年7月16更新**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
