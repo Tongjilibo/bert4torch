@@ -17,9 +17,25 @@ class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
         # 这里主要是为了外面调用用到
-        self.global_step, self.local_step, self.total_steps, self.epoch, self.train_dataloader = 0, 0, 0, 0, None
+        self.global_step, self.local_step, self.total_steps, self.epoch, self.steps_per_epoch, self.train_dataloader = 0, 0, 0, 0, None, None
+        self.resume_step, self.resume_epoch = 0, 0
         self.callbacks = []
     
+    def save_steps_params(self, save_path):
+        '''保存训练过程参数
+        '''
+        step_params = {'resume_step': (self.local_step+1) % self.steps_per_epoch, 
+                       'resume_epoch': self.epoch + (self.local_step+1) // self.steps_per_epoch}
+        torch.save(step_params, save_path)
+
+    def load_steps_params(self, save_path):
+        '''导入训练过程参数
+        '''
+        step_params = torch.load(save_path)
+        self.resume_step = step_params['resume_step'] 
+        self.resume_epoch = step_params['resume_epoch']
+        return step_params
+
     def compile(self, loss, optimizer, scheduler=None, clip_grad_norm=None, use_amp=False, metrics=None, adversarial_train={'name': ''}):
         '''定义loss, optimizer, metrics, 是否在计算loss前reshape
         loss: loss
@@ -193,15 +209,15 @@ class BaseModel(nn.Module):
                 callback.on_dataloader_end()
 
     def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
-        if isinstance(train_dataloader.dataset, IterDataset):
-            assert steps_per_epoch is not None, 'IterDataset should specify steps_per_epoch'
-        steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
-        self.total_steps = steps_per_epoch * epochs
-        self.global_step = 0
+        if hasattr(train_dataloader.dataset, '__len__'):
+            assert steps_per_epoch is not None, 'Either train_dataloader.dataset has attr "__len__" or steps_per_epoch is not None'
+
+        self.steps_per_epoch = len(train_dataloader) if steps_per_epoch is None else steps_per_epoch
+        self.total_steps = self.steps_per_epoch * epochs
         self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
         train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
-        self.callbacks = [ProgbarLogger(epochs, steps_per_epoch, [i for i in self.metrics.keys() if isinstance(i, str)])] + \
+        self.callbacks = [ProgbarLogger(epochs, self.steps_per_epoch, [i for i in self.metrics.keys() if isinstance(i, str)])] + \
                           (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
         self.callback_fun('train_begin')
 
@@ -210,11 +226,16 @@ class BaseModel(nn.Module):
         # local_step: 当前epoch内的训练步数，不同epoch中相同local_step对应的batch数据不一定相同，在steps_per_epoch=None时相同
         # bti：在dataloader中的index，不同epoch中相同的bti对应的batch数据一般相同，除非重新生成dataloader
         self.bti = 0
-        for epoch in range(epochs):
+        for epoch in range(self.resume_epoch, epochs):
             self.epoch = epoch
+            # resume_step：判断local_step的起点，以及进度条的起始位置
+            resume_step = self.resume_step if epoch==self.resume_epoch else 0
             self.callback_fun('epoch_begin')
-            for local_step in range(steps_per_epoch):
+            self.callbacks[0].seen = resume_step
+            
+            for local_step in range(resume_step, self.steps_per_epoch):
                 self.local_step = local_step
+                self.global_step = self.epoch * self.steps_per_epoch + self.local_step
                 # 循环dataloader, 不要试用itertools的cycle，遇到过变量不释放的问题
                 try:
                     batch = next(train_dataloader_iter)
@@ -293,7 +314,6 @@ class BaseModel(nn.Module):
                 self.callback_fun('batch_end', logs)
 
                 self.bti += 1
-                self.global_step += 1
             self.callback_fun('epoch_end', logs)
             # earlystop策略
             callback_tmp = [callback_tmp for callback_tmp in self.callbacks if isinstance(callback_tmp, EarlyStopping)]

@@ -451,9 +451,9 @@ class Callback(object):
         pass
     def on_epoch_end(self, global_step, epoch, logs=None):
         pass
-    def on_batch_begin(self, global_step, batch, logs=None):
+    def on_batch_begin(self, global_step, local_step, logs=None):
         pass
-    def on_batch_end(self, global_step, batch, logs=None):
+    def on_batch_end(self, global_step, local_step, logs=None):
         pass
     def on_dataloader_end(self, logs=None):
         pass
@@ -509,11 +509,11 @@ class ProgbarLogger(Callback):
             self.progbar = Progbar(target=self.target, verbose=self.verbose, stateful_metrics=self.stateful_metrics)
         self.seen = 0
 
-    def on_batch_begin(self, global_step=None, batch=None, logs=None):
+    def on_batch_begin(self, global_step=None, local_step=None, logs=None):
         if self.seen < self.target:
             self.log_values = []
 
-    def on_batch_end(self, global_step=None, batch=None, logs=None):
+    def on_batch_end(self, global_step=None, local_step=None, logs=None):
         logs = logs or {}
         self.seen += 1
         for k in self.params['metrics']:

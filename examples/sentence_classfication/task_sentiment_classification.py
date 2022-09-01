@@ -92,7 +92,7 @@ class Evaluator(Callback):
     def __init__(self):
         self.best_val_acc = 0.
 
-    # def on_batch_end(self, global_step, batch, logs=None):
+    # def on_batch_end(self, global_step, local_step, logs=None):
     #     if global_step % 10 == 0:
     #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
     #         val_acc = evaluate(valid_dataloader)

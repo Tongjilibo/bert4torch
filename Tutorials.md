@@ -214,9 +214,9 @@ class Evaluator(Callback):
         pass
     def on_train_end(self, logs=None):  # 训练结束时候
         pass
-    def on_batch_begin(self, global_step, batch, logs=None):  # batch开始时候
+    def on_batch_begin(self, global_step, local_step, logs=None):  # batch开始时候
         pass
-    def on_batch_end(self, global_step, batch, logs=None):  # batch结束时候
+    def on_batch_end(self, global_step, local_step, logs=None):  # batch结束时候
         # 可以设置每隔多少个step，后台记录log，写tensorboard等
         # 尽量不要在batch_begin和batch_end中print，防止打断进度条功能
         pass
@@ -278,7 +278,7 @@ from tensorboardX import SummaryWriter
 class Evaluator(Callback):
     """每隔多少个step评估并记录tensorboard
     """
-    def on_batch_end(self, global_step, batch, logs=None):
+    def on_batch_end(self, global_step, local_step, logs=None):
         if global_step % 100 == 0:
             writer.add_scalar(f"train/loss", logs['loss'], global_step)
             val_acc = evaluate(valid_dataloader)
