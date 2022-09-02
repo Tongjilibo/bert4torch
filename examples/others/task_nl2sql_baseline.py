@@ -4,9 +4,24 @@
 # 科学空间：https://kexue.fm/archives/6771
 # 目前全匹配率大概是58%左右
 
-# 思路：[CLS] sentence [SEP] [CLS] col1 [SEP] [CLS] col2 [SEP]
+# 思路：[CLS] question [SEP] [CLS] col1 [SEP] [CLS] col2 [SEP]
 # 整句的[CLS]用来做conds连接符判断: {0:"", 1:"and", 2:"or"}
 # col的[CLS]用来预测该列是否被select+agg聚合判断: {0:"", 1:"AVG", 2:"MAX", 3:"MIN", 4:"COUNT", 5:"SUM", 6:"不被select"}
+''' 单条样本示例
+{
+    "table_id": "a1b2c3d4", # 相应表格的id
+    "question": "世茂茂悦府新盘容积率大于1，请问它的套均面积是多少？", # 自然语言问句
+    "sql":{ # 真实SQL
+        "sel": [7], # SQL选择的列 
+        "agg": [0], # 选择的列相应的聚合函数, '0'代表无
+        "cond_conn_op": 0, # 条件之间的关系
+        "conds": [
+            [1, 2, "世茂茂悦府"], # 条件列, 条件类型, 条件值，col_1 == "世茂茂悦府"
+            [6, 0, "1"]
+        ]
+    }
+}
+'''
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -28,8 +43,7 @@ maxlen = 160
 num_agg = 7 # agg_sql_dict = {0:"", 1:"AVG", 2:"MAX", 3:"MIN", 4:"COUNT", 5:"SUM", 6:"不被select"}
 num_op = 5 # {0:">", 1:"<", 2:"==", 3:"!=", 4:"不被select"}
 num_cond_conn_op = 3 # conn_sql_dict = {0:"", 1:"and", 2:"or"}
-learning_rate = 5e-5
-min_learning_rate = 1e-5
+learning_rate = 2e-5
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -57,8 +71,6 @@ def read_data(data_file, table_file):
             d['all_values'] = set([i for i in d['all_values'] if hasattr(i, '__len__')])
             tables[l['id']] = d
     return data, tables
-
-
 
 token_dict = {}
 with codecs.open(dict_path, 'r', 'utf8') as reader:
@@ -106,7 +118,7 @@ class MyDataset(Dataset):
         return len(self.data)
     def __getitem__(self, i):
         d = self.data[i]
-        # [CLS] sentence [SEP] [CLS] col1 [SEP] [CLS] col2 [SEP]
+        # [CLS] question [SEP] [CLS] col1 [SEP] [CLS] col2 [SEP]
         x1 = tokenizer.encode(d['question'])[0]
         xm = [0] + [1] * len(d['question']) + [0]
         h = []
@@ -138,13 +150,14 @@ class MyDataset(Dataset):
             csel[k + 1: k + 1 + len(j[2])] = j[0]
             cop[k + 1: k + 1 + len(j[2])] = j[1]
 
-        # x1: bert的输入
-        # h: 列名[CLS]所在位置
-        # hm: 列名mask
-        # sel: 被select的列
-        # conn: 连接类型
-        # csel: 条件中的列
-        # cop: 条件中的运算符（同时也是值的标记）
+        # x1: bert的输入 [101, 123, 121, 122, 123, 2399, 122, 118, 126, 3299, 5168, 6369, 2832, 6598, ...]
+        # xm: bert输入mask [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...]
+        # h: 列名[CLS]所在位置   [56, 60, 74, 89, 104, 114, 123, 132]
+        # hm: 列名mask          [1, 1, 1, 1, 1, 1, 1, 1]
+        # sel: 被select查找的列  [4, 6, 6, 6, 6, 6, 6, 6], 6表示列未被select，4表示COUNT
+        # conn: 连接类型 [1], 1表示and
+        # csel: 条件中的列                      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        # cop: 条件中的运算符（同时也是值的标记） [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4])
         return x1, xm, h, hm, sel, conn, csel, cop
 
 def collate_fn(batch):
@@ -182,23 +195,23 @@ class Model(BaseModel):
 
         # cls判断条件连接符 {0:"", 1:"and", 2:"or"}
         x4conn = x[:, 0]  # [cls位]
-        pconn = self.conn(x4conn)
+        pconn = self.conn(x4conn)  # [btz, num_cond_conn_op]
 
         # 列的cls位用来判断列名的agg和是否被select {0:"", 1:"AVG", 2:"MAX", 3:"MIN", 4:"COUNT", 5:"SUM", 6:"不被select"}
-        x4h = torch.gather(x, dim=2, index=h.unsqueeze(-1).expand(-1, -1, 768))
-        psel = self.agg(x4h)
+        x4h = torch.gather(x, dim=1, index=h.unsqueeze(-1).expand(-1, -1, 768))  # [btz, col_len, hdsz]
+        psel = self.agg(x4h)  # [btz, col_len, num_agg]
 
         # 序列标注conds的值和运算符
-        pcop = self.op(x)
-        x = x.unsqueeze(2)
-        x4h = x4h.unsqueeze(1)
+        pcop = self.op(x)  # [btz, seq_len, num_op]
+        x = x.unsqueeze(2)  # [btz, seq_len, 1, hdsz]
+        x4h = x4h.unsqueeze(1)  # [btz, 1, col_len, hdsz]
 
-        pcsel_1 = self.dense1(x)
-        pcsel_2 = self.dense2(x4h)
+        pcsel_1 = self.dense1(x)  # [btz, seq_len, 1, 256]
+        pcsel_2 = self.dense2(x4h)  # [btz, 1, col_len, 256]
         pcsel = pcsel_1 + pcsel_2
         pcsel = torch.tanh(pcsel)
-        pcsel = self.dense3(pcsel)
-        pcsel = pcsel[..., 0] - (1 - hm[:, None]) * 1e10
+        pcsel = self.dense3(pcsel)  # [btz, seq_len, col_len, 1]
+        pcsel = pcsel[..., 0] - (1 - hm[:, None]) * 1e10  # [btz, seq_len, col_len]
         return pconn, psel, pcop, pcsel
 
 model = Model().to(device)
@@ -217,11 +230,12 @@ class MyLoss(nn.Module):
         pcop_loss = torch.sum(pcop_loss * xm) / torch.sum(xm)
         pcsel_loss = F.cross_entropy(pcsel.view(-1, pcsel.shape[-1]), csel_in.view(-1), reduction='none').reshape(batch_size, -1)
         pcsel_loss = torch.sum(pcsel_loss * xm * cm) / torch.sum(xm * cm)
-        return psel_loss + pconn_loss + pcop_loss + pcsel_loss
+        loss = psel_loss + pconn_loss + pcop_loss + pcsel_loss
+        return {'loss': loss, 'psel_loss': psel_loss, 'pconn_loss': pconn_loss, 'pcop_loss': pcop_loss, 'pcsel_loss': pcsel_loss}
 
 model.compile(
     loss=MyLoss(),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5)
+    optimizer=optim.Adam(model.parameters(), lr=learning_rate)
 )
 
 def nl2sql(question, table):
@@ -230,7 +244,7 @@ def nl2sql(question, table):
     x1 = tokenizer.encode(question)[0]
     h = []
     for i in table['headers']:
-        _x1, _x2 = tokenizer.encode(i)
+        _x1 = tokenizer.encode(i)[0]
         h.append(len(x1))
         x1.extend(_x1)
     hm = [1] * len(h)
@@ -309,7 +323,7 @@ class Evaluate(Callback):
         self.accs.append(acc)
         if acc > self.best:
             self.best = acc
-            model.save_weights('best_model.weights')
+            # model.save_weights('best_model.weights')
         print('acc: %.5f, best acc: %.5f\n' % (acc, self.best))
     
     def evaluate(self, data, tables):
