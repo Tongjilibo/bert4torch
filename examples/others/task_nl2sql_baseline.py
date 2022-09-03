@@ -2,7 +2,7 @@
 # 追一科技2019年NL2SQL挑战赛的一个Baseline（个人作品，非官方发布，基于Bert）
 # 比赛地址：https://tianchi.aliyun.com/competition/entrance/231716/introduction
 # 科学空间：https://kexue.fm/archives/6771
-# 目前全匹配率大概是58%左右
+# 苏神结果是58%左右，我复现出来58.39%
 
 # 思路：[CLS] question [SEP] [CLS] col1 [SEP] [CLS] col2 [SEP]
 # 整句的[CLS]用来做conds连接符判断: {0:"", 1:"and", 2:"or"}
@@ -26,6 +26,7 @@
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 import json
 import codecs
 import numpy as np
@@ -43,7 +44,8 @@ maxlen = 160
 num_agg = 7 # agg_sql_dict = {0:"", 1:"AVG", 2:"MAX", 3:"MIN", 4:"COUNT", 5:"SUM", 6:"不被select"}
 num_op = 5 # {0:">", 1:"<", 2:"==", 3:"!=", 4:"不被select"}
 num_cond_conn_op = 3 # conn_sql_dict = {0:"", 1:"and", 2:"or"}
-learning_rate = 2e-5
+learning_rate = 2.5e-5
+epochs = 15
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -233,9 +235,13 @@ class MyLoss(nn.Module):
         loss = psel_loss + pconn_loss + pcop_loss + pcsel_loss
         return {'loss': loss, 'psel_loss': psel_loss, 'pconn_loss': pconn_loss, 'pcop_loss': pcop_loss, 'pcsel_loss': pcsel_loss}
 
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+scheduler = get_linear_schedule_with_warmup(optimizer, len(train_dataloader), len(train_dataloader)*epochs)
+
 model.compile(
     loss=MyLoss(),
-    optimizer=optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer=optimizer,
+    scheduler=scheduler
 )
 
 def nl2sql(question, table):
@@ -366,7 +372,7 @@ if __name__ == '__main__':
     model.fit(
         train_dataloader,
         steps_per_epoch=None,
-        epochs=15,
+        epochs=epochs,
         callbacks=[evaluator]
     )
 else:

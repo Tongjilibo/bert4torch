@@ -612,12 +612,37 @@ def metric_mapping(metric, func, y_pred, y_true):
             # 如果直接传入回调函数（有key），要求回调函数返回Int/Float类型
             assert isinstance(metric_res, (int, float)), 'Custom metrics callbacks should return "Int, Float" value'
         return metric_res
+    elif metric == 'loss':
+        pass
     # 自带metrics
-    elif metric == 'accuracy':
-        y_pred = y_pred[0] if isinstance(y_pred, (list, tuple)) else y_pred
-        y_pred = torch.argmax(y_pred, dim=-1)
-        acc = torch.sum(y_pred.eq(y_true)).item() / y_true.numel()
-        return acc
+    elif isinstance(metric, str):
+        # 如果forward返回了list, tuple，则选取第一项
+        y_pred_tmp = y_pred[0] if isinstance(y_pred, (list, tuple)) else y_pred
+        y_true_tmp = y_true[0] if isinstance(y_true, (list, tuple)) else y_true
+
+        # 根据shape做预处理
+        if len(y_pred_tmp.shape) == len(y_true_tmp.shape) + 1:
+            y_pred_tmp = torch.argmax(y_pred_tmp, dim=-1)
+        elif len(y_pred_tmp.shape) == len(y_true_tmp.shape):
+            pass
+        else:
+            raise ValueError(f'y_pred_tmp.shape={y_pred_tmp.shape} while y_true_tmp.shape={y_true_tmp.shape}')
+
+        # 执行内置的metric
+        if metric in {'accuracy', 'acc'}:
+            return torch.sum(y_pred_tmp.eq(y_true_tmp)).item() / y_true_tmp.numel()
+        elif metric in {'mae', 'MAE', 'mean_absolute_error'}:
+            return torch.mean(torch.abs(y_pred_tmp - y_true_tmp)).item()
+        elif metric in {'mse', 'MSE', 'mean_squared_error'}:
+            return torch.mean(torch.square(y_pred_tmp - y_true_tmp)).item()
+        elif metric in {'mape', 'MAPE', 'mean_absolute_percentage_error'}:
+            diff = torch.abs((y_true_tmp - y_pred_tmp) / torch.clamp(torch.abs(y_true_tmp), 1e-7, None))
+            return 100. * torch.mean(diff).item()
+        elif metric in {'msle', 'MSLE', 'mean_squared_logarithmic_error'}:
+            first_log = torch.log(torch.clamp(y_pred_tmp, 1e-7, None) + 1.)
+            second_log = torch.log(torch.clamp(y_true_tmp, 1e-7, None) + 1.)
+            return torch.mean(torch.square(first_log - second_log)).item()
+
     return None
 
 def softmax(x, axis=-1):
