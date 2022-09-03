@@ -208,7 +208,7 @@ class BaseModel(nn.Module):
             for callback in self.callbacks:
                 callback.on_dataloader_end()
 
-    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=[]):
+    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, grad_accumulation_steps=1, callbacks=None):
         if not hasattr(train_dataloader, '__len__'):
             assert steps_per_epoch is not None, 'Either train_dataloader has attr "__len__" or steps_per_epoch is not None'
 
@@ -217,8 +217,9 @@ class BaseModel(nn.Module):
         self.train_dataloader = train_dataloader  # 设置为成员变量，可由外部的callbacks进行修改
         train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
-        self.callbacks = [ProgbarLogger(epochs, self.steps_per_epoch, [i for i in self.metrics.keys() if isinstance(i, str)])] + \
-                          (callbacks if isinstance(callbacks, (list, tuple)) else [callbacks])
+        callbacks = [] if callbacks is None else callbacks
+        callbacks = callbacks if isinstance(callbacks, (list, tuple)) else [callbacks]
+        self.callbacks = [ProgbarLogger(epochs, self.steps_per_epoch, [i for i in self.metrics.keys() if isinstance(i, str)])] + callbacks
         self.callback_fun('train_begin')
 
         # epoch：当前epoch
