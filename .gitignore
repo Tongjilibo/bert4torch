@@ -12,3 +12,4 @@ bert4torch.egg-info/
 build/
 dist/
 .DS_Store
+bert4torch_test.py
