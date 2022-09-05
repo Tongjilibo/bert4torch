@@ -31,7 +31,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 
 ## 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md), [教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials), [实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
-- [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)
+- [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807), [bert4torch又双叒叕更新啦](https://zhuanlan.zhihu.com/p/560885427?)
 
 ## 版本说明
 - **v0.2.0**：兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
@@ -44,7 +44,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年9月04更新**：增加自带默认Logger
+- **2022年9月04更新**：增加默认Logger和Tensorboard日志
 - **2022年8月28更新**：增加nl2sql示例, 增加自定义metrics，支持断点续训
 - **2022年8月21更新**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply, 兼容torch<=1.7.1的torch.div无rounding_mode
 - **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换

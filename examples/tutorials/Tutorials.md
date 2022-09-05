@@ -2,6 +2,14 @@
 
 ## 1. 建模流程示例
 ```python
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.snippets import Callback, Logger, Tensorboard, ListDataset
+import torch.nn as nn
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader
+
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
@@ -74,7 +82,9 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     # 指定训练的epochs，每轮的steps_per_epoch(不设置或者设置为None表示自动计算)，梯度累积grad_accumulation_steps
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, callbacks=[evaluator])
+    # 使用默认Logger和Tensorboard
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, 
+              callbacks=[evaluator, Logger('./test/test.log'), Tensorboard('./test/')])
 ```
 
 ## 2. 主要模块讲解
@@ -284,8 +294,9 @@ model.compile(
 )
 ```
 
-### 2) tensorboard保存训练过程
+### 2) 日志记录
 ```python
+# 自行用Tensorboard记录
 from tensorboardX import SummaryWriter
 class Evaluator(Callback):
     """每隔多少个step评估并记录tensorboard
@@ -295,6 +306,10 @@ class Evaluator(Callback):
             writer.add_scalar(f"train/loss", logs['loss'], global_step)
             val_acc = evaluate(valid_dataloader)
             writer.add_scalar(f"valid/acc", val_acc, global_step)
+
+# 使用默认的文件Logger和Tensorboard
+ model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, 
+              callbacks=[evaluator, Logger('./test/test.log'), Tensorboard('./test/')])
 
 ```
 ### 3) 打印训练参数

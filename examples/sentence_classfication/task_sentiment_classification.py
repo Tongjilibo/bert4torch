@@ -9,7 +9,6 @@ from bert4torch.snippets import sequence_padding, Callback, text_segmentate, Lis
 import torch.nn as nn
 import torch
 import torch.optim as optim
-import random, os, numpy as np
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 

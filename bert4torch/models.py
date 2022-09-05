@@ -248,15 +248,17 @@ class BaseModel(nn.Module):
                 train_X, train_y = batch
 
                 # 取btz，最多允许嵌套两层，即((token_ids1, mask1), (token_ids2, mask2))
-                if isinstance(train_X, (list, tuple)):
-                    if isinstance(train_X[0], (list, tuple)):
-                        btz = train_X[0][0].size(0)
-                    else:
-                        btz = train_X[0].size(0)
-                elif isinstance(train_X, torch.Tensor):
-                    btz = train_X.size(0)
-                else:
-                    raise ValueError('Input only support [list, tuple, tensor]')
+                # if isinstance(train_X, (list, tuple)):
+                #     if isinstance(train_X[0], (list, tuple)):
+                #         btz = train_X[0][0].size(0)
+                #     else:
+                #         btz = train_X[0].size(0)
+                # elif isinstance(train_X, torch.Tensor):
+                #     btz = train_X.size(0)
+                # else:
+                #     raise ValueError('Input only support [list, tuple, tensor]')
+                # logs = {'batch': self.local_step, 'size': btz}
+
                 logs = OrderedDict()
                 self.callback_fun('batch_begin', logs)
 
