@@ -257,7 +257,7 @@ class BaseModel(nn.Module):
                     btz = train_X.size(0)
                 else:
                     raise ValueError('Input only support [list, tuple, tensor]')
-                logs = {'batch': self.local_step, 'size': btz}
+                logs = OrderedDict()
                 self.callback_fun('batch_begin', logs)
 
                 self.train()  # 设置为train模式

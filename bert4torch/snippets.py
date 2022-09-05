@@ -601,6 +601,39 @@ class EarlyStopping(Callback):
                 (self.monitor, ','.join(list(logs.keys()))), RuntimeWarning)
         return monitor_value
 
+
+class Logger(Callback):
+    '''默认logging
+    对于valid/dev和test的日志需要在evaluate之后对log进行赋值，如log['dev_f1']=f1，并在Evaluator之后调用
+    '''
+    def __init__(self, filename, interval=10, verbosity=1, name=None):
+        super(Logger, self).__init__()
+        self.interval = interval
+
+        import logging
+        level_dict = {0: logging.DEBUG, 1: logging.INFO, 2: logging.WARNING}
+        formatter = logging.Formatter("[%(asctime)s][%(filename)s][line:%(lineno)d][%(levelname)s] %(message)s")
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(level_dict[verbosity])
+        fh = logging.FileHandler(filename, "a")
+        fh.setFormatter(formatter)
+        self.logger.addHandler(fh)
+
+    def on_train_begin(self, logs=None):
+        self.logger.info('Start Training'.center(40, '='))
+
+    def on_train_end(self, logs=None):
+        self.logger.info('Finish Training'.center(40, '='))
+        
+    def on_epoch_end(self, global_step, epoch, logs=None):
+        self.logger.info(f'Epoch={epoch+1}')
+
+    def on_batch_end(self, global_step, local_step, logs=None):
+        if (global_step+1) % self.interval == 0:
+            log_str = '\t '.join([f'{k}={v:.5f}' for k, v in logs.items()])
+            self.logger.info(f'globalstep={global_step+1}\t {log_str}')
+
+
 def metric_mapping(metric, func, y_pred, y_true):
     # 自定义metrics
     if inspect.isfunction(func):
