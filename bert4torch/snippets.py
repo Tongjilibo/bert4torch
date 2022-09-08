@@ -930,7 +930,7 @@ class IterDataset(IterableDataset):
         return self.load_data(self.file_path)
 
     @staticmethod
-    def load_data(file_path: Union[str, List(str), Tuple(str)], verbose=0):
+    def load_data(file_path, verbose=0):
         if isinstance(file_path, (tuple, list)):
             for file in file_path:
                 if verbose != 0:
