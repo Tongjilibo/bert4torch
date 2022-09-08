@@ -19,6 +19,7 @@ import json
 import torch.nn.functional as F
 import random
 from datetime import datetime
+from typing import List, Tuple, Dict, Union, Optional
 import warnings
 import os
 
@@ -291,8 +292,7 @@ class Progbar(object):
         interval: Minimum visual progress update interval (in seconds).
     """
 
-    def __init__(self, target, width=30, verbose=1, interval=0.05,
-                 stateful_metrics=None):
+    def __init__(self, target, width=30, verbose=1, interval=0.05, stateful_metrics=None):
         self.target = target
         self.width = width
         self.verbose = verbose
@@ -875,6 +875,8 @@ class AutoRegressiveDecoder(object):
 
 
 def search_layer(model, layer_name, retrun_first=True):
+    '''根据layer_name搜索并返回参数/参数list
+    '''
     return_list = []
     for name, param in model.named_parameters():
         if param.requires_grad and layer_name in name:
@@ -888,9 +890,11 @@ def search_layer(model, layer_name, retrun_first=True):
 
 
 class ListDataset(Dataset):
+    '''数据是List格式Dataset，支持传入file_path或者外部已读入的data(List格式)
+    '''
     def __init__(self, file_path=None, data=None, **kwargs):
         self.kwargs = kwargs
-        if isinstance(file_path, (str, list)):
+        if isinstance(file_path, (str, tuple, list)):
             self.data = self.load_data(file_path)
         elif isinstance(data, list):
             self.data = data
@@ -909,11 +913,11 @@ class ListDataset(Dataset):
 
 
 class IterDataset(IterableDataset):
-    '''流式读取文件
+    '''流式读取文件，用于大数据量、多小文件
     '''
     def __init__(self, file_path=None, **kwargs):
         self.kwargs = kwargs
-        if isinstance(file_path, (str, list)):
+        if isinstance(file_path, (str, tuple, list)):
             self.file_path = file_path
         else:
             raise ValueError('The input args shall be str format file_path / list format dataset')
@@ -922,13 +926,22 @@ class IterDataset(IterableDataset):
         return self.load_data(self.file_path)
 
     @staticmethod
-    def load_data(file_path):
-        return file_path
+    def load_data(file_path: Union[str, List(str), Tuple(str)]):
+        if isinstance(file_path, (tuple, list)):
+            for file in file_path:
+                print("Load data: ", file)
+                with open(file, 'r') as file_obj:
+                    for line in file_obj:
+                        yield line
+        elif isinstance(file_path, str):
+            with open(file_path, 'r') as file_obj:
+                for line in file_obj:
+                    yield line
 
 
-# sinusoid编码
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
-    '''Returns: [seq_len, d_hid]
+    ''' sinusoid编码
+        Returns: [seq_len, d_hid]
     '''
     position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
     div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(10000.0) / d_hid))
