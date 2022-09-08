@@ -1,16 +1,16 @@
 #! -*- coding:utf-8 -*-
-# 情感分类任务, 加载bert权重
-# valid_acc: 94.72, test_acc: 94.11
-
+# 以文本分类为例，展示部分tips的使用方法
+# torchinfo打印参数，自定义metrics, 断点续训，默认Logger和Tensorboard
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
+from bert4torch.snippets import sequence_padding, Callback, Logger, Tensorboard, text_segmentate, ListDataset, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
+from torchinfo import summary
+import os
 
 maxlen = 256
 batch_size = 16
@@ -18,7 +18,6 @@ config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-7
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 choice = 'train'  # train表示训练，infer表示推理
 
 # 固定seed
@@ -77,12 +76,27 @@ class Model(BaseModel):
         output = self.dense(output)
         return output
 model = Model().to(device)
+summary(model, input_data=next(iter(train_dataloader))[0])
+
+def acc(y_pred, y_true):
+    y_pred = torch.argmax(y_pred, dim=-1)
+    return torch.sum(y_pred.eq(y_true)).item() / y_true.numel()
 
 # 定义使用的loss和optimizer，这里支持自定义
+optimizer = optim.Adam(model.parameters(), lr=2e-5)
+
+if os.path.exists('last_model.pt'):
+    model.load_weights('last_model.pt')  # 加载模型权重
+if os.path.exists('last_steps.pt'):
+    model.load_steps_params('last_steps.pt')  # 加载训练进度参数，断点续训使用
+if os.path.exists('last_model.pt'):
+    state_dict = torch.load('last_optimizer.pt', map_location='cpu')  # 加载优化器，断点续训使用
+    optimizer.load_state_dict(state_dict)
+
 model.compile(
     loss=nn.CrossEntropyLoss(),
-    optimizer=optim.Adam(model.parameters(), lr=2e-5),
-    metrics=['accuracy']
+    optimizer=optimizer,
+    metrics={'acc': acc}
 )
 
 class Evaluator(Callback):
@@ -91,19 +105,19 @@ class Evaluator(Callback):
     def __init__(self):
         self.best_val_acc = 0.
 
-    # def on_batch_end(self, global_step, local_step, logs=None):
-    #     if global_step % 10 == 0:
-    #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
-    #         val_acc = evaluate(valid_dataloader)
-    #         writer.add_scalar(f"valid/acc", val_acc, global_step)
-
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = self.evaluate(valid_dataloader)
         test_acc = self.evaluate(test_dataloader)
+        logs['val/acc'] = val_acc
+        logs['test/acc'] = val_acc
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+
+        model.save_weights('last_model.pt', prefix=None)  # 保存模型权重
+        model.save_steps_params('last_steps.pt')  # 保存训练进度参数，当前的epoch和step，断点续训使用
+        torch.save(optimizer.state_dict(), 'last_optimizer.pt')  # 保存优化器，断点续训使用
 
     # 定义评价函数
     def evaluate(self, data):
@@ -129,7 +143,7 @@ def inference(texts):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+        model.fit(train_dataloader, epochs=10, steps_per_epoch=100, callbacks=[evaluator, Logger('test.log'), Tensorboard('./')])
     else:
         model.load_weights('best_model.pt')
         inference(['我今天特别开心', '我今天特别生气'])

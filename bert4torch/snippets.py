@@ -605,6 +605,7 @@ class EarlyStopping(Callback):
 class Logger(Callback):
     '''默认logging
     对于valid/dev和test的日志需要在evaluate之后对log进行赋值，如log['dev_f1']=f1，并在Evaluator之后调用
+    若每隔一定steps对验证集评估，则Logger的interval设置成和Evaluater一致或者约数，保证日志能记录到
     '''
     def __init__(self, filename, interval=10, verbosity=1, name=None):
         super(Logger, self).__init__()
@@ -624,14 +625,44 @@ class Logger(Callback):
 
     def on_train_end(self, logs=None):
         self.logger.info('Finish Training'.center(40, '='))
-        
+
+    def on_epoch_begin(self, global_step, epoch, logs=None):
+        self.logger.info(f'Epoch {epoch}'.center(40, '='))
+
     def on_epoch_end(self, global_step, epoch, logs=None):
-        self.logger.info(f'Epoch={epoch+1}')
+        log_str = '\t '.join([f'{k}={v:.5f}' for k, v in logs.items()])
+        self.logger.info(f'epoch={epoch+1}\t {log_str}')
 
     def on_batch_end(self, global_step, local_step, logs=None):
         if (global_step+1) % self.interval == 0:
             log_str = '\t '.join([f'{k}={v:.5f}' for k, v in logs.items()])
-            self.logger.info(f'globalstep={global_step+1}\t {log_str}')
+            self.logger.info(f'step={global_step+1}\t {log_str}')
+
+
+class Tensorboard(Callback):
+    '''默认Tensorboard
+    对于valid/dev和test的Tensorboard需要在evaluate之后对log进行赋值，如log['dev/f1']=f1，并在Evaluator之后调用
+    赋值需要分栏目的用'/'进行分隔
+    若每隔一定steps对验证集评估，则Tensorboard的interval设置成和Evaluater一致或者约数，保证Tensorboard能记录到
+    '''
+    def __init__(self, dirname, interval=10, prefix='train'):
+        super(Tensorboard, self).__init__()
+        self.interval = interval
+        self.prefix = prefix
+
+        from tensorboardX import SummaryWriter
+        self.writer = SummaryWriter(log_dir=str(dirname))  # prepare summary writer
+
+    def on_epoch_end(self, global_step, epoch, logs=None):
+        for k, v in logs.items():
+            index = k if '/' in k else f"{self.prefix}/{k}"
+            self.writer.add_scalar(index, v, global_step)
+
+    def on_batch_end(self, global_step, local_step, logs=None):
+        if (global_step+1) % self.interval == 0:
+            for k, v in logs.items():
+                index = k if '/' in k else f"{self.prefix}/{k}"
+                self.writer.add_scalar(index, v, global_step)
 
 
 def metric_mapping(metric, func, y_pred, y_true):
