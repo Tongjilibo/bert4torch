@@ -1,6 +1,7 @@
 #! -*- coding: utf-8 -*-
 # DiffCSE中文测试：model, electra部分的gennerator和discriminator都是用的同样的bert模型
 # 源项目: https://github.com/voidism/DiffCSE
+# 原项目是btz *2 来做mask
 
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
@@ -20,8 +21,8 @@ jieba.initialize()
 
 
 # =============================基本参数=============================
-model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
+# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
+model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
 print(model_type, pooling, task_name, dropout_rate)
 
 assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
@@ -94,7 +95,7 @@ def mask_tokens(inputs, special_tokens_mask=None):
     """
     Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
     """
-    mlm_probability = 0.15
+    mlm_probability = 0.3
     special_tokens = {tokenizer._token_start_id, tokenizer._token_end_id, tokenizer._token_pad_id, 
                       tokenizer._token_unk_id, tokenizer._token_mask_id}
 
@@ -175,9 +176,31 @@ class ProjectionMLP(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+class Similarity(nn.Module):
+    """
+    Dot product or cosine similarity
+    """
+
+    def __init__(self, temp):
+        super().__init__()
+        self.temp = temp
+        self.cos = nn.CosineSimilarity(dim=-1)
+        self.record = None
+        self.pos_avg = 0.0
+        self.neg_avg = 0.0
+
+    def forward(self, x, y):
+        sim = self.cos(x, y)
+        self.record = sim.detach()
+        min_size = min(self.record.shape[0], self.record.shape[1])
+        num_item = self.record.shape[0] * self.record.shape[1]
+        self.pos_avg = self.record.diag().sum() / min_size
+        self.neg_avg = (self.record.sum() - self.record.diag().sum()) / (num_item - min_size)
+        return sim / self.temp
+
 # 建立模型
 class Model(BaseModel):
-    def __init__(self, pool_method='cls', scale=20.0):
+    def __init__(self, pool_method='cls'):
         super().__init__()
         self.pool_method = pool_method
         with_pool = 'linear' if pool_method == 'pooler' else True
@@ -187,7 +210,7 @@ class Model(BaseModel):
         self.mlp = ProjectionMLP(self.bert.configs['hidden_size'])
         self.discriminator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate)
         self.electra_head = nn.Linear(self.bert.configs['hidden_size'], 2)
-        self.scale = scale
+        self.sim = Similarity(temp=0.05)
     
     def forward(self, input_ids, mlm_inputs):
         # 和ESimCSE一致的计算逻辑
@@ -200,10 +223,11 @@ class Model(BaseModel):
         batch_size = input_ids.shape[0]//2
         embeddings_a = reps[:batch_size]
         embeddings_b = reps[batch_size:]
-        scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz]
+        scores = self.sim(embeddings_a.unsqueeze(1), embeddings_b.unsqueeze(0)) # [btz, btz]
 
         # Calculate loss for conditional ELECTRA
-        g_pred = generator([mlm_inputs])[1].argmax(-1)  # [btz, seq_len]
+        with torch.no_grad():
+            g_pred = generator([mlm_inputs])[1].argmax(-1)  # [btz, seq_len]
         g_pred[:, 0] = tokenizer._token_start_id
         e_labels = (g_pred != input_ids) * attention_mask
         e_inputs = g_pred * attention_mask
@@ -222,12 +246,6 @@ class Model(BaseModel):
             output = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
         return output
 
-    @staticmethod
-    def cos_sim(a, b):
-        a_norm = torch.nn.functional.normalize(a, p=2, dim=1)
-        b_norm = torch.nn.functional.normalize(b, p=2, dim=1)
-        return torch.mm(a_norm, b_norm.transpose(0, 1))
-
 class MyLoss(nn.Module):
     def forward(self, model_outputs, model_labels):
         scores, prediction_scores, e_labels = model_outputs
@@ -238,7 +256,7 @@ class MyLoss(nn.Module):
         return {'loss': loss_simcse+loss_electra, 'loss_simcse': loss_simcse, 'loss_electra': loss_electra}
 
 model = Model(pool_method=pooling).to(device)
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 1e-5))
+model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 7e-6))
 
 class Evaluator(Callback):
     """评估与保存
