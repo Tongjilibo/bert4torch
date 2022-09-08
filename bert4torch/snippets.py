@@ -740,14 +740,7 @@ class AutoRegressiveDecoder(object):
                   3. 设置温度参数，并做相应处理。
         """
         def actual_decorator(predict):
-            def new_predict(
-                self,
-                inputs,
-                output_ids,
-                states,
-                temperature=1,
-                rtype=default_rtype
-            ):
+            def new_predict(self, inputs, output_ids, states, temperature=1, rtype=default_rtype):
                 assert rtype in ['probas', 'logits']
                 prediction = predict(self, inputs, output_ids, states)
 
@@ -769,18 +762,6 @@ class AutoRegressiveDecoder(object):
             return new_predict
 
         return actual_decorator
-
-    # def last_token(self, model):
-    #     """创建一个只返回最后一个token输出的新Model
-    #     """
-    #     if model not in self.models:
-    #         outputs = [
-    #             keras.layers.Lambda(lambda x: x[:, -1])(output)
-    #             for output in model.outputs
-    #         ]
-    #         self.models[model] = keras.models.Model(model.inputs, outputs)
-
-    #     return self.models[model]
 
     def predict(self, inputs, output_ids, states=None):
         """用户需自定义递归预测函数
@@ -839,16 +820,7 @@ class AutoRegressiveDecoder(object):
         # 达到长度直接输出
         return output_ids[output_scores.argmax()]
 
-    def random_sample(
-        self,
-        inputs,
-        n,
-        topk=None,
-        topp=None,
-        states=None,
-        temperature=1,
-        min_ends=1
-    ):
+    def random_sample(self, inputs, n, topk=None, topp=None, states=None, temperature=1, min_ends=1):
         """随机采样n个结果
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp
              表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
@@ -945,6 +917,7 @@ class ListDataset(Dataset):
 
 class IterDataset(IterableDataset):
     '''流式读取文件，用于大数据量、多小文件
+       使用时候需要注意steps_per_epoch != None
     '''
     def __init__(self, file_path=None, **kwargs):
         self.kwargs = kwargs
@@ -957,10 +930,11 @@ class IterDataset(IterableDataset):
         return self.load_data(self.file_path)
 
     @staticmethod
-    def load_data(file_path: Union[str, List(str), Tuple(str)]):
+    def load_data(file_path: Union[str, List(str), Tuple(str)], verbose=0):
         if isinstance(file_path, (tuple, list)):
             for file in file_path:
-                print("Load data: ", file)
+                if verbose != 0:
+                    print("Load data: ", file)
                 with open(file, 'r') as file_obj:
                     for line in file_obj:
                         yield line
