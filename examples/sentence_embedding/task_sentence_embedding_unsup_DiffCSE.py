@@ -127,17 +127,18 @@ def mask_tokens(inputs, special_tokens_mask=None):
 
 # 加载训练数据集
 def collate_fn(batch):
-    texts_list = []
+    input_ids = []
     for text in batch:
         token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
-        texts_list.append(token_ids)
-    texts_list.extend(texts_list)
-    texts_list = torch.tensor(sequence_padding(texts_list), dtype=torch.long, device=device)
+        input_ids.append(token_ids)
+    input_ids.extend(input_ids)
+    input_ids = torch.tensor(sequence_padding(input_ids), dtype=torch.long, device=device)
     labels = torch.arange(len(batch), device=device)
 
     # mlm_inputs和mlm_outputs
-    mlm_inputs, mlm_labels = mask_tokens(texts_list)
-    return [texts_list, mlm_inputs], [labels, mlm_labels]
+    mlm_inputs, mlm_labels = mask_tokens(input_ids)
+    attention_mask = input_ids.gt(0).long()
+    return [input_ids, mlm_inputs], [labels, mlm_labels, attention_mask]
 train_dataloader = DataLoader(ListDataset(data=train_texts), shuffle=True, batch_size=batch_size, collate_fn=collate_fn)
 
 # 加载测试数据集
@@ -249,14 +250,26 @@ class Model(BaseModel):
 class MyLoss(nn.Module):
     def forward(self, model_outputs, model_labels):
         scores, prediction_scores, e_labels = model_outputs
-        labels, mlm_labels = model_labels
+        labels, mlm_labels, attention_mask = model_labels
         # 这里不适用mlm_labels，mlm_labels主要是用于generator算loss，本方法generator是不参加训练的
         loss_simcse = F.cross_entropy(scores, labels)
         loss_electra = lambda_weight * F.cross_entropy(prediction_scores.view(-1, 2), e_labels.view(-1))
         return {'loss': loss_simcse+loss_electra, 'loss_simcse': loss_simcse, 'loss_electra': loss_electra}
 
+def cal_metric(model_outputs, model_labels):
+    scores, prediction_scores, e_labels = model_outputs
+    labels, mlm_labels, attention_mask = model_labels
+    rep = (e_labels == 1) * attention_mask
+    fix = (e_labels == 0) * attention_mask
+    prediction = prediction_scores.argmax(-1)
+    result = {}
+    result['electra_rep_acc'] = float((prediction*rep).sum()/rep.sum())
+    result['electra_fix_acc'] = float(1.0 - (prediction*fix).sum()/fix.sum())
+    result['electra_acc'] = float(((prediction == e_labels) * attention_mask).sum()/attention_mask.sum())
+    return result
+
 model = Model(pool_method=pooling).to(device)
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 7e-6))
+model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 7e-6), metrics=cal_metric)
 
 class Evaluator(Callback):
     """评估与保存
