@@ -23,10 +23,9 @@ def load_vocab(dict_path, encoding="utf-8", simplified=False, startswith=None):
     index = 0
     with open(dict_path, "r", encoding=encoding) as reader:
         while True:
-            token = reader.readline()
+            token = reader.readline().strip()
             if not token:
                 break
-            token = token.strip()
             token_dict[token] = index
             index += 1
 
