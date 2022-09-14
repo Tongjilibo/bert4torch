@@ -89,7 +89,7 @@ if os.path.exists('last_model.pt'):
     model.load_weights('last_model.pt')  # 加载模型权重
 if os.path.exists('last_steps.pt'):
     model.load_steps_params('last_steps.pt')  # 加载训练进度参数，断点续训使用
-if os.path.exists('last_model.pt'):
+if os.path.exists('last_optimizer.pt'):
     state_dict = torch.load('last_optimizer.pt', map_location='cpu')  # 加载优化器，断点续训使用
     optimizer.load_state_dict(state_dict)
 
