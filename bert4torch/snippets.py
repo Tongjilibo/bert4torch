@@ -1272,7 +1272,7 @@ def seed_everything(seed=None):
     min_seed_value = np.iinfo(np.uint32).min
 
     if (seed is None) or not (min_seed_value <= seed <= max_seed_value):
-        random.randint(np.iinfo(np.uint32).min, np.iinfo(np.uint32).max)
+        seed = random.randint(np.iinfo(np.uint32).min, np.iinfo(np.uint32).max)
     print(f"Global seed set to {seed}")
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
