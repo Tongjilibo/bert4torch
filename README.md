@@ -6,6 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/bert4torch?label=pypi%20package)](https://pypi.org/project/bert4torch/) 
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/bert4torch)](https://pypistats.org/packages/bert4torch)
 [![GitHub stars](https://img.shields.io/github/stars/Tongjilibo/bert4torch?style=social)](https://github.com/Tongjilibo/bert4torch)
+[![GitHub Issues](https://img.shields.io/github/issues/Tongjilibo/bert4torch.svg)](https://github.com/Tongjilibo/bert4torch/issues)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/Tongjilibo/bert4torch/issues)
 
 ## 下载安装
@@ -31,7 +32,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 
 ## 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md), [教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials), [实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
-- [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807), [bert4torch又双叒叕更新啦](https://zhuanlan.zhihu.com/p/560885427?)
+- [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807), [bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
 
 ## 版本说明
 - **v0.2.1**：兼容torch<=1.7.1的torch.div无rounding_mode, 增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
