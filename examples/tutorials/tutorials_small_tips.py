@@ -109,7 +109,7 @@ class Evaluator(Callback):
         val_acc = self.evaluate(valid_dataloader)
         test_acc = self.evaluate(test_dataloader)
         logs['val/acc'] = val_acc
-        logs['test/acc'] = val_acc
+        logs['test/acc'] = test_acc
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
             # model.save_weights('best_model.pt')
