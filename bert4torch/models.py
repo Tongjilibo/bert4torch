@@ -1199,6 +1199,24 @@ class ELECTRA(BERT):
         return mapping
 
 
+class ERNIE(BERT):
+    """百度文心 https://github.com/PaddlePaddle/ERNIE
+    """
+    def __init__(self, *args, **kwargs):
+        super(ERNIE, self).__init__(*args, **kwargs)
+
+    def variable_mapping(self):
+        mapping = super(ERNIE, self).variable_mapping(prefix='ernie')
+        del_keys = ['nsp.weight', 'nsp.bias']
+        for k, v in mapping.items():
+            if ('LayerNorm.weight' in v) or ('LayerNorm.bias' in v):
+                v1 = v.replace('.weight', '.gamma').replace('.bias', '.beta')
+                mapping[k] = v1
+        for del_key in del_keys:
+            del mapping[del_key]
+        return mapping
+
+
 class Encoder(BERT):
     def __init__(self, *args, **kwargs):
         kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
@@ -1994,6 +2012,7 @@ def build_transformer_model(
         'roformer_v2': RoFormerV2,
         'gau_alpha': GAU_alpha,
         'electra': ELECTRA,
+        'ernie': ERNIE,
         'encoder': Encoder,
         'decoder': Decoder,
         'transformer': Transformer,
