@@ -1,6 +1,7 @@
 __pycache__
 datasets/
 *.pt
+*.onnx
 *.csv
 *.json
 bert4torch_test.ipynb

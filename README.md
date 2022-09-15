@@ -24,7 +24,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **开发环境**：使用`torch==1.10`版本进行开发，如其他版本遇到不适配，欢迎反馈
 
 ## 功能
-- **核心功能**：加载bert、roberta、albert、xlnet、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha等预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
+- **核心功能**：加载bert、roberta、albert、xlnet、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha、ERNIE等预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
 - **丰富示例**：包含[pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain)、[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)等多种解决方案
 - **实验验证**：已在公开数据集[实验验证](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md), 使用如下[examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/examples/README.md)
 - **易用trick**：集成了常见的[trick](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick), 即插即用
@@ -46,7 +46,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，修复vocab.txt多换行错误
+- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，修复vocab.txt多换行错误，增加ERNIE模型
 - **2022年8月28更新**：增加nl2sql示例, 增加自定义metrics，支持断点续训
 - **2022年8月21更新**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply, 兼容torch<=1.7.1的torch.div无rounding_mode
 - **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换
@@ -85,6 +85,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | macbert | 哈工大macbert | [tf](https://github.com/ymcui/MacBERT), [pytorch](https://huggingface.co/hfl/chinese-macbert-base)
 | roformer | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer), [pytorch](https://huggingface.co/junnyu/roformer_chinese_base) |  
 | roformer_v2 | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-v2), [pytorch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
+| ernie | 百度文心 |[paddle](https://github.com/PaddlePaddle/ERNIE), [pytorch](https://huggingface.co/nghuyong) | 
 | simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert), [pytorch](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
 | roformer-sim | 追一科技 | [ft](https://github.com/ZhuiyiTechnology/roformer-sim), [pytorch](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
 | gau-alpha | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
