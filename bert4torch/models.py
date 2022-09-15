@@ -1217,6 +1217,22 @@ class ERNIE(BERT):
             del mapping[del_key]
         return mapping
 
+    def load_variable(self, state_dict, name, prefix='ernie'):
+        """加载单个变量的函数
+        """
+        variable = state_dict[name]
+        if name in {
+            f'{prefix}.embeddings.word_embeddings.weight',
+            'cls.predictions.bias',
+            'ernie.embeddings.word_embeddings.weight'
+        }:
+            return self.load_embeddings(variable)
+        elif name == f'{prefix}.embeddings.position_embeddings.weight':
+            return self.load_pos_embeddings(variable)
+        elif name == 'cls.seq_relationship.weight':
+            return variable.T
+        else:
+            return variable
 
 class Encoder(BERT):
     def __init__(self, *args, **kwargs):
