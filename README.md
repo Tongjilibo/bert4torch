@@ -76,16 +76,16 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | 模型分类 |  权重来源 | 权重链接 | 备注(若有) | 
 |  ----  |  ----  | ----  | ----  |
 |  bert  | 谷歌原版bert | [tf](https://github.com/google-research/bert) | [转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)
-|  bert  | 哈工大chinese-bert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
 | bert | bert-base-chinese | [pytorch](https://huggingface.co/bert-base-chinese) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
+|  bert  | 哈工大chinese-bert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
 | robert | 哈工大chinese-robert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-roberta-wwm-ext)
-| albert | brightmart | [tf](https://github.com/brightmart/albert_zh), [pytorch](https://github.com/lonePatient/albert_pytorch)
 | xlnet | 哈工大xlnet | [tf/pytorch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 | electra | 哈工大electra | [tf](https://github.com/ymcui/Chinese-ELECTRA), [pytorch](https://huggingface.co/hfl/chinese-electra-base-discriminator)
 | macbert | 哈工大macbert | [tf](https://github.com/ymcui/MacBERT), [pytorch](https://huggingface.co/hfl/chinese-macbert-base)
+| albert | brightmart | [tf](https://github.com/brightmart/albert_zh), [pytorch](https://github.com/lonePatient/albert_pytorch)
+| ernie | 百度文心 |[paddle](https://github.com/PaddlePaddle/ERNIE), [pytorch](https://huggingface.co/nghuyong) | 
 | roformer | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer), [pytorch](https://huggingface.co/junnyu/roformer_chinese_base) |  
 | roformer_v2 | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-v2), [pytorch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
-| ernie | 百度文心 |[paddle](https://github.com/PaddlePaddle/ERNIE), [pytorch](https://huggingface.co/nghuyong) | 
 | simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert), [pytorch](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
 | roformer-sim | 追一科技 | [ft](https://github.com/ZhuiyiTechnology/roformer-sim), [pytorch](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
 | gau-alpha | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
