@@ -15,7 +15,6 @@
 - [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_cpm_lm.py)：测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
 - [basic_language_model_uer_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_uer_t5.py)：测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)的生成效果。
 - [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
-- [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_simple_web_serving_simbert.py): 测试自带的WebServing（将模型转化为Web接口）。
 - [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
 - [basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_xlnet.py): 测试xlnet模型。
 - [basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
@@ -103,13 +102,16 @@
 - [roberta_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roberta_pretrain)：roberta的mlm预训练，数据生成代码和训练代码
 - [simbert_v2_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain)：相似问生成，数据增广，三个步骤：1-[弱监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_stage1.py)，2-[蒸馏](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_stage2.py)，3-[有监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_supervised.py)，参考[SimBERT-V2](https://kexue.fm/archives/8454)
 
+### 模型部署
+- [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/basic_simple_web_serving_simbert.py): 测试自带的WebServing（将模型转化为Web接口）。
+- [task_bert_crf_onnx.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/task_bert_crf_onnx.py)：ONNX转换bert_crf权重
+
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
 - [task_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model.py)：加载BERT的预训练权重做无条件语言模型，效果上等价于GPT。
 - [task_iflytek_bert_of_theseus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_iflytek_bert_of_theseus.py)：通过[BERT-of-Theseus](https://kexue.fm/archives/7575)来进行模型压缩。
 - [task_language_model_chinese_chess.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model_chinese_chess.py)：用GPT的方式下中国象棋，过程请参考[博客](https://kexue.fm/archives/7877)。
 - [task_nl2sql_baseline.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_nl2sql_baseline.py)：[追一科技2019年NL2SQL挑战赛的一个Baseline](https://kexue.fm/archives/6771)
-- [task_bert_crf_onnx.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_bert_crf_onnx.py)：ONNX转换bert_crf权重
 
 ### 教程
 - [Tutorials](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials)：教程说明文档。

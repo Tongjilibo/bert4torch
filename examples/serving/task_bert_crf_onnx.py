@@ -42,7 +42,7 @@ torch_model = Model().to(device)
 torch_model.load_weights('E:/Github/bert4torch/examples/sequence_labeling/best_crf_model.pt')
 
 # 模型输入
-input_ids = tokenizer.encode('我想去北京天安门')[0]
+input_ids = tokenizer.encode('我想去北京天安门转一转')[0]
 x = torch.tensor([input_ids], device=device)
 torch_out = torch_model(x)
 

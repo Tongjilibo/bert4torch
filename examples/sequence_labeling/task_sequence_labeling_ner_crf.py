@@ -180,7 +180,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
 
     evaluator = Evaluator()
-
+    f1, precision, recall, f2, precision2, recall2 = evaluate(valid_dataloader)
     model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
 
 else: 
