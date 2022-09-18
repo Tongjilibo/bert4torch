@@ -149,7 +149,7 @@ def just_show():
 if __name__ == '__main__':
 
     evaluator = Evaluator()
-
+    print(u'生成标题:', autotitle.generate('中国的首都是extra0京'))
     model.fit(
         train_dataloader,
         steps_per_epoch=steps_per_epoch,

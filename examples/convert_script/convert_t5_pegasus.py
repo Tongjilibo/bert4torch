@@ -82,7 +82,6 @@ torch.save(torch_state_dict, torch_path)
   "attention_head_size": 64,
   "num_hidden_layers": 12,
   "vocab_size": 50000,
-  "hidden_act": "gelu",
   "relative_attention_num_buckets": 32
 }
 '''

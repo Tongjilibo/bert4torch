@@ -63,7 +63,7 @@ def collate_fn(batch):
         batch_content_ids.append(token_ids)
 
         token_ids, _ = tokenizer.encode(title, maxlen=max_t_len)
-        batch_titile_ids.append([0] + token_ids)
+        batch_titile_ids.append(token_ids)
 
     batch_content_ids = torch.tensor(sequence_padding(batch_content_ids), dtype=torch.long, device=device)
     batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids), dtype=torch.long, device=device)
@@ -107,7 +107,7 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 
-autotitle = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
+autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
 
 class Evaluator(Callback):
     """评估与保存
@@ -152,7 +152,7 @@ def just_show():
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    just_show()
+    print(u'生成标题:', autotitle.generate(u'今天天气不错啊'))
     model.fit(
         train_dataloader,
         steps_per_epoch=steps_per_epoch,

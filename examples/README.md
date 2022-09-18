@@ -104,7 +104,7 @@
 
 ### 模型部署
 - [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/basic_simple_web_serving_simbert.py): 测试自带的WebServing（将模型转化为Web接口）。
-- [task_bert_crf_onnx.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/task_bert_crf_onnx.py)：ONNX转换bert_crf权重
+- [task_bert_cls_onnx.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/task_bert_cls_onnx.py)：ONNX转换bert权重
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。

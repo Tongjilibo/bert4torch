@@ -1256,7 +1256,7 @@ class Encoder(BERT):
 
 class Decoder(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, with_lm=True, tie_emb_prj_weight=True, logit_scale=True, **kwargs):
+    def __init__(self, *args, with_lm=True, tie_emb_prj_weight=False, logit_scale=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -1267,7 +1267,9 @@ class Decoder(LM_Mask, BERT):
         # 从hidden_states映射到logit
         if self.with_lm:
             self.final_dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-            if tie_emb_prj_weight:  # decoder底层的embedding和顶层的全连接共享
+            # decoder底层的embedding和顶层的全连接共享
+            # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
+            if tie_emb_prj_weight:
                 self.final_dense.weight = self.embeddings.word_embeddings.weight
             if logit_scale:  # T5默认会有logit_scale, bart默认没有，所以bart要传入false
                 self.x_logit_scale = (self.hidden_size ** -0.5)
@@ -1370,6 +1372,7 @@ class BART(Transformer):
     '''
     def __init__(self, *args, tie_emb_src_tgt_weight=True, **kwargs):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
+        kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(BART, self).__init__(*args, tie_emb_src_tgt_weight=tie_emb_src_tgt_weight, **kwargs)
         self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
 
@@ -1466,7 +1469,7 @@ class T5_Encoder(Encoder):
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
-        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, mode='rmsnorm')
+        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
 
     def apply_final_layers(self, inputs):
@@ -1523,7 +1526,7 @@ class T5_Decoder(Decoder):
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.decoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.decoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
-        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, mode='rmsnorm')
+        self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
 
     def apply_final_layers(self, inputs):
