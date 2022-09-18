@@ -78,9 +78,6 @@ model = build_transformer_model(
     checkpoint_path,
     model='mt5.1.1',
     segment_vocab_size=0,
-    attention_scale=False,
-    is_dropout=True,
-    tie_emb_prj_weight=False,  # 独立权重
 ).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):

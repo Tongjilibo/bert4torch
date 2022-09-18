@@ -78,10 +78,7 @@ model = build_transformer_model(
     checkpoint_path,
     model='mt5.1.1',
     segment_vocab_size=0,
-    attention_scale=False,
-    is_dropout=True,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    tie_emb_prj_weight=False,  # 独立权重
     token_pad_ids=token_pad_ids,  # 也可以指定custom_attention_mask并传入attention_mask来实现
 ).to(device)
 

@@ -46,7 +46,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 更新：
-- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，修复vocab.txt多换行错误，增加ERNIE模型, 修复t5的norm_mode和tie_emb_prj_weight问题
+- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型, 修复t5的norm_mode问题，允许t5_pegasus_small中`n_heads*dkv != hdsz`
 - **2022年8月28更新**：增加nl2sql示例, 增加自定义metrics，支持断点续训
 - **2022年8月21更新**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply, 兼容torch<=1.7.1的torch.div无rounding_mode
 - **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换

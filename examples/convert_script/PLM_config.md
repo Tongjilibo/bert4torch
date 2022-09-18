@@ -120,7 +120,9 @@
   "num_hidden_layers": 12, 
   "type_vocab_size": 2, 
   "vocab_size": 250112,
-  "relative_attention_num_buckets": 32
+  "relative_attention_num_buckets": 32,
+  "attention_scale":  false,
+  "is_dropout": true
 }
 ```
 
@@ -138,6 +140,28 @@
   "num_hidden_layers": 12, 
   "type_vocab_size": 2, 
   "vocab_size": 21228,
-  "relative_attention_num_buckets": 32
+  "relative_attention_num_buckets": 32,
+  "attention_scale": false,
+  "is_dropout": true
+}
+```
+
+- t5/[uer_t5_torch_small]--t5-small-chinese-cluecorpussmall
+```json
+{
+  "attention_probs_dropout_prob": 0.1, 
+  "hidden_act": "relu", 
+  "hidden_dropout_prob": 0.1, 
+  "hidden_size": 512, 
+  "initializer_range": 0.02, 
+  "intermediate_size": 2048, 
+  "max_position_embeddings": 512, 
+  "num_attention_heads": 8, 
+  "num_hidden_layers": 6, 
+  "type_vocab_size": 2, 
+  "vocab_size": 21228,
+  "relative_attention_num_buckets": 32,
+  "attention_scale": false,
+  "is_dropout": true
 }
 ```

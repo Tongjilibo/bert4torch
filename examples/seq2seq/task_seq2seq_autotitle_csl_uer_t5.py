@@ -75,8 +75,6 @@ model = build_transformer_model(
     checkpoint_path,
     model='t5.1.0',
     segment_vocab_size=0,
-    attention_scale=False,
-    is_dropout=True,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
 ).to(device)
 

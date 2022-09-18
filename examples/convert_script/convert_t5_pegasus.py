@@ -5,12 +5,12 @@ import tensorflow as tf
 import json
 
 # small
-# tf_dir = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_tf_small]--chinese_t5_pegasus_small/'
-# torch_path = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_small]--chinese_t5_pegasus_small/pytorch_model.bin'
+tf_dir = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_tf_small]--chinese_t5_pegasus_small/'
+torch_path = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_small]--chinese_t5_pegasus_small/pytorch_model.bin'
 
 # base:
-tf_dir = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_tf_base]--chinese_t5_pegasus_base/'
-torch_path = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_base]--chinese_t5_pegasus_base/pytorch_model.bin'
+# tf_dir = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_tf_base]--chinese_t5_pegasus_base/'
+# torch_path = 'F:/Projects/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_base]--chinese_t5_pegasus_base/pytorch_model.bin'
 
 
 tf_path = tf_dir + 'model.ckpt'
@@ -72,6 +72,7 @@ torch.save(torch_state_dict, torch_path)
 
 # config文件
 '''
+# base版本
 {
   "hidden_act": "gelu",
   "hidden_dropout_prob": 0.1,
@@ -82,6 +83,24 @@ torch.save(torch_state_dict, torch_path)
   "attention_head_size": 64,
   "num_hidden_layers": 12,
   "vocab_size": 50000,
-  "relative_attention_num_buckets": 32
+  "relative_attention_num_buckets": 32,
+  "attention_scale":  false,
+  "is_dropout": true
+}
+
+# small版本
+{
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 512,
+  "initializer_range": 0.02,
+  "intermediate_size": 1024,
+  "num_attention_heads": 6,
+  "attention_head_size": 64,
+  "num_hidden_layers": 8,
+  "vocab_size": 50000,
+  "relative_attention_num_buckets": 32,
+  "attention_scale":  false,
+  "is_dropout": true
 }
 '''

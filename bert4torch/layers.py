@@ -66,20 +66,23 @@ class MultiHeadAttentionLayer(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, attention_scale=True,
                  return_attention_scores=False, bias=True, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
-
-        assert hidden_size % num_attention_heads == 0
-
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
-        self.attention_head_size = int(hidden_size / num_attention_heads)
+        # assert hidden_size % num_attention_heads == 0  # 旧逻辑，t5_pegasus_small中不可以整除
+        # 兼容t5_pegasus_small
+        if kwargs.get('attention_head_size'):
+            self.attention_head_size = kwargs.get('attention_head_size')
+        else:
+            self.attention_head_size = int(hidden_size / num_attention_heads)
+        self.inner_dim = self.num_attention_heads * self.attention_head_size  # 新逻辑
         self.attention_scale = attention_scale
         self.return_attention_scores = return_attention_scores
 
         self.bias = bias
-        self.q = nn.Linear(hidden_size, hidden_size, bias=bias)
-        self.k = nn.Linear(hidden_size, hidden_size, bias=bias)
-        self.v = nn.Linear(hidden_size, hidden_size, bias=bias)
-        self.o = nn.Linear(hidden_size, hidden_size, bias=bias)
+        self.q = nn.Linear(hidden_size, self.inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, self.inner_dim, bias=bias)
+        self.v = nn.Linear(hidden_size, self.inner_dim, bias=bias)
+        self.o = nn.Linear(self.inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
@@ -184,7 +187,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # 所以在调用view之前，需要contiguous来返回一个contiguous copy；
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
 
-        new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size,)
+        new_context_layer_shape = context_layer.size()[:-2] + (self.inner_dim,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # 是否返回attention scores

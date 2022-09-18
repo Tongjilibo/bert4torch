@@ -11,6 +11,11 @@ from bert4torch.snippets import AutoRegressiveDecoder
 config_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_small]--t5-small-chinese-cluecorpussmall/bert4torch_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_small]--t5-small-chinese-cluecorpussmall/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_small]--t5-small-chinese-cluecorpussmall/vocab.txt'
+
+# config_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/bert4torch_config.json'
+# checkpoint_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/pytorch_model.bin'
+# dict_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/vocab.txt'
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
@@ -25,9 +30,7 @@ model = build_transformer_model(
     config_path,
     checkpoint_path,
     model='t5.1.0',
-    segment_vocab_size=0,
-    attention_scale=False,
-    is_dropout=True,
+    segment_vocab_size=0
 ).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):
