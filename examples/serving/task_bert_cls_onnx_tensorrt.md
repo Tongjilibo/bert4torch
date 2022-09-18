@@ -135,11 +135,13 @@ inference.py:39: DeprecationWarning: Use set_optimization_profile_async instead.
 ```
 
 # 5. 速度比较
-- 测试句长=200
-- 测试方式: 跑500个循环求均值
+- 测试方式: btz=1, seq_len=200, iterations=100
 
 | 方案 | cpu(ms) | gpu(ms) |
 |----|----|----|
 |pytorch|144|29|
 |onnx|66||
 |onnx+tensorrt||101|
+
+# 6. 实验文件
+后续补充
