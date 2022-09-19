@@ -75,8 +75,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 
 | 模型分类 |  权重来源 | 权重链接 | 备注(若有) | 
 |  ----  |  ----  | ----  | ----  |
-|  bert  | 谷歌原版bert | [tf](https://github.com/google-research/bert) | [转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)
-| bert | bert-base-chinese | [pytorch](https://huggingface.co/bert-base-chinese) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
+|  bert  | 谷歌原版bert(即bert-base-chinese) | [tf](https://github.com/google-research/bert), [pytorch](https://huggingface.co/bert-base-chinese) | [tf转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models), [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
 |  bert  | 哈工大chinese-bert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
 | robert | 哈工大chinese-robert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm), [pytorch](https://huggingface.co/hfl/chinese-roberta-wwm-ext)
 | xlnet | 哈工大xlnet | [tf/pytorch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
