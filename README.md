@@ -9,7 +9,7 @@
 [![GitHub Issues](https://img.shields.io/github/issues/Tongjilibo/bert4torch.svg)](https://github.com/Tongjilibo/bert4torch/issues)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/Tongjilibo/bert4torch/issues)
 
-## 下载安装
+## 1. 下载安装
 安装稳定版
 ```shell
 pip install bert4torch
@@ -18,23 +18,24 @@ pip install bert4torch
 ```shell
 pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 ```
-- **注意事项**：pip包的发布慢于git上的开发版本，git clone**注意引用路径**
+- **注意事项**：pip包的发布慢于git上的开发版本，git clone**注意引用路径**，注意权重是否需要转换
 - **测试用例**：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本
 - **自行训练**：针对自己的数据，修改相应的数据处理代码块
 - **开发环境**：使用`torch==1.10`版本进行开发，如其他版本遇到不适配，欢迎反馈
 
-## 功能
+## 2. 功能
 - **核心功能**：加载bert、roberta、albert、xlnet、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha、ERNIE等预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
 - **丰富示例**：包含[pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain)、[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)、[serving](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/)等多种解决方案
 - **实验验证**：已在公开数据集[实验验证](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md), 使用如下[examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/examples/README.md)
 - **易用trick**：集成了常见的[trick](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick), 即插即用
 - **其他特性**：[加载transformers库模型](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)一起使用；调用方式简洁高效；有训练进度条动态展示；配合torchinfo打印参数量；默认Logger和Tensorboard简便记录训练过程；自定义fit过程，满足高阶需求
 
-## 快速上手
+## 3. 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md), [教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials), [实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807), [bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
+- 背景：用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)，初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
-## 版本说明
+## 4. 版本说明
 - **v0.2.1**：兼容torch<=1.7.1的torch.div无rounding_mode, 增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
 - **v0.2.0**：兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
 - **v0.1.9**：增加mixup/manifold_mixup/temporal_ensembling策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量
@@ -45,8 +46,8 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.4**：增加了VAT，修复了linux下apply_embedding返回项有问题的情况
 - **v0.1.3**：初始版本
 
-## 更新：
-- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型, 修复t5的norm_mode问题，允许t5_pegasus_small中`n_heads*dkv != hdsz`
+## 5. 更新：
+- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型, 修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads
 - **2022年8月28更新**：增加nl2sql示例, 增加自定义metrics，支持断点续训
 - **2022年8月21更新**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply, 兼容torch<=1.7.1的torch.div无rounding_mode
 - **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换
@@ -66,11 +67,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **2022年3月22更新**：添加GPT、GPT2、T5模型
 - **2022年3月12更新**：初版提交
 
-## 背景
-- 用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)
-- 初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
-
-## 预训练权重
+## 6. 预训练权重
 - 部分权重是要加载修改的[config.json](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 
 | 模型分类 |  权重来源 | 权重链接 | 备注(若有) | 

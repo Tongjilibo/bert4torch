@@ -133,3 +133,4 @@
 |LCQMC| 文本相似度 | [LCQMC](http://icrc.hitsz.edu.cn/Article/show/171.html)
 |PAWSX| 文本相似度 | [PAWSX](https://arxiv.org/abs/1908.11828)
 |STS-B| 文本相似度 | [STS-B](https://github.com/pluto-junzeng/CNSD)
+|CSL|文本生成|[CSL](https://github.com/CLUEbenchmark/CLGE)|
