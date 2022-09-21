@@ -167,4 +167,7 @@ tensorrt
 ├─bert_cls.trt
 ├─TensorRT-8.4.1.5
 ```
-- docker镜像: 目前读者可按上述方式自行构建，后续笔者上传后可直接pull后可用
+- docker镜像: 目前读者可按上述方式自行构建，后续笔者上传后可直接pull后可用，创建容器命令如下
+```shell
+docker run -it --name trt_torch --gpus all -v /home/libo/tensorrt:/tensorrt nvidia/cuda/tensorrt/pytorch:11.3.0-cudnn8-devel-ubuntu20.04-tensorrt8.4.1.5 /bin/bash
+```
