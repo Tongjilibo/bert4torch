@@ -294,7 +294,11 @@ class BaseModel(nn.Module):
 
                     self.optimizer.zero_grad()  # 清梯度
                     if (self.scheduler is not None) and not skip_scheduler:
-                        self.scheduler.step()
+                        if isinstance(self.scheduler, (tuple, list)):
+                            for scheduler in self.scheduler:
+                                scheduler.step()
+                        else:
+                            self.scheduler.step()
 
                 # 添加loss至log打印
                 logs.update({'loss': loss.item()})
