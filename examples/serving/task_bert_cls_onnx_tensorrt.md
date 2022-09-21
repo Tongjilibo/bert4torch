@@ -58,8 +58,9 @@ print(tensorrt.__version__)
 ## 3. onnx转trt权重
 - 转换命令
 ```shell
-./trtexec --onnx=/tensorrt/bert_cls.onnx --saveEngine=/tensorrt/bert_cls.trt --workspace=10000 --minShapes=input_ids:1x1,segment_ids:1x1 --optShapes=input_ids:20x512,segment_ids:20x512 --maxShapes=input_ids:20x512,segment_ids:20x512 --device=0
+./trtexec --onnx=/tensorrt/bert_cls.onnx --saveEngine=/tensorrt/bert_cls.trt --minShapes=input_ids:1x512,segment_ids:1x512 --optShapes=input_ids:1x512,segment_ids:1x512 --maxShapes=input_ids:20x512,segment_ids:20x512 --device=0
 ```
+- 注意项：1）测试中如果把batch_size维度和seq_len维度都设置成动态速度会很慢(100ms+)，因此这里只保留动态的batchsize维度，seq_len都padding到512；2）[参考资料](https://github.com/NVIDIA/TENSORRT/issues/976)
 
 ## 4. tensorrt加载模型推理
 - 参考文档：[基于 TensorRT 实现 Bert 预训练模型推理加速(超详细-附核心代码-避坑指南)](https://zhuanlan.zhihu.com/p/446477075)
@@ -69,6 +70,9 @@ import numpy as np
 from bert4torch.tokenizers import Tokenizer
 import tensorrt as trt
 import common
+import time
+import numpy as np
+from tqdm import tqdm
 
 """
 a、获取 engine，建立上下文
@@ -87,20 +91,20 @@ engine = get_engine(engine_model_path)
 # Contexts are used to perform inference.
 context = engine.create_execution_context()
 
-
 """
 b、从engine中获取inputs, outputs, bindings, stream 的格式以及分配缓存
 """
 def to_numpy(tensor):
+    for i, item in enumerate(tensor):
+        tensor[i] = item + [0] * (512-len(item))
     return np.array(tensor, np.int32)
 
 dict_path = '/tensorrt/vocab.txt'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
-input_ids, segment_ids = tokenizer.encode('我的心情很差')
-
-tokens_id = to_numpy([input_ids])
-# print(tokens_id)
-segment_ids = to_numpy([segment_ids])
+sentences = ['你在干嘛呢？这几天外面的天气真不错啊，万里无云，阳光明媚的，我的心情也特别的好，我特别想出门去转转呢。你在干嘛呢？这几天外面的天气真不错啊，万里无云，阳光明媚的，我的心情也特别的好，我特别想出门去转转呢。你在干嘛呢？这几天外面的天气真不错啊，万里无云，阳光明媚的，我的心情也特别的好，我特别想出门去转转呢。你在干嘛呢？这几天外面的天气真不错啊，万里无云，阳光明媚的，我的心情也特别的好，我特别想出门。']
+input_ids, segment_ids = tokenizer.encode(sentences)
+tokens_id = to_numpy(input_ids)
+segment_ids = to_numpy(segment_ids)
 
 context.active_optimization_profile = 0
 origin_inputshape = context.get_binding_shape(0)                # (1,-1) 
@@ -114,8 +118,6 @@ c、输入数据填充
 inputs, outputs, bindings, stream = common.allocate_buffers_v2(engine, context)
 inputs[0].host = tokens_id
 inputs[1].host = segment_ids
-# print(tokens_id, tokens_id.dtype)
-# print(segment_ids, segment_ids.dtype)
 
 """
 d、tensorrt推理
@@ -123,25 +125,46 @@ d、tensorrt推理
 trt_outputs = common.do_inference_v2(context, bindings=bindings, inputs=inputs, outputs=outputs, stream=stream)
 preds = np.argmax(trt_outputs, axis=1)
 print("====preds====:",preds)
+
+"""
+e、测试耗时
+"""
+steps = 100
+start = time.time()
+for i in tqdm(range(steps)):
+    common.do_inference_v2(context, bindings=bindings, inputs=inputs, outputs=outputs, stream=stream)
+    preds = np.argmax(trt_outputs, axis=1)
+print('onnx+tensorrt: ',  (time.time()-start)*1000/steps, ' ms')
 ```
 
 - 所需[common.py](https://github.com/NVIDIA/TensorRT/blob/96e23978cd6e4a8fe869696d3d8ec2b47120629b/samples/python/common.py)
 - 运行结果
 ```shell
 Reading engine from file bert_cls.trt
-inference.py:39: DeprecationWarning: Use set_optimization_profile_async instead.
+onnx_tensorrt.py:44: DeprecationWarning: Use set_optimization_profile_async instead.
   context.active_optimization_profile = 0
-====preds====: [0]
+====preds====: [1]
+100%|██████████████████████████████████████████████████████████████████████████| 100/100 [00:01<00:00, 79.81it/s]
+onnx+tensorrt:  12.542836666107178  ms
 ```
 
 # 5. 速度比较
-- 测试方式: btz=1, seq_len=200, iterations=100
+- 测试方式: btz=1, seq_len=202（对于tensorrt测试了seq_len=202和512）, iterations=100
 
-| 方案 | cpu(ms) | gpu(ms) |
+| 方案 | cpu | gpu |
 |----|----|----|
-|pytorch|144|29|
-|onnx|66||
-|onnx+tensorrt||101|
+|pytorch|144ms|29ms|
+|onnx|66ms|——|
+|onnx+tensorrt|——|7ms (len=202), 12ms (len=512)|
 
 # 6. 实验文件
-后续补充
+- 文件树
+```shell
+tensorrt
+├─common.py
+├─onnx_tensorrt.py
+├─bert_cls.onnx
+├─bert_cls.trt
+├─TensorRT-8.4.1.5
+```
+- docker镜像: 目前读者可按上述方式自行构建，后续笔者上传后可直接pull后可用
