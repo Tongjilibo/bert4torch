@@ -36,6 +36,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - 背景：用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)，初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
 ## 4. 版本说明
+- **v0.2.2**：修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads, 支持多个schedule(如同时ema+warmup)
 - **v0.2.1**：兼容torch<=1.7.1的torch.div无rounding_mode, 增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
 - **v0.2.0**：兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
 - **v0.1.9**：增加mixup/manifold_mixup/temporal_ensembling策略, 修复pgd策略param.grad为空的问题，修改tokenizer支持批量
