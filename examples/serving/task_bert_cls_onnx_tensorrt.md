@@ -15,7 +15,7 @@ docker pull nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
 ```
 2. 运行镜像/创建容器
 ```shell
-docker run -it --name trt_test --gpus all -v /home/tensorrt:/tensorrt nvidia/cuda:11.4.0-cudnn8-devel-ubuntu18.04 /bin/bash
+docker run -it --name trt_test --gpus all -v /home/tensorrt:/tensorrt nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04 /bin/bash
 ```
 3. [下载TensorRT包](https://developer.nvidia.com/zh-cn/tensorrt)，这一步需要注册账号，我下载的是`TensorRT-8.4.1.5.Linux.x86_64-gnu.cuda-11.6.cudnn8.4.tar.gz`
 4. 回到容器安装TensorRT(cd到容器内的tensorrt路径下解压刚才下载的tar包)
