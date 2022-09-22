@@ -513,7 +513,7 @@ class BERT_BASE(BaseModel):
         """
         return {}
 
-    def load_load_variable(self):
+    def load_variable(self):
         raise NotImplementedError
 
     def load_embeddings(self, embeddings):
@@ -1222,21 +1222,7 @@ class ERNIE(BERT):
         return mapping
 
     def load_variable(self, state_dict, name, prefix='ernie'):
-        """加载单个变量的函数
-        """
-        variable = state_dict[name]
-        if name in {
-            f'{prefix}.embeddings.word_embeddings.weight',
-            'cls.predictions.bias',
-            'ernie.embeddings.word_embeddings.weight'
-        }:
-            return self.load_embeddings(variable)
-        elif name == f'{prefix}.embeddings.position_embeddings.weight':
-            return self.load_pos_embeddings(variable)
-        elif name == 'cls.seq_relationship.weight':
-            return variable.T
-        else:
-            return variable
+        return super().load_variable(state_dict, name, prefix=prefix)
 
 class Encoder(BERT):
     def __init__(self, *args, **kwargs):
