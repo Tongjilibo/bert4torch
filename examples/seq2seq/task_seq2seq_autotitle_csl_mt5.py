@@ -24,7 +24,6 @@ max_t_len = 32
 batch_size = 16
 epochs = 50
 steps_per_epoch = None
-valid_len = 1000
 token_pad_ids = -100
 
 # bert配置
@@ -72,6 +71,7 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
+test_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
 
 model = build_transformer_model(
     config_path,
@@ -118,12 +118,14 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, steps, epoch, logs=None):
         just_show()
-        metrics = self.evaluate(valid_dataset.data[:valid_len])  # 评测模型
+        metrics = self.evaluate(valid_dataset.data)  # 评测模型
+        metrics_test = self.evaluate(test_dataset.data)  # 评测模型
         if metrics['bleu'] > self.best_bleu:
             self.best_bleu = metrics['bleu']
             # model.save_weights('./best_model.pt')  # 保存模型
         metrics['best_bleu'] = self.best_bleu
         print('valid_data:', metrics)
+        print('test_data:', metrics_test)
     
     def evaluate(self, data, topk=1):
         total = 0
