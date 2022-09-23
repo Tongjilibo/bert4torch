@@ -1,0 +1,6 @@
+DEFAULT_SERVER_FORMAT = "{}://localhost:{}"
+DEFAULT_SERVER_PORT = 8082
+
+CONFIG_MODEL_KEY = 'model'
+CONFIG_MODEL_PATH = "bert_model"
+CONFIG_MODEL_VOCAB = "vocab"

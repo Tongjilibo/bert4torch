@@ -1,0 +1,59 @@
+version: 1
+log_path: E:/Github/bert4torch/examples/serving/sanic_server/logs
+formatters:
+  simple:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  consolefmt:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  tracefmt:
+    format: '%(asctime)s - %(filename)s - [line:%(lineno)d] %(levelname)s %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+handlers:
+  console:
+    class : logging.StreamHandler
+    formatter: consolefmt
+    level   : WARN
+    stream  : ext://sys.stdout
+  outloggerfile:
+    class: logging.handlers.RotatingFileHandler
+    formatter: simple
+    level: WARN
+    filename: E:/Github/bert4torch/examples/serving/sanic_server/logs/out.log
+    maxBytes: 3145728
+    encoding: utf8
+    backupCount: 10
+  traceloggerfile:
+    class : logging.handlers.TimedRotatingFileHandler
+    formatter: tracefmt
+    level   : INFO
+    filename: E:/Github/bert4torch/examples/serving/sanic_server/logs/trace.log
+    backupCount: 10
+    encoding: utf8
+    interval: 1
+    when: MIDNIGHT
+  errorloggerfile:
+    class : logging.handlers.TimedRotatingFileHandler
+    formatter: simple
+    level   : INFO
+    filename: E:/Github/bert4torch/examples/serving/sanic_server/logs/error.log
+    backupCount: 10
+    encoding: utf8
+    interval: 1
+    when: MIDNIGHT
+loggers:
+  tracelogger:
+    level: INFO
+    handlers: [traceloggerfile]
+    propagate: no
+  outlogger:
+    level: INFO
+    propagate: no
+  errorlogger:
+    level: WARNING
+    handlers: [console, errorloggerfile]
+    propagate: no
+root:
+  level: DEBUG
+  handlers: [console,outloggerfile]
+  
+  

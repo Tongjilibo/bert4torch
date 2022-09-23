@@ -4,6 +4,7 @@ datasets/
 *.onnx
 *.csv
 *.json
+*.log
 bert4torch_test.ipynb
 summary/
 .idea

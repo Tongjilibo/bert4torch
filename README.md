@@ -48,7 +48,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：初始版本
 
 ## 5. 更新：
-- **2022年9月20更新**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)
+- **2022年9月20更新**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)，sanic+onnx部署
 - **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型, 修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads
 - **2022年8月28更新**：增加nl2sql示例, 增加自定义metrics，支持断点续训
 - **2022年8月21更新**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply, 兼容torch<=1.7.1的torch.div无rounding_mode

@@ -1,0 +1,3 @@
+model:
+  bert_model: E:/Github/bert4torch/examples/serving/sanic_server/files/bert_cls.onnx
+  vocab: F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt
