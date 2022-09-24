@@ -158,7 +158,7 @@ onnx+tensorrt:  12.542836666107178  ms
 |onnx+tensorrt|——|7ms (len=202), 12ms (len=512)|
 
 # 6. 实验文件
-- 文件树
+- [文件树](https://pan.baidu.com/s/1vX3yK7BWQScnK_5Zb-pAkQ?pwd=rhq9)
 ```shell
 tensorrt
 ├─common.py
@@ -167,7 +167,9 @@ tensorrt
 ├─bert_cls.trt
 ├─TensorRT-8.4.1.5
 ```
-- docker镜像: 目前读者可按上述方式自行构建，后续笔者上传后可直接pull后可用，创建容器命令如下
+- docker镜像: 1)可按上述方式自行构建，2)直接pull笔者上传的镜像
 ```shell
-docker run -it --name trt_torch --gpus all -v /home/libo/tensorrt:/tensorrt nvidia/cuda/tensorrt/pytorch:11.3.0-cudnn8-devel-ubuntu20.04-tensorrt8.4.1.5 /bin/bash
+docker pull tongjilibo/tensorrt:11.3.0-cudnn8-devel-ubuntu20.04-tensorrt8.4.1.5
+
+docker run -it --name trt_torch --gpus all -v /home/libo/tensorrt:/tensorrt tongjilibo/tensorrt:11.3.0-cudnn8-devel-ubuntu20.04-tensorrt8.4.1.5 /bin/bash
 ```
