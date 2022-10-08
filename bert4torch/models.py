@@ -102,6 +102,7 @@ class BaseModel(nn.Module):
             self.adversarial['adv_step_size'] = self.adversarial.get('adv_step_size', 1e-3)  # 学习率
             self.adversarial['adv_alpha'] = self.adversarial.get('adv_alpha', 1)  # 对抗loss的权重
             self.adversarial['norm_type'] = self.adversarial.get('norm_type', 'l2')  # 归一化方式
+            self.adversarial['rank'] = self.adversarial.get('rank', 0)  # forward返回多个时指定使用的logit
             self.ad_train = VAT(self, **self.adversarial)
 
     def adversarial_training(self, train_X, train_y, output, loss, loss_detail, grad_accumulation_steps):
@@ -133,7 +134,7 @@ class BaseModel(nn.Module):
             loss.backward()
         # 虚拟对抗训练
         elif self.adversarial['name'] == 'vat':
-            logit = output[0] if isinstance(output, (list, tuple)) else output
+            logit = output[self.adversarial['rank']] if isinstance(output, (tuple, list)) else output
             adv_loss = self.ad_train.virtual_adversarial_training(train_X, logit)
             loss_detail.update({'loss_sup': loss.item(), 'loss_unsup': adv_loss})
             loss += (adv_loss if adv_loss else 0)
@@ -218,7 +219,7 @@ class BaseModel(nn.Module):
         train_dataloader_iter = iter(self.train_dataloader)  # 循环epoch时不重生成
 
         callbacks = [] if callbacks is None else callbacks
-        callbacks = callbacks if isinstance(callbacks, (list, tuple)) else [callbacks]
+        callbacks = callbacks if isinstance(callbacks, (tuple, list)) else [callbacks]
         self.callbacks = [ProgbarLogger(epochs, self.steps_per_epoch, [i for i in self.metrics.keys() if isinstance(i, str)])] + callbacks
         self.callback_fun('train_begin')
 
@@ -246,18 +247,6 @@ class BaseModel(nn.Module):
                     self.bti = 0
                     batch = next(train_dataloader_iter)
                 train_X, train_y = batch
-
-                # 取btz，最多允许嵌套两层，即((token_ids1, mask1), (token_ids2, mask2))
-                # if isinstance(train_X, (list, tuple)):
-                #     if isinstance(train_X[0], (list, tuple)):
-                #         btz = train_X[0][0].size(0)
-                #     else:
-                #         btz = train_X[0].size(0)
-                # elif isinstance(train_X, torch.Tensor):
-                #     btz = train_X.size(0)
-                # else:
-                #     raise ValueError('Input only support [list, tuple, tensor]')
-                # logs = {'batch': self.local_step, 'size': btz}
 
                 logs = OrderedDict()
                 self.callback_fun('batch_begin', logs)
@@ -754,7 +743,7 @@ class BERT(BERT_BASE):
         """BERT的embedding是token、position、segment三者embedding之和
         默认顺序是token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)
         """
-        assert isinstance(inputs, (list, tuple)), f'Inputs only support list,tuple format but passed {type(inputs)}'
+        assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
         token_ids = inputs[0]
         index_ = 1
@@ -1834,7 +1823,7 @@ class Transformer_XL(BERT):
     def apply_embeddings(self, inputs):
         '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入
         '''
-        assert isinstance(inputs, (list, tuple)), f'Inputs only support list,tuple format but passed {type(inputs)}'
+        assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
         self.mems = self.init_mems(inputs[0].size(0))  # 生成mems
         # 精简后embeddings中只计算word_emdedding
