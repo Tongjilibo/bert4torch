@@ -31,13 +31,6 @@ $ python example/create_index.py --index_file=example/index.json --index_name=jo
 ## 调用模型生成embedding
 ```bash
 $ python example/create_documents.py --data=example/example.csv --index_name=jobsearch
-# example/example.csv
-"Title","Description"
-"Saleswoman","lorem ipsum"
-"Software Developer","lorem ipsum"
-"Chief Financial Officer","lorem ipsum"
-"General Manager","lorem ipsum"
-"Network Administrator","lorem ipsum"
 ```
 
 

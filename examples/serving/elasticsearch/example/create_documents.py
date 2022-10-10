@@ -44,10 +44,10 @@ def bulk_predict(docs, batch_size=256):
 
 def main(args):
     docs = load_dataset(args.data)
-    with open(args.save, 'w') as f:
+    with open(args.save, 'w', encoding='utf-8') as f:
         for doc, emb in zip(docs, bulk_predict(docs)):
             d = create_document(doc, emb, args.index_name)
-            f.write(json.dumps(d) + '\n')
+            f.write(json.dumps(d, ensure_ascii=False) + '\n')
 
 
 if __name__ == '__main__':

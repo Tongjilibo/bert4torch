@@ -9,12 +9,12 @@ from elasticsearch.helpers import bulk
 
 
 def load_dataset(path):
-    with open(path) as f:
+    with open(path, 'r', encoding='utf-8') as f:
         return [json.loads(line) for line in f]
 
 
 def main(args):
-    client = Elasticsearch()
+    client = Elasticsearch('localhost:9200')
     docs = load_dataset(args.data)
     print('doc len: ', len(docs))
     bulk(client, docs)
