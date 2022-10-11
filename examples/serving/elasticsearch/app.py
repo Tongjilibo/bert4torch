@@ -17,7 +17,7 @@ def index():
 @app.route('/search')
 def analyzer():
     bc = BertClient()
-    client = Elasticsearch('localhost:9200')
+    client = Elasticsearch()
 
     query = request.args.get('q')
     query_vector = bc.encode([query])[0]

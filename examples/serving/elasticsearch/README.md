@@ -1,44 +1,10 @@
-## 插入index
+## 1. 说明
+elastic search使用是7.3.2版本
+
+## 2. 插入index + doc转emb + 插入数据 + 开启服务
 ```bash
-$ python example/create_index.py --index_file=example/index.json --index_name=jobsearch
-# index.json
-{
-  "settings": {
-    "number_of_shards": 2,
-    "number_of_replicas": 1
-  },
-  "mappings": {
-    "dynamic": "true",
-    "_source": {
-      "enabled": "true"
-    },
-    "properties": {
-      "title": {
-        "type": "text"
-      },
-      "text": {
-        "type": "text"
-      },
-      "text_vector": {
-        "type": "dense_vector",
-        "dims": 768
-      }
-    }
-  }
-}
+sh start.sh
 ```
 
-## 调用模型生成embedding
-```bash
-$ python example/create_documents.py --data=example/example.csv --index_name=jobsearch
-```
-
-
-### 插入es
-```bash
-$ python example/index_documents.py
-```
-
-### 7. Open browser
-
+## 3. Open browser
 Go to <http://127.0.0.1:5000>.
