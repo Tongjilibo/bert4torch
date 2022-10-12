@@ -71,7 +71,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **2022年3月12更新**：初版提交
 
 ## 6. Todo List（欢迎建议）:
-- elasticsearch和faiss在文本向量检索中的使用
+- faiss在文本向量检索中的使用
 
 ## 7. 预训练权重
 - 部分权重是要加载修改的[config.json](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)

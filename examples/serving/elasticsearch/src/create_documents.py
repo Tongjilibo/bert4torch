@@ -5,8 +5,6 @@ import argparse
 import json
 import pandas as pd
 from tqdm import tqdm
-import sys
-sys.path.append('E:/Github/bert4torch/examples/serving/elasticsearch')
 from model import BertClient
 bc = BertClient(batch_size=128, use_tqdm=False)
 

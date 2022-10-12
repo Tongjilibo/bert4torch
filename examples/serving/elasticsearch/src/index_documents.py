@@ -3,7 +3,6 @@ Example script to index elasticsearch documents.
 """
 import argparse
 import json
-
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 

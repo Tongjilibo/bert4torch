@@ -2,7 +2,7 @@ import os
 from pprint import pprint
 from flask import Flask, render_template, jsonify, request
 from elasticsearch import Elasticsearch
-from model import BertClient
+from src.model import BertClient
 
 SEARCH_SIZE = 10
 INDEX_NAME = 'jobsearch'
