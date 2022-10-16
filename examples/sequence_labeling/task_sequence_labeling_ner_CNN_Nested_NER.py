@@ -1,0 +1,438 @@
+#! -*- coding:utf-8 -*-
+# W2NER: https://github.com/ljynlp/W2NER
+# 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import torch.nn as nn
+import torch.optim as optim
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
+from bert4torch.optimizers import get_linear_schedule_with_warmup
+from bert4torch.layers import LayerNorm
+from bert4torch.tokenizers import Tokenizer
+from bert4torch.models import build_transformer_model, BaseModel
+from tqdm import tqdm
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from collections import defaultdict, deque
+from sklearn.metrics import precision_recall_fscore_support
+from fastNLP import seq_len_to_mask
+from torch_scatter import scatter_max
+
+# 模型参数：训练
+epochs = 20  # 训练轮数
+steps_per_epoch = 100  # 每轮步数
+maxlen = 256  # 最大长度
+batch_size = 8  # 根据gpu显存设置
+lr = 1e-3
+clip_grad_norm = 5.0
+warm_factor = 0.1
+weight_decay = 0
+label2idx = {'LOC':0, 'PER':1, 'ORG':2}
+non_ptm_lr_ratio = 100
+biaffine_size = 512
+
+
+# BERT base
+config_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/bert4torch_pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/vocab.txt'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# 固定seed
+seed_everything(42)
+
+# 建立分词器
+tokenizer = Tokenizer(dict_path, do_lower_case=True)
+
+# 加载数据集
+class MyDataset(ListDataset):
+    @staticmethod
+    def get_new_ins(bpes, spans, indexes):
+        bpes.append(tokenizer._token_end_id)
+        cur_word_idx = indexes[-1]
+        indexes.append(0)
+        # int8范围-128~127
+        matrix = np.zeros((cur_word_idx, cur_word_idx, len(label2idx)), dtype=np.int8)
+        ent_target = []
+        for _ner in spans:
+            s, e, t = _ner
+            matrix[s, e, t] = 1
+            matrix[e, s, t] = 1
+            ent_target.append((s, e, t))
+        assert len(bpes)<=maxlen, len(bpes)
+        return [bpes, indexes, matrix, ent_target]
+
+    def load_data(self, filename):
+        D = []
+        word2bpes = {}
+        with open(filename, encoding='utf-8') as f:
+            f = f.read()
+            for l in tqdm(f.split('\n\n'), desc='Load data'):
+                if not l:
+                    continue
+                _raw_words, _raw_ents = [], []
+                for i, c in enumerate(l.split('\n')):
+                    char, flag = c.split(' ')
+                    _raw_words += char
+                    if flag[0] == 'B':
+                        _raw_ents.append([i, i, flag[2:]])
+                    elif flag[0] == 'I':
+                        _raw_ents[-1][1] = i
+                if len(_raw_words) > maxlen - 2:
+                    continue
+
+                bpes = [tokenizer._token_start_id]
+                indexes = [0]
+                spans = []
+                ins_lst = []
+                _indexes = []
+                _bpes = []
+
+                for idx, word in enumerate(_raw_words, start=0):
+                    if word in word2bpes:
+                        __bpes = word2bpes[word]
+                    else:
+                        __bpes = tokenizer.encode(word)[0][1:-1]
+                        word2bpes[word] = __bpes
+                    _indexes.extend([idx]*len(__bpes))
+                    _bpes.extend(__bpes)
+                next_word_idx = indexes[-1]+1
+                if len(bpes) + len(_bpes) <= maxlen:
+                    bpes = bpes + _bpes
+                    indexes += [i + next_word_idx for i in _indexes]
+                    spans += [(s+next_word_idx-1, e+next_word_idx-1, label2idx.get(t), ) for s, e, t in _raw_ents]
+                else:
+                    new_ins = self.get_new_ins(bpes, spans, indexes)
+                    ins_lst.append(new_ins)
+                    indexes = [0] + [i + 1 for i in _indexes]
+                    spans = [(s, e, label2idx.get(t), ) for s, e, t in _raw_ents]
+                    bpes = [tokenizer._token_start_id] + _bpes
+
+                D.append(self.get_new_ins(bpes, spans, indexes))
+        return D
+
+
+def collate_fn(data):
+    tokens_ids, indexes, matrix, ent_target = map(list, zip(*data))
+    bpe_len = torch.tensor([len(token_ids) for token_ids in tokens_ids], dtype=torch.long, device=device)
+    tokens_ids = torch.tensor(sequence_padding(tokens_ids), dtype=torch.long, device=device)
+    indexes = torch.tensor(sequence_padding(indexes), dtype=torch.long, device=device)
+    seq_len = max([i.shape[0] for i in matrix])
+    matrix_new = np.ones((len(tokens_ids), seq_len, seq_len, len(label2idx)), dtype=np.int8) * -100
+    for i in range(len(tokens_ids)):
+        matrix_new[i, :len(matrix[i][0]), :len(matrix[i][0]), :] = matrix[i]
+    matrix = torch.tensor(matrix_new, dtype=torch.long, device=device)
+
+    return [tokens_ids, bpe_len, indexes], matrix_new
+
+# 加载数据
+train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
+
+class MaskConv2d(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size=3, padding=1, groups=1):
+        super(MaskConv2d, self).__init__()
+        self.conv2d = nn.Conv2d(in_ch, out_ch, kernel_size=kernel_size, padding=padding, bias=False, groups=groups)
+
+    def forward(self, x, mask):
+        x = x.masked_fill(mask, 0)
+        _x = self.conv2d(x)
+        return _x
+
+
+class MaskCNN(nn.Module):
+    def __init__(self, input_channels, output_channels, kernel_size=3, depth=3):
+        super(MaskCNN, self).__init__()
+
+        layers = []
+        for i in range(depth):
+            layers.extend([
+                MaskConv2d(input_channels, input_channels, kernel_size=kernel_size, padding=kernel_size//2),
+                LayerNorm((1, input_channels, 1, 1), dim_index=1),
+                nn.GELU()])
+        layers.append(MaskConv2d(input_channels, output_channels, kernel_size=3, padding=3//2))
+        self.cnns = nn.ModuleList(layers)
+
+    def forward(self, x, mask):
+        _x = x  # 用作residual
+        for layer in self.cnns:
+            if isinstance(layer, LayerNorm):
+                x = x + _x
+                x = layer(x)
+                _x = x
+            elif not isinstance(layer, nn.GELU):
+                x = layer(x, mask)
+            else:
+                x = layer(x)
+        return _x
+
+
+class MultiHeadBiaffine(nn.Module):
+    def __init__(self, dim, out=None, n_head=4):
+        super(MultiHeadBiaffine, self).__init__()
+        assert dim%n_head==0
+        in_head_dim = dim//n_head
+        out = dim if out is None else out
+        assert out%n_head == 0
+        out_head_dim = out//n_head
+        self.n_head = n_head
+        self.W = nn.Parameter(nn.init.xavier_normal_(torch.randn(self.n_head, out_head_dim, in_head_dim, in_head_dim)))
+        self.out_dim = out
+
+    def forward(self, h, v):
+        """
+        :param h: bsz x max_len x dim
+        :param v: bsz x max_len x dim
+        :return: bsz x max_len x max_len x out_dim
+        """
+        bsz, max_len, dim = h.size()
+        h = h.reshape(bsz, max_len, self.n_head, -1)
+        v = v.reshape(bsz, max_len, self.n_head, -1)
+        w = torch.einsum('blhx,hdxy,bkhy->bhdlk', h, self.W, v)
+        w = w.reshape(bsz, self.out_dim, max_len, max_len)
+        return w
+
+
+class Model(BaseModel):
+    def __init__(self, num_ner_tag, cnn_dim=200, biaffine_size=200,
+                 size_embed_dim=0, logit_drop=0, kernel_size=3, n_head=4, cnn_depth=3):
+        super(Model, self).__init__()
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+        hidden_size = self.bert.configs['hidden_size']
+
+        if size_embed_dim!=0:
+            n_pos = 30
+            self.size_embedding = torch.nn.Embedding(n_pos, size_embed_dim)
+            _span_size_ids = torch.arange(512) - torch.arange(512).unsqueeze(-1)
+            _span_size_ids.masked_fill_(_span_size_ids < -n_pos/2, -n_pos/2)
+            _span_size_ids = _span_size_ids.masked_fill(_span_size_ids >= n_pos/2, n_pos/2-1) + n_pos/2
+            self.register_buffer('span_size_ids', _span_size_ids.long())
+            hsz = biaffine_size*2 + size_embed_dim + 2
+        else:
+            hsz = biaffine_size*2+2
+        biaffine_input_size = hidden_size
+
+        self.head_mlp = nn.Sequential(
+            nn.Dropout(0.4),
+            nn.Linear(biaffine_input_size, biaffine_size),
+            nn.LeakyReLU(),
+        )
+        self.tail_mlp = nn.Sequential(
+            nn.Dropout(0.4),
+            nn.Linear(biaffine_input_size, biaffine_size),
+            nn.LeakyReLU(),
+        )
+
+        self.dropout = nn.Dropout(0.4)
+        if n_head>0:
+            self.multi_head_biaffine = MultiHeadBiaffine(biaffine_size, cnn_dim, n_head=n_head)
+        else:
+            self.U = nn.Parameter(torch.randn(cnn_dim, biaffine_size, biaffine_size))
+            torch.nn.init.xavier_normal_(self.U.data)
+        self.W = torch.nn.Parameter(torch.empty(cnn_dim, hsz))
+        torch.nn.init.xavier_normal_(self.W.data)
+        if cnn_depth>0:
+            self.cnn = MaskCNN(cnn_dim, cnn_dim, kernel_size=kernel_size, depth=cnn_depth)
+
+        self.down_fc = nn.Linear(cnn_dim, num_ner_tag)
+        self.logit_drop = logit_drop
+
+    def forward(self, input_ids, bpe_len, indexes):
+        outputs = self.bert([input_ids])
+        last_hidden_states = outputs['last_hidden_state']
+        state = scatter_max(last_hidden_states, index=indexes, dim=1)[0][:, 1:]  # bsz x word_len x hidden_size
+        lengths, _ = indexes.max(dim=-1)
+
+        head_state = self.head_mlp(state)
+        tail_state = self.tail_mlp(state)
+        if hasattr(self, 'U'):
+            scores1 = torch.einsum('bxi, oij, byj -> boxy', head_state, self.U, tail_state)
+        else:
+            scores1 = self.multi_head_biaffine(head_state, tail_state)
+        head_state = torch.cat([head_state, torch.ones_like(head_state[..., :1])], dim=-1)
+        tail_state = torch.cat([tail_state, torch.ones_like(tail_state[..., :1])], dim=-1)
+        affined_cat = torch.cat([self.dropout(head_state).unsqueeze(2).expand(-1, -1, tail_state.size(1), -1),
+                                 self.dropout(tail_state).unsqueeze(1).expand(-1, head_state.size(1), -1, -1)], dim=-1)
+
+        if hasattr(self, 'size_embedding'):
+            size_embedded = self.size_embedding(self.span_size_ids[:state.size(1), :state.size(1)])
+            affined_cat = torch.cat([affined_cat, self.dropout(size_embedded).unsqueeze(0).expand(state.size(0), -1, -1, -1)], dim=-1)
+
+        scores2 = torch.einsum('bmnh,kh->bkmn', affined_cat, self.W)  # bsz x dim x L x L
+        scores = scores2 + scores1   # bsz x dim x L x L
+
+        if hasattr(self, 'cnn'):
+            mask = seq_len_to_mask(lengths)  # bsz x length x length
+            mask = mask[:, None] * mask.unsqueeze(-1)
+            pad_mask = mask[:, None].eq(0)
+            u_scores = scores.masked_fill(pad_mask, 0)
+            if self.logit_drop != 0:
+                u_scores = F.dropout(u_scores, p=self.logit_drop, training=self.training)
+            # bsz, num_label, max_len, max_len = u_scores.size()
+            u_scores = self.cnn(u_scores, pad_mask)
+            scores = u_scores + scores
+
+        scores = self.down_fc(scores.permute(0, 2, 3, 1))
+
+        return scores
+
+
+model = Model(len(label2idx)).to(device)
+
+class Loss(nn.BCEWithLogitsLoss):
+    def forward(self, scores, matrix):
+        assert scores.size(-1) == matrix.size(-1)
+        flat_scores = scores.reshape(-1)
+        flat_matrix = matrix.reshape(-1)
+        mask = flat_matrix.ne(-100).float().view(scores.size(0), -1)
+        flat_loss = super().forward(flat_scores, flat_matrix.float(), reduction='none')
+        loss = ((flat_loss.view(scores.size(0), -1)*mask).sum(dim=-1)).mean()
+        return loss
+
+# optimizer
+parameters = []
+ln_params = []
+non_ln_params = []
+non_pretrain_params = []
+non_pretrain_ln_params = []
+
+for name, param in model.named_parameters():
+    name = name.lower()
+    if param.requires_grad is False:
+        continue
+    if 'pretrain_model' in name:
+        if 'norm' in name or 'bias' in name:
+            ln_params.append(param)
+        else:
+            non_ln_params.append(param)
+    else:
+        if 'norm' in name or 'bias' in name:
+            non_pretrain_ln_params.append(param)
+        else:
+            non_pretrain_params.append(param)
+optimizer = torch.optim.AdamW([{'params': non_ln_params, 'lr': lr, 'weight_decay': weight_decay},
+                               {'params': ln_params, 'lr': lr, 'weight_decay': 0},
+                               {'params': non_pretrain_ln_params, 'lr': lr*non_ptm_lr_ratio, 'weight_decay': 0},
+                               {'params': non_pretrain_params, 'lr': lr*non_ptm_lr_ratio, 'weight_decay': weight_decay}])
+
+updates_total = (len(train_dataloader) if steps_per_epoch is None else steps_per_epoch) * epochs
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warm_factor * updates_total, num_training_steps=updates_total)
+model.compile(loss=Loss(), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=5.0)
+
+class Evaluator(Callback):
+    """评估与保存
+    """
+    def __init__(self):
+        self.best_val_f1 = 0.
+
+    def on_epoch_end(self, steps, epoch, logs=None):
+        f1, p, r, e_f1, e_p, e_r = self.evaluate(valid_dataloader)
+        if e_f1 > self.best_val_f1:
+            self.best_val_f1 = e_f1
+            # model.save_weights('best_model.pt')
+        print(f'[val-token  level] f1: {f1:.5f}, p: {p:.5f} r: {r:.5f}')
+        print(f'[val-entity level] f1: {e_f1:.5f}, p: {e_p:.5f} r: {e_r:.5f} best_f1: {self.best_val_f1:.5f}\n')
+
+    def evaluate(self, data_loader):
+        def cal_f1(c, p, r):
+            if r == 0 or p == 0:
+                return 0, 0, 0
+            r = c / r if r else 0
+            p = c / p if p else 0
+            if r and p:
+                return 2 * p * r / (p + r), p, r
+            return 0, p, r
+
+        pred_result = []
+        label_result = []
+
+        total_ent_r = 0
+        total_ent_p = 0
+        total_ent_c = 0
+        for data_batch in tqdm(data_loader, desc='Evaluate'):
+            (token_ids, pieces2word, dist_inputs, sent_length, grid_mask2d), (grid_labels, grid_mask2d, entity_text) = data_batch
+            outputs = model.predict([token_ids, pieces2word, dist_inputs, sent_length, grid_mask2d])
+
+            grid_mask2d = grid_mask2d.clone()
+
+            outputs = torch.argmax(outputs, -1)
+            ent_c, ent_p, ent_r, _ = self.decode(outputs.cpu().numpy(), entity_text, sent_length.cpu().numpy())
+
+            total_ent_r += ent_r
+            total_ent_p += ent_p
+            total_ent_c += ent_c
+
+            grid_labels = grid_labels[grid_mask2d].contiguous().view(-1)
+            outputs = outputs[grid_mask2d].contiguous().view(-1)
+
+            label_result.append(grid_labels.cpu())
+            pred_result.append(outputs.cpu())
+
+        label_result = torch.cat(label_result)
+        pred_result = torch.cat(pred_result)
+
+        p, r, f1, _ = precision_recall_fscore_support(label_result.numpy(), pred_result.numpy(), average="macro")
+        e_f1, e_p, e_r = cal_f1(total_ent_c, total_ent_p, total_ent_r)
+        return f1, p, r, e_f1, e_p, e_r
+
+    def decode(self, outputs, entities, length):
+        class Node:
+            def __init__(self):
+                self.THW = []                # [(tail, type)]
+                self.NNW = defaultdict(set)   # {(head,tail): {next_index}}
+
+        ent_r, ent_p, ent_c = 0, 0, 0
+        decode_entities = []
+        q = deque()
+        for instance, ent_set, l in zip(outputs, entities, length):
+            predicts = []
+            nodes = [Node() for _ in range(l)]
+            count = 0
+            for cur in reversed(range(l)):
+                # if count >= 29:
+                #     print(count)
+                count += 1
+                heads = []
+                for pre in range(cur+1):
+                    # THW
+                    if instance[cur, pre] > 1: 
+                        nodes[pre].THW.append((cur, instance[cur, pre]))
+                        heads.append(pre)
+                    # NNW
+                    if pre < cur and instance[pre, cur] == 1:
+                        # cur node
+                        for head in heads:
+                            nodes[pre].NNW[(head,cur)].add(cur)
+                        # post nodes
+                        for head,tail in nodes[cur].NNW.keys():
+                            if tail >= cur and head <= pre:
+                                nodes[pre].NNW[(head,tail)].add(cur)
+                # entity
+                for tail,type_id in nodes[cur].THW:
+                    if cur == tail:
+                        predicts.append(([cur], type_id))
+                        continue
+                    q.clear()
+                    q.append([cur])
+                    while len(q) > 0:
+                        chains = q.pop()
+                        for idx in nodes[chains[-1]].NNW[(cur,tail)]:
+                            if idx == tail:
+                                predicts.append((chains + [idx], type_id))
+                            else:
+                                q.append(chains + [idx])
+            
+            predicts = set([convert_index_to_text(x[0], x[1]) for x in predicts])
+            decode_entities.append([convert_text_to_index(x) for x in predicts])
+            ent_r += len(ent_set)
+            ent_p += len(predicts)
+            ent_c += len(predicts.intersection(ent_set))
+        return ent_c, ent_p, ent_r, decode_entities
+
+if __name__ == '__main__':
+    evaluator = Evaluator()
+    model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
+else: 
+    model.load_weights('best_model.pt')
