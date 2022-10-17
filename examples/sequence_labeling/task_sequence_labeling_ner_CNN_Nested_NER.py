@@ -1,21 +1,18 @@
 #! -*- coding:utf-8 -*-
-# W2NER: https://github.com/ljynlp/W2NER
-# 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
+# https://github.com/yhcc/CNN_Nested_NER
+
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.nn as nn
-import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from collections import defaultdict, deque
 from sklearn.metrics import precision_recall_fscore_support
 from fastNLP import seq_len_to_mask
 from torch_scatter import scatter_max
@@ -25,14 +22,21 @@ epochs = 20  # 训练轮数
 steps_per_epoch = 100  # 每轮步数
 maxlen = 256  # 最大长度
 batch_size = 8  # 根据gpu显存设置
-lr = 1e-3
+lr = 2e-5
 clip_grad_norm = 5.0
 warm_factor = 0.1
-weight_decay = 0
+weight_decay = 1e-2
 label2idx = {'LOC':0, 'PER':1, 'ORG':2}
 non_ptm_lr_ratio = 100
-biaffine_size = 512
-
+biaffine_size = 400
+n_head = 4
+schedule = 'linear'
+size_embed_dim = 25
+ent_thres = 0.5
+kernel_size = 3
+cnn_dim = 20
+logit_drop = 0
+cnn_depth = 3
 
 # BERT base
 config_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/config.json'
@@ -116,7 +120,6 @@ class MyDataset(ListDataset):
 
 def collate_fn(data):
     tokens_ids, indexes, matrix, ent_target = map(list, zip(*data))
-    bpe_len = torch.tensor([len(token_ids) for token_ids in tokens_ids], dtype=torch.long, device=device)
     tokens_ids = torch.tensor(sequence_padding(tokens_ids), dtype=torch.long, device=device)
     indexes = torch.tensor(sequence_padding(indexes), dtype=torch.long, device=device)
     seq_len = max([i.shape[0] for i in matrix])
@@ -125,7 +128,7 @@ def collate_fn(data):
         matrix_new[i, :len(matrix[i][0]), :len(matrix[i][0]), :] = matrix[i]
     matrix = torch.tensor(matrix_new, dtype=torch.long, device=device)
 
-    return [tokens_ids, bpe_len, indexes], matrix_new
+    return [tokens_ids, indexes], [matrix, ent_target]
 
 # 加载数据
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -147,7 +150,7 @@ class MaskCNN(nn.Module):
         super(MaskCNN, self).__init__()
 
         layers = []
-        for i in range(depth):
+        for _ in range(depth):
             layers.extend([
                 MaskConv2d(input_channels, input_channels, kernel_size=kernel_size, padding=kernel_size//2),
                 LayerNorm((1, input_channels, 1, 1), dim_index=1),
@@ -199,7 +202,7 @@ class Model(BaseModel):
     def __init__(self, num_ner_tag, cnn_dim=200, biaffine_size=200,
                  size_embed_dim=0, logit_drop=0, kernel_size=3, n_head=4, cnn_depth=3):
         super(Model, self).__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
         hidden_size = self.bert.configs['hidden_size']
 
         if size_embed_dim!=0:
@@ -239,9 +242,8 @@ class Model(BaseModel):
         self.down_fc = nn.Linear(cnn_dim, num_ner_tag)
         self.logit_drop = logit_drop
 
-    def forward(self, input_ids, bpe_len, indexes):
-        outputs = self.bert([input_ids])
-        last_hidden_states = outputs['last_hidden_state']
+    def forward(self, input_ids, indexes):
+        last_hidden_states = self.bert([input_ids])
         state = scatter_max(last_hidden_states, index=indexes, dim=1)[0][:, 1:]  # bsz x word_len x hidden_size
         lengths, _ = indexes.max(dim=-1)
 
@@ -278,16 +280,18 @@ class Model(BaseModel):
 
         return scores
 
+model = Model(num_ner_tag=len(label2idx), cnn_dim=cnn_dim, biaffine_size=biaffine_size,
+              size_embed_dim=size_embed_dim, logit_drop=logit_drop,
+              kernel_size=kernel_size, n_head=n_head, cnn_depth=cnn_depth).to(device)
 
-model = Model(len(label2idx)).to(device)
-
-class Loss(nn.BCEWithLogitsLoss):
-    def forward(self, scores, matrix):
-        assert scores.size(-1) == matrix.size(-1)
+class Loss(object):
+    def __call__(self, scores, y_true):
+        matrix, _ = y_true
+        assert scores.shape[-1] == matrix.shape[-1]
         flat_scores = scores.reshape(-1)
         flat_matrix = matrix.reshape(-1)
         mask = flat_matrix.ne(-100).float().view(scores.size(0), -1)
-        flat_loss = super().forward(flat_scores, flat_matrix.float(), reduction='none')
+        flat_loss = F.binary_cross_entropy_with_logits(flat_scores, flat_matrix.float(), reduction='none')
         loss = ((flat_loss.view(scores.size(0), -1)*mask).sum(dim=-1)).mean()
         return loss
 
@@ -352,23 +356,13 @@ class Evaluator(Callback):
         total_ent_p = 0
         total_ent_c = 0
         for data_batch in tqdm(data_loader, desc='Evaluate'):
-            (token_ids, pieces2word, dist_inputs, sent_length, grid_mask2d), (grid_labels, grid_mask2d, entity_text) = data_batch
-            outputs = model.predict([token_ids, pieces2word, dist_inputs, sent_length, grid_mask2d])
-
-            grid_mask2d = grid_mask2d.clone()
-
+            (tokens_ids, indexes), (matrix, ent_target) = data_batch
+            outputs = model.predict([tokens_ids, indexes])
             outputs = torch.argmax(outputs, -1)
-            ent_c, ent_p, ent_r, _ = self.decode(outputs.cpu().numpy(), entity_text, sent_length.cpu().numpy())
+            ent_c, ent_p, ent_r, _ = self.decode(outputs.cpu().numpy())
 
-            total_ent_r += ent_r
-            total_ent_p += ent_p
-            total_ent_c += ent_c
-
-            grid_labels = grid_labels[grid_mask2d].contiguous().view(-1)
-            outputs = outputs[grid_mask2d].contiguous().view(-1)
-
-            label_result.append(grid_labels.cpu())
-            pred_result.append(outputs.cpu())
+            # label_result.append(grid_labels.cpu())
+            # pred_result.append(outputs.cpu())
 
         label_result = torch.cat(label_result)
         pred_result = torch.cat(pred_result)
@@ -377,59 +371,9 @@ class Evaluator(Callback):
         e_f1, e_p, e_r = cal_f1(total_ent_c, total_ent_p, total_ent_r)
         return f1, p, r, e_f1, e_p, e_r
 
-    def decode(self, outputs, entities, length):
-        class Node:
-            def __init__(self):
-                self.THW = []                # [(tail, type)]
-                self.NNW = defaultdict(set)   # {(head,tail): {next_index}}
-
-        ent_r, ent_p, ent_c = 0, 0, 0
-        decode_entities = []
-        q = deque()
-        for instance, ent_set, l in zip(outputs, entities, length):
-            predicts = []
-            nodes = [Node() for _ in range(l)]
-            count = 0
-            for cur in reversed(range(l)):
-                # if count >= 29:
-                #     print(count)
-                count += 1
-                heads = []
-                for pre in range(cur+1):
-                    # THW
-                    if instance[cur, pre] > 1: 
-                        nodes[pre].THW.append((cur, instance[cur, pre]))
-                        heads.append(pre)
-                    # NNW
-                    if pre < cur and instance[pre, cur] == 1:
-                        # cur node
-                        for head in heads:
-                            nodes[pre].NNW[(head,cur)].add(cur)
-                        # post nodes
-                        for head,tail in nodes[cur].NNW.keys():
-                            if tail >= cur and head <= pre:
-                                nodes[pre].NNW[(head,tail)].add(cur)
-                # entity
-                for tail,type_id in nodes[cur].THW:
-                    if cur == tail:
-                        predicts.append(([cur], type_id))
-                        continue
-                    q.clear()
-                    q.append([cur])
-                    while len(q) > 0:
-                        chains = q.pop()
-                        for idx in nodes[chains[-1]].NNW[(cur,tail)]:
-                            if idx == tail:
-                                predicts.append((chains + [idx], type_id))
-                            else:
-                                q.append(chains + [idx])
-            
-            predicts = set([convert_index_to_text(x[0], x[1]) for x in predicts])
-            decode_entities.append([convert_text_to_index(x) for x in predicts])
-            ent_r += len(ent_set)
-            ent_p += len(predicts)
-            ent_c += len(predicts.intersection(ent_set))
-        return ent_c, ent_p, ent_r, decode_entities
+    def decode(self, outputs):
+        # todo
+        return 0, 0, 0, 0
 
 if __name__ == '__main__':
     evaluator = Evaluator()
