@@ -86,6 +86,8 @@ class MyDataset(ListDataset):
                         _raw_ents[-1][1] = i
                 if len(_raw_words) > maxlen - 2:
                     continue
+                
+                _raw_ents = [(s, e, t) for s, e, t in _raw_ents]
 
                 bpes = [tokenizer._token_start_id]
                 indexes = [0]
@@ -357,12 +359,19 @@ class Evaluator(Callback):
         total_ent_c = 0
         for data_batch in tqdm(data_loader, desc='Evaluate'):
             (tokens_ids, indexes), (matrix, ent_target) = data_batch
-            outputs = model.predict([tokens_ids, indexes])
-            outputs = torch.argmax(outputs, -1)
-            ent_c, ent_p, ent_r, _ = self.decode(outputs.cpu().numpy())
+            scores = F.softmax(model.predict([tokens_ids, indexes]), dim=-1).gt(0.5).long()
+            scores = scores.masked_fill(matrix.eq(-100), 0)  # mask掉padding部分
+            
+            # token粒度
+            mask = matrix.reshape(-1).ne(-100)
+            label_result.append(matrix.reshape(-1).masked_select(mask).cpu())
+            pred_result.append(scores.reshape(-1).masked_select(mask).cpu())
 
-            # label_result.append(grid_labels.cpu())
-            # pred_result.append(outputs.cpu())
+            # 实体粒度
+            ent_c, ent_p, ent_r = self.decode(scores.cpu().numpy(), ent_target)
+            total_ent_r += ent_r
+            total_ent_p += ent_p
+            total_ent_c += ent_c
 
         label_result = torch.cat(label_result)
         pred_result = torch.cat(pred_result)
@@ -371,9 +380,19 @@ class Evaluator(Callback):
         e_f1, e_p, e_r = cal_f1(total_ent_c, total_ent_p, total_ent_r)
         return f1, p, r, e_f1, e_p, e_r
 
-    def decode(self, outputs):
-        # todo
-        return 0, 0, 0, 0
+    def decode(self, outputs, ent_target):
+        ent_c, ent_p, ent_r = 0, 0, 0
+        for pred, label in zip(outputs, ent_target):
+            ent_r += len(label)
+            pred_tuple = []
+            for item in range(pred.shape[-1]):
+                if pred[:, :, item].sum() > 0:
+                    _index = np.where(pred[:, :, item]>0)[1]
+                    pred_tuple.extend([(i//pred.shape[1], i%pred.shape[1], item) for i in _index])
+            ent_p += len(pred_tuple)
+            ent_c += len(set(label).intersection(set(pred_tuple)))
+            
+        return ent_c, ent_p, ent_r
 
 if __name__ == '__main__':
     evaluator = Evaluator()
