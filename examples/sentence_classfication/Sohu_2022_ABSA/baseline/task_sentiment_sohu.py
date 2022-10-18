@@ -45,7 +45,7 @@ seed = 42
 
 # 模型设置
 epochs = 10
-steps_per_epoch = 1000
+steps_per_epoch = None
 total_eval_step = None
 maxlen = 512
 batch_size = 7

@@ -343,7 +343,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    train_model.fit(train_dataloader, steps_per_epoch=100, epochs=200, callbacks=[evaluator])
+    train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
 else:
     train_model.load_weights('best_model2.pt')
 

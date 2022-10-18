@@ -18,7 +18,7 @@ from cchess import *
 
 # 基本信息
 maxlen = 512
-steps_per_epoch = 1000
+steps_per_epoch = None
 epochs = 10000
 batch_size = 16
 
@@ -208,7 +208,7 @@ if __name__ == '__main__':
 
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, steps_per_epoch=1000, epochs=20, callbacks=[evaluator])
+        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=20, callbacks=[evaluator])
     else:
         model.load_weights('./best_model_chess.pt')
         chessplayer.new_game(0)  # 启动新棋局，0为人类先手，1为机器先手

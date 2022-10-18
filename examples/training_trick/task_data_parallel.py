@@ -84,4 +84,4 @@ model.compile(
 )
 
 if __name__ == '__main__':
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=10)
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=None)

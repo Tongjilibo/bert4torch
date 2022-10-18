@@ -20,11 +20,10 @@ from sklearn.metrics import precision_recall_fscore_support
 
 # 模型参数：训练
 epochs = 20  # 训练轮数
-steps_per_epoch = 100  # 每轮步数
+steps_per_epoch = None  # 每轮步数
 maxlen = 256  # 最大长度
 batch_size = 8  # 根据gpu显存设置
 learning_rate = 1e-3
-clip_grad_norm = 5.0
 bert_learning_rate = 5e-6
 warm_factor = 0.1
 weight_decay = 0

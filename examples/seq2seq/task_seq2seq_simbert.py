@@ -235,7 +235,7 @@ if __name__ == '__main__':
     
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=50, steps_per_epoch=200, callbacks=[evaluator])
+        model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
 
     elif choice == 'generate':
         print(gen_synonyms('我想去北京玩玩可以吗', 10, 10))

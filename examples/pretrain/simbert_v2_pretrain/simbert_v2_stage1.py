@@ -259,6 +259,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':    
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=50, steps_per_epoch=200, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=50, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('./best_model.pt')

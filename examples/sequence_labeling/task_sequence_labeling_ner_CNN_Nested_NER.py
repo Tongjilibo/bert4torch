@@ -19,7 +19,7 @@ from torch_scatter import scatter_max
 
 # 模型参数：训练
 epochs = 20  # 训练轮数
-steps_per_epoch = 100  # 每轮步数
+steps_per_epoch = None  # 每轮步数
 maxlen = 256  # 最大长度
 batch_size = 8  # 根据gpu显存设置
 lr = 2e-5

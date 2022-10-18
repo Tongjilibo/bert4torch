@@ -13,8 +13,6 @@ from sentence_transformers import evaluation
 from config import config_path, checkpoint_path, dict_path, fst_train_file, fst_dev_file, ir_path
 import numpy as np
 import pandas as pd
-import random
-import os
 
 # 固定seed
 seed_everything(42)
@@ -198,7 +196,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=100, 
+            steps_per_epoch=None, 
             callbacks=[evaluator]
             )
 else:

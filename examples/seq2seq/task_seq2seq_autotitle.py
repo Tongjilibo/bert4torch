@@ -130,7 +130,7 @@ if __name__ == '__main__':
 
     model.fit(
         train_dataloader,
-        steps_per_epoch=100,
+        steps_per_epoch=None,
         epochs=epochs,
         callbacks=[evaluator]
     )

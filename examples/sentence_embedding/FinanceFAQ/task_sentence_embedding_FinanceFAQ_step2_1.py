@@ -14,8 +14,6 @@ from config import config_path, checkpoint_path, dict_path, sec_train_file, sec_
 import numpy as np
 from sklearn.metrics.pairwise import paired_cosine_distances
 from sklearn.metrics import roc_auc_score
-import random
-import os
 
 # 固定seed
 seed_everything(42)
@@ -135,7 +133,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=1000, 
+            steps_per_epoch=None, 
             callbacks=[evaluator]
             )
 else:
