@@ -173,7 +173,8 @@ def do_train(df_train):
         valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
 
         model = Model().to(device)
-        model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=lr), adversarial_train={'name': 'fgm'})
+        model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=lr), 
+                      grad_accumulation_steps=grad_accum_steps, adversarial_train={'name': 'fgm'})
 
         callbacks = [
             Evaluator(model, valid_dataloader, fold),
@@ -183,7 +184,6 @@ def do_train(df_train):
             train_dataloader,
             steps_per_epoch=None,
             epochs=epochs,
-            grad_accumulation_steps=grad_accum_steps,
             callbacks=callbacks
         )
 

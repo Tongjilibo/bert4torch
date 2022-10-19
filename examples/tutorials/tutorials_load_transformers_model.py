@@ -73,6 +73,7 @@ model = Model().to(device)
 model.compile(
     loss=nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
+    grad_accumulation_steps=2,
     metrics=['accuracy']
 )
 
@@ -102,6 +103,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

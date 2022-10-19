@@ -53,6 +53,8 @@ model.compile(
     loss=nn.CrossEntropyLoss(), # 可以自定义Loss
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 可以自定义优化器
     scheduler=None, # 可以自定义scheduler
+    clip_gram_norm=1.0,  # 梯度裁剪
+    grad_accumulation_steps=2,  # 梯度累积
     metrics=['accuracy']  # 可以自定义回调函数
 )
 
@@ -81,9 +83,9 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    # 指定训练的epochs，每轮的steps_per_epoch(不设置或者设置为None表示自动计算)，梯度累积grad_accumulation_steps
+    # 指定训练的epochs，每轮的steps_per_epoch(不设置或者设置为None表示自动计算)
     # 使用默认Logger和Tensorboard
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, 
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=100,
               callbacks=[evaluator, Logger('./test/test.log'), Tensorboard('./test/')])
 ```
 
@@ -308,7 +310,7 @@ class Evaluator(Callback):
             writer.add_scalar(f"valid/acc", val_acc, global_step)
 
 # 使用默认的文件Logger和Tensorboard
- model.fit(train_dataloader, epochs=20, steps_per_epoch=100, grad_accumulation_steps=2, 
+ model.fit(train_dataloader, epochs=20, steps_per_epoch=100,
               callbacks=[evaluator, Logger('./test/test.log'), Tensorboard('./test/')])
 
 ```
