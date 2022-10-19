@@ -48,27 +48,27 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：20220409 初始版本
 
 ## 5. 更新：
-- **2022年10月11更新**：虚拟对抗VAT在多个ouput时支持指定，增加elasticsearch示例, 把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中供更多项目使用，把梯度累积移到compile中
-- **2022年9月20更新**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)，sanic+onnx部署
-- **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型，修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads
-- **2022年8月28更新**：增加nl2sql示例，增加自定义metrics，支持断点续训
-- **2022年8月21更新**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply，兼容torch<=1.7.1的torch.div无rounding_mode
-- **2022年8月14更新**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换
-- **2022年7月27更新**：增加mixup/manifold_mixup/temporal_ensembling策略，修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
-- **2022年7月16更新**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
-- **2022年7月10更新**：增加金融中文FAQ示例，天池新闻分类top1案例，增加EarlyStop，CRF中自带转bool类型
-- **2022年6月29更新**：增加ner的实验，测试crf不同初始化的效果，bert-whitening中文实验
-- **2022年6月13更新**：增加seq2seq+前缀树，增加SimCSE/ESimCSE/PromptBert等无监督语义相似度的中文实验
-- **2022年6月05更新**：增加PromptBert、PET、P-tuning示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus
-- **2022年5月29更新**：transformer_xl、xlnet模型，修改sinusoid位置向量被init_weight的bug，EMA，sohu情感分类示例
-- **2022年5月17更新**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding)
-- **2022年5月01更新**：增加了混合梯度，梯度裁剪，单机多卡训练(DP、DDP)
-- **2022年4月25更新**：增加了VAT、GAU-alpha等示例，增加了梯度累积，自定义fit()示例
-- **2022年4月15更新**：增加了ner_mrc、ner_span、roformer_v2、roformer-sim等示例
-- **2022年4月05更新**：增加了GPLinker、TPlinker、SimBERT等示例
-- **2022年3月29更新**：增加了CoSENT、R-Drop、UDA等示例
-- **2022年3月22更新**：添加GPT、GPT2、T5模型
-- **2022年3月12更新**：初版提交
+- **20221011**：虚拟对抗VAT在多个ouput时支持指定，增加elasticsearch示例, 把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中供更多项目使用，把梯度累积移到compile中
+- **20220920**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)，sanic+onnx部署
+- **20220910**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型，修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads
+- **20220828**：增加nl2sql示例，增加自定义metrics，支持断点续训
+- **20220821**：增加W2NER和DiffCSE示例，打印Epoch开始的时间戳，增加parallel_apply，兼容torch<=1.7.1的torch.div无rounding_mode
+- **20220814**：增加有监督句向量、关系抽取、文本生成实验指标，兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换
+- **20220727**：增加mixup/manifold_mixup/temporal_ensembling策略，修复pgd策略param.grad为空的问题，修改tokenizer支持批量，增加uie示例
+- **20220716**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
+- **20220710**：增加金融中文FAQ示例，天池新闻分类top1案例，增加EarlyStop，CRF中自带转bool类型
+- **20220629**：增加ner的实验，测试crf不同初始化的效果，bert-whitening中文实验
+- **20220613**：增加seq2seq+前缀树，增加SimCSE/ESimCSE/PromptBert等无监督语义相似度的中文实验
+- **20220605**：增加PromptBert、PET、P-tuning示例，修改tokenizer对special_tokens分词错误的问题，增加t5_pegasus
+- **20220529**：transformer_xl、xlnet模型，修改sinusoid位置向量被init_weight的bug，EMA，sohu情感分类示例
+- **20220517**：增加预训练代码，支持增加embedding输入(如词性，word粒度embedding)
+- **20220501**：增加了混合梯度，梯度裁剪，单机多卡训练(DP、DDP)
+- **20220425**：增加了VAT、GAU-alpha等示例，增加了梯度累积，自定义fit()示例
+- **20220415**：增加了ner_mrc、ner_span、roformer_v2、roformer-sim等示例
+- **20220405**：增加了GPLinker、TPlinker、SimBERT等示例
+- **20220329**：增加了CoSENT、R-Drop、UDA等示例
+- **20220322**：添加GPT、GPT2、T5模型
+- **20220312**：初版提交
 
 ## 6. Todo List（欢迎建议）:
 - faiss在文本向量检索中的使用
