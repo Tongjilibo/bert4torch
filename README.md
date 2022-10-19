@@ -36,19 +36,19 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - 背景：用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)，初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
 ## 4. 版本说明
-- **v0.2.2**：修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads，支持多个schedule(如同时ema+warmup)
-- **v0.2.1**：兼容torch<=1.7.1的torch.div无rounding_mode，增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
-- **v0.2.0**：兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
-- **v0.1.9**：增加mixup/manifold_mixup/temporal_ensembling策略，修复pgd策略param.grad为空的问题，修改tokenizer支持批量
-- **v0.1.8**：修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
-- **v0.1.7**：增加EarlyStop，CRF中自带转bool类型
-- **v0.1.6**：增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug
-- **v0.1.5**：增加GAU-alpha，混合梯度，梯度裁剪，单机多卡(DP、DDP)
-- **v0.1.4**：增加了VAT，修复了linux下apply_embedding返回项有问题的情况
-- **v0.1.3**：初始版本
+- **v0.2.2**：20220922 修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads，支持多个schedule(如同时ema+warmup)
+- **v0.2.1**：20220905 兼容torch<=1.7.1的torch.div无rounding_mode，增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
+- **v0.2.0**：20220823 兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
+- **v0.1.9**：20220808 增加mixup/manifold_mixup/temporal_ensembling策略，修复pgd策略param.grad为空的问题，修改tokenizer支持批量
+- **v0.1.8**：20220717 修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
+- **v0.1.7**：20220710 增加EarlyStop，CRF中自带转bool类型
+- **v0.1.6**：20220605 增加transformer_xl、xlnet、t5_pegasus模型，prompt、预训练等示例，支持增加embedding输入，EMA策略，修复tokenizer和sinusoid的bug
+- **v0.1.5**：20220504 增加GAU-alpha，混合梯度，梯度裁剪，单机多卡(DP、DDP)
+- **v0.1.4**：20220421 增加了VAT，修复了linux下apply_embedding返回项有问题的情况
+- **v0.1.3**：20220409 初始版本
 
 ## 5. 更新：
-- **2022年10月11更新**：虚拟对抗VAT在多个ouput时支持指定，增加elasticsearch示例
+- **2022年10月11更新**：虚拟对抗VAT在多个ouput时支持指定，增加elasticsearch示例, 把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中供更多项目使用，把梯度累积移到compile中
 - **2022年9月20更新**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)，sanic+onnx部署
 - **2022年9月10更新**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型，修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads
 - **2022年8月28更新**：增加nl2sql示例，增加自定义metrics，支持断点续训
