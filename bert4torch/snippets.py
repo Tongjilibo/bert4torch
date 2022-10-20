@@ -15,7 +15,7 @@ import inspect
 import json
 import torch.nn.functional as F
 import random
-from torch4keras import *
+from torch4keras.snippets import *
 
 
 is_py2 = six.PY2
