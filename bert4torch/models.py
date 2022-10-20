@@ -1,4 +1,3 @@
-from inspect import isfunction
 import torch
 import torch.nn as nn
 import copy
@@ -6,15 +5,17 @@ import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
-from bert4torch.snippets import metric_mapping, search_layer, insert_arguments, delete_arguments, get_kw
-from bert4torch.snippets import ProgbarLogger, EarlyStopping, FGM, PGD, VAT, IterDataset, take_along_dim
+from bert4torch.snippets import search_layer, insert_arguments, delete_arguments, get_kw
+from bert4torch.snippets import FGM, PGD, VAT, take_along_dim
 from bert4torch.activations import get_activation
-from collections import OrderedDict
 import warnings
 from torch4keras import BaseModel as BM
 
 
 class BaseModel(BM):
+    '''v0.2.2版本前Trainer是在bert4torch内部实现的，之后单独为Trainer做了一个包torch4keras
+       这里是继承torch4keras的BaseModel作为Trainer，并在其基础上加了对抗训练模块
+    '''
     def compile(self, loss, optimizer, scheduler=None, clip_grad_norm=None, use_amp=False, 
                 metrics=None, grad_accumulation_steps=1, adversarial_train={'name': ''}):
         '''定义loss, optimizer, metrics, 是否在计算loss前reshape

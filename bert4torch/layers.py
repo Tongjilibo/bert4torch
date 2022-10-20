@@ -1,5 +1,4 @@
 import torch
-from torch.functional import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np

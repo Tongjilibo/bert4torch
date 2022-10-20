@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 其他代码合
+# 工具函数
 
 import unicodedata
 import six
