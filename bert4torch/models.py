@@ -9,7 +9,7 @@ from bert4torch.snippets import search_layer, insert_arguments, delete_arguments
 from bert4torch.snippets import FGM, PGD, VAT, take_along_dim
 from bert4torch.activations import get_activation
 import warnings
-from torch4keras import BaseModel as BM
+from torch4keras.model import BaseModel as BM
 
 
 class BaseModel(BM):
@@ -153,18 +153,20 @@ class BaseModel(BM):
             torch.save(state_dict_raw, save_path)
     
 
-class BaseModelDP(BaseModel, nn.DataParallel):
-    '''DataParallel模式使用多gpu的方法
+class BaseModelDP(nn.DataParallel, BaseModel):
+    '''DataParallel模式使用多gpu的方法, 父类顺序颠倒也会出问题
     '''
     def __init__(self, *args, **kwargs):
+        BaseModel.__init__(self)
         nn.DataParallel.__init__(self, *args, **kwargs)
 
 
-class BaseModelDDP(BaseModel, nn.parallel.DistributedDataParallel):
-    '''DistributedDataParallel模式使用多gpu的方法
+class BaseModelDDP(nn.parallel.DistributedDataParallel, BaseModel):
+    '''DistributedDataParallel模式使用多gpu的方法, 父类顺序颠倒也会出问题
     '''
     def __init__(self, *args, master_rank=0, **kwargs):
         self.master_rank = master_rank  # 用于记录打印条的rank
+        BaseModel.__init__(self)
         nn.parallel.DistributedDataParallel.__init__(self, *args, **kwargs)
 
 

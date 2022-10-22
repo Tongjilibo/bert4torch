@@ -308,11 +308,12 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
+    # 训练
+    if True:
+        evaluator = Evaluator()
+        train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
+    # 预测并评估
+    else:
+        train_model.load_weights('best_model.pt')
+        f1, precision, recall = evaluate(valid_dataset.data)
 
-    evaluator = Evaluator()
-
-    train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
-
-else:
-
-    train_model.load_weights('best_model.pt')
