@@ -2,7 +2,6 @@
 # 情感分类任务, 加载bert权重
 # valid_acc: 94.72, test_acc: 94.11
 
-
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
@@ -10,7 +9,7 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
+
 
 maxlen = 256
 batch_size = 16
@@ -18,7 +17,6 @@ config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-7
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
 choice = 'train'  # train表示训练，infer表示推理
 
 # 固定seed
@@ -90,12 +88,6 @@ class Evaluator(Callback):
     """
     def __init__(self):
         self.best_val_acc = 0.
-
-    # def on_batch_end(self, global_step, local_step, logs=None):
-    #     if global_step % 10 == 0:
-    #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
-    #         val_acc = evaluate(valid_dataloader)
-    #         writer.add_scalar(f"valid/acc", val_acc, global_step)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = self.evaluate(valid_dataloader)

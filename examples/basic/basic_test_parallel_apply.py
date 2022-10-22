@@ -68,7 +68,7 @@ def func(inputs):
     length = len(tokens)
 
     # piece和word的对应关系，中文两者一致，除了[CLS]和[SEP]
-    _pieces2word = np.zeros((length, len(tokens_ids)), dtype=np.bool)
+    _pieces2word = np.zeros((length, len(tokens_ids)), dtype=bool)
     e_start = 0
     for i, pieces in enumerate(tokens):
         if len(pieces) == 0:
@@ -78,7 +78,7 @@ def func(inputs):
         e_start += len(pieces)
 
     # 相对距离
-    _dist_inputs = np.zeros((length, length), dtype=np.int)
+    _dist_inputs = np.zeros((length, length), dtype=int)
     for k in range(length):
         _dist_inputs[k, :] += k
         _dist_inputs[:, k] -= k
@@ -92,8 +92,8 @@ def func(inputs):
     _dist_inputs[_dist_inputs == 0] = 19
 
     # golden标签
-    _grid_labels = np.zeros((length, length), dtype=np.int)
-    _grid_mask2d = np.ones((length, length), dtype=np.bool)
+    _grid_labels = np.zeros((length, length), dtype=int)
+    _grid_mask2d = np.ones((length, length), dtype=bool)
 
     for entity in d:
         e_start, e_end, e_type = entity[0], entity[1]+1, entity[-1]

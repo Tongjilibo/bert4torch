@@ -10,6 +10,7 @@ from bert4torch.snippets import FGM, PGD, VAT, take_along_dim
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import BaseModel as BM
+from torch.utils.checkpoint import checkpoint as grad_checkpoint
 
 
 class BaseModel(BM):
@@ -170,7 +171,7 @@ class BaseModelDDP(nn.parallel.DistributedDataParallel, BaseModel):
         nn.parallel.DistributedDataParallel.__init__(self, *args, **kwargs)
 
 
-class BERT_BASE(BaseModel):
+class BERT_BASE(nn.Module):
     """模型基类
     """
 
@@ -195,6 +196,7 @@ class BERT_BASE(BaseModel):
             ignore_invalid_weights=False,  # 允许跳过不存在的权重
             keep_hidden_layers=None, # 保留的hidden_layer层的id
             hierarchical_position=None,  # 是否层次分解位置编码
+            gradient_checkpoint=False, # 是否使用gradient_checkpoint
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -224,6 +226,7 @@ class BERT_BASE(BaseModel):
         self.ignore_invalid_weights = ignore_invalid_weights
         self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
         self.hierarchical_position = hierarchical_position
+        self.gradient_checkpoint = gradient_checkpoint
 
     def build(
         self,
@@ -265,6 +268,11 @@ class BERT_BASE(BaseModel):
         # Final
         outputs = self.apply_final_layers(outputs)
         return outputs
+
+    @torch.no_grad()
+    def predict(self, inputs):
+        self.eval()
+        return self.forward(inputs)
 
     def init_model_weights(self, module):
         """ 初始化权重
@@ -612,7 +620,7 @@ class BERT(BERT_BASE):
         layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
         for l_i, layer_module in enumerate(self.encoderLayer):
             layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
-            hidden_states = layer_module(*layer_inputs)
+            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
             layer_inputs[0] = hidden_states
             layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
 

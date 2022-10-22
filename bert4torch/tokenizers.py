@@ -75,7 +75,7 @@ class TokenizerBase(object):
         self._token_mask = token_mask
         self._token_start = token_start
         self._token_end = token_end
-        self.never_split = [self._token_unk, self._token_end, self._token_pad, self._token_start, self._token_mask]
+        self.never_split = [i for i in [self._token_unk, self._token_end, self._token_pad, self._token_start, self._token_mask] if isinstance(i, str)]
         if add_special_tokens is not None:
             if isinstance(add_special_tokens, (tuple, list)):
                 self.never_split.extend(add_special_tokens)

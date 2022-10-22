@@ -29,6 +29,7 @@ model = build_transformer_model(
     config_path,
     checkpoint_path=checkpoint_path,
     model='transformer_xl',
+    segment_vocab_size=0,
 )
 
 print('bert4torch last_hidden_state: ', model.predict([inputs['input_ids']]))
