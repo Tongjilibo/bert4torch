@@ -171,7 +171,7 @@ class BaseModelDDP(nn.parallel.DistributedDataParallel, BaseModel):
         nn.parallel.DistributedDataParallel.__init__(self, *args, **kwargs)
 
 
-class BERT_BASE(nn.Module):
+class BERT_BASE(BaseModel):
     """模型基类
     """
 
@@ -1058,7 +1058,7 @@ class Decoder(LM_Mask, BERT):
         layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
         for i, layer_module in enumerate(self.decoderLayer):
             layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
-            hidden_states = layer_module(*layer_inputs)
+            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
             layer_inputs[0] = hidden_states
             layer_inputs = self.apply_on_layer_end(i, layer_inputs)
 
@@ -1643,11 +1643,11 @@ class Transformer_XL(BERT):
             segment_ids = None
 
         if self.attn_type in {'uni', 0}:  # 兼容transformer_xl的设置: 0
-            attention_mask = self.create_mask(word_emb, qlen, klen, mlen)
+            non_tgt_mask = self.create_mask(word_emb, qlen, klen, mlen)
         elif self.attn_type == 'bi':
             attention_mask = (inputs[0] != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)
-        non_tgt_mask = torch.eye(qlen).to(attention_mask)[None, None, :, :]
-        non_tgt_mask = ((1 - attention_mask - non_tgt_mask) <= 0).long()
+            non_tgt_mask = torch.eye(qlen).to(attention_mask)[None, None, :, :]
+            non_tgt_mask = ((1 - attention_mask - non_tgt_mask) <= 0).long()
 
         return [word_emb, segment_ids, pos_emb, non_tgt_mask, None]
 
@@ -1660,7 +1660,7 @@ class Transformer_XL(BERT):
             mems_i = None if self.mems is None else self.mems[i]
             layer_inputs[-2] = mems_i
             layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
-            hidden_states = layer_module(*layer_inputs)
+            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
             layer_inputs[0] = hidden_states
             layer_inputs = self.apply_on_layer_end(i, layer_inputs)
             encoded_layers.append(hidden_states)

@@ -36,6 +36,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - 背景：用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)，初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
 ## 4. 版本说明
+- **v0.2.3**：20221023 虚拟对抗VAT在多个ouput时支持指定，把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中，修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, transformer_xl的bug, 增加gradient_checkpoint
 - **v0.2.2**：20220922 修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads，支持多个schedule(如同时ema+warmup)
 - **v0.2.1**：20220905 兼容torch<=1.7.1的torch.div无rounding_mode，增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
 - **v0.2.0**：20220823 兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
@@ -48,7 +49,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：20220409 初始版本
 
 ## 5. 更新：
-- **20221022**：修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, BERT_BASE不从BaseModel继承
+- **20221022**：修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, transformer_xl的bug, 增加gradient_checkpoint
 - **20221011**：虚拟对抗VAT在多个ouput时支持指定，增加elasticsearch示例, 把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中供更多项目使用，把梯度累积移到compile中
 - **20220920**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)，sanic+onnx部署
 - **20220910**：增加默认Logger和Tensorboard日志，ONNX推理，增加ERNIE模型，修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads

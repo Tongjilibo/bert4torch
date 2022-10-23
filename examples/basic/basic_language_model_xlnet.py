@@ -1,5 +1,4 @@
 from transformers import XLNetTokenizer, XLNetModel
-import torch
 
 pretrained_model = "F:/Projects/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base"
 tokenizer = XLNetTokenizer.from_pretrained(pretrained_model)
