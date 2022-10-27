@@ -1124,7 +1124,6 @@ class GlobalPointer(nn.Module):
         self.head_size = head_size
         self.RoPE = RoPE
         self.tril_mask = tril_mask
-        self.RoPE = RoPE
 
         self.dense = nn.Linear(hidden_size, heads * head_size * 2, bias=use_bias)
         if self.RoPE:
@@ -1171,7 +1170,6 @@ class EfficientGlobalPointer(nn.Module):
         self.head_size = head_size
         self.RoPE = RoPE
         self.tril_mask = tril_mask
-        self.RoPE = RoPE
 
         self.p_dense = nn.Linear(hidden_size, head_size * 2, bias=use_bias)
         self.q_dense = nn.Linear(head_size * 2, heads * 2, bias=use_bias)

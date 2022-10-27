@@ -117,7 +117,7 @@ def evaluate(data, threshold=0):
                 R.add((start, end, categories_id2label[l]))  
 
             T = set()
-            for l, start, end in zip(*np.where(label[i].cpu() > threshold)):
+            for l, start, end in zip(*np.where(label[i].cpu() > 0)):
                 T.add((start, end, categories_id2label[l]))
             X += len(R & T)
             Y += len(R)
