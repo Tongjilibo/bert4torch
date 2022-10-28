@@ -150,7 +150,7 @@ class MyLoss(nn.CrossEntropyLoss):
 
         return {'loss': loss, 'entity_loss': loss_list[0], 'head_loss': loss_list[1], 'tail_loss': loss_list[2]}
 
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 5e-5), metrics=['entity_loss', 'head_loss', 'tail_loss'])
+model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 5e-5))
 
 def extract_spoes(text):
     """抽取输入text所包含的三元组

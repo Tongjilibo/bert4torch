@@ -38,11 +38,22 @@ def take_along_dim(input_tensor, indices, dim=None):
         # assert res.equal(torch.take_along_dim(input_tensor, indices, dim))
         return res
 
+
+def torch_div(input, other, round_mode=None):
+    # torch.div兼容老版本
+    if torch.__version__ <= '1.7.1':
+        indices = input // other  # 兼容老版本
+    else:
+        indices = torch.div(input, other, rounding_mode=round_mode)  # 行索引
+    return indices
+
+
 def is_string(s):
     """判断是否是字符串
     """
     return isinstance(s, basestring)
     
+
 def truncate_sequences(maxlen, indices, *sequences):
     """截断总长度至不超过maxlen
     """
@@ -57,6 +68,7 @@ def truncate_sequences(maxlen, indices, *sequences):
             sequences[i].pop(indices[i])
         else:
             return sequences
+
 
 def text_segmentate(text, maxlen, seps='\n', strips=None, truncate=True):
     """将文本按照标点符号划分为若干个短句
@@ -83,6 +95,7 @@ def text_segmentate(text, maxlen, seps='\n', strips=None, truncate=True):
     else:
         return [text]
 
+
 def merge_segmentate(sequences, maxlen, sep=''):
     '''把m个句子合并成不超过maxlen的n个句子, 主要用途是合并碎句子
     '''
@@ -102,6 +115,7 @@ def merge_segmentate(sequences, maxlen, sep=''):
     if text:
         sequences_new.append(text)
     return sequences_new
+
 
 def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_words=None, strategy='random', allow_dup=True):
     '''简单的EDA策略, 增删改
@@ -185,6 +199,7 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
                 texts[id] = replace(text, sel_idx, noise_dict)
     return texts if len(texts) > 1 else texts[0]
 
+
 def lowercase_and_normalize(text, never_split=()):
     """转小写，并进行简单的标准化
     """
@@ -200,6 +215,7 @@ def lowercase_and_normalize(text, never_split=()):
     text = unicodedata.normalize('NFD', text)
     text = ''.join([ch for ch in text if unicodedata.category(ch) != 'Mn'])
     return text
+
 
 def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
     """将序列padding到同一长度
@@ -278,6 +294,7 @@ def softmax(x, axis=-1):
     x = x - x.max(axis=axis, keepdims=True)
     x = np.exp(x)
     return x / x.sum(axis=axis, keepdims=True)
+
 
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
@@ -359,10 +376,11 @@ class AutoRegressiveDecoder(object):
                 inputs = [i.repeat([topk]+[1]*(len(i.shape)-1)) for i in inputs]
             scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
             indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
-            if torch.__version__ <= '1.7.1':
-                indices_1 = indices // scores.shape[1]  # 兼容老版本
-            else:
-                indices_1 = torch.div(indices, scores.shape[1], rounding_mode='floor')  # 行索引
+            indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
+            # if torch.__version__ <= '1.7.1':
+            #     indices_1 = indices // scores.shape[1]  # 兼容老版本
+            # else:
+            #     indices_1 = torch.div(indices, scores.shape[1], rounding_mode='floor')  # 行索引
             indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
             output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
             output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分

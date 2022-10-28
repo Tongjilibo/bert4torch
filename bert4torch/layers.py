@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
-from bert4torch.snippets import get_sinusoid_encoding_table, take_along_dim
+from bert4torch.snippets import get_sinusoid_encoding_table, take_along_dim, torch_div
 from bert4torch.activations import get_activation
 from typing import List, Optional
 import random
@@ -1075,7 +1075,8 @@ class CRF(nn.Module):
         best_tags = torch.arange(nbest, dtype=torch.long, device=device).view(1, -1).expand(batch_size, -1)
         for idx in range(seq_length - 1, -1, -1):
             best_tags = torch.gather(history_idx[:, idx].view(batch_size, -1), 1, best_tags)
-            best_tags_arr[:, idx] = torch.div(best_tags.data.view(batch_size, -1), nbest, rounding_mode='floor')
+            best_tags_arr[:, idx] = torch_div(best_tags.data.view(batch_size, -1), nbest, rounding_mode='floor')  # 兼容老版本
+            # best_tags_arr[:, idx] = torch.div(best_tags.data.view(batch_size, -1), nbest, rounding_mode='floor')
 
         return torch.where(mask.unsqueeze(-1).bool(), best_tags_arr, oor_tag).permute(2, 0, 1)
 
