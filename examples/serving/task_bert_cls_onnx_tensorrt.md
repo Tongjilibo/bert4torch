@@ -91,6 +91,7 @@ engine = get_engine(engine_model_path)
 # Contexts are used to perform inference.
 context = engine.create_execution_context()
 
+
 """
 b、从engine中获取inputs, outputs, bindings, stream 的格式以及分配缓存
 """
@@ -127,14 +128,31 @@ preds = np.argmax(trt_outputs, axis=1)
 print("====preds====:",preds)
 
 """
-e、测试耗时
+e、测试耗时(不含构造数据)
 """
 steps = 100
 start = time.time()
 for i in tqdm(range(steps)):
     common.do_inference_v2(context, bindings=bindings, inputs=inputs, outputs=outputs, stream=stream)
     preds = np.argmax(trt_outputs, axis=1)
-print('onnx+tensorrt: ',  (time.time()-start)*1000/steps, ' ms')
+print('onnx+tensorrt（不含构造数据）: ',  (time.time()-start)*1000/steps, ' ms')
+
+"""
+f、测试耗时(含构造数据)
+"""
+steps = 100
+start = time.time()
+for i in tqdm(range(steps)):
+    input_ids, segment_ids = tokenizer.encode(sentences)
+    tokens_id = to_numpy(input_ids)
+    segment_ids = to_numpy(segment_ids)
+    inputs, outputs, bindings, stream = common.allocate_buffers_v2(engine, context)
+    inputs[0].host = tokens_id
+    inputs[1].host = segment_ids
+
+    common.do_inference_v2(context, bindings=bindings, inputs=inputs, outputs=outputs, stream=stream)
+    preds = np.argmax(trt_outputs, axis=1)
+print('onnx+tensorrt（含构造数据）: ',  (time.time()-start)*1000/steps, ' ms')
 ```
 
 - 所需[common.py](https://github.com/NVIDIA/TensorRT/blob/96e23978cd6e4a8fe869696d3d8ec2b47120629b/samples/python/common.py)
@@ -144,8 +162,10 @@ Reading engine from file bert_cls.trt
 onnx_tensorrt.py:44: DeprecationWarning: Use set_optimization_profile_async instead.
   context.active_optimization_profile = 0
 ====preds====: [1]
-100%|██████████████████████████████████████████████████████████████████████████| 100/100 [00:01<00:00, 79.81it/s]
-onnx+tensorrt:  12.542836666107178  ms
+100%|██████████████████████████████████████████████████████████████████████████| 100/100 [00:01<00:00, 78.87it/s]
+onnx+tensorrt（不含构造数据）:  12.6955246925354  ms
+100%|██████████████████████████████████████████████████████████████████████████| 100/100 [00:01<00:00, 71.50it/s]
+onnx+tensorrt（含构造数据）:  13.990252017974854  ms
 ```
 
 # 5. 速度比较
@@ -165,7 +185,7 @@ tensorrt
 ├─onnx_tensorrt.py
 ├─bert_cls.onnx
 ├─bert_cls.trt
-├─TensorRT-8.4.1.5
+└─TensorRT-8.4.1.5
 ```
 - docker镜像: 1)可按上述方式自行构建，2)直接pull笔者上传的镜像
 ```shell

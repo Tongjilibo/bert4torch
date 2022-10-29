@@ -85,7 +85,7 @@ print("Exported model has been tested with ONNXRuntime, and the result looks goo
 print('torch_out: ', torch_out[0])
 print('ort_outs: ', ort_outs[0][0])
 
-# =====================================测试两者的速度
+# =====================================测试两者的速度(不含tokenizer构造数据的耗时)
 # torch cpu
 steps = 100
 start = time.time()
