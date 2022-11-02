@@ -20,9 +20,8 @@ from torch_scatter import scatter_max
 epochs = 20  # 训练轮数
 steps_per_epoch = None  # 每轮步数
 maxlen = 256  # 最大长度
-batch_size = 16  # 根据gpu显存设置
+batch_size = 8  # 根据gpu显存设置
 lr = 2e-5
-clip_grad_norm = 5.0
 warm_factor = 0.1
 weight_decay = 1e-2
 label2idx = {'LOC':0, 'PER':1, 'ORG':2}
@@ -323,8 +322,8 @@ optimizer = torch.optim.AdamW([{'params': non_ln_params, 'lr': lr, 'weight_decay
                                {'params': non_pretrain_params, 'lr': lr*non_ptm_lr_ratio, 'weight_decay': weight_decay}])
 
 updates_total = (len(train_dataloader) if steps_per_epoch is None else steps_per_epoch) * epochs
-# scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warm_factor * updates_total, num_training_steps=updates_total)
-model.compile(loss=Loss(), optimizer=optimizer, scheduler=None, clip_grad_norm=5.0)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warm_factor * updates_total, num_training_steps=updates_total)
+model.compile(loss=Loss(), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=5.0)
 
 class Evaluator(Callback):
     """评估与保存
