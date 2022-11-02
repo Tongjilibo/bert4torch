@@ -14,14 +14,13 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 from sklearn.metrics import precision_recall_fscore_support
-from fastNLP import seq_len_to_mask
 from torch_scatter import scatter_max
 
 # 模型参数：训练
 epochs = 20  # 训练轮数
 steps_per_epoch = None  # 每轮步数
 maxlen = 256  # 最大长度
-batch_size = 8  # 根据gpu显存设置
+batch_size = 16  # 根据gpu显存设置
 lr = 2e-5
 clip_grad_norm = 5.0
 warm_factor = 0.1
@@ -30,11 +29,10 @@ label2idx = {'LOC':0, 'PER':1, 'ORG':2}
 non_ptm_lr_ratio = 100
 biaffine_size = 400
 n_head = 4
-schedule = 'linear'
 size_embed_dim = 25
 ent_thres = 0.5
 kernel_size = 3
-cnn_dim = 20
+cnn_dim = 200
 logit_drop = 0
 cnn_depth = 3
 
@@ -87,8 +85,6 @@ class MyDataset(ListDataset):
                 if len(_raw_words) > maxlen - 2:
                     continue
                 
-                _raw_ents = [(s, e, t) for s, e, t in _raw_ents]
-
                 bpes = [tokenizer._token_start_id]
                 indexes = [0]
                 spans = []
@@ -200,12 +196,12 @@ class MultiHeadBiaffine(nn.Module):
         return w
 
 
-class Model(BaseModel):
+class CNNNer(BaseModel):
     def __init__(self, num_ner_tag, cnn_dim=200, biaffine_size=200,
                  size_embed_dim=0, logit_drop=0, kernel_size=3, n_head=4, cnn_depth=3):
-        super(Model, self).__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        hidden_size = self.bert.configs['hidden_size']
+        super(CNNNer, self).__init__()
+        self.pretrain_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
+        hidden_size = self.pretrain_model.configs['hidden_size']
 
         if size_embed_dim!=0:
             n_pos = 30
@@ -245,7 +241,7 @@ class Model(BaseModel):
         self.logit_drop = logit_drop
 
     def forward(self, input_ids, indexes):
-        last_hidden_states = self.bert([input_ids])
+        last_hidden_states = self.pretrain_model([input_ids])
         state = scatter_max(last_hidden_states, index=indexes, dim=1)[0][:, 1:]  # bsz x word_len x hidden_size
         lengths, _ = indexes.max(dim=-1)
 
@@ -267,8 +263,11 @@ class Model(BaseModel):
         scores2 = torch.einsum('bmnh,kh->bkmn', affined_cat, self.W)  # bsz x dim x L x L
         scores = scores2 + scores1   # bsz x dim x L x L
 
-        if hasattr(self, 'cnn'):
-            mask = seq_len_to_mask(lengths)  # bsz x length x length
+        if hasattr(self, 'cnn'):            
+            batch_size = lengths.shape[0]
+            broad_cast_seq_len = torch.arange(int(lengths.max())).expand(batch_size, -1).to(lengths)
+            mask = broad_cast_seq_len < lengths.unsqueeze(1)
+
             mask = mask[:, None] * mask.unsqueeze(-1)
             pad_mask = mask[:, None].eq(0)
             u_scores = scores.masked_fill(pad_mask, 0)
@@ -282,7 +281,7 @@ class Model(BaseModel):
 
         return scores
 
-model = Model(num_ner_tag=len(label2idx), cnn_dim=cnn_dim, biaffine_size=biaffine_size,
+model = CNNNer(num_ner_tag=len(label2idx), cnn_dim=cnn_dim, biaffine_size=biaffine_size,
               size_embed_dim=size_embed_dim, logit_drop=logit_drop,
               kernel_size=kernel_size, n_head=n_head, cnn_depth=cnn_depth).to(device)
 
@@ -324,8 +323,8 @@ optimizer = torch.optim.AdamW([{'params': non_ln_params, 'lr': lr, 'weight_decay
                                {'params': non_pretrain_params, 'lr': lr*non_ptm_lr_ratio, 'weight_decay': weight_decay}])
 
 updates_total = (len(train_dataloader) if steps_per_epoch is None else steps_per_epoch) * epochs
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warm_factor * updates_total, num_training_steps=updates_total)
-model.compile(loss=Loss(), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=5.0)
+# scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warm_factor * updates_total, num_training_steps=updates_total)
+model.compile(loss=Loss(), optimizer=optimizer, scheduler=None, clip_grad_norm=5.0)
 
 class Evaluator(Callback):
     """评估与保存
@@ -337,11 +336,11 @@ class Evaluator(Callback):
         f1, p, r, e_f1, e_p, e_r = self.evaluate(valid_dataloader)
         if e_f1 > self.best_val_f1:
             self.best_val_f1 = e_f1
-            # model.save_weights('best_model.pt')
+            model.save_weights('best_model.pt')
         print(f'[val-token  level] f1: {f1:.5f}, p: {p:.5f} r: {r:.5f}')
         print(f'[val-entity level] f1: {e_f1:.5f}, p: {e_p:.5f} r: {e_r:.5f} best_f1: {self.best_val_f1:.5f}\n')
 
-    def evaluate(self, data_loader):
+    def evaluate(self, data_loader, threshold=0.5):
         def cal_f1(c, p, r):
             if r == 0 or p == 0:
                 return 0, 0, 0
@@ -359,7 +358,7 @@ class Evaluator(Callback):
         total_ent_c = 0
         for data_batch in tqdm(data_loader, desc='Evaluate'):
             (tokens_ids, indexes), (matrix, ent_target) = data_batch
-            scores = F.softmax(model.predict([tokens_ids, indexes]), dim=-1).gt(0.5).long()
+            scores = torch.sigmoid(model.predict([tokens_ids, indexes])).gt(threshold).long()
             scores = scores.masked_fill(matrix.eq(-100), 0)  # mask掉padding部分
             
             # token粒度
@@ -387,15 +386,21 @@ class Evaluator(Callback):
             pred_tuple = []
             for item in range(pred.shape[-1]):
                 if pred[:, :, item].sum() > 0:
-                    _index = np.where(pred[:, :, item]>0)[1]
-                    pred_tuple.extend([(i//pred.shape[1], i%pred.shape[1], item) for i in _index])
+                    _index = np.where(pred[:, :, item]>0)
+                    tmp = [(i, j, item) if j >= i else (j, i, item) for i, j in zip(*_index)]
+                    pred_tuple.extend(list(set(tmp)))
             ent_p += len(pred_tuple)
             ent_c += len(set(label).intersection(set(pred_tuple)))
             
         return ent_c, ent_p, ent_r
 
 if __name__ == '__main__':
-    evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
-else: 
-    model.load_weights('best_model.pt')
+    if True:
+        evaluator = Evaluator()
+        model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
+    else: 
+        model.load_weights('best_model.pt')
+        evaluator = Evaluator()
+        f1, p, r, e_f1, e_p, e_r = evaluator.evaluate(valid_dataloader)
+        print(f'[val-token  level] f1: {f1:.5f}, p: {p:.5f} r: {r:.5f}')
+        print(f'[val-entity level] f1: {e_f1:.5f}, p: {e_p:.5f} r: {e_r:.5f}\n')
