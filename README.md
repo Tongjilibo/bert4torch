@@ -29,6 +29,37 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **实验验证**：已在公开数据集[实验验证](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Performance.md)，使用如下[examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/examples/README.md)
 - **易用trick**：集成了常见的[trick](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick)，即插即用
 - **其他特性**：[加载transformers库模型](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)一起使用；调用方式简洁高效；有训练进度条动态展示；配合torchinfo打印参数量；默认Logger和Tensorboard简便记录训练过程；自定义fit过程，满足高阶需求
+- **训练过程**：
+
+    ```shell
+    2022-10-28 23:16:10 - Start Training
+    2022-10-28 23:16:10 - Epoch: 1/5
+    5000/5000 [==============================] - 13s 3ms/step - loss: 0.1351 - acc: 0.9601
+    Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 798.09it/s] 
+    test_acc: 0.98045. best_test_acc: 0.98045
+
+    2022-10-28 23:16:27 - Epoch: 2/5
+    5000/5000 [==============================] - 13s 3ms/step - loss: 0.0465 - acc: 0.9862
+    Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 635.78it/s] 
+    test_acc: 0.98280. best_test_acc: 0.98280
+
+    2022-10-28 23:16:44 - Epoch: 3/5
+    5000/5000 [==============================] - 15s 3ms/step - loss: 0.0284 - acc: 0.9915
+    Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 673.60it/s] 
+    test_acc: 0.98365. best_test_acc: 0.98365
+
+    2022-10-28 23:17:03 - Epoch: 4/5
+    5000/5000 [==============================] - 15s 3ms/step - loss: 0.0179 - acc: 0.9948
+    Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 692.34it/s] 
+    test_acc: 0.98265. best_test_acc: 0.98365
+
+    2022-10-28 23:17:21 - Epoch: 5/5
+    5000/5000 [==============================] - 14s 3ms/step - loss: 0.0129 - acc: 0.9958
+    Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 701.77it/s] 
+    test_acc: 0.98585. best_test_acc: 0.98585
+
+    2022-10-28 23:17:37 - Finish Training
+    ```
 
 ## 3. 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md)，[教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials)，[实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
