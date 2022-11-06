@@ -18,7 +18,7 @@ class BaseModel(BM):
        这里是继承torch4keras的BaseModel作为Trainer，并在其基础上加了对抗训练模块
     '''
     def compile(self, loss, optimizer, scheduler=None, clip_grad_norm=None, use_amp=False, 
-                metrics=None, grad_accumulation_steps=1, adversarial_train={'name': ''}):
+                metrics=None, stateful_metrics=None, grad_accumulation_steps=1, adversarial_train={'name': ''}):
         '''定义loss, optimizer, metrics, 是否在计算loss前reshape
         loss: loss
         optimizer: 优化器
@@ -26,11 +26,12 @@ class BaseModel(BM):
         clip_grad_norm: 是否使用梯度裁剪, 默认不启用
         use_amp: 是否使用混合精度，默认不启用
         metrics: 训练过程中需要打印的指标, loss相关指标默认会打印, 目前支持accuracy, 也支持自定义metric，形式为{key: func}
+        stateful_metrics: 不滑动平均仅进行状态记录的metric，指标抖动会更加明显
         grad_accumulation_steps: 梯度累积
         adversarial_train: 对抗训练参数
         '''
         super().compile(loss, optimizer, scheduler=scheduler, clip_grad_norm=clip_grad_norm, use_amp=use_amp, 
-                        metrics=metrics, grad_accumulation_steps=grad_accumulation_steps)
+                        metrics=metrics, stateful_metrics=stateful_metrics, grad_accumulation_steps=grad_accumulation_steps)
         if use_amp:
             assert adversarial_train['name'] not in {'vat', 'gradient_penalty'}, 'Amp and adversarial_train both run is not supported in current version'
 
@@ -100,8 +101,8 @@ class BaseModel(BM):
 
         return loss, loss_detail
 
-    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=None):
-        super().fit(train_dataloader, steps_per_epoch, epochs, callbacks)
+    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=None, verbose=1):
+        super().fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=callbacks, verbose=verbose)
     
     def after_train_step(self, train_X, train_y, output, loss, loss_detail):
         scale_before_step = 0

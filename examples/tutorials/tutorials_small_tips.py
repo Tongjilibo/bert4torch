@@ -4,7 +4,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, Logger, Tensorboard, text_segmentate, ListDataset, seed_everything, get_pool_emb
+from bert4torch.snippets import sequence_padding, Callback, Logger, Tensorboard, text_segmentate, ListDataset, Evaluator, EarlyStopping, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -99,34 +99,48 @@ model.compile(
     metrics={'acc': acc}
 )
 
-class Evaluator(Callback):
-    """评估与保存
-    """
-    def __init__(self):
-        self.best_val_acc = 0.
+# 方式1: 自己继承Callback来实现
+# class MyEvaluator(Callback):
+#     """评估与保存
+#     """
+#     def __init__(self):
+#         self.best_val_acc = 0.
 
-    def on_epoch_end(self, global_step, epoch, logs=None):
-        val_acc = self.evaluate(valid_dataloader)
-        test_acc = self.evaluate(test_dataloader)
-        logs['val/acc'] = val_acc
-        logs['test/acc'] = test_acc
-        if val_acc > self.best_val_acc:
-            self.best_val_acc = val_acc
-            # model.save_weights('best_model.pt')
-        print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
+#     def on_epoch_end(self, global_step, epoch, logs=None):
+#         val_acc = self.evaluate(valid_dataloader)
+#         test_acc = self.evaluate(test_dataloader)
+#         logs['val/acc'] = val_acc
+#         logs['test/acc'] = test_acc
+#         if val_acc > self.best_val_acc:
+#             self.best_val_acc = val_acc
+#             # model.save_weights('best_model.pt')
+#         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
-        model.save_weights('last_model.pt', prefix=None)  # 保存模型权重
-        model.save_steps_params('last_steps.pt')  # 保存训练进度参数，当前的epoch和step，断点续训使用
-        torch.save(optimizer.state_dict(), 'last_optimizer.pt')  # 保存优化器，断点续训使用
+#         model.save_weights('last_model.pt', prefix=None)  # 保存模型权重
+#         model.save_steps_params('last_steps.pt')  # 保存训练进度参数，当前的epoch和step，断点续训使用
+#         torch.save(optimizer.state_dict(), 'last_optimizer.pt')  # 保存优化器，断点续训使用
 
-    # 定义评价函数
-    def evaluate(self, data):
-        total, right = 0., 0.
-        for x_true, y_true in data:
-            y_pred = model.predict(x_true).argmax(axis=1)
-            total += len(y_true)
-            right += (y_true == y_pred).sum().item()
-        return right / total
+#     # 定义评价函数
+#     def evaluate(self, data):
+#         total, right = 0., 0.
+#         for x_true, y_true in data:
+#             y_pred = model.predict(x_true).argmax(axis=1)
+#             total += len(y_true)
+#             right += (y_true == y_pred).sum().item()
+#         return right / total
+
+# 方式2: 继承Evaluator实现evaluate方法
+class MyEvaluator(Evaluator):
+    def evaluate(self):
+        res = {}
+        for key, data in {'val/acc': valid_dataloader, 'test/acc': test_dataloader}.items():
+            total, right = 0., 0.
+            for x_true, y_true in data:
+                y_pred = model.predict(x_true).argmax(axis=1)
+                total += len(y_true)
+                right += (y_true == y_pred).sum().item()
+            res[key] = right / total
+        return res
 
 def inference(texts):
     '''单条样本推理
@@ -142,8 +156,10 @@ def inference(texts):
 
 if __name__ == '__main__':
     if choice == 'train':
-        evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=10, steps_per_epoch=100, callbacks=[evaluator, Logger('test.log'), Tensorboard('./')])
+        evaluator = MyEvaluator(monitor='val/acc', checkpoint_path='./model.pt')
+        early_stop = EarlyStopping(monitor='val/acc', patience=5, verbose=1, mode='max', restore_best_weights=True)
+        callbacks = [evaluator, Logger('./log/test.log'), Tensorboard('./tensorboard/'), early_stop]
+        model.fit(train_dataloader, epochs=10, steps_per_epoch=50, callbacks=callbacks)
     else:
         model.load_weights('best_model.pt')
         inference(['我今天特别开心', '我今天特别生气'])

@@ -31,7 +31,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **其他特性**：[加载transformers库模型](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_load_transformers_model.py)一起使用；调用方式简洁高效；有训练进度条动态展示；配合torchinfo打印参数量；默认Logger和Tensorboard简便记录训练过程；自定义fit过程，满足高阶需求
 - **训练过程**：
 
-    ```shell
+    ```text
     2022-10-28 23:16:10 - Start Training
     2022-10-28 23:16:10 - Epoch: 1/5
     5000/5000 [==============================] - 13s 3ms/step - loss: 0.1351 - acc: 0.9601
