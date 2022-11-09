@@ -210,11 +210,6 @@ class TokenizerBase(object):
         """
         raise NotImplementedError
     
-    def rematch(self):
-        """生成text和tokens之间的对应关系
-        """
-        pass
-
 
 class Tokenizer(TokenizerBase):
     """Bert原生分词器

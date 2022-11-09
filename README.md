@@ -80,7 +80,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：20220409 初始版本
 
 ## 5. 更新：
-- **20221102**：增加CNN_Nested_NER示例
+- **20221102**：增加CNN_Nested_NER示例, 删除SpTokenizer基类中的rematch
 - **20221022**：修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, transformer_xl的bug, 增加gradient_checkpoint
 - **20221011**：虚拟对抗VAT在多个ouput时支持指定，增加elasticsearch示例, 把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中供更多项目使用，把梯度累积移到compile中
 - **20220920**：增加TensorRT示例，支持多个schedule(如同时ema+warmup)，sanic+onnx部署

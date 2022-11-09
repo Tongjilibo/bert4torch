@@ -1,13 +1,8 @@
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 import torch.nn as nn
-import torch.optim as optim
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
-from bert4torch.losses import FocalLoss
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel, BERT
-from tqdm import tqdm
+from bert4torch.models import build_transformer_model, BERT
 
 
 config_path = 'F:/Projects/pretrain_ckpt/uie/uie_base_pytorch/config.json'

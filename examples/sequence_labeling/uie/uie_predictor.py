@@ -4,7 +4,6 @@ import torch
 from bert4torch.snippets import sequence_padding
 from utils import get_bool_ids_greater_than, get_span, get_id_and_prob, cut_chinese_sent, dbc2sbc
 from pprint import pprint
-import torch.nn.functional as F
 
 
 class UIEPredictor(object):

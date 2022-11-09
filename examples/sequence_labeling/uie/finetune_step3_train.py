@@ -4,7 +4,6 @@ from model import uie_model, tokenizer
 from bert4torch.snippets import seed_everything, sequence_padding, Callback
 from torch import nn
 from torch.utils.data import Dataset
-import numpy as np
 import json
 from utils import get_bool_ids_greater_than, get_span
 from random import sample
