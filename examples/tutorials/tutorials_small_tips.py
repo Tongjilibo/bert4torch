@@ -79,8 +79,8 @@ model = Model().to(device)
 summary(model, input_data=next(iter(train_dataloader))[0])
 
 def acc(y_pred, y_true):
-    y_pred = torch.argmax(y_pred, dim=-1)
-    return torch.sum(y_pred.eq(y_true)).item() / y_true.numel()
+    y_pred_tmp = torch.argmax(y_pred, dim=-1).detach()  # 这里detach从计算图中去除
+    return torch.sum(y_pred_tmp.eq(y_true)).item() / y_true.numel()
 
 # 定义使用的loss和optimizer，这里支持自定义
 optimizer = optim.Adam(model.parameters(), lr=2e-5)
