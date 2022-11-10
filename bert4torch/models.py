@@ -100,9 +100,6 @@ class BaseModel(BM):
             loss.backward()
 
         return loss, loss_detail
-
-    def fit(self, train_dataloader, steps_per_epoch=None, epochs=1, callbacks=None, verbose=1):
-        super().fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=callbacks, verbose=verbose)
     
     def after_train_step(self, train_X, train_y, output, loss, loss_detail):
         scale_before_step = 0
