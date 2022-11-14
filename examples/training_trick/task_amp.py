@@ -3,7 +3,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, Checkpoint
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -78,7 +78,7 @@ model = Model().to(device)
 model.compile(
     loss=nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
-    use_amp=True,  # True表示使用梯度累积
+    use_amp=True,  # True表示使用amp混合精度
     metrics=['accuracy'],
 )
 

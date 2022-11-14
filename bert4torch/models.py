@@ -4,7 +4,7 @@ import copy
 import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
-from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
+from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, StableDropout, ConvLayer
 from bert4torch.snippets import search_layer, insert_arguments, delete_arguments, get_kw, torch_div
 from bert4torch.snippets import FGM, PGD, VAT, take_along_dim
 from bert4torch.activations import get_activation
@@ -427,6 +427,7 @@ class LM_Mask(object):
         self.attention_bias = attention_bias.unsqueeze(0).unsqueeze(1)
         return self.attention_bias
 
+
 def extend_with_language_model(InputModel):
     """添加下三角的Attention Mask（语言模型用）
     """
@@ -438,6 +439,7 @@ def extend_with_language_model(InputModel):
             super(LanguageModel, self).__init__(*args, **kwargs)
 
     return LanguageModel
+
 
 class UniLM_Mask(object):
     """定义UniLM的Attention Mask（Seq2Seq模型用）
@@ -453,6 +455,7 @@ class UniLM_Mask(object):
         self.attention_bias = attention_bias.unsqueeze(1).long()
 
         return self.attention_bias
+
 
 def extend_with_unified_language_model(InputModel):
     """添加UniLM的Attention Mask（Seq2Seq模型用）
@@ -1006,6 +1009,44 @@ class ERNIE(BERT):
     def load_variable(self, state_dict, name, prefix='ernie'):
         return super().load_variable(state_dict, name, prefix=prefix)
 
+
+class Deberta_V2(BERT):
+    '''DeBERTa(开发中): https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa
+    '''
+    def __init__(self, *args, relative_attention=True, **kwargs):
+        kwargs.update({'p_bias': 'other_relative'})  # 控制在Embedding阶段不生成position_embedding
+        super(Deberta_V2, self).__init__(*args, **kwargs)
+        # 使用StableDropout来替换原始的Dropout
+        self.embeddings.dropout = StableDropout(self.dropout_rate)
+        
+        # Encoder中transformer_block前的其他网络结构
+        self.relative_attention = relative_attention
+        if relative_attention:
+            self.rel_embeddings = nn.Embedding(self.max_position, self.hidden_size)
+        self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
+        if "layer_norm" in self.norm_rel_ebd:
+            self.LayerNorm = LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12))
+        self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
+
+    def variable_mapping(self):
+        mapping = super(Deberta_V2, self).variable_mapping(prefix='deberta')
+        mapping.update({'mlmDecoder.weight': 'deberta.embeddings.word_embeddings.weight',
+                        'mlmDecoder.bias': 'cls.predictions.bias',
+                        'rel_embeddings.weight': 'deberta.encoder.rel_embeddings.weight',
+                        'LayerNorm.weight': 'deberta.encoder.LayerNorm.weight',
+                        'LayerNorm.bias': 'deberta.encoder.LayerNorm.bias',
+                        'conv.conv.weight': 'deberta.encoder.conv.conv.weight',
+                        'conv.conv.bias': 'deberta.encoder.conv.conv.bias',
+                        'conv.LayerNorm.weight': 'deberta.encoder.conv.LayerNorm.weight',
+                        'conv.LayerNorm.bias': 'deberta.encoder.conv.LayerNorm.bias'})
+        for del_key in ['nsp.weight', 'nsp.bias']:
+            del mapping[del_key]
+        return mapping
+
+    def load_variable(self, state_dict, name, prefix='deberta'):
+        return super().load_variable(state_dict, name, prefix=prefix)
+
+
 class Encoder(BERT):
     def __init__(self, *args, **kwargs):
         kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
@@ -1098,6 +1139,7 @@ class Decoder(LM_Mask, BERT):
         #         f'decoderLayer.{i}.layerNorm3.bias': prefix_i + 'crossattention.output.LayerNorm.bias'
         #         })
         return mapping
+
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构
@@ -1684,6 +1726,7 @@ class Transformer_XL(BERT):
     def variable_mapping(self, prefix=''):
         return {k:k for k, v in self.named_parameters()}
 
+
 class XLNET(Transformer_XL):
     '''构建xlnet模型, 这里做了简化, 只用来finetune, 即没有perm_mask, target_mapping这些输入
        接受的inputs输入: [token_ids, segment_ids]
@@ -1805,6 +1848,7 @@ def build_transformer_model(
         'gau_alpha': GAU_alpha,
         'electra': ELECTRA,
         'ernie': ERNIE,
+        'deberta_v2': Deberta_V2,
         'encoder': Encoder,
         'decoder': Decoder,
         'transformer': Transformer,

@@ -5,7 +5,7 @@ import numpy as np
 import math
 from bert4torch.snippets import get_sinusoid_encoding_table, take_along_dim, torch_div
 from bert4torch.activations import get_activation
-from typing import List, Optional
+from typing import List, Optional, Union
 import random
 import warnings
 
@@ -1382,3 +1382,133 @@ class MixUp(nn.Module):
         '''
         y_true1 = y_true[self.perm_index]
         return self.lam * criterion(y_pred, y_true) + (1 - self.lam) * criterion(y_pred, y_true1)
+
+
+class DropoutContext(object):
+    """transoformers中移植，StableDropout使用"""
+    def __init__(self):
+        self.dropout = 0
+        self.mask = None
+        self.scale = 1
+        self.reuse_mask = True
+
+
+class XDropout(torch.autograd.Function):
+    """transoformers中移植，StableDropout使用"""
+    def forward(self, ctx, input, local_ctx):
+        mask, dropout = self.get_mask(input, local_ctx)
+        ctx.scale = 1.0 / (1 - dropout)
+        if dropout > 0:
+            ctx.save_for_backward(mask)
+            return input.masked_fill(mask, 0) * ctx.scale
+        else:
+            return input
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        if ctx.scale > 1:
+            (mask,) = ctx.saved_tensors
+            return grad_output.masked_fill(mask, 0) * ctx.scale, None
+        else:
+            return grad_output, None
+
+    @staticmethod
+    def symbolic(g: torch._C.Graph, input: torch._C.Value, local_ctx: Union[float, DropoutContext]) -> torch._C.Value:
+        from torch.onnx import symbolic_opset12
+
+        dropout_p = local_ctx
+        if isinstance(local_ctx, DropoutContext):
+            dropout_p = local_ctx.dropout
+        # StableDropout only calls this function when training.
+        train = True
+        return symbolic_opset12.dropout(g, input, dropout_p, train)
+
+    @staticmethod
+    def get_mask(input, local_context):
+        if not isinstance(local_context, DropoutContext):
+            dropout = local_context
+            mask = None
+        else:
+            dropout = local_context.dropout
+            dropout *= local_context.scale
+            mask = local_context.mask if local_context.reuse_mask else None
+        if dropout > 0 and mask is None:
+            mask = (1 - torch.empty_like(input).bernoulli_(1 - dropout)).to(torch.bool)
+        if isinstance(local_context, DropoutContext):
+            if local_context.mask is None:
+                local_context.mask = mask
+        return mask, dropout
+
+
+class StableDropout(nn.Module):
+    """deberta_v2中使用"""
+    def __init__(self, drop_prob):
+        super().__init__()
+        self.drop_prob = drop_prob
+        self.count = 0
+        self.context_stack = None
+
+    def forward(self, x):
+        if self.training and self.drop_prob > 0:
+            return XDropout.apply(x, self.get_context())
+        return x
+
+    def clear_context(self):
+        self.count = 0
+        self.context_stack = None
+
+    def init_context(self, reuse_mask=True, scale=1):
+        if self.context_stack is None:
+            self.context_stack = []
+        self.count = 0
+        for c in self.context_stack:
+            c.reuse_mask = reuse_mask
+            c.scale = scale
+
+    def get_context(self):
+        if self.context_stack is not None:
+            if self.count >= len(self.context_stack):
+                self.context_stack.append(DropoutContext())
+            ctx = self.context_stack[self.count]
+            ctx.dropout = self.drop_prob
+            self.count += 1
+            return ctx
+        else:
+            return self.drop_prob
+
+
+class ConvLayer(nn.Module):
+    '''deberta_v2中使用
+    '''
+    def __init__(self, hidden_size, drop_rate=0.1, layer_norm_eps=1e-12, conv_kernel_size=3, conv_groups=1, conv_act="tanh", **kwargs):
+        super().__init__()
+        kernel_size = conv_kernel_size
+        groups = conv_groups
+        self.conv_act = conv_act
+        self.conv = nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size - 1) // 2, groups=groups)
+        self.LayerNorm = LayerNorm(hidden_size, layer_norm_eps)
+        self.dropout = StableDropout(drop_rate)
+
+    def forward(self, hidden_states, residual_states, input_mask):
+        out = self.conv(hidden_states.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
+        rmask = (1 - input_mask).bool()
+        out.masked_fill_(rmask.unsqueeze(-1).expand(out.size()), 0)
+        out = get_activation[self.conv_act](self.dropout(out))
+
+        layer_norm_input = residual_states + out
+        output = self.LayerNorm(layer_norm_input).to(layer_norm_input)
+
+        if input_mask is None:
+            output_states = output
+        else:
+            if input_mask.dim() != layer_norm_input.dim():
+                if input_mask.dim() == 4:
+                    input_mask = input_mask.squeeze(1).squeeze(1)
+                input_mask = input_mask.unsqueeze(2)
+
+            input_mask = input_mask.to(output.dtype)
+            output_states = output * input_mask
+
+        return output_states
+
+
