@@ -64,7 +64,6 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 ## 3. 快速上手
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md)，[教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials)，[实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)，[bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
-- 背景：用pytorch复现苏神的[bert4keras](https://github.com/bojone/bert4keras)，初版参考了[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)
 
 ## 4. 版本说明
 - **v0.2.3**：20221023 虚拟对抗VAT在多个ouput时支持指定，把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中，修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, transformer_xl的bug, 增加gradient_checkpoint
@@ -104,10 +103,8 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **20220322**：添加GPT、GPT2、T5模型
 - **20220312**：初版提交
 
-## 6. Todo List（欢迎建议）:
-- faiss在文本向量检索中的使用
 
-## 7. 预训练权重
+## 6. 预训练权重
 - 部分权重是要加载修改的[config.json](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 
 | 模型分类 |  权重来源 | 权重链接 | 备注(若有) | 
@@ -133,3 +130,8 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | mt5 | 谷歌 | [pytorch](https://huggingface.co/google/mt5-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 | t5_pegasus | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
 | bart | 复旦 | [pytorch](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
+
+
+## 7. 鸣谢
+- 感谢苏神实现的[bert4keras](https://github.com/bojone/bert4keras)，本实现有不少地方参考了bert4keras的源码，在此衷心感谢大佬的无私奉献; 
+- 其次感谢项目[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)，也是在该项目的指引下给了我用pytorch来复现bert4keras的想法和思路。
