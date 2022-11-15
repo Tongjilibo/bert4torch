@@ -100,18 +100,31 @@ class MultiHeadAttentionLayer(nn.Module):
                                                                   is_decoder=kwargs.get('is_decoder'))
             self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
 
+        elif self.p_bias == 'deberta_v2':  # deberta_v2
+            self.pos_att_type = kwargs.get('pos_att_type')
+            self.relative_positions = RelativePositionsEncodingDebertaV2(qlen=kwargs.get('max_position'), 
+                                                                         klen=kwargs.get('max_position'), 
+                                                                         position_buckets=kwargs.get('position_buckets'),
+                                                                         max_position=kwargs.get('max_position'))
+            self.relative_positions_encoding = nn.Embedding(kwargs.get('max_position'), self.hidden_size)
+            self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
+            if "layer_norm" in self.norm_rel_ebd:
+                self.LayerNorm = LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12))
+
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None):
+    def forward(self, hidden_states, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, query_states=None):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
         # encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
         # encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
 
-        mixed_query_layer = self.q(hidden_states)
+        if query_states is None:
+            query_states = hidden_states  # 在deberta_v2中使用
+        mixed_query_layer = self.q(query_states)
         if encoder_hidden_states is not None:
             mixed_key_layer = self.k(encoder_hidden_states)
             mixed_value_layer = self.v(encoder_hidden_states)
@@ -155,7 +168,15 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_scores = attention_scores + key_position_scores_r_t
 
         # 是否进行attention scale
-        if self.attention_scale:
+        if self.p_bias == 'deberta_v2':
+            scale_factor = 1
+            if "c2p" in self.pos_att_type:
+                scale_factor += 1
+            if "p2c" in self.pos_att_type:
+                scale_factor += 1
+            scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
+            attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
+        elif self.attention_scale:
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
@@ -333,7 +354,7 @@ class BertEmbeddings(nn.Module):
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':
             self.position_embeddings = SinusoidalPositionEncoding(max_position, embedding_size)
-        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'other_relative'}:
+        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'other_relative', 'deberta_v2'}:
             # 如果使用相对位置编码，则不声明PositionEmbeddings
             pass
         elif max_position > 0:
@@ -637,6 +658,20 @@ class XlnetLayer(BertLayer):
                 return self.o(context_layer)
 
 
+class DebertaV2Layer(BertLayer):
+    '''DebertaV2Layer层
+    顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
+    '''
+    pass
+
+    class DebertaV2Attention(nn.Module):
+        pass
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, 
+                    encoder_attention_mask=None, uery_states=None, relative_pos=None, rel_embeddings=None):
+            pass
+
+
+
 class AdaptiveEmbedding(nn.Module):
     '''Transformer_XL的自适应embedding, 实现不同区间使用不同的维度
     可以实现如高频词用比如1024或512维，低频词用256或64维, 再用Linear层project到相同的维数
@@ -718,6 +753,41 @@ class XlnetPositionsEncoding(nn.Module):
         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         return pos_emb
+
+
+class RelativePositionsEncodingDebertaV2(nn.Module):
+    """deberta用的相对位置编码
+    来自论文：https://arxiv.org/abs/2006.03654
+    """
+    def __init__(self, qlen, klen, position_buckets, max_position):
+        super(RelativePositionsEncodingDebertaV2, self).__init__()
+        q_ids = torch.arange(0, qlen)
+        k_ids = torch.arange(0, klen)
+        rel_pos_ids = q_ids[:, None] - k_ids[None, :]
+        if position_buckets > 0 and max_position > 0:
+            rel_pos_ids = self.make_log_bucket_position(rel_pos_ids, position_buckets, max_position)
+        rel_pos_ids = rel_pos_ids.to(torch.long)
+        rel_pos_ids = rel_pos_ids[:qlen, :]
+        rel_pos_ids = rel_pos_ids.unsqueeze(0)
+        self.register_buffer('relative_position', rel_pos_ids)
+
+    @staticmethod
+    def make_log_bucket_position(relative_pos, bucket_size, max_position):
+        sign = torch.sign(relative_pos)
+        mid = bucket_size // 2
+        abs_pos = torch.where((relative_pos < mid) & (relative_pos > -mid),
+            torch.tensor(mid - 1).type_as(relative_pos),
+            torch.abs(relative_pos),
+        )
+        log_pos = (
+            torch.ceil(torch.log(abs_pos / mid) / torch.log(torch.tensor((max_position - 1) / mid)) * (mid - 1)) + mid
+        )
+        bucket_pos = torch.where(abs_pos <= mid, relative_pos.type_as(log_pos), log_pos * sign)
+        return bucket_pos
+
+    def forward(self, qlen, klen):
+        return self.relative_position[:qlen, :klen, :]
+
 
 class RelativePositionsEncoding(nn.Module):
     """nezha用的google相对位置编码

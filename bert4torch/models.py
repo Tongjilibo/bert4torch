@@ -1010,31 +1010,32 @@ class ERNIE(BERT):
         return super().load_variable(state_dict, name, prefix=prefix)
 
 
-class Deberta_V2(BERT):
+class DebertaV2(BERT):
     '''DeBERTa(开发中): https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa
     '''
-    def __init__(self, *args, relative_attention=True, **kwargs):
-        kwargs.update({'p_bias': 'other_relative'})  # 控制在Embedding阶段不生成position_embedding
-        super(Deberta_V2, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'deberta_v2'})  # 控制在Embedding阶段不生成position_embedding
+        super(DebertaV2, self).__init__(*args, **kwargs)
         # 使用StableDropout来替换原始的Dropout
         self.embeddings.dropout = StableDropout(self.dropout_rate)
         
         # Encoder中transformer_block前的其他网络结构
-        self.relative_attention = relative_attention
-        if relative_attention:
-            self.rel_embeddings = nn.Embedding(self.max_position, self.hidden_size)
-        self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
-        if "layer_norm" in self.norm_rel_ebd:
-            self.LayerNorm = LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12))
+        self.relative_attention = kwargs.get("relative_attention", True)
         self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
 
+        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        for i in range(1, self.num_hidden_layers):
+            self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
+            self.encoderLayer[i].multiHeadAttention.LayerNorm.weight = self.encoderLayer[0].multiHeadAttention.LayerNorm.weight
+            self.encoderLayer[i].multiHeadAttention.LayerNorm.bias = self.encoderLayer[0].multiHeadAttention.LayerNorm.bias
+
     def variable_mapping(self):
-        mapping = super(Deberta_V2, self).variable_mapping(prefix='deberta')
+        mapping = super(DebertaV2, self).variable_mapping(prefix='deberta')
         mapping.update({'mlmDecoder.weight': 'deberta.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias',
-                        'rel_embeddings.weight': 'deberta.encoder.rel_embeddings.weight',
-                        'LayerNorm.weight': 'deberta.encoder.LayerNorm.weight',
-                        'LayerNorm.bias': 'deberta.encoder.LayerNorm.bias',
+                        'encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'deberta.encoder.rel_embeddings.weight',
+                        'encoderLayer.0.multiHeadAttention.LayerNorm.weight': 'deberta.encoder.LayerNorm.weight',
+                        'encoderLayer.0.multiHeadAttention.LayerNorm.bias': 'deberta.encoder.LayerNorm.bias',
                         'conv.conv.weight': 'deberta.encoder.conv.conv.weight',
                         'conv.conv.bias': 'deberta.encoder.conv.conv.bias',
                         'conv.LayerNorm.weight': 'deberta.encoder.conv.LayerNorm.weight',
@@ -1848,7 +1849,7 @@ def build_transformer_model(
         'gau_alpha': GAU_alpha,
         'electra': ELECTRA,
         'ernie': ERNIE,
-        'deberta_v2': Deberta_V2,
+        'deberta_v2': DebertaV2,
         'encoder': Encoder,
         'decoder': Decoder,
         'transformer': Transformer,
