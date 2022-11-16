@@ -1013,6 +1013,7 @@ class ERNIE(BERT):
 class DebertaV2(BERT):
     '''DeBERTa(开发中): https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa
     '''
+    @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'deberta_v2'})  # 控制在Embedding阶段不生成position_embedding
         super(DebertaV2, self).__init__(*args, **kwargs)
