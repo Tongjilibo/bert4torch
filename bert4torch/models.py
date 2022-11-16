@@ -1026,16 +1026,44 @@ class DebertaV2(BERT):
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
-            self.encoderLayer[i].multiHeadAttention.LayerNorm.weight = self.encoderLayer[0].multiHeadAttention.LayerNorm.weight
-            self.encoderLayer[i].multiHeadAttention.LayerNorm.bias = self.encoderLayer[0].multiHeadAttention.LayerNorm.bias
+            self.encoderLayer[i].multiHeadAttention.layernorm.weight = self.encoderLayer[0].multiHeadAttention.layernorm.weight
+            self.encoderLayer[i].multiHeadAttention.layernorm.bias = self.encoderLayer[0].multiHeadAttention.layernorm.bias
+    
+    def apply_main_layers(self, inputs):
+        """BERT的主体是基于Self-Attention的模块
+        顺序:Att --> Add --> LN --> FFN --> Add --> LN
+        默认第一个是hidden_states, 第二个是attention_mask, 第三个是conditional_emb
+        """
+        hidden_states, attention_mask, conditional_emb = inputs[:3]
+        if len(inputs[3:]) >= 2:
+            encoder_hidden_state, encoder_attention_mask = inputs[3], inputs[4]
+        else:
+            encoder_hidden_state, encoder_attention_mask = None, None
+
+        encoded_layers = [hidden_states] # 添加embedding的输出
+        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
+        for l_i, layer_module in enumerate(self.encoderLayer):
+            layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
+            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
+            # 第0层要经过卷积
+            if l_i == 0 and self.conv is not None:
+                hidden_states = self.conv(encoded_layers[0], hidden_states, attention_mask.squeeze(1).squeeze(1))
+            layer_inputs[0] = hidden_states
+            layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
+
+            if self.output_all_encoded_layers:
+                encoded_layers.append(hidden_states)
+        if not self.output_all_encoded_layers:
+            encoded_layers.append(hidden_states)
+        return [encoded_layers, conditional_emb]
 
     def variable_mapping(self):
         mapping = super(DebertaV2, self).variable_mapping(prefix='deberta')
         mapping.update({'mlmDecoder.weight': 'deberta.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias',
                         'encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'deberta.encoder.rel_embeddings.weight',
-                        'encoderLayer.0.multiHeadAttention.LayerNorm.weight': 'deberta.encoder.LayerNorm.weight',
-                        'encoderLayer.0.multiHeadAttention.LayerNorm.bias': 'deberta.encoder.LayerNorm.bias',
+                        'encoderLayer.0.multiHeadAttention.layernorm.weight': 'deberta.encoder.LayerNorm.weight',
+                        'encoderLayer.0.multiHeadAttention.layernorm.bias': 'deberta.encoder.LayerNorm.bias',
                         'conv.conv.weight': 'deberta.encoder.conv.conv.weight',
                         'conv.conv.bias': 'deberta.encoder.conv.conv.bias',
                         'conv.LayerNorm.weight': 'deberta.encoder.conv.LayerNorm.weight',

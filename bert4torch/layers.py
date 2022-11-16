@@ -62,7 +62,7 @@ class LayerNorm(nn.Module):
 
 
 class MultiHeadAttentionLayer(nn.Module):
-    def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, attention_scale=True,
+    def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
                  return_attention_scores=False, bias=True, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
@@ -101,7 +101,18 @@ class MultiHeadAttentionLayer(nn.Module):
             self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
 
         elif self.p_bias == 'deberta_v2':  # deberta_v2
-            self.pos_att_type = kwargs.get('pos_att_type')
+            # 配置文件
+            self.share_att_key = kwargs.get("share_att_key", False)
+            self.position_buckets = kwargs.get("position_buckets", -1)
+            self.max_relative_positions = kwargs.get("max_relative_positions", -1)
+            if self.max_relative_positions < 1:
+                self.max_relative_positions = kwargs.get('max_position_embeddings')
+            self.pos_ebd_size = self.max_relative_positions
+            if self.position_buckets > 0:
+                self.pos_ebd_size = self.position_buckets
+
+            # position_embedding
+            self.pos_att_type = kwargs.get('pos_att_type', [])
             self.relative_positions = RelativePositionsEncodingDebertaV2(qlen=kwargs.get('max_position'), 
                                                                          klen=kwargs.get('max_position'), 
                                                                          position_buckets=kwargs.get('position_buckets'),
@@ -109,7 +120,9 @@ class MultiHeadAttentionLayer(nn.Module):
             self.relative_positions_encoding = nn.Embedding(kwargs.get('max_position'), self.hidden_size)
             self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
             if "layer_norm" in self.norm_rel_ebd:
-                self.LayerNorm = LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12))
+                self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
+
+            self.pos_dropout = StableDropout(dropout_rate)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -176,6 +189,12 @@ class MultiHeadAttentionLayer(nn.Module):
                 scale_factor += 1
             scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
             attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
+
+            rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
+            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
+            rel_att = self.disentangled_attention_bias(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
+            attention_scores = attention_scores + rel_att
+
         elif self.attention_scale:
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         # 执行attention mask，对于mask为0部分的attention mask，
@@ -216,6 +235,57 @@ class MultiHeadAttentionLayer(nn.Module):
             return self.o(context_layer), attention_scores
         else:
             return self.o(context_layer)
+
+    def disentangled_attention_bias(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
+        '''deberta_v2使用，和原版区别是query_layer是4维
+        '''
+        btz, n_head, q_len, d_head = query_layer.size()
+        k_len = key_layer.size(-2)
+        if relative_pos is None:
+            relative_pos = self.relative_positions(q_len, k_len)
+        if relative_pos.dim() == 2:
+            relative_pos = relative_pos.unsqueeze(0).unsqueeze(0)
+        elif relative_pos.dim() == 3:
+            relative_pos = relative_pos.unsqueeze(1)
+        # bsz x height x query x key
+        elif relative_pos.dim() != 4:
+            raise ValueError(f"Relative position ids must be of dim 2 or 3 or 4. {relative_pos.dim()}")
+
+        att_span = self.pos_ebd_size
+        relative_pos = relative_pos.long().to(query_layer.device)
+
+        rel_embeddings = rel_embeddings[0 : att_span * 2, :].unsqueeze(0)
+        if self.share_att_key:
+            pos_query_layer = self.transpose_for_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_key_layer = self.transpose_for_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
+        else:
+            # 这里逻辑去掉了
+            pass
+
+        score = 0
+        # content->position
+        if "c2p" in self.pos_att_type:
+            scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
+            c2p_att = torch.matmul(query_layer, pos_key_layer.transpose(-1, -2))
+            c2p_pos = torch.clamp(relative_pos + att_span, 0, att_span * 2 - 1)
+            c2p_att = torch.gather(c2p_att, dim=-1, index=c2p_pos.expand([btz, n_head, q_len, k_len]))
+            score += c2p_att / scale.to(dtype=c2p_att.dtype)
+
+        # position->content
+        if "p2c" in self.pos_att_type:
+            scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
+            if k_len != q_len:
+                r_pos = self.relative_positions(k_len, k_len)
+                r_pos = r_pos.unsqueeze(0)
+            else:
+                r_pos = relative_pos
+
+            p2c_pos = torch.clamp(-r_pos + att_span, 0, att_span * 2 - 1)
+            p2c_att = torch.matmul(key_layer, pos_query_layer.transpose(-1, -2))
+            p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand([btz, n_head, k_len, k_len])).transpose(-1, -2)
+            score += p2c_att / scale.to(dtype=p2c_att.dtype)
+
+        return score
 
 
 class PositionWiseFeedForward(nn.Module):
@@ -428,7 +498,7 @@ class BertLayer(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, 
                  is_dropout=False, conditional_size=False, **kwargs):
         super(BertLayer, self).__init__()
-        self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
+        self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
         self.dropout1 = nn.Dropout(dropout_rate)
         self.layerNorm1 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
         self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
@@ -436,7 +506,7 @@ class BertLayer(nn.Module):
         self.layerNorm2 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
         self.is_decoder = kwargs.get('is_decoder')
         if self.is_decoder:
-            self.crossAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, **kwargs)
+            self.crossAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
             self.dropout3 = nn.Dropout(dropout_rate)
             self.layerNorm3 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
 
@@ -786,7 +856,7 @@ class RelativePositionsEncodingDebertaV2(nn.Module):
         return bucket_pos
 
     def forward(self, qlen, klen):
-        return self.relative_position[:qlen, :klen, :]
+        return self.relative_position[:, :qlen, :klen]
 
 
 class RelativePositionsEncoding(nn.Module):
@@ -1463,10 +1533,27 @@ class DropoutContext(object):
         self.reuse_mask = True
 
 
+def get_mask(input, local_context):
+    if not isinstance(local_context, DropoutContext):
+        dropout = local_context
+        mask = None
+    else:
+        dropout = local_context.dropout
+        dropout *= local_context.scale
+        mask = local_context.mask if local_context.reuse_mask else None
+    if dropout > 0 and mask is None:
+        mask = (1 - torch.empty_like(input).bernoulli_(1 - dropout)).to(torch.bool)
+    if isinstance(local_context, DropoutContext):
+        if local_context.mask is None:
+            local_context.mask = mask
+    return mask, dropout
+
+
 class XDropout(torch.autograd.Function):
     """transoformers中移植，StableDropout使用"""
-    def forward(self, ctx, input, local_ctx):
-        mask, dropout = self.get_mask(input, local_ctx)
+    @staticmethod
+    def forward(ctx, input, local_ctx):
+        mask, dropout = get_mask(input, local_ctx)
         ctx.scale = 1.0 / (1 - dropout)
         if dropout > 0:
             ctx.save_for_backward(mask)
@@ -1492,22 +1579,6 @@ class XDropout(torch.autograd.Function):
         # StableDropout only calls this function when training.
         train = True
         return symbolic_opset12.dropout(g, input, dropout_p, train)
-
-    @staticmethod
-    def get_mask(input, local_context):
-        if not isinstance(local_context, DropoutContext):
-            dropout = local_context
-            mask = None
-        else:
-            dropout = local_context.dropout
-            dropout *= local_context.scale
-            mask = local_context.mask if local_context.reuse_mask else None
-        if dropout > 0 and mask is None:
-            mask = (1 - torch.empty_like(input).bernoulli_(1 - dropout)).to(torch.bool)
-        if isinstance(local_context, DropoutContext):
-            if local_context.mask is None:
-                local_context.mask = mask
-        return mask, dropout
 
 
 class StableDropout(nn.Module):
@@ -1563,7 +1634,7 @@ class ConvLayer(nn.Module):
         out = self.conv(hidden_states.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
         rmask = (1 - input_mask).bool()
         out.masked_fill_(rmask.unsqueeze(-1).expand(out.size()), 0)
-        out = get_activation[self.conv_act](self.dropout(out))
+        out = get_activation(self.conv_act)(self.dropout(out))
 
         layer_norm_input = residual_states + out
         output = self.LayerNorm(layer_norm_input).to(layer_norm_input)

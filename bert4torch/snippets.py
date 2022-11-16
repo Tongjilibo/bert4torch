@@ -39,12 +39,12 @@ def take_along_dim(input_tensor, indices, dim=None):
         return res
 
 
-def torch_div(input, other, round_mode=None):
+def torch_div(input, other, rounding_mode=None):
     # torch.div兼容老版本
     if torch.__version__ <= '1.7.1':
         indices = input // other  # 兼容老版本
     else:
-        indices = torch.div(input, other, rounding_mode=round_mode)  # 行索引
+        indices = torch.div(input, other, rounding_mode=rounding_mode)  # 行索引
     return indices
 
 
