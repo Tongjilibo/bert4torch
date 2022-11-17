@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 import torch.nn as nn
 
-maxlen = 128
+maxlen = 256
 batch_size = 8
 config_path = 'F:/Projects/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/pytorch_model.bin'
@@ -34,36 +34,10 @@ with open('F:/Projects/data/corpus/relation_extraction/chip2020/53_schemas.json'
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-# 加载数据集
-class MyDataset(ListDataset):
-    @staticmethod
-    def load_data(filename):
-        """加载数据
-        单条格式：{'text': text, 'spo_list': [(s, p, o)]}
-        """
-        D = []
-        with open(filename, encoding='utf-8') as f:
-            for l in f:
-                l = json.loads(l)
-                text = l['text']
-                spo_list = l['spo_list']
-                labels = []
-                for spo in spo_list:
-                    subject = spo['subject']
-                    object = spo['object']
-                    predicate = spo['predicate']
-                    labels.append((subject, predicate, object))
-                D.append({'text': text, 'spo_list': labels})
-        return D
-
-
-# 虚拟对抗添加
-train_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/chip2020/train_data.json')
-valid_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/chip2020/val_data.json')
-unsup_dataset = [sen for sen in (train_dataset.data + valid_dataset.data)]
-
-
-def collate_fn(batch):
+# 解析样本
+def get_spoes(text, spo_list):
+    '''单独抽出来，这样读取数据时候，可以根据spoes来选择跳过
+    '''
     def search(pattern, sequence):
         """从sequence中寻找子串pattern
         如果找到，返回第一个下标；否则返回-1。
@@ -74,24 +48,59 @@ def collate_fn(batch):
                 return i
         return -1
 
+    token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+    # 整理三元组 {s: [(o, p)]}
+    spoes = {}
+    for s, p, o in spo_list:
+        s = tokenizer.encode(s)[0][1:-1]
+        p = predicate2id[p]
+        o = tokenizer.encode(o)[0][1:-1]
+        s_idx = search(s, token_ids)
+        o_idx = search(o, token_ids)
+        if s_idx != -1 and o_idx != -1:
+            s = (s_idx, s_idx + len(s) - 1)
+            o = (o_idx, o_idx + len(o) - 1, p)
+            if s not in spoes:
+                spoes[s] = []
+            spoes[s].append(o)
+    return token_ids, segment_ids, spoes
+
+# 加载数据集
+class MyDataset(ListDataset):
+    @staticmethod
+    def load_data(filename):
+        """加载数据
+        单条格式：{'text': text, 'spo_list': [(s, p, o)]}
+        """
+        D = []
+        with open(filename, encoding='utf-8') as f:
+            for l in tqdm(f):
+                l = json.loads(l)
+                text = l['text']
+                spo_list = l['spo_list']
+                labels = []
+                for spo in spo_list:
+                    subject = spo['subject']
+                    object = spo['object']
+                    predicate = spo['predicate']
+                    labels.append((subject, predicate, object))
+                token_ids, segment_ids, spoes = get_spoes(text, labels)
+                if spoes:
+                    D.append({'text': text, 'spo_list': labels, 'token_ids': token_ids, 
+                              'segment_ids': segment_ids, 'spoes': spoes})
+        return D
+
+
+# 虚拟对抗添加
+train_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/chip2020/train_data.json')
+valid_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/chip2020/val_data.json')
+unsup_dataset = [sen for sen in (train_dataset.data + valid_dataset.data)]
+
+def collate_fn(batch):
     batch_token_ids, batch_segment_ids = [[], []], [[], []]
     batch_subject_labels, batch_subject_ids, batch_object_labels = [], [], []
     for d in batch:
-        token_ids, segment_ids = tokenizer.encode(d['text'], maxlen=maxlen)
-        # 整理三元组 {s: [(o, p)]}
-        spoes = {}
-        for s, p, o in d['spo_list']:
-            s = tokenizer.encode(s)[0][1:-1]
-            p = predicate2id[p]
-            o = tokenizer.encode(o)[0][1:-1]
-            s_idx = search(s, token_ids)
-            o_idx = search(o, token_ids)
-            if s_idx != -1 and o_idx != -1:
-                s = (s_idx, s_idx + len(s) - 1)
-                o = (o_idx, o_idx + len(o) - 1, p)
-                if s not in spoes:
-                    spoes[s] = []
-                spoes[s].append(o)
+        token_ids, segment_ids, spoes = d['token_ids'], d['segment_ids'], d['spoes']
         if spoes:
             # subject标签
             subject_labels = np.zeros((len(token_ids), 2))

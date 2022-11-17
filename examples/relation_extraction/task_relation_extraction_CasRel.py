@@ -35,22 +35,10 @@ with open('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/a
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-# 加载数据集
-class MyDataset(ListDataset):
-    @staticmethod
-    def load_data(filename):
-        """加载数据
-        单条格式：{'text': text, 'spo_list': [(s, p, o)]}
-        """
-        D = []
-        with open(filename, encoding='utf-8') as f:
-            for l in f:
-                l = json.loads(l)
-                D.append({'text': l['text'],
-                          'spo_list': [(spo['subject'], spo['predicate'], spo['object']) for spo in l['spo_list']]})
-        return D
-
-def collate_fn(batch):
+# 解析样本
+def get_spoes(text, spo_list):
+    '''单独抽出来，这样读取数据时候，可以根据spoes来选择跳过
+    '''
     def search(pattern, sequence):
         """从sequence中寻找子串pattern
         如果找到，返回第一个下标；否则返回-1。
@@ -61,24 +49,46 @@ def collate_fn(batch):
                 return i
         return -1
 
+    token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+    # 整理三元组 {s: [(o, p)]}
+    spoes = {}
+    for s, p, o in spo_list:
+        s = tokenizer.encode(s)[0][1:-1]
+        p = predicate2id[p]
+        o = tokenizer.encode(o)[0][1:-1]
+        s_idx = search(s, token_ids)
+        o_idx = search(o, token_ids)
+        if s_idx != -1 and o_idx != -1:
+            s = (s_idx, s_idx + len(s) - 1)
+            o = (o_idx, o_idx + len(o) - 1, p)
+            if s not in spoes:
+                spoes[s] = []
+            spoes[s].append(o)
+    return token_ids, segment_ids, spoes
+
+# 加载数据集
+class MyDataset(ListDataset):
+    @staticmethod
+    def load_data(filename):
+        """加载数据
+        单条格式：{'text': text, 'spo_list': [(s, p, o)]}
+        """
+        D = []
+        with open(filename, encoding='utf-8') as f:
+            for l in tqdm(f):
+                l = json.loads(l)
+                labels = [(spo['subject'], spo['predicate'], spo['object']) for spo in l['spo_list']]
+                token_ids, segment_ids, spoes = get_spoes(l['text'], labels)
+                if spoes:
+                    D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
+                              'segment_ids': segment_ids, 'spoes': spoes})
+        return D
+
+def collate_fn(batch):
     batch_token_ids, batch_segment_ids = [], []
     batch_subject_labels, batch_subject_ids, batch_object_labels = [], [], []
     for d in batch:
-        token_ids, segment_ids = tokenizer.encode(d['text'], maxlen=maxlen)
-        # 整理三元组 {s: [(o, p)]}
-        spoes = {}
-        for s, p, o in d['spo_list']:
-            s = tokenizer.encode(s)[0][1:-1]
-            p = predicate2id[p]
-            o = tokenizer.encode(o)[0][1:-1]
-            s_idx = search(s, token_ids)
-            o_idx = search(o, token_ids)
-            if s_idx != -1 and o_idx != -1:
-                s = (s_idx, s_idx + len(s) - 1)
-                o = (o_idx, o_idx + len(o) - 1, p)
-                if s not in spoes:
-                    spoes[s] = []
-                spoes[s].append(o)
+        token_ids, segment_ids, spoes = d['token_ids'], d['segment_ids'], d['spoes']
         if spoes:
             # subject标签
             subject_labels = np.zeros((len(token_ids), 2))
