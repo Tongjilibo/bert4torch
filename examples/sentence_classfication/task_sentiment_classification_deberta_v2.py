@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 maxlen = 256
@@ -41,20 +42,18 @@ class MyDataset(ListDataset):
         return D
 
 def collate_fn(batch):
-    batch_token_ids, batch_segment_ids, batch_labels = [], [], []
+    batch_token_ids, batch_labels = [], []
     for text, label in batch:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
         batch_token_ids.append(token_ids)
-        batch_segment_ids.append(segment_ids)
         batch_labels.append([label])
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
+    return batch_token_ids, batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=False, collate_fn=collate_fn) 
 valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
@@ -67,8 +66,8 @@ class Model(BaseModel):
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
-    def forward(self, token_ids, segment_ids):
-        hidden_states = self.bert([token_ids, segment_ids])
+    def forward(self, token_ids):
+        hidden_states = self.bert([token_ids])
         pooled_output = get_pool_emb(hidden_states, None, token_ids.gt(0).long(), self.pool_method)
         output = self.dropout(pooled_output)
         output = self.dense(output)
@@ -99,7 +98,7 @@ class Evaluator(Callback):
     # 定义评价函数
     def evaluate(self, data):
         total, right = 0., 0.
-        for x_true, y_true in data:
+        for x_true, y_true in tqdm(data):
             y_pred = model.predict(x_true).argmax(axis=1)
             total += len(y_true)
             right += (y_true == y_pred).sum().item()
@@ -109,16 +108,15 @@ def inference(texts):
     '''单条样本推理
     '''
     for text in texts:
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        token_ids = tokenizer.encode(text, maxlen=maxlen)[0]
         token_ids = torch.tensor(token_ids, dtype=torch.long, device=device)[None, :]
-        segment_ids = torch.tensor(segment_ids, dtype=torch.long, device=device)[None, :]
-
-        logit = model.predict([token_ids, segment_ids])
+        logit = model.predict(token_ids)
         y_pred = torch.argmax(torch.softmax(logit, dim=-1)).cpu().numpy()
         print(text, ' ----> ', y_pred)
 
 if __name__ == '__main__':
     if choice == 'train':
+    # if choice == False:
         evaluator = Evaluator()
         model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
     else:

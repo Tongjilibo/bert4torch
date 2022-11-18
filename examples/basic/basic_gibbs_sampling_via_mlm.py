@@ -6,7 +6,6 @@ import numpy as np
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import torch
-import torch.nn as nn
 
 
 root_model_path = "F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12"

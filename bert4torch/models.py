@@ -4,7 +4,7 @@ import copy
 import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
-from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, StableDropout, ConvLayer
+from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
 from bert4torch.snippets import search_layer, insert_arguments, delete_arguments, get_kw, torch_div
 from bert4torch.snippets import FGM, PGD, VAT, take_along_dim
 from bert4torch.activations import get_activation
@@ -1011,14 +1011,18 @@ class ERNIE(BERT):
 
 
 class DebertaV2(BERT):
-    '''DeBERTa(开发中): https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa
+    '''DeBERTaV2: https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa
+       这里使用的是IEDEA的中文模型：https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese
+       和transformers包中的区别：
+       1）原始使用的StableDropout替换成了nn.Dropout
+       2）计算attention_score时候用的XSoftmax替换成了F.softmax
+       3）未实现（认为对结果无影响）：Embedding阶段用attention_mask对embedding的padding部分置0
+       4）未实现（认为对结果无影响）：计算attention_score前的attention_mask从[btz, 1, 1, k_len]转为了[btz, 1, q_len, k_len]
     '''
     @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'deberta_v2'})  # 控制在Embedding阶段不生成position_embedding
         super(DebertaV2, self).__init__(*args, **kwargs)
-        # 使用StableDropout来替换原始的Dropout
-        self.embeddings.dropout = StableDropout(self.dropout_rate)
         
         # Encoder中transformer_block前的其他网络结构
         self.relative_attention = kwargs.get("relative_attention", True)
@@ -1031,9 +1035,7 @@ class DebertaV2(BERT):
             self.encoderLayer[i].multiHeadAttention.layernorm.bias = self.encoderLayer[0].multiHeadAttention.layernorm.bias
     
     def apply_main_layers(self, inputs):
-        """BERT的主体是基于Self-Attention的模块
-        顺序:Att --> Add --> LN --> FFN --> Add --> LN
-        默认第一个是hidden_states, 第二个是attention_mask, 第三个是conditional_emb
+        """DebertaV2：主要区别是第0层后，会通过卷积层
         """
         hidden_states, attention_mask, conditional_emb = inputs[:3]
         if len(inputs[3:]) >= 2:
@@ -1069,7 +1071,7 @@ class DebertaV2(BERT):
                         'conv.conv.bias': 'deberta.encoder.conv.conv.bias',
                         'conv.LayerNorm.weight': 'deberta.encoder.conv.LayerNorm.weight',
                         'conv.LayerNorm.bias': 'deberta.encoder.conv.LayerNorm.bias'})
-        for del_key in ['nsp.weight', 'nsp.bias']:
+        for del_key in ['nsp.weight', 'nsp.bias', 'embeddings.position_embeddings.weight', 'embeddings.segment_embeddings.weight']:
             del mapping[del_key]
         return mapping
 

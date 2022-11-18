@@ -122,7 +122,7 @@ class MultiHeadAttentionLayer(nn.Module):
             if "layer_norm" in self.norm_rel_ebd:
                 self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
 
-            self.pos_dropout = StableDropout(dropout_rate)
+            self.pos_dropout = nn.Dropout(dropout_rate)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -200,7 +200,8 @@ class MultiHeadAttentionLayer(nn.Module):
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
         if attention_mask is not None:
-            # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)
+            # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
+            # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
             attention_mask = (1.0 - attention_mask) * -10000.0  # 所以传入的mask的非padding部分为1, padding部分为0
             attention_scores = attention_scores + attention_mask
 
@@ -412,11 +413,10 @@ class GatedAttentionUnit(nn.Module):
 
 
 class BertEmbeddings(nn.Module):
+    """embeddings层
+       构造word, position and token_type embeddings.
     """
-        embeddings层
-        构造word, position and token_type embeddings.
-    """
-    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, drop_rate, conditional_size=False, **kwargs):
+    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
@@ -439,13 +439,13 @@ class BertEmbeddings(nn.Module):
 
         # LayerNorm
         self.layerNorm = LayerNorm(embedding_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
-        self.dropout = nn.Dropout(drop_rate)
+        self.dropout = nn.Dropout(dropout_rate)
 
         # 如果embedding_size != hidden_size，则再有一个linear(适用于albert矩阵分解)
         if embedding_size != hidden_size:
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
 
-    def forward(self, token_ids, segment_ids=None, conditional_emb=None, additional_embs=None):
+    def forward(self, token_ids, segment_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None):
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):
             words_embeddings = self.word_embeddings(token_ids)
         else:
@@ -479,6 +479,10 @@ class BertEmbeddings(nn.Module):
 
         if hasattr(self, 'layerNorm'):
             embeddings = self.layerNorm((embeddings, conditional_emb))
+        
+        if attention_mask is not None:
+            embeddings *= attention_mask[:, 0, 0, :, None]
+
         embeddings = self.dropout(embeddings)
 
         if hasattr(self, 'embedding_hidden_mapping_in'):
@@ -726,20 +730,6 @@ class XlnetLayer(BertLayer):
                 return self.o(context_layer), attention_scores
             else:
                 return self.o(context_layer)
-
-
-class DebertaV2Layer(BertLayer):
-    '''DebertaV2Layer层
-    顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
-    '''
-    pass
-
-    class DebertaV2Attention(nn.Module):
-        pass
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, 
-                    encoder_attention_mask=None, uery_states=None, relative_pos=None, rel_embeddings=None):
-            pass
-
 
 
 class AdaptiveEmbedding(nn.Module):
@@ -1524,111 +1514,17 @@ class MixUp(nn.Module):
         return self.lam * criterion(y_pred, y_true) + (1 - self.lam) * criterion(y_pred, y_true1)
 
 
-class DropoutContext(object):
-    """transoformers中移植，StableDropout使用"""
-    def __init__(self):
-        self.dropout = 0
-        self.mask = None
-        self.scale = 1
-        self.reuse_mask = True
-
-
-def get_mask(input, local_context):
-    if not isinstance(local_context, DropoutContext):
-        dropout = local_context
-        mask = None
-    else:
-        dropout = local_context.dropout
-        dropout *= local_context.scale
-        mask = local_context.mask if local_context.reuse_mask else None
-    if dropout > 0 and mask is None:
-        mask = (1 - torch.empty_like(input).bernoulli_(1 - dropout)).to(torch.bool)
-    if isinstance(local_context, DropoutContext):
-        if local_context.mask is None:
-            local_context.mask = mask
-    return mask, dropout
-
-
-class XDropout(torch.autograd.Function):
-    """transoformers中移植，StableDropout使用"""
-    @staticmethod
-    def forward(ctx, input, local_ctx):
-        mask, dropout = get_mask(input, local_ctx)
-        ctx.scale = 1.0 / (1 - dropout)
-        if dropout > 0:
-            ctx.save_for_backward(mask)
-            return input.masked_fill(mask, 0) * ctx.scale
-        else:
-            return input
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        if ctx.scale > 1:
-            (mask,) = ctx.saved_tensors
-            return grad_output.masked_fill(mask, 0) * ctx.scale, None
-        else:
-            return grad_output, None
-
-    @staticmethod
-    def symbolic(g: torch._C.Graph, input: torch._C.Value, local_ctx: Union[float, DropoutContext]) -> torch._C.Value:
-        from torch.onnx import symbolic_opset12
-
-        dropout_p = local_ctx
-        if isinstance(local_ctx, DropoutContext):
-            dropout_p = local_ctx.dropout
-        # StableDropout only calls this function when training.
-        train = True
-        return symbolic_opset12.dropout(g, input, dropout_p, train)
-
-
-class StableDropout(nn.Module):
-    """deberta_v2中使用"""
-    def __init__(self, drop_prob):
-        super().__init__()
-        self.drop_prob = drop_prob
-        self.count = 0
-        self.context_stack = None
-
-    def forward(self, x):
-        if self.training and self.drop_prob > 0:
-            return XDropout.apply(x, self.get_context())
-        return x
-
-    def clear_context(self):
-        self.count = 0
-        self.context_stack = None
-
-    def init_context(self, reuse_mask=True, scale=1):
-        if self.context_stack is None:
-            self.context_stack = []
-        self.count = 0
-        for c in self.context_stack:
-            c.reuse_mask = reuse_mask
-            c.scale = scale
-
-    def get_context(self):
-        if self.context_stack is not None:
-            if self.count >= len(self.context_stack):
-                self.context_stack.append(DropoutContext())
-            ctx = self.context_stack[self.count]
-            ctx.dropout = self.drop_prob
-            self.count += 1
-            return ctx
-        else:
-            return self.drop_prob
-
-
 class ConvLayer(nn.Module):
     '''deberta_v2中使用
     '''
-    def __init__(self, hidden_size, drop_rate=0.1, layer_norm_eps=1e-12, conv_kernel_size=3, conv_groups=1, conv_act="tanh", **kwargs):
+    def __init__(self, hidden_size, dropout_rate=0.1, layer_norm_eps=1e-12, conv_kernel_size=3, conv_groups=1, conv_act="tanh", **kwargs):
         super().__init__()
         kernel_size = conv_kernel_size
         groups = conv_groups
         self.conv_act = conv_act
         self.conv = nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size - 1) // 2, groups=groups)
-        self.LayerNorm = LayerNorm(hidden_size, layer_norm_eps)
-        self.dropout = StableDropout(drop_rate)
+        self.LayerNorm = nn.LayerNorm(hidden_size, layer_norm_eps)  # 这里使用bert4torch的LayerNorm会有问题
+        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, hidden_states, residual_states, input_mask):
         out = self.conv(hidden_states.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
