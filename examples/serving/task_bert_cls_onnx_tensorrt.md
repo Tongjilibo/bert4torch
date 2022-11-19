@@ -1,5 +1,6 @@
 # ONNX+TensorRT
-本文以情感二分类为例，使用ONNX+TensorRT来部署
+- 本文以情感二分类为例，使用ONNX+TensorRT来部署
+- **注意**：注意pytorch，cuda, tensorrt等版本，有些问题可能是版本导致，如转trt错误可能和tensorrt版本相关
 
 ## 1. pytorch权重转onnx
 1. 首先需要运行[情感分类任务](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification.py)，并保存pytorch的权重

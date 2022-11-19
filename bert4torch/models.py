@@ -238,6 +238,7 @@ class BERT_BASE(BaseModel):
         """模型构建函数
         attention_caches: 为Attention的K,V的缓存序列字典，格式为{Attention层名: [K缓存, V缓存]}；
         layer_norm_*系列参数: 实现Conditional Layer Normalization时使用，用来实现以“固定长度向量”为条件的条件Bert。
+        说明：其他参数目前暂未使用到，但是逻辑暂时保留
         """
         # additional_input
         # if additional_input_layers is not None:
@@ -254,7 +255,6 @@ class BERT_BASE(BaseModel):
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
-        
 
     def forward(self, inputs):
         """定义模型的执行流程
@@ -364,14 +364,6 @@ class BERT_BASE(BaseModel):
 
         # 将ckpt的权重load到模型结构中
         self.load_state_dict(state_dict_new, strict=False)
-    
-    # def get_inputs(self):
-    #     pass
-    
-    # def set_inputs(self, inputs, additional_input_layers=None):
-    #     """设置input和inputs属性
-    #     """
-    #     pass
 
     def apply_embeddings(self, inputs):
         raise NotImplementedError
@@ -1156,20 +1148,6 @@ class Decoder(LM_Mask, BERT):
         mapping = {}
         for k, v in raw_mapping.items():
             mapping[k.replace('encoderLayer', 'decoderLayer')] = v
-        # for i in range(self.num_hidden_layers):
-        #     prefix_i = f'{prefix}.encoder.layer.%d.' % i
-        #     mapping.update({
-        #         f'decoderLayer.{i}.crossAttention.q.weight': prefix_i + 'crossattention.self.query.weight',
-        #         f'decoderLayer.{i}.crossAttention.q.bias': prefix_i + 'crossattention.self.query.bias',
-        #         f'decoderLayer.{i}.crossAttention.k.weight': prefix_i + 'crossattention.self.key.weight',
-        #         f'decoderLayer.{i}.crossAttention.k.bias': prefix_i + 'crossattention.self.key.bias',
-        #         f'decoderLayer.{i}.crossAttention.v.weight': prefix_i + 'crossattention.self.value.weight',
-        #         f'decoderLayer.{i}.crossAttention.v.bias': prefix_i + 'crossattention.self.value.bias',
-        #         f'decoderLayer.{i}.crossAttention.o.weight': prefix_i + 'crossattention.output.dense.weight',
-        #         f'decoderLayer.{i}.crossAttention.o.bias': prefix_i + 'crossattention.output.dense.bias',
-        #         f'decoderLayer.{i}.layerNorm3.weight': prefix_i + 'crossattention.output.LayerNorm.weight',
-        #         f'decoderLayer.{i}.layerNorm3.bias': prefix_i + 'crossattention.output.LayerNorm.bias'
-        #         })
         return mapping
 
 
@@ -1337,8 +1315,7 @@ class T5_Encoder(Encoder):
                    f'{prefix}encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
                    f'{prefix}final_layer_norm.weight': 'encoder.final_layer_norm.weight'}
         for i in range(self.num_hidden_layers):
-            mapping.update(
-                {
+            mapping.update({
                 f'{prefix}encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.block.{i}.layer.0.SelfAttention.q.weight',
                 f'{prefix}encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.block.{i}.layer.0.SelfAttention.k.weight',
                 f'{prefix}encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.block.{i}.layer.0.SelfAttention.v.weight',
@@ -1396,8 +1373,7 @@ class T5_Decoder(Decoder):
                    f'{prefix}final_dense.weight': 'lm_head.weight'}
 
         for i in range(self.num_hidden_layers):
-            mapping.update(
-                {
+            mapping.update({
                 f'{prefix}decoderLayer.{i}.multiHeadAttention.q.weight': f'decoder.block.{i}.layer.0.SelfAttention.q.weight',
                 f'{prefix}decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.block.{i}.layer.0.SelfAttention.k.weight',
                 f'{prefix}decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.block.{i}.layer.0.SelfAttention.v.weight',
@@ -1845,17 +1821,10 @@ class XLNET(Transformer_XL):
                             f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'ff.layer_norm.weight',
                             f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'ff.layer_norm.bias'
                             })
-
         return mapping
 
 
-def build_transformer_model(
-        config_path=None,
-        checkpoint_path=None,
-        model='bert',
-        application='encoder',
-        **kwargs
-):
+def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', **kwargs):
     """根据配置文件构建模型，可选加载checkpoint权重
     """
     configs = {}

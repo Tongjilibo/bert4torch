@@ -3,6 +3,7 @@
 # https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese/tree/main
 # https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese/tree/main
 # https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-710M-Chinese/tree/main
+# config直接使用huggingface上的即可
 import torch
 
 rep_str = {
