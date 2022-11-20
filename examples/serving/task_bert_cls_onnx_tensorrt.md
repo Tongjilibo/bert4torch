@@ -16,7 +16,7 @@ docker pull nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
 ```
 2. 运行镜像/创建容器
 ```shell
-docker run -it --name trt_test --gpus all -v /home/tensorrt:/tensorrt nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04 /bin/bash
+docker run -it --name trt_test --gpus all -v /home/libo/tensorrt:/tensorrt nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04 /bin/bash
 ```
 3. [下载TensorRT包](https://developer.nvidia.com/zh-cn/tensorrt)，这一步需要注册账号，我下载的是`TensorRT-8.4.1.5.Linux.x86_64-gnu.cuda-11.6.cudnn8.4.tar.gz`
 4. 回到容器安装TensorRT(cd到容器内的tensorrt路径下解压刚才下载的tar包)
@@ -59,6 +59,7 @@ print(tensorrt.__version__)
 ## 3. onnx转trt权重
 - 转换命令
 ```shell
+cd TensorRT-8.4.1.5/bin
 ./trtexec --onnx=/tensorrt/bert_cls.onnx --saveEngine=/tensorrt/bert_cls.trt --minShapes=input_ids:1x512,segment_ids:1x512 --optShapes=input_ids:1x512,segment_ids:1x512 --maxShapes=input_ids:20x512,segment_ids:20x512 --device=0
 ```
 - 注意项：1）测试中如果把batch_size维度和seq_len维度都设置成动态速度会很慢(100ms+)，因此这里只保留动态的batchsize维度，seq_len都padding到512；2）[参考资料](https://github.com/NVIDIA/TENSORRT/issues/976)

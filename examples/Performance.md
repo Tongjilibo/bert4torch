@@ -13,6 +13,7 @@
 | roformer | 9/10 | 94.85 | 94.42 | —— | 
 | roformer_v2 | 3/10 | 95.78 | 96.09 | —— | 
 | gau_alpha | 2/10 | 95.25 | 94.46 | —— | 
+| deberta_v2 | (10/2/5)/10 | 94.55/95.16/94.85 | 94.99/94.68/94.33 | 分别为97M/320M/710M, 97M的transformer版本指标为94.90/94.81| 
 
 ## 1.2 不同trick下的指标对比
 - trick测试+[情感分类数据集](https://github.com/bojone/bert4keras/blob/master/examples/datasets/sentiment.zip)+cls分类+无segment_input
