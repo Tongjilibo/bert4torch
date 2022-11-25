@@ -729,6 +729,70 @@ class VAT():
         return direction
 
 
+class AdversarialTraining(Callback):
+    """对抗训练Callback
+    """
+    def __init__(self, mode, params={}):
+        assert mode in {'', 'fgm', 'pgd', 'vat', 'gradient_penalty'}, 'adversarial_train support fgm, pgd, vat and gradient_penalty mode'
+        self.mode = mode
+        params['epsilon'] = params.get('epsilon', 1.0)
+        params['emb_name'] = params.get('emb_name', 'word_embeddings')
+
+        if mode == 'fgm':
+            self.ad_train = FGM(self)
+        elif mode == 'pgd':
+            params['K'] = params.get('K', 3)  # 步数
+            params['alpha'] = params.get('alpha', 0.3)  # 学习率
+            self.ad_train = PGD(self)
+        elif mode == 'gradient_penalty':
+            pass
+        elif mode == 'vat':
+            params['K'] = params.get('K', 3)
+            params['noise_var'] = params.get('noise_var', 1e-5)  # 噪声的方差
+            params['noise_gamma'] = params.get('noise_gamma', 1e-6) # eps
+            params['adv_step_size'] = params.get('adv_step_size', 1e-3)  # 学习率
+            params['adv_alpha'] = params.get('adv_alpha', 1)  # 对抗loss的权重
+            params['norm_type'] = params.get('norm_type', 'l2')  # 归一化方式
+            params['rank'] = params.get('rank', 0)  # forward返回多个时指定使用的logit
+            self.ad_train = VAT(self, **params)
+        self.params = params
+
+    def on_train_step_end(self, logs=None):
+        '''对抗训练
+        '''
+        if self.mode == 'fgm':
+            self.ad_train.attack(**self.params) # embedding被修改了
+            self.model.output, self.model.loss, self.model.loss_detail = self.train_step(self.model.train_X, self.model.train_y)
+            self.model.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
+            self.ad_train.restore(**self.params)
+        elif self.mode == 'pgd':
+            self.ad_train.backup_grad()  # 备份梯度
+            for t in range(self.params['K']):
+                # 在embedding上添加对抗扰动, first attack时备份param.data
+                self.ad_train.attack(**self.params, is_first_attack=(t==0))
+                if t != self.params['K']-1:
+                    self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
+                else:
+                    self.ad_train.restore_grad() # 恢复正常的grad
+                output, loss, loss_detail = self.train_step(self.model.train_X, self.model.train_y)
+                loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            self.ad_train.restore(**self.params) # 恢复embedding参数
+        # 梯度惩罚
+        elif self.mode == 'gradient_penalty':
+            para = search_layer(self, self.params['emb_name'], retrun_first=True)
+            gp = (para.grad ** 2).sum()
+            self.model.loss += 0.5 * gp * self.params['epsilon']
+            self.model.loss.backward()
+        # 虚拟对抗训练
+        elif self.mode == 'vat':
+            logit = self.model.output[self.params['rank']] if isinstance(self.model.output, (tuple, list)) else self.model.output
+            adv_loss = self.ad_train.virtual_adversarial_training(self.model.train_X, logit)
+            self.model.loss_detail.update({'loss_sup': self.model.loss.item(), 'loss_unsup': adv_loss})
+            self.model.loss += (adv_loss if adv_loss else 0)
+            self.model.loss.backward()
+
+
 class WebServing(object):
     """简单的Web接口
     用法：
