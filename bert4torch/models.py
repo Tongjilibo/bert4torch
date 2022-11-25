@@ -101,18 +101,12 @@ class BaseModel(BM):
 
         return loss, loss_detail
     
-    def after_train_step(self, train_X, train_y, output, loss, loss_detail):
-        scale_before_step = 0
-        retain_graph = True if self.adversarial['name'] in {'gradient_penalty', 'vat'} else False
-        if self.use_amp:  # 混合精度
-            scale_before_step = self.scaler.get_scale()
-            self.scaler.scale(loss).backward(retain_graph=retain_graph)
-        else:
-            loss.backward(retain_graph=retain_graph)
-
-        # 对抗训练
+    def train_step(self, train_X, train_y):
+        # 增加对抗训练
+        self.retain_graph = True if self.adversarial['name'] in {'gradient_penalty', 'vat'} else False
+        output, loss, loss_detail = super().train_step(train_X, train_y)
         loss, loss_detail = self.adversarial_training(train_X, train_y, output, loss, loss_detail)
-        return scale_before_step, loss, loss_detail
+        return output, loss, loss_detail
 
     def load_weights(self, load_path, strict=True, prefix=None):
         '''加载模型权重
