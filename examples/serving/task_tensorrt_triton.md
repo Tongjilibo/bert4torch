@@ -10,8 +10,10 @@
 ```shell
 # 拉取tensorrt镜像
 docker pull nvcr.io/nvidia/tensorrt:22.07-py3
+
 # 启动tensorrt镜像
 docker run --gpus all -it --rm -v /home/libo/Github/triton/model_repository:/models nvcr.io/nvidia/tensorrt:22.07-py3
+
 # 使用trtexec来把onnx转成trt格式
 trtexec --onnx=bert_cls.onnx --saveEngine=./model.plan --minShapes=input_ids:1x512,segment_ids:1x512 --optShapes=input_ids:1x512,segment_ids:1x512 --maxShapes=input_ids:20x512,segment_ids:20x512 --device=0
 ```
@@ -56,7 +58,10 @@ output [
 
 ## 4. 启动triton服务端
 ```shell
+# 拉取triton镜像
 docker pull nvcr.io/nvidia/tritonserver:22.07-py3
+
+# 开启triton服务
 docker run --gpus=1 --rm -p8000:8000 -p8001:8001 -p8002:8002 -v /home/libo/Github/triton/model_repository:/models nvcr.io/nvidia/tritonserver:22.07-py3 tritonserver --model-repository=/models
 ```
 

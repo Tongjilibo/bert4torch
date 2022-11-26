@@ -6,6 +6,7 @@ import six
 import numpy as np
 import re
 import torch
+from packaging import version
 from torch.nn.utils.rnn import pad_sequence
 import torch.nn as nn
 from torch.utils.data import Dataset, IterableDataset
@@ -26,7 +27,7 @@ if not is_py2:
 def take_along_dim(input_tensor, indices, dim=None):
     '''兼容部分低版本pytorch没有torch.take_along_dim
     '''
-    if torch.__version__ >= '1.9.0':
+    if version.parse(torch.__version__) >= version.parse('1.9.0'):
         return torch.take_along_dim(input_tensor, indices, dim)
     else:
         # 该逻辑仅在少量数据上测试，如有bug，欢迎反馈
@@ -41,7 +42,7 @@ def take_along_dim(input_tensor, indices, dim=None):
 
 def torch_div(input, other, rounding_mode=None):
     # torch.div兼容老版本
-    if torch.__version__ <= '1.7.1':
+    if version.parse(torch.__version__) < version.parse('1.7.2'):
         indices = input // other  # 兼容老版本
     else:
         indices = torch.div(input, other, rounding_mode=rounding_mode)  # 行索引
@@ -377,7 +378,7 @@ class AutoRegressiveDecoder(object):
             scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
             indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
             indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
-            # if torch.__version__ <= '1.7.1':
+            # if version.parse(torch.__version__) < version.parse('1.7.2'):
             #     indices_1 = indices // scores.shape[1]  # 兼容老版本
             # else:
             #     indices_1 = torch.div(indices, scores.shape[1], rounding_mode='floor')  # 行索引
@@ -732,61 +733,65 @@ class VAT():
 class AdversarialTraining(Callback):
     """对抗训练Callback
     """
-    def __init__(self, mode, params={}):
+    def __init__(self, mode, adversarial={}):
         assert mode in {'', 'fgm', 'pgd', 'vat', 'gradient_penalty'}, 'adversarial_train support fgm, pgd, vat and gradient_penalty mode'
         self.mode = mode
-        params['epsilon'] = params.get('epsilon', 1.0)
-        params['emb_name'] = params.get('emb_name', 'word_embeddings')
+        adversarial['epsilon'] = adversarial.get('epsilon', 1.0)
+        adversarial['emb_name'] = adversarial.get('emb_name', 'word_embeddings')
 
-        if mode == 'fgm':
-            self.ad_train = FGM(self)
-        elif mode == 'pgd':
-            params['K'] = params.get('K', 3)  # 步数
-            params['alpha'] = params.get('alpha', 0.3)  # 学习率
-            self.ad_train = PGD(self)
-        elif mode == 'gradient_penalty':
-            pass
+        if mode == 'pgd':
+            adversarial['K'] = adversarial.get('K', 3)  # 步数
+            adversarial['alpha'] = adversarial.get('alpha', 0.3)  # 学习率
         elif mode == 'vat':
-            params['K'] = params.get('K', 3)
-            params['noise_var'] = params.get('noise_var', 1e-5)  # 噪声的方差
-            params['noise_gamma'] = params.get('noise_gamma', 1e-6) # eps
-            params['adv_step_size'] = params.get('adv_step_size', 1e-3)  # 学习率
-            params['adv_alpha'] = params.get('adv_alpha', 1)  # 对抗loss的权重
-            params['norm_type'] = params.get('norm_type', 'l2')  # 归一化方式
-            params['rank'] = params.get('rank', 0)  # forward返回多个时指定使用的logit
-            self.ad_train = VAT(self, **params)
-        self.params = params
+            adversarial['K'] = adversarial.get('K', 3)
+            adversarial['noise_var'] = adversarial.get('noise_var', 1e-5)  # 噪声的方差
+            adversarial['noise_gamma'] = adversarial.get('noise_gamma', 1e-6) # eps
+            adversarial['adv_step_size'] = adversarial.get('adv_step_size', 1e-3)  # 学习率
+            adversarial['adv_alpha'] = adversarial.get('adv_alpha', 1)  # 对抗loss的权重
+            adversarial['norm_type'] = adversarial.get('norm_type', 'l2')  # 归一化方式
+            adversarial['rank'] = adversarial.get('rank', 0)  # forward返回多个时指定使用的logit
+        self.adversarial = adversarial
+
+    def on_train_begin(self, logs=None):
+        if self.mode in {'gradient_penalty', 'vat'}:
+            self.model.retain_graph = True
+        if self.mode == 'fgm':
+            self.ad_train = FGM(self.model)
+        elif self.mode == 'pgd':
+            self.ad_train = PGD(self.model)
+        elif self.mode == 'vat':
+            self.ad_train = VAT(self.model, **self.adversarial)
 
     def on_train_step_end(self, logs=None):
         '''对抗训练
         '''
         if self.mode == 'fgm':
-            self.ad_train.attack(**self.params) # embedding被修改了
-            self.model.output, self.model.loss, self.model.loss_detail = self.train_step(self.model.train_X, self.model.train_y)
-            self.model.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            self.ad_train.attack(**self.adversarial) # embedding被修改了
+            output, self.model.loss, self.model.loss_detail = self.model.train_step(self.model.train_X, self.model.train_y)
+            # self.model.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
-            self.ad_train.restore(**self.params)
+            self.ad_train.restore(**self.adversarial)
         elif self.mode == 'pgd':
             self.ad_train.backup_grad()  # 备份梯度
-            for t in range(self.params['K']):
+            for t in range(self.adversarial['K']):
                 # 在embedding上添加对抗扰动, first attack时备份param.data
-                self.ad_train.attack(**self.params, is_first_attack=(t==0))
-                if t != self.params['K']-1:
-                    self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
+                self.ad_train.attack(**self.adversarial, is_first_attack=(t==0))
+                if t != self.adversarial['K']-1:
+                    self.model.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                 else:
                     self.ad_train.restore_grad() # 恢复正常的grad
-                output, loss, loss_detail = self.train_step(self.model.train_X, self.model.train_y)
-                loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
-            self.ad_train.restore(**self.params) # 恢复embedding参数
+                output, self.model.loss, self.model.loss_detail = self.model.train_step(self.model.train_X, self.model.train_y)
+                # self.model.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            self.ad_train.restore(**self.adversarial) # 恢复embedding参数
         # 梯度惩罚
         elif self.mode == 'gradient_penalty':
-            para = search_layer(self, self.params['emb_name'], retrun_first=True)
+            para = search_layer(self.model, self.adversarial['emb_name'], retrun_first=True)
             gp = (para.grad ** 2).sum()
-            self.model.loss += 0.5 * gp * self.params['epsilon']
+            self.model.loss += 0.5 * gp * self.adversarial['epsilon']
             self.model.loss.backward()
         # 虚拟对抗训练
         elif self.mode == 'vat':
-            logit = self.model.output[self.params['rank']] if isinstance(self.model.output, (tuple, list)) else self.model.output
+            logit = self.model.output[self.adversarial['rank']] if isinstance(self.model.output, (tuple, list)) else self.model.output
             adv_loss = self.ad_train.virtual_adversarial_training(self.model.train_X, logit)
             self.model.loss_detail.update({'loss_sup': self.model.loss.item(), 'loss_unsup': adv_loss})
             self.model.loss += (adv_loss if adv_loss else 0)

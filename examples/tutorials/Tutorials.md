@@ -4,7 +4,7 @@
 ```python
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import Callback, Logger, Tensorboard, ListDataset
+from bert4torch.snippets import Callback, Logger, Tensorboard, ListDataset, AdversarialTraining
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -82,11 +82,11 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
-    evaluator = Evaluator()
     # 指定训练的epochs，每轮的steps_per_epoch(不设置或者设置为None表示自动计算)
     # 使用默认Logger和Tensorboard
+    # 使用对抗学习
     model.fit(train_dataloader, epochs=20, steps_per_epoch=100,
-              callbacks=[evaluator, Logger('./test/test.log'), Tensorboard('./test/')])
+              callbacks=[Evaluator(), AdversarialTraining('fgm'), Logger('./test/test.log'), Tensorboard('./test/')])
 ```
 
 ## 2. 主要模块讲解
@@ -147,7 +147,6 @@ model.compile(
     loss=nn.CrossEntropyLoss(), # 可以自定义Loss
     optimizer=optim.Adam(model.parameters(), lr=2e-5),  # 可以自定义优化器
     scheduler=None, # 可以自定义scheduler
-    adversarial_train={'name': 'fgm'},  # 训练trick方案设置，支持fgm, pgd, gradient_penalty, vat
     metrics=['accuracy', eval, {'f1': f1}]  # loss等默认打印的字段无需设置，可多种方式自定义回调函数
 )
 ```

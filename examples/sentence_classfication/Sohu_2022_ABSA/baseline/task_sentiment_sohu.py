@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, AdversarialTraining
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.losses import FocalLoss
@@ -189,7 +189,7 @@ class Loss(nn.Module):
             loss += self.loss_fn(entity_logit.reshape(-1, entity_logit.shape[-1]), labels.flatten())
         return loss
 
-model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=1e-5), adversarial_train={'name': 'fgm'})
+model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=1e-5))
 
 def evaluate(data):
     valid_true, valid_pred = [], []
@@ -281,7 +281,8 @@ def save_result(result, result_prob, save_path):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
+        adversarial_train = AdversarialTraining('fgm')
+        model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator, adversarial_train])
 
     model.load_weights(ckpt_path)
     f1, acc, pred_result, pred_result_prob = evaluate(test_dataloader)

@@ -10,9 +10,8 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, get_pool_emb, seed_everything
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, get_pool_emb, seed_everything, AdversarialTraining
 from bert4torch.tokenizers import Tokenizer
-import sys
 
 maxlen = 256
 batch_size = 16
@@ -77,19 +76,8 @@ class Model(BaseModel):
 model = Model().to(device)
 
 # 传参方式
-mode = sys.argv[1]
-adversarial_train = {'name': mode}
-print(f'Using {mode}'.center(60, '='))
-
-# debug方式
-# 具体参数设置可以到bert4torch.models/bert4torch.snippets里
-# adversarial_train = {'name': 'fgm'}  # fgm方式
-# adversarial_train = {'name': 'pgd'}  # pgd方式
-# adversarial_train = {'name': 'gradient_penalty'}  # 梯度惩罚
-# adversarial_train = {'name': 'vat'}  # 虚拟对抗，这里仅为使用有监督数据的示例
-
 model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), 
-              metrics=['accuracy'], adversarial_train=adversarial_train)
+              metrics=['accuracy'])
 
 
 class Evaluator(Callback):
@@ -118,6 +106,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+    adversarial_train = AdversarialTraining('gradient_penalty')  # fgm, pgd, vat, gradient_penalty
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator, adversarial_train])
 else: 
     model.load_weights('best_model.pt')

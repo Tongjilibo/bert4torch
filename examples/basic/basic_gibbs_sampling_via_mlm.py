@@ -49,6 +49,6 @@ with torch.no_grad():
         token_ids[i] = token
         sentences.append(tokenizer.decode(token_ids))
 
-print(u'部分随机采样结: ')
+print(u'部分随机采样结果: ')
 for _ in range(10):
     print(np.random.choice(sentences[converged_steps:]))

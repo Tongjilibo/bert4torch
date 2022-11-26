@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything, AdversarialTraining
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.tokenizers import Tokenizer, SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
@@ -126,7 +126,7 @@ class Loss(nn.CrossEntropyLoss):
 optimizer = optim.AdamW(model.parameters(), lr=5e-5)
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps=len(train_dataloader)*epochs, last_epoch=-1)
 model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=1.0, 
-               grad_accumulation_steps=grad_accumulation_steps, adversarial_train={'name': 'fgm' if use_adv_train else ''})
+               grad_accumulation_steps=grad_accumulation_steps)
 
 # swa
 if use_swa:
@@ -184,6 +184,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = Evaluator()
+        adversarial_train = AdversarialTraining('fgm' if use_adv_train else '')
         model.fit(train_dataloader, epochs=epochs, steps_per_epoch=steps_per_epoch, callbacks=[evaluator])
 
     model.load_weights(ckpt_path)

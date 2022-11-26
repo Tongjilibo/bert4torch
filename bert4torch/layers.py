@@ -416,10 +416,10 @@ class BertEmbeddings(nn.Module):
     """embeddings层
        构造word, position and token_type embeddings.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, **kwargs):
+    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, token_pad_ids=0, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
-        self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=token_pad_ids)
 
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':

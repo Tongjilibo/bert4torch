@@ -4,7 +4,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, AdversarialTraining
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -94,7 +94,6 @@ class MyLoss(nn.Module):
 model.compile(
     loss=MyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
-    adversarial_train = {'name': 'vat', 'adv_alpha': 1}  # 虚拟对抗
 )
 
 class Evaluator(Callback):
@@ -123,6 +122,8 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
+    adversarial_train = AdversarialTraining('vat', adversarial={'adv_alpha': 1})  # 虚拟对抗
+
     model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

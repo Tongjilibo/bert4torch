@@ -8,7 +8,7 @@ import numpy as np
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, AdversarialTraining
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -198,7 +198,6 @@ class Model(BaseModel):
 
 
 train_model = Model().to(device)
-adversarial_train = {'name': 'vat'}
 
 
 class BCELoss(nn.BCELoss):
@@ -227,10 +226,7 @@ class BCELoss(nn.BCELoss):
         return {'loss': subject_loss + object_loss, 'subject_loss': subject_loss, 'object_loss': object_loss}
 
 
-train_model.compile(loss=BCELoss(reduction='none'), 
-                    optimizer=optim.Adam(train_model.parameters(), 1e-5),
-                    # adversarial_train=adversarial_train
-                    )
+train_model.compile(loss=BCELoss(reduction='none'), optimizer=optim.Adam(train_model.parameters(), 1e-5))
 
 
 def extract_spoes(text):
@@ -352,6 +348,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
+    adversarial_train = AdversarialTraining('vat')
     train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
 else:
     train_model.load_weights('best_model2.pt')
