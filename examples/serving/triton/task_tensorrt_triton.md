@@ -1,5 +1,6 @@
 # TensorRT+Triton
-- 本文以情感二分类为例，使用TensorRT+Triton来部署
+- **简介**：本文以情感二分类为例，使用TensorRT+Triton来部署
+- **思路**：一般来说triton只负责模型推理部分，但是nlp场景中请求多是字符串，因此部署通常是外面包一层sanic/flask服务，请求端向sanic/flask请求，完成前处理后在sanic/flask服务中调用triton进行模型推理，最终执行后处理完返回模型结果。sanic/flask服务可以参考[sanic_server](https://github.com/Tongjilibo/bert4torch/tree/master/examples/serving/sanic_server)，这里就不实现了
 - **注意**：注意版本，有些问题可能是版本导致，如转trt错误可能和tensorrt版本相关
 
 ## 1. pytorch权重转onnx
@@ -7,6 +8,8 @@
 2. 使用了pytorch自带的`torch.onnx.export()`来转换，转换脚本见[ONNX转换bert权重](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/task_bert_cls_onnx.py)
 
 ## 2. onnx转tensorrt权重
+- 根据自己的cuda版本去下载对应的镜像，我的cuda是11.3
+- 注意tensorrt镜像版本和triton的版本要保持一致
 ```shell
 # 拉取tensorrt镜像
 docker pull nvcr.io/nvidia/tensorrt:22.07-py3
@@ -19,7 +22,7 @@ trtexec --onnx=bert_cls.onnx --saveEngine=./model.plan --minShapes=input_ids:1x5
 ```
 
 ## 3. 模型文件和配置文件准备
-- 文件目录
+- 文件目录([百度云](https://pan.baidu.com/s/1fZbzd8zRA2tciK47tjdgAQ?pwd=nizv))
 ```shell
 model_repository
 └─sentence_classification
@@ -66,28 +69,4 @@ docker run --gpus=1 --rm -p8000:8000 -p8001:8001 -p8002:8002 -v /home/libo/Githu
 ```
 
 ## 5. client调用
-- 两种方式，一种直接request测试接口调用，一种使用trition client
-```python
-import requests
-
-if __name__ == "__main__":
-    request_data = {
-    "inputs": [{
-        "name": "input_ids",
-        "shape": [1, 512],
-        "datatype": "INT32",
-        "data": [list(range(512))]
-    },
-    {
-        "name": "segment_ids",
-        "shape": [1, 512],
-        "datatype": "INT32",
-        "data": [list(range(512))]
-    }
-    ],
-    "outputs": [{"name": "output"}]
-}
-    res = requests.post(url="http://localhost:8000/v2/models/sentence_classification/versions/1/infer",json=request_data).json()
-    print(res)
-# {'model_name': 'sentence_classification', 'model_version': '1', 'outputs': [{'name': 'output', 'datatype': 'FP32', 'shape': [1, 2], 'data': [0.703898549079895, 0.29610151052474976]}]}
-```
+- 两种方式，一种直接request测试接口调用，一种使用trition client, 代码参考[triton](https://github.com/Tongjilibo/bert4torch/tree/master/examples/serving/triton/)

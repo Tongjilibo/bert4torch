@@ -113,6 +113,7 @@
 - [task_bert_cls_onnx_tensorrt.md](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/task_bert_cls_onnx_tensorrt.md)：ONNX+Tensorrt部署
 - [sanic_server](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/sanic_server)：sanic+onnx部署
 - [elasticsearch](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/elasticsearch)：elasticsearch部署
+- [triton](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/triton)：triton部署
 
 ### 其他
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
