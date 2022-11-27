@@ -50,4 +50,12 @@ class UIE(BERT):
         start_prob, end_prob = self.forward(token_ids, token_type_ids)
         return start_prob, end_prob
 
-uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=UIE, with_pool=True)
+custom_model = False
+if custom_model:
+    # 使用外部自定义的模型
+    uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=UIE, with_pool=True)
+    print('Load custom uie model done')
+else:
+    # 使用bert4torch自带的uie
+    uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='uie', with_pool=True)
+    print('Load inner uie model done')

@@ -88,8 +88,9 @@ def get_train_dataloader():
             train_dataloader = DataLoader(MyDataset(cur_load_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
             break
         else:
-            print("No training data! Sleep 300s!")
-            time.sleep(10)
+            sleep_seconds = 300
+            print(f"No training data! Sleep {sleep_seconds}s!")
+            time.sleep(sleep_seconds)
             continue
     return train_dataloader
 train_dataloader = get_train_dataloader()

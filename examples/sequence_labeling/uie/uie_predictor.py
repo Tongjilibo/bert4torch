@@ -4,6 +4,7 @@ import torch
 from bert4torch.snippets import sequence_padding
 from utils import get_bool_ids_greater_than, get_span, get_id_and_prob, cut_chinese_sent, dbc2sbc
 from pprint import pprint
+from model import uie_model, tokenizer, custom_model
 
 
 class UIEPredictor(object):
@@ -15,7 +16,6 @@ class UIEPredictor(object):
         self._split_sentence = False
         self._schema_tree = None
         self.set_schema(schema)
-        from model import uie_model, tokenizer
         self._tokenizer = tokenizer
         self.model = uie_model.to(self._device)
 
@@ -219,7 +219,10 @@ class UIEPredictor(object):
             batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=self._device)
             batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=self._device)
 
-            start_prob, end_prob = self.model.predict(batch_token_ids, batch_segment_ids)
+            if custom_model:
+                start_prob, end_prob = self.model.predict(batch_token_ids, batch_segment_ids)
+            else:
+                start_prob, end_prob = self.model.predict([batch_token_ids, batch_segment_ids])[-2:]
             start_prob_concat.append(start_prob.cpu().numpy())
             end_prob_concat.append(end_prob.cpu().numpy())
         start_prob_concat = np.concatenate(start_prob_concat)

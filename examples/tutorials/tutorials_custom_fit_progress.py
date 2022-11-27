@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 maxlen = 128
@@ -73,25 +74,20 @@ class Model(BaseModel):
     def fit(self, train_dataloader, steps_per_epoch, epochs=1):
         '''自定义fit过程：适用于自带fit()不满足需求时，用于自定义训练过程
         '''
-        # 实现进度条展示功能，不需要可以不用
-        bar = ProgbarLogger(epochs, steps_per_epoch, ['loss']) 
         global_step, epoch, best_val_acc  = 0, 0, 0
         
         train_dataloader = cycle(train_dataloader)
         self.train()
         for epoch in range(epochs):
-            bar.on_epoch_begin(epoch=epoch)
-            for bti in range(steps_per_epoch):
-                bar.on_batch_begin()
+            print(f'Epoch {epoch+1}/{epochs}')
+            for bti in tqdm(range(steps_per_epoch)):
                 train_X, train_y = next(train_dataloader)
                 output = self.forward(*train_X)
                 loss = self.criterion(output, train_y)
                 loss.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
-                bar.on_batch_end(logs={'loss': loss.item()})  # 和上面定义bar时候一致
                 global_step += 1
-            bar.on_epoch_end()
             
             # 评估
             val_acc = evaluate(valid_dataloader)

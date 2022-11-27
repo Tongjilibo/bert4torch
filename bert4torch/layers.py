@@ -391,7 +391,7 @@ class GatedAttentionUnit(nn.Module):
             if method == 'squared_relu':
                 return F.relu(a)**2 / l
             elif method == 'softmax_plus':
-                return F.softmax(a * torch.log(l) / torch.log(torch.tensor(512)).to(mask), dim=dim)
+                return F.softmax(a * torch.log(l) / torch.log(torch.tensor(512.0)).to(mask), dim=dim)
         return a
 
     class OffsetScale(nn.Module):

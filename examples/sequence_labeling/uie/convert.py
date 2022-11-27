@@ -1,4 +1,5 @@
-
+'''下载预训练模型并且转了pytorch格式
+'''
 import argparse
 import collections
 import json

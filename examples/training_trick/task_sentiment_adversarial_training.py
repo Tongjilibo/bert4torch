@@ -106,7 +106,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    adversarial_train = AdversarialTraining('gradient_penalty')  # fgm, pgd, vat, gradient_penalty
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator, adversarial_train])
+    adversarial_train = AdversarialTraining('fgm')  # fgm, pgd, vat, gradient_penalty
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=10, callbacks=[evaluator, adversarial_train])
 else: 
     model.load_weights('best_model.pt')

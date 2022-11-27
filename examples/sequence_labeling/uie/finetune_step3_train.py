@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
-from model import uie_model, tokenizer
+from model import uie_model, tokenizer, custom_model
 from bert4torch.snippets import seed_everything, sequence_padding, Callback
 from torch import nn
 from torch.utils.data import Dataset
@@ -192,7 +192,10 @@ class SpanEvaluator(Callback):
     def evaluate(self, dataloder):
         self.reset()
         for x_true, y_true in dataloder:
-            start_prob, end_prob = uie_model.predict(*x_true)
+            if custom_model:
+                start_prob, end_prob = uie_model.predict(*x_true)
+            else:
+                start_prob, end_prob = uie_model.predict(x_true)[-2:]
             start_ids, end_ids = y_true
             num_correct, num_infer, num_label = self.compute(start_prob, end_prob, start_ids, end_ids)
             self.update(num_correct, num_infer, num_label)
