@@ -73,7 +73,7 @@ class BaseModelDDP(nn.parallel.DistributedDataParallel, BaseModel):
         nn.parallel.DistributedDataParallel.__init__(self, *args, **kwargs)
 
 
-class BERT_BASE(BaseModel):
+class BERT_BASE(nn.Module):
     """模型基类
     """
 
@@ -1780,6 +1780,20 @@ class XLNET(Transformer_XL):
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', **kwargs):
     """根据配置文件构建模型，可选加载checkpoint权重
+    config_path=config_path: 模型的config文件地址
+    checkpoint_path=checkpoint_path: 模型文件地址，默认值None表示不加载预训练模型
+    model='bert': 加载的模型结构，这里Model也可以基于nn.Module自定义后传入
+    application='encoder': 模型应用，支持encoder，lm和unilm格式
+    segment_vocab_size=2: type_token_ids数量，默认为2，如不传入segment_ids则需设置为0
+    with_pool=False: 是否包含Pool部分
+    with_nsp=False: 是否包含NSP部分
+    with_mlm=False: 是否包含MLM部分
+    return_model_config=False: 是否返回模型配置参数
+    output_all_encoded_layers=False: 是否返回所有hidden_state层
+    layer_add_embs=nn.Embedding(2, 768): 自定义额外的embedding输入
+    keep_tokens=keep_tokens: 精简词表
+    token_pad_ids=-100: 部分模型padding不是0，在这里指定
+    dynamic_inherit: 模型动态从torch4keras继承，若build_transformer_model要直接compile()、fit()需设置为True
     """
     configs = {}
     if config_path is not None:
@@ -1791,6 +1805,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
+    dynamic_inherit = configs.get('dynamic_inherit', False)
     
     models = {
         'bert': BERT,
@@ -1845,6 +1860,12 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         MODEL = extend_with_language_model(MODEL)
     elif application == 'unilm':
         MODEL = extend_with_unified_language_model(MODEL)
+
+    # 动态继承
+    if dynamic_inherit:
+        class MyModel(MODEL, BaseModel): 
+            pass
+        MODEL = MyModel
 
     transformer = MODEL(**configs)
     transformer.build(**configs)

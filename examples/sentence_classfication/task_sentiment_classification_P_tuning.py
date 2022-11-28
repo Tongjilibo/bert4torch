@@ -139,7 +139,7 @@ if choice == 'finetune_few':
     summary(model, input_data=next(iter(train_dataloader))[0])
 elif choice == 'finetune_all':
     # 全部权重一起训练
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True).to(device)
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, dynamic_inherit=True).to(device)
     summary(model, input_data=[next(iter(train_dataloader))[0]])
 
 # 定义使用的loss和optimizer，这里支持自定义
