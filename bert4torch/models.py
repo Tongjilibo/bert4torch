@@ -1,3 +1,7 @@
+''' 模型
+    v0.2.2版本前Trainer是在bert4torch内部实现的，之后单独为Trainer做了一个包torch4keras
+    v0.2.5版本开始，对抗训练模块不在complile中使用，而是用callback方式实现
+'''
 import torch
 import torch.nn as nn
 import copy
@@ -5,78 +9,17 @@ import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
-from bert4torch.snippets import search_layer, insert_arguments, delete_arguments, get_kw, torch_div
-from bert4torch.snippets import FGM, PGD, VAT, take_along_dim
+from bert4torch.snippets import insert_arguments, delete_arguments, get_kw, torch_div
+from bert4torch.snippets import take_along_dim
 from bert4torch.activations import get_activation
 import warnings
-from torch4keras.model import BaseModel as BM
+from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
-
-
-class BaseModel(BM):
-    '''v0.2.2版本前Trainer是在bert4torch内部实现的，之后单独为Trainer做了一个包torch4keras
-       这里是继承torch4keras的BaseModel作为Trainer
-       v0.2.5版本开始，对抗训练模块不在complile中使用，而是用callback方式实现
-    '''
-    def load_weights(self, load_path, strict=True, prefix=None):
-        '''加载模型权重
-           save_path: 权重加载路径
-           prefix: None表示按照当前的key加载, 传入string表示按照variable_mapping()中原始的key加载
-        '''
-        state_dict = torch.load(load_path, map_location='cpu')
-        if prefix is None:
-            self.load_state_dict(state_dict, strict=strict)
-        else:
-            # 按照variable_mapping()中原始的key加载
-            eval_str = 'self.variable_mapping()' if prefix == '' else f'self.{prefix}.variable_mapping()'
-            mapping = {v:k for k, v in eval(eval_str).items()}
-            mapping = mapping if prefix == '' else {k:f'{prefix}.{v}' for k,v in mapping.items()}
-            state_dict_raw = {}
-            for k, v in state_dict.items():
-                k = mapping.get(k, k)
-                state_dict_raw[k] = v
-            self.load_state_dict(state_dict_raw, strict=strict)
-
-    def save_weights(self, save_path, prefix=None):
-        '''保存模型权重
-           save_path: 权重保存路径
-           prefix: None表示按照当前的key加载, 传入string表示按照variable_mapping()中原始的key保存
-        '''
-        if prefix is None:
-            torch.save(self.state_dict(), save_path)
-        else:  
-            # 按照variable_mapping()中原始的key保存，方便其他官方代码加载模型
-            eval_str = 'self.variable_mapping()' if prefix == '' else f'self.{prefix}.variable_mapping()'
-            mapping = eval(eval_str)
-            mapping = mapping if prefix == '' else {f'{prefix}.{k}':v for k,v in mapping.items()}
-            state_dict_raw = {}
-            for k, v in self.state_dict().items():
-                k = mapping.get(k, k)
-                state_dict_raw[k] = v
-            torch.save(state_dict_raw, save_path)
-    
-
-class BaseModelDP(nn.DataParallel, BaseModel):
-    '''DataParallel模式使用多gpu的方法, 父类顺序颠倒也会出问题
-    '''
-    def __init__(self, *args, **kwargs):
-        BaseModel.__init__(self)
-        nn.DataParallel.__init__(self, *args, **kwargs)
-
-
-class BaseModelDDP(nn.parallel.DistributedDataParallel, BaseModel):
-    '''DistributedDataParallel模式使用多gpu的方法, 父类顺序颠倒也会出问题
-    '''
-    def __init__(self, *args, master_rank=0, **kwargs):
-        self.master_rank = master_rank  # 用于记录打印条的rank
-        BaseModel.__init__(self)
-        nn.parallel.DistributedDataParallel.__init__(self, *args, **kwargs)
 
 
 class BERT_BASE(nn.Module):
     """模型基类
     """
-
     def __init__(
             self,
             vocab_size,  # 词表大小
@@ -1793,7 +1736,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     layer_add_embs=nn.Embedding(2, 768): 自定义额外的embedding输入
     keep_tokens=keep_tokens: 精简词表
     token_pad_ids=-100: 部分模型padding不是0，在这里指定
-    dynamic_inherit: 模型动态从torch4keras继承，若build_transformer_model要直接compile()、fit()需设置为True
+    dynamic_inherit: 模型动态从torch4keras继承，若build_transformer_model后需直接compile()、fit()需设置为True
     """
     configs = {}
     if config_path is not None:
@@ -1861,7 +1804,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     elif application == 'unilm':
         MODEL = extend_with_unified_language_model(MODEL)
 
-    # 动态继承
+    # 动态继承BaseModel
     if dynamic_inherit:
         class MyModel(MODEL, BaseModel): 
             pass

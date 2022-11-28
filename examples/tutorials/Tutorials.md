@@ -187,17 +187,17 @@ class Model(BaseModel):
 - 模型保存和加载
 ```python
 '''
-prefix: 是否以原始的key来保存，如word_embedding原始key为bert.embeddings.word_embeddings.weight
-默认为None表示不启用, 若基于BaseModel自定义模型，需指定为bert模型对应的成员变量名，直接使用设置为''
+mapping: 是否以原始的key来保存，如word_embedding原始key为bert.embeddings.word_embeddings.weight
+默认为{}表示不启用, 若基于BaseModel自定义模型，需指定为bert模型对应的成员变量名，直接使用设置为model.variable_mapping()
 主要是为了别的训练框架容易加载
 '''
 # ====仅进行保存和加载====
-model.save_weights(save_path, prefix=None)  # 保存模型权重
+model.save_weights(save_path, mapping={})  # 保存模型权重
 model.load_weights(save_path)  # 加载模型权重
 
 # =======断点续训========
 # 在Callback中的on_epoch_end()或on_batch_end()保存需要的参数
-model.save_weights(save_path, prefix=None)  # 保存模型权重
+model.save_weights(save_path, mapping={})  # 保存模型权重
 model.save_steps_params(save_path)  # 保存训练进度参数，当前的epoch和step，断点续训使用
 torch.save(optimizer.state_dict(), save_path)  # 保存优化器，断点续训使用
 # 加载前序训练保存的参数

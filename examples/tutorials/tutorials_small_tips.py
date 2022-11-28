@@ -116,7 +116,7 @@ model.compile(
 #             # model.save_weights('best_model.pt')
 #         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
-#         model.save_weights('last_model.pt', prefix=None)  # 保存模型权重
+#         model.save_weights('last_model.pt')  # 保存模型权重
 #         model.save_steps_params('last_steps.pt')  # 保存训练进度参数，当前的epoch和step，断点续训使用
 #         torch.save(optimizer.state_dict(), 'last_optimizer.pt')  # 保存优化器，断点续训使用
 
