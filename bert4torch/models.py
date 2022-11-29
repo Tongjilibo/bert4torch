@@ -10,7 +10,7 @@ import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
 from bert4torch.snippets import insert_arguments, delete_arguments, get_kw, torch_div
-from bert4torch.snippets import take_along_dim
+from bert4torch.snippets import take_along_dim, create_position_ids_from_input_ids
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
@@ -321,7 +321,7 @@ class BERT(BERT_BASE):
             with_pool=False,  # 是否包含Pool部分
             with_nsp=False,  # 是否包含NSP部分
             with_mlm=False,  # 是否包含MLM部分
-            custom_position_ids=False,  # 是否自行传入位置id
+            custom_position_ids=False,  # 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
             custom_attention_mask=False, # 是否自行传入attention_mask
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
             layer_norm_cond=None,  # conditional layer_norm
@@ -388,11 +388,15 @@ class BERT(BERT_BASE):
         else:
             segment_ids = None
 
-        if self.custom_position_ids:  # 暂未使用到，暂保留
+        if self.custom_position_ids is True:  # 自定义position_ids
             position_ids = inputs[index_]
+            index_ += 1
+        elif self.custom_position_ids == 'start_at_padding':
+            position_ids = create_position_ids_from_input_ids(token_ids, self.token_pad_ids)
             index_ += 1
         else:
             position_ids = None
+
         # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
         # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸
         if self.custom_attention_mask:
@@ -443,7 +447,7 @@ class BERT(BERT_BASE):
             additional_embs = None
 
         # 进入embedding层
-        hidden_states = self.embeddings(token_ids, segment_ids, conditional_emb, additional_embs)
+        hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
         return [hidden_states, attention_mask, conditional_emb] + inputs[index_:]
 
     def apply_main_layers(self, inputs):
@@ -1736,6 +1740,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     layer_add_embs=nn.Embedding(2, 768): 自定义额外的embedding输入
     keep_tokens=keep_tokens: 精简词表
     token_pad_ids=-100: 部分模型padding不是0，在这里指定
+    custom_position_ids=False: 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
     dynamic_inherit: 模型动态从torch4keras继承，若build_transformer_model后需直接compile()、fit()需设置为True
     """
     configs = {}
