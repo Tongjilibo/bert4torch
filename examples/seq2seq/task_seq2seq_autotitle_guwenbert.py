@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# guwenbert做Seq2Seq任务，采用UNILM方案，由于type_token_ids的权重为[1, hdsz]的全0向量，因此在要指定
+# guwenbert做Seq2Seq任务，采用UNILM方案，由于type_token_ids的权重为[1, hdsz]的全0向量，因此在指定use_segment_embedding=False
+# 即传入segment_ids但是仅仅用于生成unilm的mask，并不经过segment_embedding层
 # 介绍链接：https://kexue.fm/archives/6933
 
 from bert4torch.models import build_transformer_model
@@ -19,9 +20,9 @@ batch_size = 16
 epochs = 10000
 
 # bert配置
-config_path = '/Users/lb/Documents/pretrain_ckpt/roberta/guwenbert-base/config.json'
-checkpoint_path = '/Users/lb/Documents/pretrain_ckpt/roberta/guwenbert-base/bert4torch_pytorch_model.bin'
-dict_path = '/Users/lb/Documents/pretrain_ckpt/roberta/guwenbert-base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/robert/[guwen_hf_torch_base]--ethanyt-guwenbert-base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[guwen_hf_torch_base]--ethanyt-guwenbert-base/bert4torch_pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/robert/[guwen_hf_torch_base]--ethanyt-guwenbert-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -69,13 +70,14 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         unilm式样，需要手动把非seq2seq部分mask掉
         '''
         _, y_pred = outputs
-        y_true, y_mask = target
+        y_true, y_unilm_mask = target
         y_true = y_true[:, 1:]# 目标token_ids
-        y_mask = y_mask[:, 1:]  # y_mask
+        y_unilm_mask = y_unilm_mask[:, 1:]  # y_mask
         y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
         
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_true = (y_true*y_mask).flatten()
+        y_padd_mask = (y_true != tokenizer._token_pad_id).long()
+        y_true = (y_true*y_padd_mask*y_unilm_mask).flatten()
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
 
