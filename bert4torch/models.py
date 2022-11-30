@@ -1740,7 +1740,16 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     keep_tokens=keep_tokens: 精简词表
     token_pad_ids=-100: 部分模型padding不是0，在这里指定
     custom_position_ids=False: 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
+    custom_attention_mask=False: 是否自行传入attention_mask
+    shared_segment_embeddings=False: 若True，则segment跟token共用embedding
+    layer_norm_cond=None: conditional layer_norm
     dynamic_inherit: 模型动态从torch4keras继承，若build_transformer_model后需直接compile()、fit()需设置为True
+    compound_tokens=None: 扩展Embedding
+    residual_attention_scores=False: Attention矩阵加残差
+    ignore_invalid_weights=False: 允许跳过不存在的权重
+    keep_hidden_layers=None: 保留的hidden_layer层的id
+    hierarchical_position=None: 是否层次分解位置编码
+    gradient_checkpoint=False: 是否使用gradient_checkpoint
     """
     configs = {}
     if config_path is not None:
