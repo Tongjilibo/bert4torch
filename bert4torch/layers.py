@@ -431,7 +431,9 @@ class BertEmbeddings(nn.Module):
             self.position_embeddings = nn.Embedding(max_position, embedding_size)
         
         # segement编码
-        if (segment_vocab_size > 0) and (not shared_segment_embeddings):
+        if (segment_vocab_size > 0) and (not shared_segment_embeddings) and kwargs.get('use_segment_embedding', True):
+            # use_segment_embedding用于lm, unilm场景，不使用segment_embeddings但是传入segment_ids用于计算mask
+            # 一般无需设置，目前仅在guwenbert中使用
             self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
 
         # emb_scale

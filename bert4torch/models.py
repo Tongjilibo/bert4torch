@@ -393,7 +393,6 @@ class BERT(BERT_BASE):
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
             position_ids = create_position_ids_from_input_ids(token_ids, self.token_pad_ids)
-            index_ += 1
         else:
             position_ids = None
 
