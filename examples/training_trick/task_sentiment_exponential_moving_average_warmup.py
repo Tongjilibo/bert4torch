@@ -2,7 +2,7 @@
 # 情感分类任务, 指数滑动平均ema+warmup两种策略
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
 from bert4torch.optimizers import extend_with_exponential_moving_average, get_linear_schedule_with_warmup
 import torch.nn as nn
@@ -54,7 +54,8 @@ valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method

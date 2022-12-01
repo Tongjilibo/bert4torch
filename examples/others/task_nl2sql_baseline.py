@@ -24,7 +24,7 @@
 '''
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 import json
@@ -180,7 +180,8 @@ train_dataloader = DataLoader(MyDataset(*read_data(f'{datadir}/train/train.json'
 valid_data, valid_table = read_data(f'{datadir}/val/val.json', f'{datadir}/val/val.tables.json')
 test_data, test_table = read_data(f'{datadir}/test/test.json', f'{datadir}/test/test.tables.json')
 
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)

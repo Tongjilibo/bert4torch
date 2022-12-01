@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything, AdversarialTraining
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.tokenizers import Tokenizer, SpTokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from tqdm import tqdm
 import transformers
 import random
@@ -97,7 +97,8 @@ train_dataloader = DataLoader(ListDataset(data=all_data[split_index:]), batch_si
 valid_dataloader = DataLoader(ListDataset(data=all_data[:split_index]), batch_size=batch_size_eval, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__() 
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='xlnet')

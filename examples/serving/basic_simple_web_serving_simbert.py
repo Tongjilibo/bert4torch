@@ -4,7 +4,7 @@
 # 具体用法请看 https://github.com/bojone/bert4keras/blob/8ffb46a16a79f87aa8cdf045df7994036b4be47d/bert4keras/snippets.py#L580
 
 import torch
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, AutoRegressiveDecoder, get_pool_emb
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import WebServing
@@ -37,7 +37,8 @@ tokenizer = Tokenizer(token_dict, do_lower_case=True)
 
 
 # 建立加载模型
-class Model(BaseModel):
+@trainer
+class Model(torch.nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool='linear', model=args_model,

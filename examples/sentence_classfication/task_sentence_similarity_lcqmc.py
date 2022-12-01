@@ -3,7 +3,7 @@
 
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 import torch.nn as nn
 import torch
@@ -55,7 +55,8 @@ valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedd
 test_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.test.data'), batch_size=batch_size, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
@@ -92,11 +93,11 @@ class Evaluator(Callback):
     def __init__(self):
         self.best_val_acc = 0.
 
-    def on_batch_end(self, global_step, local_step, logs=None):
-        if global_step % 10 == 0:
-            writer.add_scalar(f"train/loss", logs['loss'], global_step)
-            val_acc = evaluate(valid_dataloader)
-            writer.add_scalar(f"valid/acc", val_acc, global_step)
+    # def on_batch_end(self, global_step, local_step, logs=None):
+    #     if global_step % 10 == 0:
+    #         writer.add_scalar(f"train/loss", logs['loss'], global_step)
+    #         val_acc = evaluate(valid_dataloader)
+    #         writer.add_scalar(f"valid/acc", val_acc, global_step)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = evaluate(valid_dataloader)
@@ -108,6 +109,6 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=20, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
 else:
     model.load_weights('best_model.pt')

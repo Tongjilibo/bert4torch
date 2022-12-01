@@ -5,7 +5,7 @@
 # 博客：https://kexue.fm/archives/7575
 
 import json
-from bert4torch.models import build_transformer_model, BaseModel, BERT
+from bert4torch.models import build_transformer_model, trainer, BERT
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.layers import BertLayer
@@ -110,7 +110,8 @@ class BERT_THESEUS(BERT):
         return [encoded_layers, conditional_emb]
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=BERT_THESEUS)

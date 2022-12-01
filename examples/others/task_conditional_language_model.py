@@ -4,7 +4,7 @@
 # 请参考：https://kexue.fm/archives/7124
 
 from pydantic import NoneStrBytes
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, text_segmentate, Callback, AutoRegressiveDecoder, ListDataset
 import torch
@@ -73,7 +73,8 @@ train_dataloader = DataLoader(MyDataset([
     batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         c = nn.Embedding(num_classes, 128)

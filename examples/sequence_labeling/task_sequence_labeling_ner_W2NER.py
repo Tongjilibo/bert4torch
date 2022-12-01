@@ -12,7 +12,7 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_ev
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from tqdm import tqdm
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from collections import defaultdict, deque
@@ -277,7 +277,8 @@ class CoPredictor(nn.Module):
         o2 = self.linear(z)
         return o1 + o2
 
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, use_bert_last_4_layers=False):
         super().__init__()
         self.use_bert_last_4_layers = use_bert_last_4_layers

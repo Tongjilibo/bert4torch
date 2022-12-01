@@ -2,7 +2,7 @@
 # loss: CosineMSELoss（cos + mse_loss）
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb, seed_everything
 import torch.nn as nn
 import torch
@@ -69,7 +69,8 @@ valid_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embed
 test_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.pool_method = pool_method

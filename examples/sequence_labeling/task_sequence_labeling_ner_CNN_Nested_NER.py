@@ -11,7 +11,7 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_ev
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from tqdm import tqdm
 from sklearn.metrics import precision_recall_fscore_support
 from torch_scatter import scatter_max
@@ -194,8 +194,8 @@ class MultiHeadBiaffine(nn.Module):
         w = w.reshape(bsz, self.out_dim, max_len, max_len)
         return w
 
-
-class CNNNer(BaseModel):
+@trainer
+class CNNNer(nn.Module):
     def __init__(self, num_ner_tag, cnn_dim=200, biaffine_size=200,
                  size_embed_dim=0, logit_drop=0, kernel_size=3, n_head=4, cnn_depth=3):
         super(CNNNer, self).__init__()

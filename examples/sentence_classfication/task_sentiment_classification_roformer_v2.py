@@ -6,7 +6,7 @@
 
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
@@ -61,7 +61,8 @@ valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         # 指定好model和对应的ckpt地址

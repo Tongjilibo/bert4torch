@@ -6,7 +6,7 @@
 # | Bert-whitening  |  26.79  | 31.81|  56.34  |  17.22  |  67.45  |
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, ListDataset, get_pool_emb
 from bert4torch.layers import BERT_WHITENING
 from tqdm import tqdm
@@ -114,7 +114,8 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset(all_names), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(torch.nn.Module):
     def __init__(self, pool_method='mean'):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)

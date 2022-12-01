@@ -4,7 +4,7 @@
 
 import numpy as np
 import pandas as pd
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from torch.utils.data import DataLoader
 from bert4torch.snippets import sequence_padding, ListDataset, Callback, EarlyStopping, AdversarialTraining
 from bert4torch.tokenizers import Tokenizer
@@ -109,7 +109,8 @@ class Attention(nn.Module):
         return outputs
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)

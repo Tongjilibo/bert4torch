@@ -2,7 +2,7 @@
 # loss: MultiNegativeRankingLoss, 和simcse一样，以batch中其他样本作为负样本
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb, seed_everything
 import torch.nn as nn
 import torch
@@ -96,7 +96,8 @@ elif choice == 'random':
 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls', scale=20.0):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)

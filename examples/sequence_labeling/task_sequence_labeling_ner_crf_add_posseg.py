@@ -11,7 +11,7 @@ import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
 from bert4torch.layers import CRF
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from tqdm import tqdm
 import jieba.posseg as psg
 from collections import Counter
@@ -101,7 +101,8 @@ train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         layer_add_embs = nn.Embedding(len(psg_map)+1, 768)

@@ -105,7 +105,7 @@ model = build_transformer_model(
     with_mlm=True,
     application='unilm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    dynamic_inherit=True
+    add_trainer=True
 ).to(device)
 summary(model, input_data=[next(iter(train_dataloader))[0]])
 

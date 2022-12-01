@@ -2,7 +2,7 @@
 # 以文本分类（情感分类）为例的半监督学习UDA策略，https://arxiv.org/abs/1904.12848
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
 from bert4torch.losses import UDALoss
 import torch.nn as nn
@@ -79,7 +79,8 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.pool_method = pool_method

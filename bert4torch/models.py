@@ -1743,7 +1743,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     custom_attention_mask=False: 是否自行传入attention_mask
     shared_segment_embeddings=False: 若True，则segment跟token共用embedding
     layer_norm_cond=None: conditional layer_norm
-    dynamic_inherit: 模型动态从torch4keras继承，若build_transformer_model后需直接compile()、fit()需设置为True
+    add_trainer: 使用Trainer，若build_transformer_model后需直接compile()、fit()需设置为True
     compound_tokens=None: 扩展Embedding
     residual_attention_scores=False: Attention矩阵加残差
     ignore_invalid_weights=False: 允许跳过不存在的权重
@@ -1761,7 +1761,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    dynamic_inherit = configs.get('dynamic_inherit', False)
+    add_trainer = configs.get('add_trainer', False)
     
     models = {
         'bert': BERT,
@@ -1816,13 +1816,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         MODEL = extend_with_language_model(MODEL)
     elif application == 'unilm':
         MODEL = extend_with_unified_language_model(MODEL)
-
-    # 动态继承BaseModel
-    if dynamic_inherit:
-        class MyModel(MODEL, BaseModel): 
-            pass
-        MODEL = MyModel
-
+    
     transformer = MODEL(**configs)
     transformer.build(**configs)
     transformer.apply(transformer.init_model_weights)  # 初始化权重
@@ -1830,4 +1824,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     if checkpoint_path is not None:
         transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
     transformer.configs = configs
+
+    if add_trainer:
+        transformer = Trainer(transformer)
     return transformer

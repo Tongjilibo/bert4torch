@@ -5,7 +5,7 @@
 # 虚拟对抗训练：https://kexue.fm/archives/7466
 # 梯度惩罚：https://kexue.fm/archives/7234
 
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
@@ -59,7 +59,8 @@ valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method

@@ -5,7 +5,7 @@
 # [valid_f1]: 96.55
 
 import numpy as np
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
@@ -82,7 +82,8 @@ train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)

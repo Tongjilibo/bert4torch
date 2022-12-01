@@ -5,7 +5,7 @@ import os
 # 也可命令行传入
 os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModelDP
+from bert4torch.models import build_transformer_model, TrainerDP
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything
 import torch.nn as nn
 import torch
@@ -75,7 +75,7 @@ class Model(nn.Module):
         loss = self.loss_fn(output, labels)
         return loss
 model = Model().to(device)
-model = BaseModelDP(model)  # 指定DP模型使用多gpu
+model = TrainerDP(model)  # 指定DP模型使用多gpu
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

@@ -9,7 +9,7 @@
 
 from transformers import AutoModelForSequenceClassification
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import BaseModel
+from bert4torch.models import trainer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
@@ -58,7 +58,8 @@ train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = AutoModelForSequenceClassification.from_pretrained("F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12", num_labels=2)

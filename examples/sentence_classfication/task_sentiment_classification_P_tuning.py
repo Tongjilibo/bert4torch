@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from torch.optim import Adam
 from bert4torch.snippets import sequence_padding, ListDataset, Callback
 from torch.utils.data import DataLoader
@@ -120,7 +120,8 @@ class MyLoss(nn.CrossEntropyLoss):
 
 if choice == 'finetune_few':
     # 只训练这几个tokens权重这部分尚未调试好
-    class PtuningBERT(BaseModel):
+    @trainer
+    class PtuningBERT(nn.Module):
         def __init__(self):
             super().__init__()
             self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, tie_emb_prj_weight=True, custom_attention_mask=True)
@@ -136,11 +137,11 @@ if choice == 'finetune_few':
             attention_mask = (token_ids != tokenizer._token_pad_id)
             return self.bert([embedding, segment_ids, attention_mask])
     model = PtuningBERT().to(device)
-    summary(model, input_data=next(iter(train_dataloader))[0])
+    summary(model.module, input_data=next(iter(train_dataloader))[0])
 elif choice == 'finetune_all':
     # 全部权重一起训练
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, dynamic_inherit=True).to(device)
-    summary(model, input_data=[next(iter(train_dataloader))[0]])
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, add_trainer=True).to(device)
+    summary(model.module, input_data=[next(iter(train_dataloader))[0]])
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

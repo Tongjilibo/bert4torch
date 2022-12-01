@@ -4,7 +4,7 @@
 # 负样本对（正，负）重复正样本对（正，正，负）
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb, seed_everything
 import torch.nn as nn
 import torch
@@ -117,7 +117,8 @@ valid_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embed
 test_dataloader = DataLoader(MyDataset(f'F:/Projects/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 建立模型
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls', scale=20.0):
         super().__init__()
         self.pool_method = pool_method

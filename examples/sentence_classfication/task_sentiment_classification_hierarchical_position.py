@@ -3,7 +3,7 @@
 
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
@@ -56,7 +56,8 @@ valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         # 这里指定了hierarchical_position和max_position，把原有的position

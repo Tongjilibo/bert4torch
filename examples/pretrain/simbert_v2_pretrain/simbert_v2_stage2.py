@@ -8,7 +8,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, get_pool_emb
 from bert4torch.snippets import AutoRegressiveDecoder, Callback, truncate_sequences
 from bert4torch.tokenizers import Tokenizer
@@ -83,7 +83,7 @@ sim_dict_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_
 sim_tokenizer = Tokenizer(sim_dict_path, do_lower_case=True)  # 建立分词器
 
 # 建立加载模型
-simbert = build_transformer_model(sim_config_path, sim_checkpoint_path, with_pool='linear', application='unilm', dynamic_inherit=True).to(device)
+simbert = build_transformer_model(sim_config_path, sim_checkpoint_path, with_pool='linear', application='unilm', add_trainer=True).to(device)
 # ========== 蒸馏用：结束 ==========
 
 
@@ -131,7 +131,8 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('../datasets/data_similarity.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 建立加载模型
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', 

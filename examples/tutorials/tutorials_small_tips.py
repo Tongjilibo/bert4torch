@@ -3,7 +3,7 @@
 # torchinfo打印参数，自定义metrics, 断点续训，默认Logger和Tensorboard
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, Logger, Tensorboard, text_segmentate, ListDataset, Evaluator, EarlyStopping, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
@@ -61,7 +61,8 @@ valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method

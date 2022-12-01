@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # bert做Seq2Seq任务，采用BART方案
 
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, seed_everything
 from bert4torch.snippets import AutoRegressiveDecoder, Callback
@@ -71,7 +71,7 @@ train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/summary
 valid_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
 test_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
 
-model = build_transformer_model(config_path, checkpoint_path, model='bart', keep_tokens=keep_tokens, segment_vocab_size=0, dynamic_inherit=True).to(device)
+model = build_transformer_model(config_path, checkpoint_path, model='bart', keep_tokens=keep_tokens, segment_vocab_size=0, add_trainer=True).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

@@ -7,7 +7,7 @@ from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
 import numpy as np
 import scipy.stats
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.snippets import sequence_padding, Callback, get_pool_emb
 from torch.utils.data import DataLoader
@@ -156,7 +156,7 @@ def collate_fn_eval(batch):
 valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 定义generator
-generator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate, with_mlm=True, dynamic_inherit=True)
+generator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate, with_mlm=True, add_trainer=True)
 generator.to(device)
 generator.eval()
 
@@ -200,7 +200,8 @@ class Similarity(nn.Module):
         return sim / self.temp
 
 # 建立模型
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.pool_method = pool_method

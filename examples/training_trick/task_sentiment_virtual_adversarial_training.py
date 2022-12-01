@@ -3,7 +3,7 @@
 # 监督数据部分只计算监督Loss, 有监督+无监督数据计算对抗训练的Loss
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, AdversarialTraining
 import torch.nn as nn
 import torch
@@ -69,7 +69,8 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.pool_method = pool_method

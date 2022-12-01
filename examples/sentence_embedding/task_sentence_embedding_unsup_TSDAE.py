@@ -5,7 +5,7 @@
 # |       TSDAE     |    ——   | 46.65|  65.30  |  12.54  |    ——   | ——表示该指标异常未记录 |
 
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb
 import torch.nn as nn
 import torch
@@ -128,7 +128,8 @@ def collate_fn_eval(batch):
 valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         with_pool = 'linear' if pool_method == 'pooler' else True

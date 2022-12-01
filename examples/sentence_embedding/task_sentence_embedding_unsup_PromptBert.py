@@ -11,7 +11,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from tqdm import tqdm
 from bert4torch.tokenizers import Tokenizer, load_vocab
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import ListDataset, sequence_padding, Callback
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr, spearmanr
@@ -132,7 +132,8 @@ def collate_fn_test(batch):
 valid_dataloader = DataLoader(ListDataset(data=valid_texts), batch_size=batch_size, collate_fn=collate_fn_test) 
 
 # =============================定义模型=============================
-class PromptBert(BaseModel):
+@trainer
+class PromptBert(nn.Module):
     def __init__(self, scale=20.0):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, 

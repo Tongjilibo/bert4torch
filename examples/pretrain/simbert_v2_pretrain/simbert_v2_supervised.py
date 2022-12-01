@@ -6,7 +6,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate
 from bert4torch.snippets import Callback, truncate_sequences, get_pool_emb
 from bert4torch.tokenizers import Tokenizer
@@ -107,7 +107,8 @@ dataset2_path = 'F:/Projects/data/corpus/sentence_embedding/XNLI-MT-1.0/cnsd/cns
 train_dataloader = DataLoader(MyDataset([dataset1_path, dataset2_path]), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 建立加载模型
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls'):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', 

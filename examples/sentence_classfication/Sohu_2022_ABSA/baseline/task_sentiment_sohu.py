@@ -11,7 +11,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, AdversarialTraining
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.losses import FocalLoss
 from tqdm import tqdm
 from sklearn.metrics import f1_score, classification_report, accuracy_score
@@ -153,7 +153,8 @@ test_dataloader = DataLoader(MyDataset(f'{data_dir}/test.txt', mode='test'), bat
 
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)

@@ -13,7 +13,7 @@ import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
 from bert4torch.layers import CRF
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from tqdm import tqdm
 
 maxlen = 256
@@ -109,7 +109,8 @@ start_transition = (start_transition - min_v) / (max_v - min_v)
 end_transition = (end_transition - min_v) / (max_v - min_v)
 
 # 定义bert上的模型结构
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)

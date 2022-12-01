@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from bert4torch.snippets import get_pool_emb
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 import time
 from tqdm import tqdm
 
@@ -21,7 +21,8 @@ dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method

@@ -3,7 +3,7 @@
 ## 1. 建模流程示例
 ```python
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model, trainer
 from bert4torch.snippets import Callback, Logger, Tensorboard, ListDataset, AdversarialTraining
 import torch.nn as nn
 import torch
@@ -33,7 +33,8 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('file_path'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构，以文本二分类为例
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)
@@ -156,8 +157,8 @@ model.compile(
 '''
 基于bert上层的各类魔改，如last2layer_average, token_first_last_average
 '''
-class Model(BaseModel):
-    # 需要继承BaseModel
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path, checkpoint_path)
@@ -170,7 +171,8 @@ class Model(BaseModel):
 '''
 自定义fit过程，适用于自带fit()不满足需求时
 '''
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def fit(self, train_dataloader, steps_per_epoch, epochs):   
         train_dataloader = cycle(train_dataloader)
         self.train()
@@ -188,8 +190,7 @@ class Model(BaseModel):
 ```python
 '''
 mapping: 是否以原始的key来保存，如word_embedding原始key为bert.embeddings.word_embeddings.weight
-默认为{}表示不启用, 若基于BaseModel自定义模型，需指定为bert模型对应的成员变量名，直接使用设置为model.variable_mapping()
-主要是为了别的训练框架容易加载
+可传入mapping来按照预设的key保存，一般会设置为model.variable_mapping()
 '''
 # ====仅进行保存和加载====
 model.save_weights(save_path, mapping={})  # 保存模型权重
@@ -210,7 +211,8 @@ optimizer.load_state_dict(state_dict)
 - [加载transformers模型进行训练](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/tutorials_load_transformers_model.py)
 ```python
 from transformers import AutoModelForSequenceClassification
-class Model(BaseModel):
+@trainer
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = AutoModelForSequenceClassification.from_pretrained("file_path", num_labels=2)
@@ -259,11 +261,11 @@ class Evaluator(Callback):
 '''DP有两种方式，第一种是forward只计算logit，第二种是forward直接计算loss
 建议使用第二种，可以部分缓解负载不均衡的问题
 '''
-from bert4torch.models import BaseModelDP
+from bert4torch.models import TrainerDP
 
 # ===========处理数据和定义model===========
 
-model = BaseModelDP(model)  # 指定DP模式使用多gpu
+model = TrainerDP(model)  # 指定DP模式使用多gpu
 model.compile(
     loss=lambda x, _: x.mean(),  # 多个gpu计算的loss的均值
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
@@ -286,7 +288,7 @@ torch.distributed.init_process_group(backend='nccl')
 # ===========处理数据和定义model===========
 
 # 指定DDP模型使用多gpu, master_rank为指定用于打印训练过程的local_rank
-model = BaseModelDDP(model, master_rank=0, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False)
+model = TrainerDDP(model, master_rank=0, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
