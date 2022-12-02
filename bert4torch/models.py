@@ -13,7 +13,7 @@ from bert4torch.snippets import insert_arguments, delete_arguments, get_kw, torc
 from bert4torch.snippets import take_along_dim, create_position_ids_from_input_ids
 from bert4torch.activations import get_activation
 import warnings
-from torch4keras.model import *
+from torch4keras.trainer import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
 
 
