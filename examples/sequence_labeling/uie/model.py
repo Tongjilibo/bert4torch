@@ -57,5 +57,5 @@ if custom_model:
     print('Load custom uie model done')
 else:
     # 使用bert4torch自带的uie
-    uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='uie', with_pool=True, add_trainer=True)
+    uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='uie', with_pool=True, trainer=True)
     print('Load inner uie model done')

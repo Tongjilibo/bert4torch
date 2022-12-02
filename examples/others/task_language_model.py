@@ -94,7 +94,7 @@ model = build_transformer_model(
     with_mlm=True,
     application='lm',
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    add_trainer=True
+    trainer=True
 ).to(device)
 summary(model, input_data=[next(iter(train_dataloader))[0]])
 

@@ -112,7 +112,7 @@ model = build_transformer_model(
     checkpoint_path,
     with_mlm=True,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    add_trainer=True
+    trainer=True
 ).to(device)
 summary(model, input_data=[next(iter(train_dataloader))[0]])
 

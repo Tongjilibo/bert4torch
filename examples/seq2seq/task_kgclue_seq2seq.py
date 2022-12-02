@@ -215,7 +215,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return super().forward(y_pred, y_true)
 
 
-model = build_transformer_model(config_path, checkpoint_path, model='roformer', application='unilm', add_trainer=True).to(device)
+model = build_transformer_model(config_path, checkpoint_path, model='roformer', application='unilm', trainer=True).to(device)
 
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 5e-6))
 

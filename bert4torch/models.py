@@ -1743,7 +1743,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     custom_attention_mask=False: 是否自行传入attention_mask
     shared_segment_embeddings=False: 若True，则segment跟token共用embedding
     layer_norm_cond=None: conditional layer_norm
-    add_trainer: 使用Trainer，若build_transformer_model后需直接compile()、fit()需设置为True
+    trainer: 使用Trainer，若build_transformer_model后需直接compile()、fit()需设置为True
     compound_tokens=None: 扩展Embedding
     residual_attention_scores=False: Attention矩阵加残差
     ignore_invalid_weights=False: 允许跳过不存在的权重
@@ -1761,7 +1761,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    add_trainer = configs.get('add_trainer', False)
     
     models = {
         'bert': BERT,
@@ -1825,6 +1824,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
     transformer.configs = configs
 
-    if add_trainer:
+    if configs.get('trainer', False):
         transformer = Trainer(transformer)
     return transformer

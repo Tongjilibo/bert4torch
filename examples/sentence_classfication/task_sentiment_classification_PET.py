@@ -116,7 +116,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=v
 test_dataloader = DataLoader(test_dataset,  batch_size=batch_size, collate_fn=test_dataset.collate_fn) 
 
 # 加载预训练模型
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, add_trainer=True).to(device)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, trainer=True).to(device)
 
 class MyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

@@ -83,7 +83,7 @@ sim_dict_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_
 sim_tokenizer = Tokenizer(sim_dict_path, do_lower_case=True)  # 建立分词器
 
 # 建立加载模型
-simbert = build_transformer_model(sim_config_path, sim_checkpoint_path, with_pool='linear', application='unilm', add_trainer=True).to(device)
+simbert = build_transformer_model(sim_config_path, sim_checkpoint_path, with_pool='linear', application='unilm', trainer=True).to(device)
 # ========== 蒸馏用：结束 ==========
 
 

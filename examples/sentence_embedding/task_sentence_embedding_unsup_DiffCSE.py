@@ -156,7 +156,7 @@ def collate_fn_eval(batch):
 valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 定义generator
-generator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate, with_mlm=True, add_trainer=True)
+generator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate, with_mlm=True, trainer=True)
 generator.to(device)
 generator.eval()
 

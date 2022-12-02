@@ -76,7 +76,7 @@ model = build_transformer_model(
     model='t5.1.0',
     segment_vocab_size=0,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    add_trainer=True
+    trainer=True
 ).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
