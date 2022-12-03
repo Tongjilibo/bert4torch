@@ -188,8 +188,7 @@ class Model(BaseModel):
 ```python
 '''
 mapping: 是否以原始的key来保存，如word_embedding原始key为bert.embeddings.word_embeddings.weight
-默认为{}表示不启用, 若基于BaseModel自定义模型，需指定为bert模型对应的成员变量名，直接使用设置为model.variable_mapping()
-主要是为了别的训练框架容易加载
+可传入mapping来按照预设的key保存，一般会设置为model.variable_mapping()
 '''
 # ====仅进行保存和加载====
 model.save_weights(save_path, mapping={})  # 保存模型权重

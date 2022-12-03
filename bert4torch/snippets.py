@@ -777,7 +777,7 @@ class AdversarialTraining(Callback):
                 # 在embedding上添加对抗扰动, first attack时备份param.data
                 self.ad_train.attack(**self.adversarial, is_first_attack=(t==0))
                 if t != self.adversarial['K']-1:
-                    self.model.optimizer.zero_grad()  # 为了累积扰动而不是梯度
+                    self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                 else:
                     self.ad_train.restore_grad() # 恢复正常的grad
                 output, self.model.loss, self.model.loss_detail = self.model.train_step(self.model.train_X, self.model.train_y)

@@ -53,7 +53,7 @@ model = build_transformer_model(
     checkpoint_path,
     with_mlm=True,
     application='unilm',
-    dynamic_inherit=True,
+    add_trainer=True,
     token_pad_ids=tokenizer._token_pad_id, 
     use_segment_embedding=False,
     custom_position_ids='start_at_padding'

@@ -78,7 +78,7 @@ model = build_transformer_model(
     checkpoint_path,
     model='mt5.1.1',
     segment_vocab_size=0,
-    dynamic_inherit=True
+    add_trainer=True
 ).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
