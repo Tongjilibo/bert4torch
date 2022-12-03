@@ -347,14 +347,14 @@ class Loss(nn.CrossEntropyLoss):
         grid_mask2d = grid_mask2d.clone()
         return super().forward(outputs[grid_mask2d], grid_labels[grid_mask2d])
 
-bert_params = set(model.bert.parameters())
+bert_params = set(model.module.bert.parameters())
 other_params = list(set(model.parameters()) - bert_params)
 no_decay = ['bias', 'LayerNorm.weight']
 params = [
-    {'params': [p for n, p in model.bert.named_parameters() if not any(nd in n for nd in no_decay)],
+    {'params': [p for n, p in model.module.bert.named_parameters() if not any(nd in n for nd in no_decay)],
         'lr': bert_learning_rate,
         'weight_decay': weight_decay},
-    {'params': [p for n, p in model.bert.named_parameters() if any(nd in n for nd in no_decay)],
+    {'params': [p for n, p in model.module.bert.named_parameters() if any(nd in n for nd in no_decay)],
         'lr': bert_learning_rate,
         'weight_decay': 0.0},
     {'params': other_params,

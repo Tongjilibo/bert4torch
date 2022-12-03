@@ -114,7 +114,7 @@ model = build_transformer_model(
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
     trainer=True
 ).to(device)
-summary(model, input_data=[next(iter(train_dataloader))[0]])
+summary(model.module, input_data=[next(iter(train_dataloader))[0]])
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

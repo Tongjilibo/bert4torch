@@ -198,7 +198,7 @@ class MultiHeadBiaffine(nn.Module):
 class CNNNer(nn.Module):
     def __init__(self, num_ner_tag, cnn_dim=200, biaffine_size=200,
                  size_embed_dim=0, logit_drop=0, kernel_size=3, n_head=4, cnn_depth=3):
-        super(CNNNer, self).__init__()
+        super().__init__()
         self.pretrain_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
         hidden_size = self.pretrain_model.configs['hidden_size']
 

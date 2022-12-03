@@ -170,7 +170,7 @@ class Evaluator(Callback):
         model.train_dataloader = DataLoader(MyDataset(fst_train_file), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
     def on_epoch_end(self, global_step, epoch, logs=None):
-        perf = evaluate(model, epoch=model.epoch, steps=model.global_step, output_path='./')
+        perf = evaluate(model.module, epoch=model.epoch, steps=model.global_step, output_path='./')
         if perf > self.best_perf:
             self.best_perf = perf
             model.save_weights(f'./fst_best_weights_{choice}.pt')

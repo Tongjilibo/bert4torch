@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, BERT
+from bert4torch.models import build_transformer_model, BERT, trainer
 
 
 config_path = 'F:/Projects/pretrain_ckpt/uie/uie_base_pytorch/config.json'
@@ -53,7 +53,7 @@ class UIE(BERT):
 custom_model = False
 if custom_model:
     # 使用外部自定义的模型
-    uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=UIE, with_pool=True)
+    uie_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=UIE, with_pool=True, trainer=True)
     print('Load custom uie model done')
 else:
     # 使用bert4torch自带的uie

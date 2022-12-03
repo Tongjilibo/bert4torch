@@ -128,7 +128,7 @@ model = Model().to(device)
 
 class Loss(nn.Module):
     def forward(self, outputs, labels):
-        return model.crf(*outputs, labels)
+        return model.module.crf(*outputs, labels)
 
 model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
@@ -137,7 +137,7 @@ def evaluate(data):
     X, Y, Z = 1e-10, 1e-10, 1e-10
     X2, Y2, Z2 = 1e-10, 1e-10, 1e-10
     for (token_ids, psg_ids), label in tqdm(data):
-        scores = model.predict(token_ids, psg_ids)  # [btz, seq_len]
+        scores = model.module.predict(token_ids, psg_ids)  # [btz, seq_len]
         attention_mask = label.gt(0)
 
         # token粒度

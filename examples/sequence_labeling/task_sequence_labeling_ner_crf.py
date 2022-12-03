@@ -106,7 +106,7 @@ model = Model().to(device)
 
 class Loss(nn.Module):
     def forward(self, outputs, labels):
-        return model.crf(*outputs, labels)
+        return model.module.crf(*outputs, labels)
 
 def acc(y_pred, y_true):
     y_pred = y_pred[0]
@@ -122,7 +122,7 @@ def evaluate(data):
     X, Y, Z = 1e-10, 1e-10, 1e-10
     X2, Y2, Z2 = 1e-10, 1e-10, 1e-10
     for token_ids, label in tqdm(data):
-        scores = model.predict(token_ids)  # [btz, seq_len]
+        scores = model.module.predict(token_ids)  # [btz, seq_len]
         attention_mask = label.gt(0)
 
         # token粒度

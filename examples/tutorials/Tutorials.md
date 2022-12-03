@@ -318,5 +318,5 @@ class Evaluator(Callback):
 ### 3) 打印训练参数
 ```python
 from torchinfo import summary
-summary(model, input_data=next(iter(train_dataloader))[0])
+summary(model.module, input_data=next(iter(train_dataloader))[0])
 ```

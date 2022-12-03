@@ -85,7 +85,7 @@ valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 
 # 定义bert上的模型结构
 @trainer
-class Model(nn.Module):
+class Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)

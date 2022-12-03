@@ -134,7 +134,7 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     model.fit(train_dataloader, 
             epochs=10, 
-            steps_per_epoch=None, 
+            steps_per_epoch=10, 
             callbacks=[evaluator]
             )
 else:

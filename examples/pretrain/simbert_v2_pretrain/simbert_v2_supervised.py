@@ -31,7 +31,7 @@ def split(text):
     """分割句子
     """
     seps, strips = u'\n。！？!?；;，, ', u'；;，, '
-    return text_segmentate(text, maxlen * 1.2, seps, strips)
+    return text_segmentate(text, int(maxlen * 1.2), seps, strips)
 
 class MyDataset(ListDataset):
     def load_data(self, file_path):

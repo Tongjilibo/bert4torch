@@ -12,7 +12,7 @@ import torch.optim as optim
 from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
 from bert4torch.layers import CRF
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, trainer
+from bert4torch.models import build_transformer_model, Trainer
 from tqdm import tqdm
 
 maxlen = 256
@@ -92,7 +92,6 @@ train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
-@trainer
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
@@ -158,6 +157,7 @@ class Model(nn.Module):
         return best_path, entity_tulpe
 
 model = Model().to(device)
+trainer = Trainer(model)
 
 class Loss(nn.Module):
     def __init__(self) -> None:
@@ -172,7 +172,7 @@ class Loss(nn.Module):
         return {'loss': loss1+loss2, 'loss1': loss1, 'loss2': loss2}
 
 # Loss返回的key会自动计入metrics，下述metrics不写仍可以打印loss1和loss2
-model.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
+trainer.compile(loss=Loss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
 def evaluate(data):
     X1, Y1, Z1 = 1e-10, 1e-10, 1e-10
@@ -215,7 +215,7 @@ class Evaluator(Callback):
         f1, precision, recall, f2, precision2, recall2 = evaluate(valid_dataloader)
         if f2 > self.best_val_f1:
             self.best_val_f1 = f2
-            # model.save_weights('best_model.pt')
+            # trainer.save_weights('best_model.pt')
         print(f'[val-1阶段] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f}')
         print(f'[val-2阶段] f1: {f2:.5f}, p: {precision2:.5f} r: {recall2:.5f} best_f1: {self.best_val_f1:.5f}\n')
 
@@ -228,5 +228,5 @@ if __name__ == '__main__':
 
 else: 
 
-    model.load_weights('best_model.pt')
+    trainer.load_weights('best_model.pt')
 

@@ -3,7 +3,7 @@
 
 from itertools import cycle
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.models import build_transformer_model, trainer
+from bert4torch.models import build_transformer_model, Trainer
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, ProgbarLogger
 import torch.nn as nn
 import torch
@@ -57,21 +57,7 @@ train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
-# 定义bert上的模型结构
-@trainer
-class Model(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
-        self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
-
-    def forward(self, token_ids, segment_ids):
-        _, pooled_output = self.bert([token_ids, segment_ids])
-        output = self.dropout(pooled_output)
-        output = self.dense(output)
-        return output
-    
+class MyTrainer(Trainer):
     def fit(self, train_dataloader, steps_per_epoch, epochs=1):
         '''自定义fit过程：适用于自带fit()不满足需求时，用于自定义训练过程
         '''
@@ -96,8 +82,22 @@ class Model(nn.Module):
                 best_val_acc = val_acc
                 # model.save_weights('best_model.pt')
             print(f'val_acc: {val_acc:.5f}, best_val_acc: {best_val_acc:.5f}\n')
+
+# 定义bert上的模型结构
+class Model(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+        self.dropout = nn.Dropout(0.1)
+        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
+
+    def forward(self, token_ids, segment_ids):
+        _, pooled_output = self.bert([token_ids, segment_ids])
+        output = self.dropout(pooled_output)
+        output = self.dense(output)
+        return output
             
-model = Model().to(device)
+model = MyTrainer(Model()).to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

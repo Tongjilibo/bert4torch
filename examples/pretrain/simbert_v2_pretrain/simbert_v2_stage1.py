@@ -95,7 +95,7 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(MyDataset('../datasets/data_similarity.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('E:/Github/bert4torch/examples/datasets/data_similarity.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 建立加载模型
 @trainer

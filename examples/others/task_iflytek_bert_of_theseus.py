@@ -3,6 +3,7 @@
 # 方法为BERT-of-Theseus
 # 论文：https://arxiv.org/abs/2002.02925
 # 博客：https://kexue.fm/archives/7575
+# 原作者的pytorch实现：https://github.com/JetRunner/BERT-of-Theseus
 
 import json
 from bert4torch.models import build_transformer_model, trainer, BERT
@@ -122,7 +123,7 @@ class Model(nn.Module):
         output = self.dense(encoded_layers[:, 0, :])  # 取第1个位置
         return output
 model = Model().to(device)
-summary(model, input_data=next(iter(train_dataloader))[0])
+summary(model.module, input_data=next(iter(train_dataloader))[0])
 
 # replacing策略
 class ConstantReplacementScheduler:
@@ -157,7 +158,7 @@ class LinearReplacementScheduler:
         self.bert_encoder.set_replacing_rate(current_replacing_rate)
         return current_replacing_rate
 
-replacing_rate_scheduler = ConstantReplacementScheduler(bert_encoder=model.bert, replacing_rate=replacing_rate, replacing_steps=steps_for_replacing)
+replacing_rate_scheduler = ConstantReplacementScheduler(bert_encoder=model.module.bert, replacing_rate=replacing_rate, replacing_steps=steps_for_replacing)
 model.compile(loss=nn.CrossEntropyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5), scheduler=replacing_rate_scheduler,
               metrics=['accuracy'])
 

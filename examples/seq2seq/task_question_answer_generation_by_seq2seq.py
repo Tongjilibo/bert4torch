@@ -10,7 +10,6 @@ from bert4torch.snippets import sequence_padding, text_segmentate
 from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
 from tqdm import tqdm
 import torch
-from torchinfo import summary
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
@@ -109,7 +108,6 @@ model = build_transformer_model(
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
     trainer=True
 ).to(device)
-summary(model, input_data=[next(iter(train_dataloader))[0]])
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

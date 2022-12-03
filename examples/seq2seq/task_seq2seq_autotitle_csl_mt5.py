@@ -98,12 +98,12 @@ class AutoTitle(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
-        return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+        return model.module.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
 
     def generate(self, text, topk=1):
         token_ids, _ = tokenizer.encode(text, maxlen=max_c_len)
         token_ids = torch.tensor([token_ids], device=device)
-        encoder_output = model.encoder.predict([token_ids])
+        encoder_output = model.module.encoder.predict([token_ids])
         output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 
