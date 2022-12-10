@@ -165,7 +165,7 @@ class MyLoss(nn.Module):
         if custom_model:
             start_prob, end_prob = y_pred
         else:
-            start_prob, end_prob = y_pred[2:]
+            start_prob, end_prob = y_pred[-2:]
         start_ids, end_ids = y_true
         loss_start = torch.nn.functional.binary_cross_entropy(start_prob, start_ids)
         loss_end = torch.nn.functional.binary_cross_entropy(end_prob, end_ids)
