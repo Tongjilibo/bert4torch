@@ -81,6 +81,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.3**：20220409 初始版本
 
 ## 5. 更新：
+- **20221210**：增加macbert，text2vec-bert-chinese模型
 - **20221127**：增加deberta_v2模型, 对抗训练从compile转为使用Callback来实现，修复1.7.1版本兼容bug, uie模型内置, 增加triton示例, build_transformer_model需显式指定add_trainer才从BaseModel继承, 增加guwenbert预训练模型，允许position_ids从padding开始
 - **20221102**：增加CNN_Nested_NER示例, 删除SpTokenizer基类中的rematch
 - **20221022**：修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, transformer_xl的bug, 增加gradient_checkpoint
@@ -114,6 +115,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 |  ----  |  ----  | ----  | ----  |
 |  bert  | 谷歌原版bert(即bert-base-chinese) | [tf](https://github.com/google-research/bert)，[pytorch](https://huggingface.co/bert-base-chinese) | [tf转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)，[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
 |  bert  | 哈工大chinese-bert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm)，[pytorch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
+|  macbert  | 哈工大chinese-macbert-base/large | [tf/pytorch](https://github.com/ymcui/MacBERT)，[pytorch](https://huggingface.co/hfl/chinese-macbert-base) |
 | robert | 哈工大chinese-robert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm)，[pytorch](https://huggingface.co/hfl/chinese-roberta-wwm-ext)
 | deberta_v2| IDEA Erlangshen-DeBERTa-v2 | [pytorch](https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese/tree/main) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_deberta_v2.py) |
 | guwenbert | 古文bert | [pytorch](https://huggingface.co/ethanyt/guwenbert-base)|[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_guwenbert-base.py)|
@@ -135,6 +137,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | mt5 | 谷歌 | [pytorch](https://huggingface.co/google/mt5-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 | t5_pegasus | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
 | bart | 复旦 | [pytorch](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
+| text2vec | text2vec-base-chinese | [pytorch](https://huggingface.co/shibing624/text2vec-base-chinese) | 
 
 
 ## 7. 鸣谢
