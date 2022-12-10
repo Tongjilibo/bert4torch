@@ -162,7 +162,10 @@ valid_dataloader = DataLoader(dev_ds, batch_size=batch_size, collate_fn=collate_
 
 class MyLoss(nn.Module):
     def forward(self, y_pred, y_true):
-        start_prob, end_prob = y_pred
+        if custom_model:
+            start_prob, end_prob = y_pred
+        else:
+            start_prob, end_prob = y_pred[2:]
         start_ids, end_ids = y_true
         loss_start = torch.nn.functional.binary_cross_entropy(start_prob, start_ids)
         loss_end = torch.nn.functional.binary_cross_entropy(end_prob, end_ids)
