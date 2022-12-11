@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# mrc阅读理解方案
+# mrc阅读理解方案（简化版本，无span_matrix的预测，只能处理flat ner）
 # 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
 # [valid_f1]: 95.75
 
