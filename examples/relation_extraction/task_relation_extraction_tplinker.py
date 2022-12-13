@@ -31,7 +31,7 @@ with open('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/a
             id2predicate[len(predicate2id)] = l['predicate']
             predicate2id[l['predicate']] = len(predicate2id)
 
-# 建立分词器
+# 建立分词器 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 # 加载数据集

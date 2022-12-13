@@ -1,5 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 三元组抽取任务，基于“半指针-半标注”结构
+# 思路：两阶段关系抽取，先抽取出句子中的主语，再通过指针网络抽取出主语对应的关系和宾语
 # 文章介绍：https://kexue.fm/archives/7161
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
 
