@@ -22,6 +22,7 @@
 - [basic_language_model_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_bart.py): 测试bart模型。
 - [basic_language_model_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_deberta_v2.py): 测试deberta_v2模型。
 - [basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_guwenbert.py): 测试古文bert模型。
+- [basic_language_model_wobert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_wobert.py): 测试wobert模型。
 
 ## 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：句子对分类任务。
@@ -35,6 +36,7 @@
 - [task_sentiment_classification_electra.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_electra.py)：情感分类任务，加载electra权重
 - [task_sentiment_classification_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_GAU_alpha.py)：情感分类任务，加载GAU-alpha权重
 - [task_sentiment_classification_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_deberta_v2.py)：情感分类任务，加载deberta_v2权重
+- [task_sentiment_classification_wobert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_wobert.py)：情感分类任务，加载wobert权重
 - [task_sentiment_classification_PET.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_PET.py)：情感分类项目，[Pattern-Exploiting-Training](https://github.com/bojone/Pattern-Exploiting-Training), [bert4keras示例](https://github.com/bojone/Pattern-Exploiting-Training)
 - [task_sentiment_classification_P_tuning.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification_P_tuning.py)：情感分类项目，[P-tuning](https://github.com/THUDM/P-tuning), [bert4keras示例](https://github.com/bojone/P-tuning)
 - [Sohu_2022_ABSA](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/Sohu_2022_ABSA)：搜狐2022实体情感分类Top1方案复现和自己的baseline

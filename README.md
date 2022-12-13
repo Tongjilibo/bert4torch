@@ -113,31 +113,32 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 
 | 模型分类 |  权重来源 | 权重链接 | 备注(若有) | 
 |  ----  |  ----  | ----  | ----  |
-|  bert  | 谷歌原版bert(即bert-base-chinese) | [tf](https://github.com/google-research/bert)，[pytorch](https://huggingface.co/bert-base-chinese) | [tf转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)，[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
-|  bert  | 哈工大chinese-bert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm)，[pytorch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
-|  macbert  | 哈工大chinese-macbert-base/large | [tf/pytorch](https://github.com/ymcui/MacBERT)，[pytorch](https://huggingface.co/hfl/chinese-macbert-base) |
-| robert | 哈工大chinese-robert-wwm-ext | [tf/pytorch](https://github.com/ymcui/Chinese-BERT-wwm)，[pytorch](https://huggingface.co/hfl/chinese-roberta-wwm-ext)
-| deberta_v2| IDEA Erlangshen-DeBERTa-v2 | [pytorch](https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese/tree/main) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_deberta_v2.py) |
-| guwenbert | 古文bert | [pytorch](https://huggingface.co/ethanyt/guwenbert-base)|[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_guwenbert-base.py)|
-| xlnet | 哈工大xlnet | [tf/pytorch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
-| electra | 哈工大electra | [tf](https://github.com/ymcui/Chinese-ELECTRA)，[pytorch](https://huggingface.co/hfl/chinese-electra-base-discriminator)
-| macbert | 哈工大macbert | [tf](https://github.com/ymcui/MacBERT)，[pytorch](https://huggingface.co/hfl/chinese-macbert-base)
-| albert | brightmart | [tf](https://github.com/brightmart/albert_zh)，[pytorch](https://github.com/lonePatient/albert_pytorch)
-| ernie | 百度文心 |[paddle](https://github.com/PaddlePaddle/ERNIE)，[pytorch](https://huggingface.co/nghuyong) | 
-| roformer | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer)，[pytorch](https://huggingface.co/junnyu/roformer_chinese_base) |  
-| roformer_v2 | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-v2)，[pytorch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
-| simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert)，[pytorch](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
-| roformer-sim | 追一科技 | [ft](https://github.com/ZhuiyiTechnology/roformer-sim)，[pytorch](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
+|  bert  | 谷歌原版bert(即bert-base-chinese) | [tf](https://github.com/google-research/bert)，[torch](https://huggingface.co/bert-base-chinese) | [tf转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)，[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py)
+|  bert  | 哈工大chinese-bert-wwm-ext | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-bert-wwm-ext) |
+|  macbert  | 哈工大chinese-macbert-base/large | [tf/torch](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base) |
+| robert | 哈工大chinese-robert-wwm-ext | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-roberta-wwm-ext)
+| deberta_v2| IDEA Erlangshen-DeBERTa-v2 | [torch](https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese/tree/main) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_deberta_v2.py) |
+| guwenbert | 古文bert | [torch](https://huggingface.co/ethanyt/guwenbert-base)|[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_guwenbert-base.py)|
+| xlnet | 哈工大xlnet | [tf/torch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
+| electra | 哈工大electra | [tf](https://github.com/ymcui/Chinese-ELECTRA)，[torch](https://huggingface.co/hfl/chinese-electra-base-discriminator)
+| macbert | 哈工大macbert | [tf](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base)
+| albert | brightmart | [tf](https://github.com/brightmart/albert_zh)，[torch](https://github.com/lonePatient/albert_pytorch)
+| ernie | 百度文心 |[paddle](https://github.com/PaddlePaddle/ERNIE)，[torch](https://huggingface.co/nghuyong) | 
+| roformer | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer)，[torch](https://huggingface.co/junnyu/roformer_chinese_base) |  
+| roformer_v2 | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-v2)，[torch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
+| simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert)，[torch](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
+| roformer-sim | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-sim)，[torch](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
 | gau-alpha | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
-| nezha | 华为 | [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[pytorch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | 
-| gpt | CDial-GPT | [pytorch](https://github.com/thu-coai/CDial-GPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt__CDial-GPT-LCCC.py)
-| gpt2 | 清华26亿 cmp_lm | [pytorch](https://github.com/TsinghuaAI/CPM-1-Generate) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__cmp_lm_2.6b.py)
-| gpt2 | 中文GPT2_ML模型 | [tf](https://github.com/imcaspar/gpt2-ml)，[pytorch](https://github.com/ghosthamlet/gpt2-ml-torch) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__gpt2-ml.py)
-| t5 | UER | [pytorch](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
-| mt5 | 谷歌 | [pytorch](https://huggingface.co/google/mt5-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
+| wobert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/WoBERT)，[torch_base](https://huggingface.co/junnyu/wobert_chinese_base)，[torch_plus_base](https://huggingface.co/junnyu/wobert_chinese_plus_base)||
+| nezha | 华为 | [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[torch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | 
+| gpt | CDial-GPT | [torch](https://github.com/thu-coai/CDial-GPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt__CDial-GPT-LCCC.py)
+| gpt2 | 清华26亿 cmp_lm | [torch](https://github.com/TsinghuaAI/CPM-1-Generate) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__cmp_lm_2.6b.py)
+| gpt2 | 中文GPT2_ML模型 | [tf](https://github.com/imcaspar/gpt2-ml)，[torch](https://github.com/ghosthamlet/gpt2-ml-torch) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__gpt2-ml.py)
+| t5 | UER | [torch](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
+| mt5 | 谷歌 | [torch](https://huggingface.co/google/mt5-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 | t5_pegasus | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py)
-| bart | 复旦 | [pytorch](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
-| text2vec | text2vec-base-chinese | [pytorch](https://huggingface.co/shibing624/text2vec-base-chinese) | 
+| bart | 复旦 | [torch](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
+| text2vec | text2vec-base-chinese | [torch](https://huggingface.co/shibing624/text2vec-base-chinese) | 
 
 
 ## 7. 鸣谢
