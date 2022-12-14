@@ -754,7 +754,7 @@ class AdversarialTraining(Callback):
 
     def on_train_begin(self, logs=None):
         if self.mode in {'gradient_penalty', 'vat'}:
-            self.model.retain_graph = True
+            self.trainer.retain_graph = True
         if self.mode == 'fgm':
             self.ad_train = FGM(self.model)
         elif self.mode == 'pgd':
@@ -767,8 +767,8 @@ class AdversarialTraining(Callback):
         '''
         if self.mode == 'fgm':
             self.ad_train.attack(**self.adversarial) # embedding被修改了
-            output, self.model.loss, self.model.loss_detail = self.model.train_step(self.model.train_X, self.model.train_y)
-            # self.model.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            output, self.trainer.loss, self.trainer.loss_detail = self.trainer.train_step(self.trainer.train_X, self.trainer.train_y)
+            # self.trainer.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
             self.ad_train.restore(**self.adversarial)
         elif self.mode == 'pgd':
@@ -780,22 +780,22 @@ class AdversarialTraining(Callback):
                     self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                 else:
                     self.ad_train.restore_grad() # 恢复正常的grad
-                output, self.model.loss, self.model.loss_detail = self.model.train_step(self.model.train_X, self.model.train_y)
-                # self.model.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+                output, self.trainer.loss, self.trainer.loss_detail = self.trainer.train_step(self.trainer.train_X, self.trainer.train_y)
+                # self.trainer.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             self.ad_train.restore(**self.adversarial) # 恢复embedding参数
         # 梯度惩罚
         elif self.mode == 'gradient_penalty':
             para = search_layer(self.model, self.adversarial['emb_name'], retrun_first=True)
             gp = (para.grad ** 2).sum()
-            self.model.loss += 0.5 * gp * self.adversarial['epsilon']
-            self.model.loss.backward()
+            self.trainer.loss += 0.5 * gp * self.adversarial['epsilon']
+            self.trainer.loss.backward()
         # 虚拟对抗训练
         elif self.mode == 'vat':
-            logit = self.model.output[self.adversarial['rank']] if isinstance(self.model.output, (tuple, list)) else self.model.output
-            adv_loss = self.ad_train.virtual_adversarial_training(self.model.train_X, logit)
-            self.model.loss_detail.update({'loss_sup': self.model.loss.item(), 'loss_unsup': adv_loss})
-            self.model.loss += (adv_loss if adv_loss else 0)
-            self.model.loss.backward()
+            logit = self.trainer.output[self.adversarial['rank']] if isinstance(self.trainer.output, (tuple, list)) else self.trainer.output
+            adv_loss = self.ad_train.virtual_adversarial_training(self.trainer.train_X, logit)
+            self.trainer.loss_detail.update({'loss_sup': self.trainer.loss.item(), 'loss_unsup': adv_loss})
+            self.trainer.loss += (adv_loss if adv_loss else 0)
+            self.trainer.loss.backward()
 
 
 class WebServing(object):
@@ -1001,3 +1001,15 @@ def create_position_ids_from_input_ids(input_ids, padding_idx, past_key_values_l
     mask = input_ids.ne(padding_idx).int()
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask
     return incremental_indices.long() + padding_idx
+
+class DottableDict(dict):
+    '''支持点操作符的字典
+    '''
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+        self.__dict__ = self
+    def allowDotting(self, state=True):
+        if state:
+            self.__dict__ = self
+        else:
+            self.__dict__ = dict()

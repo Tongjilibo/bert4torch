@@ -10,7 +10,7 @@ import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
 from bert4torch.snippets import insert_arguments, delete_arguments, get_kw, torch_div
-from bert4torch.snippets import take_along_dim, create_position_ids_from_input_ids
+from bert4torch.snippets import take_along_dim, create_position_ids_from_input_ids, DottableDict
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
@@ -1828,5 +1828,5 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
 
     if checkpoint_path is not None:
         transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
-    transformer.configs = configs
+    transformer.configs = DottableDict(configs)
     return transformer
