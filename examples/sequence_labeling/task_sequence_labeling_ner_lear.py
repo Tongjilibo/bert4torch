@@ -20,7 +20,7 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_ev
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
-from collections import defaultdict
+import numpy as np
 
 max_c_len = 224
 max_q_len = 32
@@ -74,8 +74,8 @@ def collate_fn(batch):
         end_mapping = {j[-1]: i for i, j in enumerate(mapping) if j}
 
         # 按照实体类型整理实体
-        start_labels = torch.zeros(len(tokens), num_labels, dtype=torch.long)
-        end_labels = torch.zeros(len(tokens), num_labels, dtype=torch.long)
+        start_labels = np.zeros((len(tokens), num_labels))
+        end_labels = np.zeros((len(tokens), num_labels))
         for start, end, label in d[1:]:
             if start in start_mapping and end in end_mapping:
                 start = start_mapping[start]

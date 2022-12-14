@@ -33,16 +33,16 @@ encoder_lr = 1e-5
 decoder_lr = 2e-5
 
 maxlen = 128
-batch_size = 8
-config_path = '/Users/lb/Documents/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/config.json'
-checkpoint_path = '/Users/lb/Documents/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/bert4torch_pytorch_model.bin'
-dict_path = '/Users/lb/Documents/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
+batch_size = 32
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
 
-with open('/Users/lb/Documents/data/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
+with open('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
     for l in f:
         l = json.loads(l)
         if l['predicate'] not in predicate2id:
@@ -94,15 +94,13 @@ class MyDataset(ListDataset):
         """
         D = []
         with open(filename, encoding='utf-8') as f:
-            for l in tqdm(f):
+            for l in tqdm(f, desc='Loading data'):
                 l = json.loads(l)
                 labels = [(spo['subject'], spo['predicate'], spo['object']) for spo in l['spo_list']]
                 token_ids, segment_ids, spoes = get_spoes(l['text'], labels)
                 if spoes:
                     D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
                               'segment_ids': segment_ids, 'spoes': spoes})
-                # if len(D) > 1000:
-                #     break
         return D
 
 def collate_fn(batch):
@@ -129,7 +127,7 @@ def collate_fn(batch):
     targets = [{k: torch.tensor(v, dtype=torch.long, device=device) for k, v in t.items()} for t in targets]
     return [batch_token_ids, batch_segment_ids], targets
 
-train_dataloader = DataLoader(MyDataset('/Users/lb/Documents/data/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
+train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
@@ -146,9 +144,7 @@ def _get_best_indexes(logits, n_best_size):
         best_indexes.append(index_and_score[i][0])
     return best_indexes
 
-def generate_span(start_logits, end_logits, info):
-    seq_lens = info["seq_len"] # including [CLS] and [SEP]
-    sent_idxes = info["sent_idx"]
+def generate_span(start_logits, end_logits, seq_lens):
     _Prediction = collections.namedtuple(
         "Prediction", ["start_index", "end_index", "start_prob", "end_prob"]
     )
@@ -157,8 +153,8 @@ def generate_span(start_logits, end_logits, info):
     end_probs = end_logits.softmax(-1)
     start_probs = start_probs.cpu().tolist()
     end_probs = end_probs.cpu().tolist()
-    for (start_prob, end_prob, seq_len, sent_idx) in zip(start_probs, end_probs, seq_lens, sent_idxes):
-        output[sent_idx] = {}
+    for (start_prob, end_prob, seq_len) in zip(start_probs, end_probs, seq_lens):
+        output = {}
         for triple_id in range(num_generated_triples):
             predictions = []
             start_indexes = _get_best_indexes(start_prob[triple_id], n_best_size)
@@ -185,45 +181,42 @@ def generate_span(start_logits, end_logits, info):
                             end_prob=end_prob[triple_id][end_index],
                         )
                     )
-            output[sent_idx][triple_id] = predictions
+            output[triple_id] = predictions
     return output
 
 
-def generate_relation(pred_rel_logits, info, args):
+def generate_relation(pred_rel_logits):
     rel_probs, pred_rels = torch.max(pred_rel_logits.softmax(-1), dim=2)
     rel_probs = rel_probs.cpu().tolist()
     pred_rels = pred_rels.cpu().tolist()
-    sent_idxes = info["sent_idx"]
     output = {}
     _Prediction = collections.namedtuple(
         "Prediction", ["pred_rel", "rel_prob"]
     )
-    for (rel_prob, pred_rel, sent_idx) in zip(rel_probs, pred_rels, sent_idxes):
-        output[sent_idx] = {}
+    for (rel_prob, pred_rel) in zip(rel_probs, pred_rels):
+        output = {}
         for triple_id in range(num_generated_triples):
-            output[sent_idx][triple_id] = _Prediction(
+            output[triple_id] = _Prediction(
                             pred_rel=pred_rel[triple_id],
                             rel_prob=rel_prob[triple_id])
     return output
 
 
-def generate_triple(output, info, args, num_classes):
+def generate_triple(output, seq_lens, num_classes):
     _Pred_Triple = collections.namedtuple(
         "Pred_Triple", ["pred_rel", "rel_prob", "head_start_index", "head_end_index", "head_start_prob", "head_end_prob", "tail_start_index", "tail_end_index", "tail_start_prob", "tail_end_prob"]
     )
-    pred_head_ent_dict = generate_span(output["head_start_logits"], output["head_end_logits"], info, args)
-    pred_tail_ent_dict = generate_span(output["tail_start_logits"], output["tail_end_logits"], info, args)
-    pred_rel_dict = generate_relation(output['pred_rel_logits'], info, args)
-    triples = {}
-    for sent_idx in pred_rel_dict:
-        triples[sent_idx] = []
-        for triple_id in range(num_generated_triples):
-            pred_rel = pred_rel_dict[sent_idx][triple_id]
-            pred_head = pred_head_ent_dict[sent_idx][triple_id]
-            pred_tail = pred_tail_ent_dict[sent_idx][triple_id]
-            triple = generate_strategy(pred_rel, pred_head, pred_tail, num_classes, _Pred_Triple)
-            if triple:
-                triples[sent_idx].append(triple)
+    pred_head_ent_dict = generate_span(output["head_start_logits"], output["head_end_logits"], seq_lens)
+    pred_tail_ent_dict = generate_span(output["tail_start_logits"], output["tail_end_logits"], seq_lens)
+    pred_rel_dict = generate_relation(output['pred_rel_logits'])
+    triples = []
+    for triple_id in range(num_generated_triples):
+        pred_rel = pred_rel_dict[triple_id]
+        pred_head = pred_head_ent_dict[triple_id]
+        pred_tail = pred_tail_ent_dict[triple_id]
+        triple = generate_strategy(pred_rel, pred_head, pred_tail, num_classes, _Pred_Triple)
+        if triple:
+            triples.append(triple)
     # print(triples)
     return triples
 
@@ -308,7 +301,7 @@ class SetDecoder(nn.Module):
         super().__init__()
         self.num_generated_triples = num_generated_triples
         self.layers = nn.ModuleList([DecoderLayer(config) for _ in range(num_layers)])
-        self.LayerNorm = nn.LayerNorm(config['hidden_size'], eps=config['layer_norm_eps'])
+        self.LayerNorm = nn.LayerNorm(config['hidden_size'], eps=config.get('layer_norm_eps', 1e-12))
         self.dropout = nn.Dropout(config['hidden_dropout_prob'])
         self.query_embed = nn.Embedding(num_generated_triples, config['hidden_size'])
         self.decoder2class = nn.Linear(config['hidden_size'], num_classes + 1)
@@ -398,11 +391,12 @@ class Model(BaseModel):
         outputs = {'pred_rel_logits': class_logits, 'head_start_logits': head_start_logits, 'head_end_logits': head_end_logits, 'tail_start_logits': tail_start_logits, 'tail_end_logits': tail_end_logits}
         return outputs
 
-    def gen_triples(self, input_ids, attention_mask, info):
+    def gen_triples(self, input_ids, segment_ids):
         with torch.no_grad():
-            outputs = self.forward(input_ids, attention_mask)
+            outputs = self.forward(input_ids, segment_ids)
             # print(outputs)
-            pred_triple = generate_triple(outputs, info, self.args, self.num_classes)
+            seq_lens = (input_ids != tokenizer._token_pad_id).long().sum(dim=-1).cpu().numpy()
+            pred_triple = generate_triple(outputs, seq_lens, self.num_classes)
             # print(pred_triple)
         return pred_triple
 
@@ -417,7 +411,7 @@ class SetCriterion(nn.Module):
         self.loss_weight = loss_weight
         self.matcher = HungarianMatcher(loss_weight, matcher)
         self.losses = losses
-        rel_weight = torch.ones(self.num_classes + 1)
+        rel_weight = torch.ones(self.num_classes + 1, device=device)
         rel_weight[-1] = na_coef
         self.register_buffer('rel_weight', rel_weight)
 
@@ -533,7 +527,7 @@ model.compile(loss=SetCriterion(num_classes, loss_weight={"relation": rel_loss_w
                                 na_coef=na_rel_coef, losses=["entity", "relation"], matcher=matcher), 
               optimizer=optim.Adam(model.parameters(), 1e-5))
 
-def extract_spoes(text):
+def extract_spoes(text, threshold=0):
     """抽取输入text所包含的三元组
     """
     tokens = tokenizer.tokenize(text, maxlen=maxlen)
@@ -543,41 +537,19 @@ def extract_spoes(text):
     segment_ids = torch.tensor([segment_ids], dtype=torch.long, device=device)
 
     # 抽取subject
-    seq_output, subject_preds = model.predict_subject([token_ids, segment_ids])
-    subject_preds[:, [0, -1]] *= 0  # 首cls, 尾sep置为0
-    start = torch.where(subject_preds[0, :, 0] > 0.6)[0]
-    end = torch.where(subject_preds[0, :, 1] > 0.5)[0]
-    subjects = []
-    for i in start:
-        j = end[end >= i]
-        if len(j) > 0:
-            j = j[0]
-            subjects.append((i.item(), j.item()))
-    if subjects:
-        spoes = []
-        # token_ids = token_ids.repeat([len(subjects)]+[1]*(len(token_ids.shape)-1))
-        # segment_ids = segment_ids.repeat([len(subjects)]+[1]*(len(token_ids.shape)-1))
-        seq_output = seq_output.repeat([len(subjects)]+[1]*(len(seq_output.shape)-1))
-        subjects = torch.tensor(subjects, dtype=torch.long, device=device)
-        # 传入subject，抽取object和predicate
-        object_preds = model.predict_object([seq_output, subjects])
-        object_preds[:, [0, -1]] *= 0
-        for subject, object_pred in zip(subjects, object_preds):
-            start = torch.where(object_pred[:, :, 0] > 0.6)
-            end = torch.where(object_pred[:, :, 1] > 0.5)
-            for _start, predicate1 in zip(*start):
-                for _end, predicate2 in zip(*end):
-                    if _start <= _end and predicate1 == predicate2:
-                        spoes.append(
-                            ((mapping[subject[0]][0],
-                              mapping[subject[1]][-1]), predicate1.item(),
-                             (mapping[_start][0], mapping[_end][-1]))
-                        )
-                        break
-        return [(text[s[0]:s[1] + 1], id2predicate[p], text[o[0]:o[1] + 1])
-                for s, p, o, in spoes]
-    else:
-        return []
+    preds = model.gen_triples(token_ids, segment_ids)
+    spoes = set()
+    for pred in preds:
+        if (pred.head_start_prob > threshold) and \
+           (pred.head_end_prob > threshold) and \
+           (pred.tail_start_prob > threshold) and \
+           (pred.tail_end_prob > threshold) and \
+           (pred.rel_prob > threshold):
+            spoes.add((
+                    text[mapping[pred.head_start_index][0]:mapping[pred.head_end_index][-1] + 1], id2predicate[pred.pred_rel],
+                    text[mapping[pred.tail_start_index][0]:mapping[pred.tail_end_index][-1] + 1]
+                ))
+    return spoes
 
 
 class SPO(tuple):

@@ -36,9 +36,9 @@ logit_drop = 0
 cnn_depth = 3
 
 # BERT base
-config_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/bert4torch_pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[huggingface_torch_base]--bert-base-chinese/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/bert4torch_pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
