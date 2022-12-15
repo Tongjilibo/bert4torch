@@ -1,7 +1,7 @@
-bert4torch.models module
+bert4torch.activations module
 ========================================
 
-.. automodule:: bert4torch.models.build_transformer_model
+.. automodule:: bert4torch.activations
     :members:
     :no-undoc-members:
     :no-show-inheritance:

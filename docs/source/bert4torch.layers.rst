@@ -1,7 +1,7 @@
-bert4torch.models module
+bert4torch.layers module
 ========================================
 
-.. automodule:: bert4torch.models.bert
+.. automodule:: bert4torch.layers
     :members:
     :no-undoc-members:
     :no-show-inheritance:

@@ -18,7 +18,13 @@ Welcome to bert4torch's documentation!
    :maxdepth: 3
    :caption: API:
 
-   Models<Models>
+   Tokenizers<bert4torch.tokenizers>
+   Models<bert4torch.models>
+   Layers<bert4torch.layers>
+   Snippets<bert4torch.snippets>
+   Losses<bert4torch.losses>
+   Optimizers<bert4torch.optimizers>
+   Activations<bert4torch.activations>
 
 Indices and tables
 ==================

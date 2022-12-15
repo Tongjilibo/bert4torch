@@ -83,9 +83,9 @@ class BERT_BASE(nn.Module):
         **kwargs
     ):
         """模型构建函数
-        attention_caches: 为Attention的K,V的缓存序列字典，格式为{Attention层名: [K缓存, V缓存]}；
-        layer_norm_*系列参数: 实现Conditional Layer Normalization时使用，用来实现以“固定长度向量”为条件的条件Bert。
-        说明：其他参数目前暂未使用到，但是逻辑暂时保留
+
+        :param attention_caches: 为Attention的K,V的缓存序列字典，格式为{Attention层名: [K缓存, V缓存]}；
+        :param layer_norm_*: 实现Conditional Layer Normalization时使用，用来实现以“固定长度向量”为条件的条件Bert，暂未使用
         """
         # additional_input
         # if additional_input_layers is not None:
@@ -104,7 +104,10 @@ class BERT_BASE(nn.Module):
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
 
     def forward(self, inputs):
-        """定义模型的执行流程
+        """定义模型的训练流程
+        
+        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
+        :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         # Embedding
         outputs = self.apply_embeddings(inputs)
@@ -116,6 +119,11 @@ class BERT_BASE(nn.Module):
 
     @torch.no_grad()
     def predict(self, inputs):
+        """定义模型的预测流程
+        
+        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
+        :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
+        """
         self.eval()
         return self.forward(inputs)
 
@@ -281,7 +289,7 @@ def extend_with_language_model(InputModel):
 
 
 class UniLM_Mask(object):
-    """定义UniLM的Attention Mask（Seq2Seq模型用）
+    """定义UniLM的Attention Mask（Seq2Seq模型用）；
     其中source和target的分区，由segment_ids来表示。
     UniLM: https://arxiv.org/abs/1905.03197
     """
@@ -313,7 +321,6 @@ def extend_with_unified_language_model(InputModel):
 class BERT(BERT_BASE):
     """构建BERT模型
     """
-
     def __init__(
             self,
             max_position,  # 序列最大长度
@@ -376,7 +383,9 @@ class BERT(BERT_BASE):
 
     def apply_embeddings(self, inputs):
         """BERT的embedding是token、position、segment三者embedding之和
-        默认顺序是token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)
+
+        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
+        :return: List[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
         """
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
@@ -450,9 +459,11 @@ class BERT(BERT_BASE):
         return [hidden_states, attention_mask, conditional_emb] + inputs[index_:]
 
     def apply_main_layers(self, inputs):
-        """BERT的主体是基于Self-Attention的模块
+        """BERT的主体是基于Self-Attention的模块；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
-        默认第一个是hidden_states, 第二个是attention_mask, 第三个是conditional_emb
+        
+        :param inputs: List[torch.Tensor], 默认顺序为[hidden_states, attention_mask, conditional_emb]
+        :return: List[torch.Tensor], 默认顺序为[encoded_layers, conditional_emb]
         """
         hidden_states, attention_mask, conditional_emb = inputs[:3]
         if len(inputs[3:]) >= 2:
@@ -476,6 +487,9 @@ class BERT(BERT_BASE):
     
     def apply_final_layers(self, inputs):
         """根据剩余参数决定输出
+
+        :param inputs: List[torch.Tensor], 默认顺序为[encoded_layers, conditional_emb]
+        :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         # 获取最后一层隐藏层的输出
         encoded_layers, conditional_emb = inputs
@@ -575,7 +589,7 @@ class ALBERT(BERT):
         self.encoderLayer = nn.ModuleList([self.encoderLayer[0]])  # 取上述的第一行
 
     def apply_main_layers(self, inputs):
-        """BERT的主体是基于Self-Attention的模块
+        """BERT的主体是基于Self-Attention的模块（和BERT区别是始终使用self.encoderLayer[0]）；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         """
         hidden_states, attention_mask, conditional_emb = inputs[:3]
@@ -642,8 +656,7 @@ class ALBERT(BERT):
         return mapping
 
     def load_variable(self, state_dict, name):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         variable = state_dict[name]
         if name in {
             'albert.embeddings.word_embeddings.weight',
@@ -666,7 +679,7 @@ class ALBERT_Unshared(ALBERT):
         self.encoderLayer = nn.ModuleList([copy.deepcopy(self.encoderLayer[0]) for _ in range(self.num_hidden_layers)])
 
     def apply_main_layers(self, inputs):
-        """BERT的主体是基于Self-Attention的模块
+        """BERT的主体是基于Self-Attention的模块（和ALBERT区别是所有层权重独立）；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         """
         hidden_states, attention_mask, conditional_emb = inputs
@@ -691,7 +704,7 @@ class ALBERT_Unshared(ALBERT):
 
 
 class NEZHA(BERT):
-    """华为推出的NAZHA模型
+    """华为推出的NAZHA模型；
     链接：https://arxiv.org/abs/1909.00204
     """
     def __init__(self, *args, **kwargs):
@@ -701,7 +714,7 @@ class NEZHA(BERT):
 
 
 class RoFormer(BERT):
-    """旋转式位置编码的BERT模型
+    """旋转式位置编码的BERT模型；
     链接：https://kexue.fm/archives/8265
     """
     def __init__(self, *args, **kwargs):
@@ -718,7 +731,7 @@ class RoFormer(BERT):
 
 
 class RoFormerV2(RoFormer):
-    """RoFormerV2
+    """RoFormerV2；
     改动：去掉bias，简化Norm，优化初始化等。目前初始化暂时还用的bert的初始化，finetune不受影响
     """
     @delete_arguments('with_pool', 'with_nsp')
@@ -790,7 +803,7 @@ class GAU_alpha(RoFormerV2):
 
     
 class ELECTRA(BERT):
-    """Google推出的ELECTRA模型
+    """Google推出的ELECTRA模型；
     链接：https://arxiv.org/abs/2003.10555
     """
     @insert_arguments(with_discriminator=False)
@@ -812,8 +825,7 @@ class ELECTRA(BERT):
             return hidden_states
 
     def load_variable(self, state_dict, name):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         return super().load_variable(state_dict, name, prefix='electra')
 
     def variable_mapping(self):
@@ -853,13 +865,13 @@ class ERNIE(BERT):
 
 
 class DebertaV2(BERT):
-    '''DeBERTaV2: https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa
-       这里使用的是IEDEA的中文模型：https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese
+    '''DeBERTaV2: https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa；
+       这里使用的是IEDEA的中文模型：https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese；
        和transformers包中的区别：
-       1）原始使用的StableDropout替换成了nn.Dropout
-       2）计算attention_score时候用的XSoftmax替换成了F.softmax
-       3）未实现（认为对结果无影响）：Embedding阶段用attention_mask对embedding的padding部分置0
-       4）未实现（认为对结果无影响）：计算attention_score前的attention_mask从[btz, 1, 1, k_len]转为了[btz, 1, q_len, k_len]
+       1）原始使用的StableDropout替换成了nn.Dropout；
+       2）计算attention_score时候用的XSoftmax替换成了F.softmax；
+       3）未实现（认为对结果无影响）：Embedding阶段用attention_mask对embedding的padding部分置0；
+       4）未实现（认为对结果无影响）：计算attention_score前的attention_mask从[btz, 1, 1, k_len]转为了[btz, 1, q_len, k_len]。
     '''
     @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
@@ -922,7 +934,7 @@ class DebertaV2(BERT):
 
 
 class UIE(BERT):
-    '''官方项目：https://github.com/universal-ie/UIE
+    '''官方项目：https://github.com/universal-ie/UIE；
        参考项目：https://github.com/heiheiyoyo/uie_pytorch
     '''
     @delete_arguments('with_nsp', 'with_mlm')
@@ -1014,7 +1026,7 @@ class Decoder(LM_Mask, BERT):
                 self.x_logit_scale = 1.
 
     def apply_main_layers(self, inputs):
-        """Dencoder主体是基于Self-Attention、Cross-Attention的模块
+        """Dencoder主体是基于Self-Attention、Cross-Attention的模块；
         顺序：Att1 --> Add --> LN --> Att2 --> Add -->  LN --> FFN --> Add --> LN
         """
         hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask = inputs[:5]
@@ -1072,8 +1084,6 @@ class Transformer(BERT_BASE):
             self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
 
     def forward(self, inputs):
-        """定义模型的执行流程
-        """
         encoder_input, decoder_input = inputs[:2]
 
         # encoder
@@ -1101,8 +1111,7 @@ class BART(Transformer):
         self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
 
     def load_variable(self, state_dict, name, prefix=''):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         variable = state_dict[name]
         if name in {
             'shared.weight',
@@ -1201,8 +1210,7 @@ class T5_Encoder(Encoder):
         return self.dropout(self.final_layer_norm([hidden_states]))
 
     def load_variable(self, state_dict, name, prefix=''):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         variable = state_dict[name]
         if name in {'encoder.embed_tokens.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
@@ -1257,8 +1265,7 @@ class T5_Decoder(Decoder):
         return super().apply_final_layers(inputs)
 
     def load_variable(self, state_dict, name, prefix=''):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         variable = state_dict[name]
         if name in {f'decoder.embed_tokens.weight', 'lm_head.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
@@ -1315,8 +1322,7 @@ class T5(Transformer):
         self.decoder.build(**kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         variable = state_dict[name]
         if name in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
@@ -1333,7 +1339,7 @@ class T5(Transformer):
 
 
 class GPT(LM_Mask, BERT):
-    """构建GPT模型
+    """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
     """
     @insert_arguments(final_activation='softmax')
@@ -1357,20 +1363,19 @@ class GPT(LM_Mask, BERT):
         return super(GPT, self).load_variable(state_dict, name, prefix='gpt')
 
     def variable_mapping(self):
-        """映射到GPT权重格式
-        """
+        # 映射到GPT权重格式
         mapping =  super(GPT, self).variable_mapping(prefix='gpt')
         return mapping
 
 
 class GPT2(LM_Mask, BERT):
-    """构建GPT模型
+    """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
     """
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, max_position, **kwargs):
-        """GPT2的embedding是token、position两者embedding之和
+        """GPT2的embedding是token、position两者embedding之和。
            1、跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
            2、bert的layernorm是在attn/ffc之后，OpenAi-gpt2是在之前。
            使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
@@ -1393,15 +1398,14 @@ class GPT2(LM_Mask, BERT):
         return super(GPT2, self).load_variable(state_dict, name, prefix='gpt2')
 
     def variable_mapping(self):
-        """映射到GPT权重格式
-        """
+        # 映射到GPT权重格式
         mapping =  super(GPT2, self).variable_mapping(prefix='gpt2')
         mapping.update({'LayerNormFinal.weight': 'gpt2.LayerNormFinal.weight',
                         'LayerNormFinal.bias': 'gpt2.LayerNormFinal.bias'})
         return mapping
     
     class Gpt2Layer(BertLayer):
-        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用
+        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用。
         顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
         def __init__(self, *args, **kwargs):
@@ -1418,8 +1422,8 @@ class GPT2(LM_Mask, BERT):
 
 
 class GPT2_ML(LM_Mask, BERT):
-    """构建GPT2_ML模型
-    链接: https://github.com/imcaspar/gpt2-ml
+    """构建GPT2_ML模型；
+    链接: https://github.com/imcaspar/gpt2-ml；
     注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
          看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第一个跳跃链接是在layernorm前，bert是在之后
     """
@@ -1442,13 +1446,12 @@ class GPT2_ML(LM_Mask, BERT):
         return super(GPT2_ML, self).load_variable(state_dict, name, prefix='gpt2_ml')
 
     def variable_mapping(self):
-        """映射到GPT2权重格式
-        """
+        # 映射到GPT2权重格式
         mapping =  super(GPT2_ML, self).variable_mapping(prefix='gpt2_ml')
         return mapping
 
     class Gpt2MlLayer(BertLayer):
-        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用
+        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用；
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
         def __init__(self, *args, **kwargs):
@@ -1465,13 +1468,13 @@ class GPT2_ML(LM_Mask, BERT):
 
 
 class Transformer_XL(BERT):
-    '''构建transformer-xl模型, 已加载
-    项目: https://github.com/kimiyoung/transformer-xl
+    '''构建transformer-xl模型, 已加载；
+    项目: https://github.com/kimiyoung/transformer-xl；
     不同点:  
-        1) 简化了原有的AdaptiveEmbedding(可选)和未使用ProjectedAdaptiveLogSoftmax, 直接输出last_hidden_state
-        2) mems修改了transformer中初始化为zero_tensor, 改为包含最后一层, 原项目初始化为empty_tensor
-        3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos
-        4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000
+        1) 简化了原有的AdaptiveEmbedding(可选)和未使用ProjectedAdaptiveLogSoftmax, 直接输出last_hidden_state；
+        2) mems修改了transformer中初始化为zero_tensor, 改为包含最后一层, 原项目初始化为empty_tensor；
+        3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos；
+        4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000。
     '''
     @delete_arguments('with_pool', 'with_nsp', 'with_mlm')
     @insert_arguments(with_lm=False)
@@ -1636,7 +1639,7 @@ class Transformer_XL(BERT):
 
 
 class XLNET(Transformer_XL):
-    '''构建xlnet模型, 这里做了简化, 只用来finetune, 即没有perm_mask, target_mapping这些输入
+    '''构建xlnet模型, 这里做了简化, 只用来finetune, 即没有perm_mask, target_mapping这些输入；
        接受的inputs输入: [token_ids, segment_ids]
     '''
     def __init__(self, *args, bi_data=False, **kwargs):
@@ -1681,8 +1684,7 @@ class XLNET(Transformer_XL):
             return hidden_state
 
     def load_variable(self, state_dict, name, prefix='transformer'):
-        """加载单个变量的函数
-        """
+        # 加载单个变量的函数
         variable = state_dict[name]
         if name in {f'{prefix}.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
             return self.load_embeddings(variable)
@@ -1726,30 +1728,31 @@ class XLNET(Transformer_XL):
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', **kwargs):
     """根据配置文件构建模型，可选加载checkpoint权重
-    config_path=config_path: 模型的config文件地址
-    checkpoint_path=checkpoint_path: 模型文件地址，默认值None表示不加载预训练模型
-    model='bert': 加载的模型结构，这里Model也可以基于nn.Module自定义后传入
-    application='encoder': 模型应用，支持encoder，lm和unilm格式
-    segment_vocab_size=2: type_token_ids数量，默认为2，如不传入segment_ids则需设置为0
-    with_pool=False: 是否包含Pool部分
-    with_nsp=False: 是否包含NSP部分
-    with_mlm=False: 是否包含MLM部分
-    return_model_config=False: 是否返回模型配置参数
-    output_all_encoded_layers=False: 是否返回所有hidden_state层
-    layer_add_embs=nn.Embedding(2, 768): 自定义额外的embedding输入
-    keep_tokens=keep_tokens: 精简词表
-    token_pad_ids=-100: 部分模型padding不是0，在这里指定
-    custom_position_ids=False: 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
-    custom_attention_mask=False: 是否自行传入attention_mask
-    shared_segment_embeddings=False: 若True，则segment跟token共用embedding
-    layer_norm_cond=None: conditional layer_norm
-    add_trainer: 指定从BaseModel继承，若build_transformer_model后需直接compile()、fit()需设置为True
-    compound_tokens=None: 扩展Embedding
-    residual_attention_scores=False: Attention矩阵加残差
-    ignore_invalid_weights=False: 允许跳过不存在的权重
-    keep_hidden_layers=None: 保留的hidden_layer层的id
-    hierarchical_position=None: 是否层次分解位置编码
-    gradient_checkpoint=False: 是否使用gradient_checkpoint
+
+    :param config_path: str, 模型的config文件地址
+    :param checkpoint_path: str, 模型文件地址, 默认值None表示不加载预训练模型
+    :param model: str, 加载的模型结构, 这里Model也可以基于nn.Module自定义后传入, 默认为'bert'
+    :param application: str, 模型应用, 支持encoder, lm和unilm格式, 默认为'encoder'
+    :param segment_vocab_size: int, type_token_ids数量, 默认为2, 如不传入segment_ids则需设置为0
+    :param with_pool: bool, 是否包含Pool部分, 默认为False
+    :param with_nsp: bool, 是否包含NSP部分, 默认为False
+    :param with_mlm: bool, 是否包含MLM部分, 默认为False
+    :param output_all_encoded_layers: bool, 是否返回所有hidden_state层, 默认为False
+    :param layer_add_embs: nn.Module, 自定义额外的embedding输入, 如nn.Embedding(2, 768)
+    :param keep_tokens: list[int], 精简词表, 保留的id的序号如：[0, 100, 101, 102, 106, 107, ...]
+    :param token_pad_ids: int, 默认为0, 部分模型padding不是0时在这里指定, 用于attention_mask生成, 如设置成-100
+    :param custom_position_ids: bool, 是否自行传入位置id, True表示传入, False表示不传入, 'start_at_padding'表示从padding_idx+1开始, 默认为False
+    :param custom_attention_mask: bool, 是否自行传入attention_mask, 默认为False
+    :param shared_segment_embeddings: bool, 若True, 则segment跟token共用embedding, 默认为False
+    :param layer_norm_cond: conditional layer_norm, 默认为None
+    :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
+    :param compound_tokens: 扩展Embedding, 默认为None
+    :param residual_attention_scores: bool, Attention矩阵加残差, 默认为False
+    :param ignore_invalid_weights: bool, 允许跳过不存在的权重, 默认为False
+    :param keep_hidden_layers: 保留的hidden_layer层的id, 默认为None表示全部使用
+    :param hierarchical_position: 是否层次分解位置编码, 默认为None表示不使用
+    :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
+    :return: A pytorch model instance
     """
     configs = {}
     if config_path is not None:
