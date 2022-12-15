@@ -62,7 +62,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
     ```
 
 ## 3. 快速上手
-- [说明文档](https://bert4torch.readthedocs.io/zh_CN/latest//Quick-Start.html)
+- [Documentation](https://bert4torch.readthedocs.io/en/latest//Quick-Start.html)
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md)，[教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials)，[实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)，[bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
 
