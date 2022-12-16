@@ -78,4 +78,4 @@ source_parsers = {
 source_suffix = ['.rst', '.md']
 
 
-autodoc_mock_imports = ['numpy', 'torch', 'tqdm', 'sklearn']
+autodoc_mock_imports = ['numpy', 'torch', 'tqdm', 'sklearn', 'six']
