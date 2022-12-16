@@ -1425,7 +1425,7 @@ class GPT2_ML(LM_Mask, BERT):
     """构建GPT2_ML模型；
     链接: https://github.com/imcaspar/gpt2-ml；
     注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
-         看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第一个跳跃链接是在layernorm前，bert是在之后
+    看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第一个跳跃链接是在layernorm前，bert是在之后
     """
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
@@ -1471,10 +1471,10 @@ class Transformer_XL(BERT):
     '''构建transformer-xl模型, 已加载；
     项目: https://github.com/kimiyoung/transformer-xl；
     不同点:  
-        1) 简化了原有的AdaptiveEmbedding(可选)和未使用ProjectedAdaptiveLogSoftmax, 直接输出last_hidden_state；
-        2) mems修改了transformer中初始化为zero_tensor, 改为包含最后一层, 原项目初始化为empty_tensor；
-        3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos；
-        4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000。
+    1) 简化了原有的AdaptiveEmbedding(可选)和未使用ProjectedAdaptiveLogSoftmax, 直接输出last_hidden_state；
+    2) mems修改了transformer中初始化为zero_tensor, 改为包含最后一层, 原项目初始化为empty_tensor；
+    3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos；
+    4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000。
     '''
     @delete_arguments('with_pool', 'with_nsp', 'with_mlm')
     @insert_arguments(with_lm=False)

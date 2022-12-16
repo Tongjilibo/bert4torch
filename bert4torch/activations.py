@@ -16,7 +16,7 @@ def _gelu_python(x):
     return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
 
 
-def gelu_new(x):
+def _gelu_new(x):
     """
     Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT). Also see
     the Gaussian Error Linear Units paper: https://arxiv.org/abs/1606.08415
@@ -79,7 +79,7 @@ ACT2FN = {
     "swish": silu,
     "gelu": gelu,
     "tanh": torch.tanh,
-    "gelu_new": gelu_new,
+    "gelu_new": _gelu_new,
     "gelu_fast": gelu_fast,
     "quick_gelu": quick_gelu,
     "mish": mish,
@@ -90,6 +90,11 @@ ACT2FN = {
 
 
 def get_activation(activation_string):
+    '''根据activation_string返回对应的激活函数
+
+    :param activation_string: str, 传入的激活函数名
+    :return: Any
+    '''
     if activation_string in ACT2FN:
         return ACT2FN[activation_string]
     else:

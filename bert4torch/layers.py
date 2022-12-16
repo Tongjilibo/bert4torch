@@ -494,13 +494,13 @@ class BertEmbeddings(nn.Module):
 
 
 class BertLayer(nn.Module):
-    """
-        Transformer层:
-        顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
+    """Transformer层:
+       顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
 
-        注意: 1、以上都不计dropout层，并不代表没有dropout，每一层的dropout使用略有不同，注意区分
-              2、原始的Transformer的encoder中的Feed Forward层一共有两层linear，
-              config.intermediate_size的大小不仅是第一层linear的输出尺寸，也是第二层linear的输入尺寸
+       注意:
+        1. 以上都不计dropout层，并不代表没有dropout，每一层的dropout使用略有不同，注意区分
+        2. 原始的Transformer的encoder中的Feed Forward层一共有两层linear，
+        3. config.intermediate_size的大小不仅是第一层linear的输出尺寸，也是第二层linear的输入尺寸
     """
     def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, 
                  is_dropout=False, conditional_size=False, **kwargs):
@@ -1264,8 +1264,9 @@ class GlobalPointer(nn.Module):
             self.position_embedding = RoPEPositionEncoding(max_len, head_size)
 
     def forward(self, inputs, mask=None):
-        ''' inputs: [..., hdsz]
-            mask: [bez, seq_len], padding部分为0
+        ''' 
+        :param inputs: shape=[..., hdsz]
+        :param mask: shape=[btz, seq_len], padding部分为0
         '''
         sequence_output = self.dense(inputs)  # [..., heads*head_size*2]
         sequence_output = torch.stack(torch.chunk(sequence_output, self.heads, dim=-1), dim=-2)  # [..., heads, head_size*2]
@@ -1311,8 +1312,9 @@ class EfficientGlobalPointer(nn.Module):
             self.position_embedding = RoPEPositionEncoding(max_len, head_size)
 
     def forward(self, inputs, mask=None):
-        ''' inputs: [..., hdsz]
-            mask: [bez, seq_len], padding部分为0
+        ''' 
+        :param inputs: shape=[..., hdsz]
+        :param mask: shape=[btz, seq_len], padding部分为0
         '''
         sequence_output = self.p_dense(inputs)  # [..., head_size*2]
         qw, kw = sequence_output[..., :self.head_size], sequence_output[..., self.head_size:]  # [..., head_size]
@@ -1388,9 +1390,8 @@ class TplinkerHandshakingKernel(nn.Module):
     
     def forward(self, seq_hiddens):
         '''
-        seq_hiddens: (batch_size, seq_len, hidden_size)
-        return:
-            shaking_hiddenss: (batch_size, (1 + seq_len) * seq_len / 2, hidden_size) (32, 5+4+3+2+1, 5)
+        :param seq_hiddens: (batch_size, seq_len, hidden_size)
+        :return: shaking_hiddenss: (batch_size, (1 + seq_len) * seq_len / 2, hidden_size) (32, 5+4+3+2+1, 5)
         '''
         seq_len = seq_hiddens.size()[-2]
         shaking_hiddens_list = []
@@ -1430,7 +1431,10 @@ class TplinkerHandshakingKernel(nn.Module):
 
 class MixUp(nn.Module):
     '''mixup方法实现
-        method: embed, encoder分别表示在embedding和encoder层面做mixup, None表示mix后续处理, hidden表示对隐含层做mixup
+    
+    :param method: str, 可选'embed', ’encoder‘分别表示在embedding和encoder层面做mixup, None表示mix后续处理, ’hidden‘表示对隐含层做mixup
+    :param alpha: float
+    :param layer_mix: None or int, 需要mix的隐含层index
     '''
     def __init__(self, method='encoder', alpha=1.0, layer_mix=None):
         super().__init__()
@@ -1555,7 +1559,6 @@ class ConvLayer(nn.Module):
 class MultiSampleDropout(nn.Module):
     """multisample dropout (wut): https://arxiv.org/abs/1905.09788
     """
-
     def __init__(self, hidden_size, num_labels, K=5, p=0.5):
         super().__init__()
         self.K = K

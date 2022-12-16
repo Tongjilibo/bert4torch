@@ -15,8 +15,8 @@ class FocalLoss(nn.Module):
 
     def forward(self, input, target):
         """
-        input: [N, C]
-        target: [N, ]
+        :param input: torch.Tensor, shape=[N, C]
+        :param target: torch.Tensor, shape=[N, ]
         """
         logpt = F.log_softmax(input, dim=1)
         pt = torch.exp(logpt)
@@ -33,6 +33,10 @@ class LabelSmoothingCrossEntropy(nn.Module):
         self.ignore_index = ignore_index
 
     def forward(self, output, target):
+        """
+        :param output: torch.Tensor, shape=[N, C]
+        :param target: torch.Tensor, shape=[N, ]
+        """
         c = output.size()[-1]
         log_preds = F.log_softmax(output, dim=-1)
         if self.reduction=='sum':
@@ -46,17 +50,17 @@ class LabelSmoothingCrossEntropy(nn.Module):
 
 
 class MultilabelCategoricalCrossentropy(nn.Module):
-    """多标签分类的交叉熵
+    """多标签分类的交叉熵；
     说明：y_true和y_pred的shape一致，y_true的元素非0即1， 1表示对应的类为目标类，0表示对应的类为非目标类。
-    警告：请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax！预测
-         阶段则输出y_pred大于0的类。如有疑问，请仔细阅读并理解本文。
+    警告：请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax！预测阶段则输出y_pred大于0的类。如有疑问，请仔细阅读并理解本文。
     参考：https://kexue.fm/archives/7359
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, y_pred, y_true):
-        """ y_true ([Tensor]): [..., num_classes]
-            y_pred ([Tensor]): [..., num_classes]
+        """
+        :param y_true: torch.Tensor, [..., num_classes]
+        :param y_pred: torch.Tensor: [..., num_classes]
         """
         y_pred = (1-2*y_true) * y_pred
         y_pred_pos = y_pred - (1-y_true) * 1e12
@@ -70,13 +74,9 @@ class MultilabelCategoricalCrossentropy(nn.Module):
 
 
 class SparseMultilabelCategoricalCrossentropy(nn.Module):
-    """稀疏版多标签分类的交叉熵
-    说明：
-        1. y_true.shape=[..., num_positive]，
-           y_pred.shape=[..., num_classes]；
-        2. 请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax；
-        3. 预测阶段则输出y_pred大于0的类；
-        4. 详情请看：https://kexue.fm/archives/7359 。
+    """稀疏版多标签分类的交叉熵；
+       请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax，预测阶段则输出y_pred大于0的类；
+       详情请看：https://kexue.fm/archives/7359 。
     """
     def __init__(self, mask_zero=False, epsilon=1e-7, **kwargs):
         super().__init__(**kwargs)
@@ -84,6 +84,10 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
         self.epsilon = epsilon
         
     def forward(self, y_pred, y_true):
+        '''
+        :param y_true: shape=[..., num_positive]
+        :param y_pred: shape=[..., num_classes]
+        '''
         zeros = torch.zeros_like(y_pred[..., :1])
         y_pred = torch.cat([y_pred, zeros], dim=-1)
         if self.mask_zero:
@@ -106,6 +110,10 @@ class ContrastiveLoss(nn.Module):
     """对比损失：减小正例之间的距离，增大正例和反例之间的距离
     公式：labels * distance_matrix.pow(2) + (1-labels)*F.relu(margin-distance_matrix).pow(2)
     https://www.sbert.net/docs/package_reference/losses.html
+
+    :param margin: float, 距离参数，distance>margin时候不参加梯度回传，默认为0.5
+    :param size_average: bool, 是否对loss在样本维度上求均值，默认为True
+    :param online: bool, 是否使用OnlineContrastiveLoss, 即仅计算困难样本的loss, 默认为False
     """
     def __init__(self, margin=0.5, size_average=True, online=False):
         super(ContrastiveLoss, self).__init__()
@@ -114,6 +122,12 @@ class ContrastiveLoss(nn.Module):
         self.online = online
 
     def forward(self, distances, labels, pos_id=1, neg_id=0):
+        """
+        :param distances: torch.Tensor, 样本对之间的预测距离, shape=[btz]
+        :param labels: torch.Tensor, 样本对之间的真实距离, shape=[btz]
+        :param pos_id: int, 正样本的label
+        :param neg_id: int, 负样本的label
+        """
         if not self.online:
             losses = 0.5 * (labels.float() * distances.pow(2) + (1 - labels).float() * F.relu(self.margin - distances).pow(2))
             return losses.mean() if self.size_average else losses.sum()
@@ -132,6 +146,9 @@ class ContrastiveLoss(nn.Module):
 
 class RDropLoss(nn.Module):
     '''R-Drop的Loss实现，官方项目：https://github.com/dropreg/R-Drop
+
+    :param alpha: float, 控制rdrop的loss的比例
+    :param rank: str, 指示y_pred的排列方式, 支持['adjacent', 'updown']
     '''
     def __init__(self, alpha=4, rank='adjacent'):
         super().__init__()
@@ -144,6 +161,11 @@ class RDropLoss(nn.Module):
 
     def forward(self, *args):
         '''支持两种方式: 一种是y_pred, y_true, 另一种是y_pred1, y_pred2, y_true
+
+        :param y_pred: torch.Tensor, 第一种方式的样本预测值, shape=[btz*2, num_labels]
+        :param y_true: torch.Tensor, 样本真实值, 第一种方式shape=[btz*2,], 第二种方式shape=[btz,]
+        :param y_pred1: torch.Tensor, 第二种方式的样本预测值, shape=[btz, num_labels]
+        :param y_pred2: torch.Tensor, 第二种方式的样本预测值, shape=[btz, num_labels]
         '''
         assert len(args) in {2, 3}, 'RDropLoss only support 2 or 3 input args'
         # y_pred是1个Tensor
@@ -171,8 +193,14 @@ class RDropLoss(nn.Module):
 class UDALoss(nn.Module):
     '''UDALoss，使用时候需要继承一下，因为forward需要使用到global_step和total_steps
     https://arxiv.org/abs/1904.12848
+
+    :param tsa_schedule: str, tsa策略，可选['linear_schedule', 'exp_schedule', 'log_schedule']
+    :param start_p: float, tsa生效概率下限, 默认为0
+    :param end_p: float, tsa生效概率上限, 默认为1
+    :param return_all_loss: bool, 是否返回所有的loss，默认为True
+    :return: loss
     '''
-    def __init__(self, tsa_schedule=None, total_steps=None, start_p=0, end_p=1, return_all_loss=True):
+    def __init__(self, tsa_schedule=None, start_p=0, end_p=1, return_all_loss=True):
         super().__init__()
         self.loss_sup = nn.CrossEntropyLoss()
         self.loss_unsup = nn.KLDivLoss(reduction='batchmean')
@@ -184,6 +212,13 @@ class UDALoss(nn.Module):
         self.return_all_loss = return_all_loss
 
     def forward(self, y_pred, y_true_sup, global_step, total_steps):
+        ''' y_pred由[pred_sup, true_unsup, pred_unsup]三部分组成
+        
+        :param y_pred: torch.Tensor, 样本预测值, shape=[btz_sup+btz_unsup*2, num_labels]
+        :param y_true_sup: torch.Tensor, 样本真实值, shape=[btz_sup,]
+        :param global_step: int, 当前训练步数
+        :param total_steps: int, 训练总步数
+        '''
         sup_size = y_true_sup.size(0)
         unsup_size = (y_pred.size(0) - sup_size) // 2
 
@@ -223,9 +258,10 @@ class UDALoss(nn.Module):
 
 class TemporalEnsemblingLoss(nn.Module):
     '''TemporalEnsembling的实现，思路是在监督loss的基础上，增加一个mse的一致性损失loss
-       官方项目：https://github.com/s-laine/tempens
-       pytorch第三方实现：https://github.com/ferretj/temporal-ensembling
-       使用的时候，train_dataloader的shffle必须未False
+
+       - 官方项目：https://github.com/s-laine/tempens
+       - pytorch第三方实现：https://github.com/ferretj/temporal-ensembling
+       - 使用的时候，train_dataloader的shffle必须未False
     '''
     def __init__(self, epochs, max_val=10.0, ramp_up_mult=-5.0, alpha=0.5, max_batch_num=100, hist_device='cpu'):
         super().__init__()
@@ -242,6 +278,13 @@ class TemporalEnsemblingLoss(nn.Module):
         assert (self.alpha >= 0) & (self.alpha < 1)  # 等于1的时候upata写分母为0
 
     def forward(self, y_pred_sup, y_pred_unsup, y_true_sup, epoch, bti):
+        """
+        :param y_pred_sup: torch.Tensor, 监督学习样本预测值, shape=[btz, num_labels]
+        :param y_pred_unsup: torch.Tensor, 无监督学习样本预测值, shape=[btz, num_labels]
+        :param y_true_sup: int, 监督学习样本真实值, shape=[btz,]
+        :param epoch: int, 当前epoch
+        :param bti: int, 当前batch的序号
+        """
         self.same_batch_check(y_pred_sup, y_pred_unsup, y_true_sup, bti)
         
         if (self.max_batch_num is None) or (bti < self.max_batch_num):
