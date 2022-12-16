@@ -27,7 +27,7 @@ if not is_py2:
 def take_along_dim(input_tensor, indices, dim=None):
     '''兼容部分低版本pytorch没有torch.take_along_dim
     '''
-    if version.parse(str(torch.__version__)) >= version.parse('1.9.0'):
+    if version.parse(torch.__version__) >= version.parse('1.9.0'):
         return torch.take_along_dim(input_tensor, indices, dim)
     else:
         # 该逻辑仅在少量数据上测试，如有bug，欢迎反馈
@@ -42,7 +42,7 @@ def take_along_dim(input_tensor, indices, dim=None):
 
 def torch_div(input, other, rounding_mode=None):
     # torch.div兼容老版本
-    if version.parse(str(torch.__version__)) < version.parse('1.7.2'):
+    if version.parse(torch.__version__) < version.parse('1.7.2'):
         indices = input // other  # 兼容老版本
     else:
         indices = torch.div(input, other, rounding_mode=rounding_mode)  # 行索引
@@ -403,7 +403,7 @@ class AutoRegressiveDecoder(object):
             scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
             indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
             indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
-            # if version.parse(str(torch.__version__)) < version.parse('1.7.2'):
+            # if version.parse(torch.__version__) < version.parse('1.7.2'):
             #     indices_1 = indices // scores.shape[1]  # 兼容老版本
             # else:
             #     indices_1 = torch.div(indices, scores.shape[1], rounding_mode='floor')  # 行索引
