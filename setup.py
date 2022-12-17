@@ -14,6 +14,6 @@ setup(
     license='MIT Licence',
     url='https://github.com/Tongjilibo/bert4torch',
     author='Tongjilibo',
-    install_requires=['torch>1.6', 'torch4keras>=0.0.4'],
+    install_requires=['torch>1.6', 'torch4keras<=0.0.5'],
     packages=find_packages()
 )
