@@ -6,10 +6,8 @@ import six
 import numpy as np
 import re
 import torch
-from packaging import version
 from torch.nn.utils.rnn import pad_sequence
 import torch.nn as nn
-from torch.utils.data import Dataset, IterableDataset
 import math
 import gc
 import inspect
@@ -23,30 +21,6 @@ is_py2 = six.PY2
 
 if not is_py2:
     basestring = str
-
-def take_along_dim(input_tensor, indices, dim=None):
-    '''兼容部分低版本pytorch没有torch.take_along_dim
-    '''
-    if version.parse(torch.__version__) >= version.parse('1.9.0'):
-        return torch.take_along_dim(input_tensor, indices, dim)
-    else:
-        # 该逻辑仅在少量数据上测试，如有bug，欢迎反馈
-        if dim is None:
-            res = input_tensor.flatten()[indices]
-        else:
-            res = np.take_along_axis(input_tensor.cpu().numpy(), indices.cpu().numpy(), axis=dim)
-            res = torch.from_numpy(res).to(input_tensor.device)
-        # assert res.equal(torch.take_along_dim(input_tensor, indices, dim))
-        return res
-
-
-def torch_div(input, other, rounding_mode=None):
-    # torch.div兼容老版本
-    if version.parse(torch.__version__) < version.parse('1.7.2'):
-        indices = input // other  # 兼容老版本
-    else:
-        indices = torch.div(input, other, rounding_mode=rounding_mode)  # 行索引
-    return indices
 
 
 def is_string(s):
@@ -300,14 +274,6 @@ def delete_arguments(*arguments):
     return actual_decorator
 
 
-def softmax(x, axis=-1):
-    """numpy版softmax
-    """
-    x = x - x.max(axis=axis, keepdims=True)
-    x = np.exp(x)
-    return x / x.sum(axis=axis, keepdims=True)
-
-
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
     包含beam search和random sample两种策略
@@ -403,10 +369,6 @@ class AutoRegressiveDecoder(object):
             scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
             indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
             indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
-            # if version.parse(torch.__version__) < version.parse('1.7.2'):
-            #     indices_1 = indices // scores.shape[1]  # 兼容老版本
-            # else:
-            #     indices_1 = torch.div(indices, scores.shape[1], rounding_mode='floor')  # 行索引
             indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
             output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
             output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分
@@ -488,73 +450,6 @@ class AutoRegressiveDecoder(object):
             results.append(ids)
         # 返回结果
         return results
-
-
-def search_layer(model, layer_name, retrun_first=True):
-    '''根据layer_name搜索并返回参数/参数list
-    '''
-    return_list = []
-    for name, param in model.named_parameters():
-        if param.requires_grad and layer_name in name:
-            return_list.append(param)
-    if len(return_list) == 0:
-        return None
-    if retrun_first:
-        return return_list[0]
-    else:
-        return return_list
-
-
-class ListDataset(Dataset):
-    '''数据是List格式Dataset，支持传入file_path或者外部已读入的data(List格式)
-    '''
-    def __init__(self, file_path=None, data=None, **kwargs):
-        self.kwargs = kwargs
-        if isinstance(file_path, (str, tuple, list)):
-            self.data = self.load_data(file_path)
-        elif isinstance(data, list):
-            self.data = data
-        else:
-            raise ValueError('The input args shall be str format file_path / list format dataset')
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        return self.data[index]
-
-    @staticmethod
-    def load_data(file_path):
-        return file_path
-
-
-class IterDataset(IterableDataset):
-    '''流式读取文件，用于大数据量、多小文件
-       使用时候需要注意steps_per_epoch != None
-    '''
-    def __init__(self, file_path=None, **kwargs):
-        self.kwargs = kwargs
-        if isinstance(file_path, (str, tuple, list)):
-            self.file_path = file_path
-        else:
-            raise ValueError('The input args shall be str format file_path / list format dataset')
-    
-    def __iter__(self):
-        return self.load_data(self.file_path)
-
-    @staticmethod
-    def load_data(file_path, verbose=0):
-        if isinstance(file_path, (tuple, list)):
-            for file in file_path:
-                if verbose != 0:
-                    print("Load data: ", file)
-                with open(file, 'r') as file_obj:
-                    for line in file_obj:
-                        yield line
-        elif isinstance(file_path, str):
-            with open(file_path, 'r') as file_obj:
-                for line in file_obj:
-                    yield line
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
