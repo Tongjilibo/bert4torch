@@ -3,7 +3,7 @@
 import math
 import torch
 from torch import nn
-from torch4keras.snippets import version_compare
+from packaging import version
 
 
 def _gelu_python(x):
@@ -24,7 +24,7 @@ def _gelu_new(x):
     return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
 
 
-if version_compare(torch.__version__, '<', "1.4"):
+if version.parse(torch.__version__) < version.parse("1.4"):
     gelu = _gelu_python
 else:
     gelu = nn.functional.gelu
@@ -49,7 +49,7 @@ def _silu_python(x):
     return x * torch.sigmoid(x)
 
 
-if version_compare(torch.__version__, '<', "1.7"):
+if version.parse(torch.__version__) < version.parse("1.7"):
     silu = _silu_python
 else:
     silu = nn.functional.silu
@@ -63,7 +63,7 @@ def _mish_python(x):
     return x * torch.tanh(nn.functional.softplus(x))
 
 
-if version_compare(torch.__version__, '<', "1.9"):
+if version.parse(torch.__version__) < version.parse("1.9"):
     mish = _mish_python
 else:
     mish = nn.functional.mish

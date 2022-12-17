@@ -1,1 +1,1 @@
-torch4keras==0.0.4
+torch4keras==0.0.5

@@ -576,7 +576,7 @@ class WordpieceTokenizer(object):
                     substr = "".join(chars[start:end])
                     if start > 0:
                         substr = "##" + substr
-                    if (substr in self.vocab) or (not self.do_tokenize_unk):
+                    if substr in self.vocab:
                         cur_substr = substr
                         break
 
@@ -589,6 +589,8 @@ class WordpieceTokenizer(object):
 
             if self.do_tokenize_unk and is_bad:  # 是否在tokenize阶段转UNK
                 output_tokens.append(self.unk_token)
+            elif (not self.do_tokenize_unk) and is_bad:
+                output_tokens.append(substr)
             else:
                 output_tokens.extend(sub_tokens)
         return output_tokens

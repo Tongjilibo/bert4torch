@@ -8,7 +8,7 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-root_model_path = "/Users/lb/Documents/pretrain_ckpt/text2vec-base-chinese"
+root_model_path = "F:/Projects/pretrain_ckpt/text2vec-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
