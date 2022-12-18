@@ -13,9 +13,22 @@ from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 import torch.nn as nn
 from collections import Counter
+import random
+
+
+corres_threshold = 0.5
+rel_threshold = 0.5
+ensure_rel = False
+ensure_corres = False
+num_negs = 4
+drop_prob = 0.3
+emb_fusion = 'concat'
+Label2IdxSub = {"B-H": 1, "I-H": 2, "O": 0}
+Label2IdxObj = {"B-T": 1, "I-T": 2, "O": 0}
+
 
 maxlen = 128
-batch_size = 64
+batch_size = 8
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
@@ -65,6 +78,7 @@ def get_spoes(text, spo_list):
             spoes[s].append(o)
     return token_ids, segment_ids, spoes
 
+
 # 加载数据集
 class MyDataset(ListDataset):
     @staticmethod
@@ -79,45 +93,73 @@ class MyDataset(ListDataset):
                 labels = [(spo['subject'], spo['predicate'], spo['object']) for spo in l['spo_list']]
                 token_ids, segment_ids, spoes = get_spoes(l['text'], labels)
                 if spoes:
-                    D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
-                              'segment_ids': segment_ids, 'spoes': spoes})
+                    # D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
+                    #           'segment_ids': segment_ids, 'spoes': spoes})
+        
+                    # construct tags of correspondence and relation
+                    corres_tag = np.zeros((maxlen, maxlen))
+                    rel_tag = len(predicate2id) * [0]
+                    for subject, object_labels in spoes.items():
+                        for object_label in object_labels:
+                            # get sub and obj head
+                            sub_head, obj_head, rel = subject[0], object_label[0], object_label[-1]
+                            # construct relation tag
+                            rel_tag[rel] = 1
+                            if sub_head != -1 and obj_head != -1:
+                                corres_tag[sub_head][obj_head] = 1
+
+                    rel2ens = {}
+                    # positive samples
+                    for subject, object_labels in spoes.items():
+                        for object_label in object_labels:
+                            rel = object_label[-1]
+                            object_ = (object_label[0], object_label[1])
+                            rel2ens[rel] = rel2ens.get(rel, []) + [[subject, object_]]
+                    
+                    for rel, en_ll in rel2ens.items():
+                        # init
+                        tags_sub = maxlen * [Label2IdxSub['O']]
+                        tags_obj = maxlen * [Label2IdxSub['O']]
+                        for en in en_ll:
+                            # get sub and obj head
+                            sub_head, obj_head, sub_len, obj_len = en[0][0], en[1][0], en[0][-1] - en[0][0], en[1][-1] - en[1][0]
+                            if sub_head != -1 and obj_head != -1:
+                                if sub_head + sub_len <= maxlen:
+                                    tags_sub[sub_head] = Label2IdxSub['B-H']
+                                    tags_sub[sub_head + 1:sub_head + sub_len] = (sub_len - 1) * [Label2IdxSub['I-H']]
+                                if obj_head + obj_len <= maxlen:
+                                    tags_obj[obj_head] = Label2IdxObj['B-T']
+                                    tags_obj[obj_head + 1:obj_head + obj_len] = (obj_len - 1) * [Label2IdxObj['I-T']]
+                        seq_tag = [tags_sub, tags_obj]
+
+                        # sanity check
+                        D.append([token_ids, corres_tag, seq_tag, rel, rel_tag])
+
+                    # relation judgement ablation
+                    if not ensure_rel:
+                        # negative samples
+                        neg_rels = set(predicate2id.values()).difference(set(rel2ens.keys()))
+                        neg_rels = random.sample(neg_rels, k=num_negs)
+                        for neg_rel in neg_rels:
+                            # init
+                            seq_tag = maxlen * [Label2IdxSub['O']]
+                            # sanity check
+                            seq_tag = [seq_tag, seq_tag]
+                            D.append([token_ids, corres_tag, seq_tag, neg_rel, rel_tag])
+                # if len(D) > 1000:
+                #     break
         return D
 
-def collate_fn(batch):
-    batch_token_ids, batch_segment_ids = [], []
-    batch_subject_labels, batch_subject_ids, batch_object_labels = [], [], []
-    for d in batch:
-        token_ids, segment_ids, spoes = d['token_ids'], d['segment_ids'], d['spoes']
-        if spoes:
-            # subject标签
-            subject_labels = np.zeros((len(token_ids), 2))
-            for s in spoes:
-                subject_labels[s[0], 0] = 1  # subject首
-                subject_labels[s[1], 1] = 1  # subject尾
-            # 随机选一个subject（这里没有实现错误！这就是想要的效果！！）
-            # Todo: 感觉可以对未选到的subject加个mask，这样计算loss就不会计算到，可能因为模型对prob**n正例加权重导致影响不大
-            start, end = np.array(list(spoes.keys())).T
-            start = np.random.choice(start)
-            end = np.random.choice(end[end >= start])
-            subject_ids = (start, end)
-            # 对应的object标签
-            object_labels = np.zeros((len(token_ids), len(predicate2id), 2))
-            for o in spoes.get(subject_ids, []):
-                object_labels[o[0], o[2], 0] = 1
-                object_labels[o[1], o[2], 1] = 1
-            # 构建batch
-            batch_token_ids.append(token_ids)
-            batch_segment_ids.append(segment_ids)
-            batch_subject_labels.append(subject_labels)
-            batch_subject_ids.append(subject_ids)
-            batch_object_labels.append(object_labels)
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    batch_subject_labels = torch.tensor(sequence_padding(batch_subject_labels), dtype=torch.float, device=device)
-    batch_subject_ids = torch.tensor(batch_subject_ids, dtype=torch.long, device=device)
-    batch_object_labels = torch.tensor(sequence_padding(batch_object_labels), dtype=torch.float, device=device)
-    batch_attention_mask = (batch_token_ids != tokenizer._token_pad_id)
-    return [batch_token_ids, batch_segment_ids, batch_subject_ids], [batch_subject_labels, batch_object_labels, batch_attention_mask]
+def collate_fn(data):
+    token_ids, corres_tags, seq_tags, rel, rel_tags = map(list, zip(*data))
+    token_ids = torch.tensor(sequence_padding(token_ids, length=maxlen), dtype=torch.long, device=device)
+    corres_tags = torch.tensor(sequence_padding(corres_tags), dtype=torch.long, device=device)
+    seq_tags = torch.tensor(sequence_padding(seq_tags), dtype=torch.long, device=device)
+    rel = torch.tensor(rel, dtype=torch.long, device=device)
+    rel_tags = torch.tensor(sequence_padding(rel_tags), dtype=torch.long, device=device)
+
+    attention_mask = (token_ids != tokenizer._token_pad_id).long()
+    return [token_ids, rel], [seq_tags, rel_tags, corres_tags, attention_mask]
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -164,25 +206,23 @@ class SequenceLabelForSO(nn.Module):
 
 
 class Model(BaseModel):
-    def __init__(self, config, params):
-        super().__init__(config)
-        self.max_seq_len = params.max_seq_length
-        self.seq_tag_size = params.seq_tag_size
-        self.rel_num = params.rel_num
+    def __init__(self):
+        super().__init__()
+        self.seq_tag_size = len(Label2IdxSub)
+        self.rel_num = len(predicate2id)
 
         # pretrain model
-        self.bert = build_transformer_model(config_path, checkpoint_path)
+        self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0)
+        config = self.bert.configs
         # sequence tagging
-        self.sequence_tagging_sub = MultiNonLinearClassifier(config.hidden_size * 2, self.seq_tag_size, params.drop_prob)
-        self.sequence_tagging_obj = MultiNonLinearClassifier(config.hidden_size * 2, self.seq_tag_size, params.drop_prob)
-        self.sequence_tagging_sum = SequenceLabelForSO(config.hidden_size, self.seq_tag_size, params.drop_prob)
+        self.sequence_tagging_sub = MultiNonLinearClassifier(config.hidden_size * 2, self.seq_tag_size, drop_prob)
+        self.sequence_tagging_obj = MultiNonLinearClassifier(config.hidden_size * 2, self.seq_tag_size, drop_prob)
+        self.sequence_tagging_sum = SequenceLabelForSO(config.hidden_size, self.seq_tag_size, drop_prob)
         # global correspondence
-        self.global_corres = MultiNonLinearClassifier(config.hidden_size * 2, 1, params.drop_prob)
+        self.global_corres = MultiNonLinearClassifier(config.hidden_size * 2, 1, drop_prob)
         # relation judgement
-        self.rel_judgement = MultiNonLinearClassifier(config.hidden_size, params.rel_num, params.drop_prob)
-        self.rel_embedding = nn.Embedding(params.rel_num, config.hidden_size)
-
-        self.init_weights()
+        self.rel_judgement = MultiNonLinearClassifier(config.hidden_size, self.rel_num, drop_prob)
+        self.rel_embedding = nn.Embedding(self.rel_num, config.hidden_size)
 
     @staticmethod
     def masked_avgpool(sent, mask):
@@ -190,25 +230,17 @@ class Model(BaseModel):
         score = torch.softmax(mask_, -1)
         return torch.matmul(score.unsqueeze(1), sent).squeeze(1)
 
-    def forward(self, input_ids=None, seq_tags=None, potential_rels=None, corres_tags=None, rel_tags=None, ex_params=None):
+    def forward(self, input_ids=None, potential_rels=None):
         """
         Args:
             input_ids: (batch_size, seq_len)
-            attention_mask: (batch_size, seq_len)
-            rel_tags: (bs, rel_num)
             potential_rels: (bs,), only in train stage.
-            seq_tags: (bs, 2, seq_len)
-            corres_tags: (bs, seq_len, seq_len)
-            ex_params: experiment parameters
         """
-        # get params for experiments
-        corres_threshold, rel_threshold = ex_params.get('corres_threshold', 0.5), ex_params.get('rel_threshold', 0.1)
-        # ablation study
-        ensure_corres, ensure_rel = ex_params['ensure_corres'], ex_params['ensure_rel']
         # pre-train model
         sequence_output = self.bert([input_ids])  # sequence_output, pooled_output, (hidden_states), (attentions)
         bs, seq_len, h = sequence_output.size()
         attention_mask = (input_ids != tokenizer._token_pad_id).long()
+        corres_mask, rel_pred = None, None
 
         if ensure_rel:
             # (bs, h)
@@ -231,7 +263,7 @@ class Model(BaseModel):
 
         # relation predict and data construction in inference stage
         xi, pred_rels = None, None
-        if ensure_rel and seq_tags is None:
+        if ensure_rel:
             # (bs, rel_num)
             rel_pred_onehot = torch.where(torch.sigmoid(rel_pred) > rel_threshold,
                                           torch.ones(rel_pred.size(), device=rel_pred.device),
@@ -266,31 +298,37 @@ class Model(BaseModel):
             # (sum(x_i),)
             potential_rels = torch.stack(pos_potential_rel, dim=0)
         # ablation of relation judgement
-        elif not ensure_rel and seq_tags is None:
+        elif not ensure_rel:
             # construct test data
-            sequence_output = sequence_output.repeat((1, self.rel_num, 1)).view(bs * self.rel_num, seq_len, h)
-            attention_mask = attention_mask.repeat((1, self.rel_num)).view(bs * self.rel_num, seq_len)
-            potential_rels = torch.arange(0, self.rel_num, device=input_ids.device).repeat(bs)
+            # sequence_output = sequence_output.repeat((1, self.rel_num, 1)).view(bs * self.rel_num, seq_len, h)
+            # attention_mask = attention_mask.repeat((1, self.rel_num)).view(bs * self.rel_num, seq_len)
+            # potential_rels = torch.arange(0, self.rel_num, device=input_ids.device).repeat(bs)
+            pass
 
         # (bs/sum(x_i), h)
         rel_emb = self.rel_embedding(potential_rels)
 
         # relation embedding vector fusion
         rel_emb = rel_emb.unsqueeze(1).expand(-1, seq_len, h)
-        if ex_params['emb_fusion'] == 'concat':
+        if emb_fusion == 'concat':
             # (bs/sum(x_i), seq_len, 2*h)
             decode_input = torch.cat([sequence_output, rel_emb], dim=-1)
             # (bs/sum(x_i), seq_len, tag_size)
             output_sub = self.sequence_tagging_sub(decode_input)
             output_obj = self.sequence_tagging_obj(decode_input)
-        elif ex_params['emb_fusion'] == 'sum':
+        elif emb_fusion == 'sum':
             # (bs/sum(x_i), seq_len, h)
             decode_input = sequence_output + rel_emb
             # (bs/sum(x_i), seq_len, tag_size)
             output_sub, output_obj = self.sequence_tagging_sum(decode_input)
-        return output_sub, output_obj
+        return output_sub, output_obj, corres_mask, pred_rels, xi, rel_pred
     
-    def predict(self):
+    def predict(self, inputs):
+
+        self.eval()
+        with torch.no_grad():
+            output_sub, output_obj, corres_mask, pred_rels, xi, _ = self.forward(inputs)
+
         # (sum(x_i), seq_len)
         pred_seq_sub = torch.argmax(torch.softmax(output_sub, dim=-1), dim=-1)
         pred_seq_obj = torch.argmax(torch.softmax(output_obj, dim=-1), dim=-1)
@@ -312,14 +350,16 @@ class Loss(nn.Module):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, outputs, targets):
-        output_sub, output_obj = outputs
+        output_sub, output_obj, corres_mask, pred_rels, xi, rel_pred = outputs
+        seq_tags, rel_tags, corres_tags, attention_mask = targets
 
+        bs = seq_tags.shape[0]
         # calculate loss
         attention_mask = attention_mask.view(-1)
         # sequence label loss
         loss_func = nn.CrossEntropyLoss(reduction='none')
-        loss_seq_sub = (loss_func(output_sub.view(-1, self.seq_tag_size), seq_tags[:, 0, :].reshape(-1)) * attention_mask).sum() / attention_mask.sum()
-        loss_seq_obj = (loss_func(output_obj.view(-1, self.seq_tag_size), seq_tags[:, 1, :].reshape(-1)) * attention_mask).sum() / attention_mask.sum()
+        loss_seq_sub = (loss_func(output_sub.view(-1, len(Label2IdxSub)), seq_tags[:, 0, :].reshape(-1)) * attention_mask).sum() / attention_mask.sum()
+        loss_seq_obj = (loss_func(output_obj.view(-1, len(Label2IdxSub)), seq_tags[:, 1, :].reshape(-1)) * attention_mask).sum() / attention_mask.sum()
         loss_seq = (loss_seq_sub + loss_seq_obj) / 2
         # init
         loss_matrix, loss_rel = torch.tensor(0), torch.tensor(0)
