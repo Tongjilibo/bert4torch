@@ -2,6 +2,7 @@
 # SimBERT/RoFormer-Sim测试相似问生成效果，以及句子之间相似度效果
 # 官方项目：https://github.com/ZhuiyiTechnology/simbert
 # 官方项目：https://github.com/ZhuiyiTechnology/roformer-sim
+# simbert权重转换脚本可见：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_simbert.py
 
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
