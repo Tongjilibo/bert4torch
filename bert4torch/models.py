@@ -359,6 +359,7 @@ class BERT(BERT_BASE):
         layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
                           is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        
         if self.with_pool:
             # Pooler部分（提取CLS向量）
             self.pooler = nn.Linear(self.hidden_size, self.hidden_size)
@@ -370,11 +371,12 @@ class BERT(BERT_BASE):
         else:
             self.pooler = None
             self.pooler_activation = None
+
         if self.with_mlm:
-            self.mlmDense = nn.Linear(self.hidden_size, self.hidden_size)
+            self.mlmDense = nn.Linear(self.hidden_size, self.embedding_size)  # 允许hidden_size和embedding_size不同
             self.transform_act_fn = get_activation(self.hidden_act)
-            self.mlmLayerNorm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
-            self.mlmDecoder = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+            self.mlmLayerNorm = LayerNorm(self.embedding_size, eps=1e-12, conditional_size=self.conditional_size)
+            self.mlmDecoder = nn.Linear(self.embedding_size, self.vocab_size, bias=False)
             if kwargs.get('tie_emb_prj_weight') is True:
                 self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
@@ -580,6 +582,9 @@ class BERT(BERT_BASE):
                             f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'output.LayerNorm.bias'
                             })
 
+        if self.embedding_size != self.hidden_size:
+            mapping.update({'embeddings.embedding_hidden_mapping_in.weight': f'{prefix}.encoder.embedding_hidden_mapping_in.weight',
+                            'embeddings.embedding_hidden_mapping_in.bias': f'{prefix}.encoder.embedding_hidden_mapping_in.bias'})
         return mapping
 
 
