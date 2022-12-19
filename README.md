@@ -10,6 +10,7 @@
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/Tongjilibo/bert4torch/issues)
 
 [Documentation](https://bert4torch.readthedocs.io) |
+[Torch4keras](https://github.com/Tongjilibo/torch4keras) |
 [Examples](https://github.com/Tongjilibo/bert4torch/blob/master/examples) |
 [Source code](https://github.com/Tongjilibo/bert4torch)
 
@@ -132,7 +133,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | ernie | 百度文心 |[paddle](https://github.com/PaddlePaddle/ERNIE)，[torch](https://huggingface.co/nghuyong) | 
 | roformer | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer)，[torch](https://huggingface.co/junnyu/roformer_chinese_base) |  
 | roformer_v2 | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-v2)，[torch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base) | 
-| simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert)，[torch](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
+| simbert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/simbert)，[torch_base](https://huggingface.co/peterchou/simbert-chinese-base/tree/main) | 
 | roformer-sim | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/roformer-sim)，[torch](https://huggingface.co/junnyu/roformer_chinese_sim_char_base) | 
 | gau-alpha | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/GAU-alpha) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_GAU_alpha.py)
 | wobert | 追一科技 | [tf](https://github.com/ZhuiyiTechnology/WoBERT)，[torch_base](https://huggingface.co/junnyu/wobert_chinese_base)，[torch_plus_base](https://huggingface.co/junnyu/wobert_chinese_plus_base)||
