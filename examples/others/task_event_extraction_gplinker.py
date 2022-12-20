@@ -20,29 +20,26 @@ from tensorboardX import SummaryWriter
 maxlen = 128
 batch_size = 16
 epochs = 200
-config_path = '/Users/lb/Documents/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/config.json'
-checkpoint_path = '/Users/lb/Documents/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/bert4torch_pytorch_model.bin'
-dict_path = '/Users/lb/Documents/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 model_name = 'Chinese_roberta_wwm_ext'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
-
-train_path = '/Users/lb/Documents/data/event_extraction/duee/duee_train.json'
-valid_path = '/Users/lb/Documents/data/event_extraction/duee/duee_dev.json'
-test_path = '/Users/lb/Documents/data/event_extraction/duee/duee_test2.json'
-schema_path = '/Users/lb/Documents/data/event_extraction/duee/duee_event_schema.json'
+train_path = 'F:/Projects/data/corpus/event_extraction/duee/duee_train.json'
+valid_path = 'F:/Projects/data/corpus/event_extraction/duee/duee_dev.json'
+test_path = 'F:/Projects/data/corpus/event_extraction/duee/duee_test2.json'
+schema_path = 'F:/Projects/data/corpus/event_extraction/duee/duee_event_schema.json'
 best_model_save_path = './'
 optimizer_name = 'adam'
 best_e_weigths_save_path = os.path.join(best_model_save_path, 'best_model.{}.e.weights.pt'.format(optimizer_name))
 best_a_weigths_save_path = os.path.join(best_model_save_path, 'best_model.{}.a.weights.pt'.format(optimizer_name))
-# log_dir = os.path.join(best_model_save_path, 'log_{}'.format(optimizer_name))
 log_dir = './test_log'
 
 
 # 读取schema
 labels = []
-with open(schema_path) as f:
+with open(schema_path, 'r', encoding='utf-8') as f:
     for l in f:
         l = json.loads(l)
         t = l['event_type']
@@ -61,7 +58,7 @@ class MyDataset(ListDataset):
         单条格式：{'text': text, 'events': [[(type, role, argument, start_index)]]}
         """
         D = []
-        with open(filename, encoding='utf-8') as f:
+        with open(filename, 'r', encoding='utf-8') as f:
             for l in f:
                 l = json.loads(l)
                 d = {'text': l['text'], 'events': []}
@@ -125,21 +122,14 @@ def collate_fn(batch):
         batch_tail_labels.append(tail_labels)
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    batch_argu_labels = torch.tensor(sequence_padding(
-                batch_argu_labels, seq_dims=2
-            ), dtype=torch.long, device=device)
-    batch_head_labels = torch.tensor(sequence_padding(
-                batch_head_labels, seq_dims=2
-            ), dtype=torch.long, device=device)
-    batch_tail_labels = torch.tensor(sequence_padding(
-                batch_tail_labels, seq_dims=2
-            ), dtype=torch.long, device=device)
+    batch_argu_labels = torch.tensor(sequence_padding(batch_argu_labels, seq_dims=2), dtype=torch.long, device=device)
+    batch_head_labels = torch.tensor(sequence_padding(batch_head_labels, seq_dims=2), dtype=torch.long, device=device)
+    batch_tail_labels = torch.tensor(sequence_padding(batch_tail_labels, seq_dims=2), dtype=torch.long, device=device)
     # return X, Y
     return [batch_token_ids, batch_segment_ids], [batch_argu_labels, batch_head_labels, batch_tail_labels]
 
 
-train_dataloader = DataLoader(MyDataset(train_path), 
-                   batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(train_path), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataset = MyDataset(valid_path)
 
 
@@ -185,7 +175,7 @@ model.compile(
             loss=MyLoss(mask_zero=True),
             optimizer=optim.Adam(model.parameters(), 2e-5),
             metrics=['argu_loss', 'head_loss', 'tail_loss'],
-            grad_accumulation_steps=2)
+            )
 
 
 class DedupList(list):
