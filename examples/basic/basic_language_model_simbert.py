@@ -55,7 +55,7 @@ class Model(BaseModel):
         sen_emb = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
         return seq_logit, sen_emb
 
-model = Model(pool_method='cls').to(device)
+model = Model(pool_method='pooler').to(device)
 
 class SynonymsGenerator(AutoRegressiveDecoder):
     """seq2seq解码器
