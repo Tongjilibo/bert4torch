@@ -27,7 +27,7 @@ seed_everything(42)
 
 # 建立分词器
 tokenizer = SpTokenizer(spm_path, token_start=None, token_end=None)
-sep_id = tokenizer.sp_model.piece_to_id('<sep>')
+sep_id = tokenizer.sp_model.piece_to_id('<sep>')  # 手动生成
 cls_id = tokenizer.sp_model.piece_to_id('<cls>')
 
 # 加载数据集
