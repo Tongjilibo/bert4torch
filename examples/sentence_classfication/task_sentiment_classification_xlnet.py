@@ -26,7 +26,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
 # 建立分词器
-tokenizer = SpTokenizer(spm_path, token_start=None, token_end='<cls>')
+tokenizer = SpTokenizer(spm_path, token_start=None, token_end=None)
+sep_id = tokenizer.sp_model.piece_to_id('<sep>')
+cls_id = tokenizer.sp_model.piece_to_id('<cls>')
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -47,12 +49,14 @@ class MyDataset(ListDataset):
 def collate_fn(batch):
     batch_token_ids, batch_labels = [], []
     for text, label in batch:
-        token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
-        batch_token_ids.append(token_ids)
+        token_ids, _ = tokenizer.encode(text, maxlen=maxlen-2)
+        # single sequence X <sep> <cls>
+        # pair sequence A <sep> B <sep> <cls>
+        batch_token_ids.append(token_ids + [sep_id, cls_id])
         batch_labels.append([label])
 
     # 用tokenizer的pad_id来做padding
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer._token_pad_id), dtype=torch.long, device=device)
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer._token_pad_id, mode='pre'), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
     return batch_token_ids, batch_labels.flatten()
 
@@ -72,10 +76,14 @@ class Model(BaseModel):
 
     def forward(self, token_ids):
         last_hidden_state = self.bert([token_ids])
-        # 取最后一位<cls>位的隐含层状态
-        last_token_idx = token_ids.not_equal(tokenizer._token_pad_id).sum(dim=1) - 1
-        last_token_idx = last_token_idx[:, None, None].expand(last_hidden_state.shape[0], 1, last_hidden_state.shape[-1])
-        pooling = torch.gather(last_hidden_state, dim=1, index=last_token_idx).squeeze(1)
+
+        # 原来padding在后面的做法，取最后一位<cls>位的隐含层状态，根据transformers的做法，xlnet应该padding在前面，因此该段逻辑舍弃
+        # last_token_idx = token_ids.not_equal(tokenizer._token_pad_id).sum(dim=1) - 1
+        # last_token_idx = last_token_idx[:, None, None].expand(last_hidden_state.shape[0], 1, last_hidden_state.shape[-1])
+        # pooling = torch.gather(last_hidden_state, dim=1, index=last_token_idx).squeeze(1)
+
+        # padding在前面的做法，同transformers
+        pooling = last_hidden_state[:, -1]
 
         output = self.dropout(pooling)
         output = self.dense(output)
