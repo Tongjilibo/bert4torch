@@ -1,6 +1,6 @@
 # coding: utf-8
-'''开发调试中
-'''
+# gplinker 事件提取, 开发测试中，目前dev的最优指标是event_level f1=0.438, argument_level f1=0.727
+
 import os
 import json
 import numpy as np

@@ -1298,6 +1298,7 @@ class GlobalPointer(nn.Module):
 class EfficientGlobalPointer(nn.Module):
     """更加参数高效的GlobalPointer
     参考：https://kexue.fm/archives/8877
+    这里实现和GlobalPointer相似，而未采用原版的奇偶位来取qw和kw，个人理解两种方式是无区别的
     """
     def __init__(self, hidden_size, heads, head_size, RoPE=True, max_len=512, use_bias=True, tril_mask=True):
         super().__init__()
@@ -1327,7 +1328,7 @@ class EfficientGlobalPointer(nn.Module):
         # 计算内积
         logits = torch.einsum('bmd,bnd->bmn', qw, kw) / self.head_size**0.5  # [btz, seq_len, seq_len], 是否是实体的打分
         bias_input = self.q_dense(sequence_output)  # [..., heads*2]
-        bias = torch.stack(torch.chunk(bias_input, self.heads, dim=-1), dim=-2).transpose(1,2)  # [btz, heads, seq_len, 2]
+        bias = torch.stack(torch.chunk(bias_input, self.heads, dim=-1), dim=-2).transpose(1,2) / 2 # [btz, heads, seq_len, 2]
         logits = logits.unsqueeze(1) + bias[..., :1] + bias[..., 1:].transpose(2, 3)  # [btz, heads, seq_len, seq_len]
 
         # 排除padding

@@ -80,6 +80,7 @@
 - [task_relation_extraction_gplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_gplinker.py)：结合GlobalPointer做关系抽取[GPLinker](https://kexue.fm/archives/8888)。
 - [task_relation_extraction_tplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker.py)：tplinker关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)。
 - [task_relation_extraction_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker_plus.py)：tplinker关系抽取[TPLinkerPlus](https://github.com/131250208/TPlinker-joint-extraction)。
+- [task_relation_extraction_SPN4RE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_SPN4RE.py)：[SPN4RE](https://github.com/DianboWork/SPN4RE)来做关系提取。
 
 ## 文本生成
 - [task_seq2seq_autotitle_unilm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_unilm.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
@@ -126,6 +127,7 @@
 - [task_iflytek_bert_of_theseus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_iflytek_bert_of_theseus.py)：通过[BERT-of-Theseus](https://kexue.fm/archives/7575)来进行模型压缩。
 - [task_language_model_chinese_chess.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model_chinese_chess.py)：用GPT的方式下中国象棋，过程请参考[博客](https://kexue.fm/archives/7877)。
 - [task_nl2sql_baseline.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_nl2sql_baseline.py)：[追一科技2019年NL2SQL挑战赛的一个Baseline](https://kexue.fm/archives/6771)
+- [task_event_extraction_gplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_event_extraction_gplinker.py)：gplinker来做事件提取
 
 ## 教程
 - [Tutorials](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials)：教程说明文档。
@@ -158,7 +160,7 @@
 | bert | 6/10 | 94.72 | 94.11 | —— | 
 | robert | 4/10 | 94.77 | 94.64 | —— | 
 | nezha | 7/10 | 95.07 | 94.72 | —— | 
-| xlnet | 6/10 | 95.00 | 94.24 | —— | 
+| xlnet | 6/10 | 95.07 | 94.77 | —— | 
 | electra | 10/10 | 94.94 | 94.78 | —— | 
 | roformer | 9/10 | 94.85 | 94.42 | —— | 
 | roformer_v2 | 3/10 | 95.78 | 96.09 | —— | 
@@ -240,7 +242,7 @@
 |      solution     |     f1    |    comment  |
 |        ----       |    ----   |    ----     |
 |       CasRel      |   81.87   |             |
-|     gplinker      |   81.88   |             |
+|     gplinker      |   82.38   |             |
 |     tplinker      |   74.49   |  seq_len=64, 未完全收敛 |
 |    tplinker_plus  |   79.30   |  seq_len=64 |
 

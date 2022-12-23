@@ -1,7 +1,6 @@
 #! -*- coding:utf-8 -*-
 # 三元组抽取任务，SPN4RE方案
 
-from gc import callbacks
 import json
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
