@@ -1,12 +1,12 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，SPN4RE方案
+# 三元组抽取任务，SPN4RE方案（调试中，目前还有bug）
 
 import json
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.layers import MultiHeadAttentionLayer, PositionWiseFeedForward
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -32,11 +32,13 @@ encoder_lr = 1e-5
 decoder_lr = 2e-5
 
 maxlen = 128
-batch_size = 32
+batch_size = 8
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+seed_everything(42)
 
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
@@ -100,6 +102,8 @@ class MyDataset(ListDataset):
                 if spoes:
                     D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
                               'segment_ids': segment_ids, 'spoes': spoes})
+                if len(D) > 1000:
+                    break
         return D
 
 def collate_fn(batch):
@@ -127,8 +131,8 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], targets
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
-                   batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
+                   batch_size=batch_size, shuffle=False, collate_fn=collate_fn) 
+valid_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 
@@ -300,25 +304,25 @@ class SetDecoder(nn.Module):
         super().__init__()
         self.num_generated_triples = num_generated_triples
         self.layers = nn.ModuleList([DecoderLayer(config) for _ in range(num_layers)])
-        self.LayerNorm = nn.LayerNorm(config['hidden_size'], eps=config.get('layer_norm_eps', 1e-12))
-        self.dropout = nn.Dropout(config['hidden_dropout_prob'])
-        self.query_embed = nn.Embedding(num_generated_triples, config['hidden_size'])
-        self.decoder2class = nn.Linear(config['hidden_size'], num_classes + 1)
-        self.decoder2span = nn.Linear(config['hidden_size'], 4)
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.get('layer_norm_eps', 1e-12))
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.query_embed = nn.Embedding(num_generated_triples, config.hidden_size)
+        self.decoder2class = nn.Linear(config.hidden_size, num_classes + 1)
+        self.decoder2span = nn.Linear(config.hidden_size, 4)
 
-        self.head_start_metric_1 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.head_end_metric_1 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.tail_start_metric_1 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.tail_end_metric_1 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.head_start_metric_2 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.head_end_metric_2 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.tail_start_metric_2 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.tail_end_metric_2 = nn.Linear(config['hidden_size'], config['hidden_size'])
-        self.head_start_metric_3 = nn.Linear(config['hidden_size'], 1, bias=False)
-        self.head_end_metric_3 = nn.Linear(config['hidden_size'], 1, bias=False)
-        self.tail_start_metric_3 = nn.Linear(config['hidden_size'], 1, bias=False)
-        self.tail_end_metric_3 = nn.Linear(config['hidden_size'], 1, bias=False)
-        
+        self.head_start_metric_1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.head_end_metric_1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.tail_start_metric_1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.tail_end_metric_1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.head_start_metric_2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.head_end_metric_2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.tail_start_metric_2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.tail_end_metric_2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.head_start_metric_3 = nn.Linear(config.hidden_size, 1, bias=False)
+        self.head_end_metric_3 = nn.Linear(config.hidden_size, 1, bias=False)
+        self.tail_start_metric_3 = nn.Linear(config.hidden_size, 1, bias=False)
+        self.tail_end_metric_3 = nn.Linear(config.hidden_size, 1, bias=False)
+
         torch.nn.init.orthogonal_(self.head_start_metric_1.weight, gain=1)
         torch.nn.init.orthogonal_(self.head_end_metric_1.weight, gain=1)
         torch.nn.init.orthogonal_(self.tail_start_metric_1.weight, gain=1)
@@ -524,7 +528,7 @@ grouped_params = [
 
 model.compile(loss=SetCriterion(num_classes, loss_weight={"relation": rel_loss_weight, "head_entity": head_ent_loss_weight, "tail_entity": tail_ent_loss_weight}, 
                                 na_coef=na_rel_coef, losses=["entity", "relation"], matcher=matcher), 
-              optimizer=optim.Adam(model.parameters(), 1e-5))
+              optimizer=optim.Adam(grouped_params))
 
 def extract_spoes(text, threshold=0):
     """抽取输入text所包含的三元组
