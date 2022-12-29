@@ -1,5 +1,5 @@
 # coding: utf-8
-# gplinker 事件提取, 开发测试中，目前dev的最优指标是event_level f1=0.438, argument_level f1=0.727
+# gplinker 事件提取, 开发测试中，目前dev的最优指标是event_level f1=0.441, argument_level f1=0.728
 
 import os
 import json

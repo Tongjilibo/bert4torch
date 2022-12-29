@@ -56,6 +56,7 @@
 - [task_sequence_labeling_ner_W2NER.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_W2NER.py)：ner例子，[W2NER](https://github.com/ljynlp/W2NER)
 - [task_sequence_labeling_ner_CNN_Nested_NER.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_CNN_Nested_NER.py)：ner例子，[CNN_Nested_NER](https://github.com/yhcc/CNN_Nested_NER)
 - [task_sequence_labeling_ner_lear.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_lear.py)：ner例子，[LEAR](https://github.com/Akeepers/LEAR)
+- [task_sequence_labeling_cws_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_cws_crf.py)：crf分词例子
 
 ## 文本表示
 - [task_sentence_embedding_unsup_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsup_bert_whitening.py)：参考[bert_whitening](https://github.com/bojone/BERT-whitening)
@@ -81,6 +82,7 @@
 - [task_relation_extraction_tplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker.py)：tplinker关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)。
 - [task_relation_extraction_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker_plus.py)：tplinker关系抽取[TPLinkerPlus](https://github.com/131250208/TPlinker-joint-extraction)。
 - [task_relation_extraction_SPN4RE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_SPN4RE.py)：[SPN4RE](https://github.com/DianboWork/SPN4RE)来做关系提取。
+- [task_relation_extraction_PGRC.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_PGRC.py)：[PGRC](https://github.com/hy-struggle/PRGC)来做关系提取。
 
 ## 文本生成
 - [task_seq2seq_autotitle_unilm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_unilm.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
@@ -245,8 +247,8 @@
 |     gplinker      |   82.38   |             |
 |     tplinker      |   74.49   |  seq_len=64, 未完全收敛 |
 |    tplinker_plus  |   79.30   |  seq_len=64 |
-|    SPN4RE  |      |   |
-|    PGRC  |      |   |
+|       SPN4RE      |           |   |
+|        PGRC       |   80.36   |  训练很慢   |
 
 ## 5. 文本生成
 - [CSL数据集](https://github.com/CLUEbenchmark/CLGE)，注意是训练集1万左右的版本，分别dev/test指标

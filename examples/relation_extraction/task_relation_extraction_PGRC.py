@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，PGRC（调试中）
+# 三元组抽取任务，PGRC
 
 import json
 import numpy as np
