@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，SPN4RE方案（调试中，目前还有bug）
+# 三元组抽取任务，SPN4RE方案
 
 import json
 import numpy as np
@@ -79,6 +79,8 @@ def get_spoes(text, spo_list):
         s_idx = search(s, token_ids)
         o_idx = search(o, token_ids)
         if s_idx != -1 and o_idx != -1:
+            assert token_ids[s_idx:s_idx + len(s)] == s
+            assert token_ids[o_idx:o_idx + len(o)] == o
             s = (s_idx, s_idx + len(s) - 1)
             o = (o_idx, o_idx + len(o) - 1, p)
             if s not in spoes:
@@ -354,20 +356,48 @@ class SetDecoder(nn.Module):
 
         return class_logits, head_start_logits, head_end_logits, tail_start_logits, tail_end_logits
 
+# 基于bert4torch实现，存在问题
+# class DecoderLayer(nn.Module):
+#     def __init__(self, config):
+#         super().__init__()
+#         self.attention = MultiHeadAttentionLayer(**config)
+#         self.crossattention = MultiHeadAttentionLayer(**config)
+#         self.ffc = PositionWiseFeedForward(**config)
 
+#     def forward(self, hidden_states, encoder_hidden_states, encoder_attention_mask):
+#         attention_output = self.attention(hidden_states)
+#         cross_attention_outputs = self.crossattention(attention_output, None, encoder_hidden_states, encoder_attention_mask)
+#         layer_output = self.ffc(cross_attention_outputs)
+#         return layer_output
+
+# 基于transformers实现
+from transformers.models.bert.modeling_bert import BertIntermediate, BertOutput, BertAttention
 class DecoderLayer(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.attention = MultiHeadAttentionLayer(**config)
-        self.crossattention = MultiHeadAttentionLayer(**config)
-        self.ffc = PositionWiseFeedForward(**config)
+        config.is_decoder = False
+        config.layer_norm_eps = 1e-12
+        self.attention = BertAttention(config)
+        self.crossattention = BertAttention(config)
+        self.intermediate = BertIntermediate(config)
+        self.output = BertOutput(config)
 
-    def forward(self, hidden_states, encoder_hidden_states, encoder_attention_mask):
-        attention_output = self.attention(hidden_states)
-        cross_attention_outputs = self.crossattention(attention_output, None, encoder_hidden_states, encoder_attention_mask)
-        layer_output = self.ffc(cross_attention_outputs)
-        return layer_output
+    def forward(self, hidden_states, encoder_hidden_states, encoder_extended_attention_mask):
+        self_attention_outputs = self.attention(hidden_states)
+        attention_output = self_attention_outputs[0]
+        outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
+        encoder_extended_attention_mask = (1.0 - encoder_extended_attention_mask) * -10000.0
+        cross_attention_outputs = self.crossattention(
+            hidden_states=attention_output, encoder_hidden_states=encoder_hidden_states,  encoder_attention_mask=encoder_extended_attention_mask
+        )
+        attention_output = cross_attention_outputs[0]
+        outputs = outputs + cross_attention_outputs[1:]  # add cross attentions if we output attention weights
+
+        intermediate_output = self.intermediate(attention_output)
+        layer_output = self.output(intermediate_output, attention_output)
+        outputs = (layer_output,) + outputs
+        return outputs[0]
 
 # 定义bert上的模型结构
 class Model(BaseModel):
