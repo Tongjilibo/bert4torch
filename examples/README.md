@@ -248,8 +248,8 @@
 |     gplinker      |   82.38   |             |
 |     tplinker      |   74.49   |  seq_len=64, 未完全收敛 |
 |    tplinker_plus  |   79.30   |  seq_len=64 |
-|       SPN4RE      |   77.41   |   |
-|        PGRC       |   80.36   |  训练很慢   |
+|       SPN4RE      |   77.53   |             |
+|        PGRC       |   80.36   |   训练很慢   |
 
 ## 5. 文本生成
 - [CSL数据集](https://github.com/CLUEbenchmark/CLGE)，注意是训练集1万左右的版本，分别dev/test指标

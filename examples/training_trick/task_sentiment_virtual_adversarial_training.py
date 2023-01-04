@@ -124,6 +124,6 @@ if __name__ == '__main__':
     evaluator = Evaluator()
     adversarial_train = AdversarialTraining('vat', adversarial={'adv_alpha': 1})  # 虚拟对抗
 
-    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator, adversarial_train])
 else:
     model.load_weights('best_model.pt')
