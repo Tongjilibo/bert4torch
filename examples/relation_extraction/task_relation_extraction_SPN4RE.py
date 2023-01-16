@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，SPN4RE方案
+# 三元组抽取任务，SPN4RE方案: ttps://github.com/DianboWork/SPN4RE
 
 import json
 import numpy as np
