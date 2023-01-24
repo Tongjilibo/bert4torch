@@ -146,6 +146,9 @@ def training_function(config, args):
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
+    
+    from torch4keras.model import add_trainer
+    model = add_trainer(model)
 
     # 定义使用的loss和optimizer，这里支持自定义
     model.compile(
@@ -154,7 +157,8 @@ def training_function(config, args):
         scheduler = lr_scheduler,
         metrics=['accuracy'],
         grad_accumulation_steps=gradient_accumulation_steps,
-        accelerator=accelerator
+        accelerator=accelerator,
+        master_rank=0
     )
 
     class Evaluator(Callback):
