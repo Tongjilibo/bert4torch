@@ -158,7 +158,7 @@ def training_function(config, args):
         metrics=['accuracy'],
         grad_accumulation_steps=gradient_accumulation_steps,
         accelerator=accelerator,
-        master_rank=0
+        # master_rank=0
     )
 
     class Evaluator(Callback):
@@ -206,4 +206,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = {"lr": 2e-5, "num_epochs": 3, "seed": 42, "batch_size": 16}
 
+    print('Args: ', args, '\n')
     training_function(config, args)
