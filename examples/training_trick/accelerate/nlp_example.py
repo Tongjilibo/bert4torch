@@ -157,8 +157,7 @@ def training_function(config, args):
         scheduler = lr_scheduler,
         metrics=['accuracy'],
         grad_accumulation_steps=gradient_accumulation_steps,
-        accelerator=accelerator,
-        # master_rank=0
+        accelerator=accelerator
     )
 
     class Evaluator(Callback):
@@ -188,7 +187,7 @@ def training_function(config, args):
             return right / total
 
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=10, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=None, callbacks=[evaluator])
 
 
 if __name__ == "__main__":
