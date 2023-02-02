@@ -1054,7 +1054,7 @@ class Decoder(LM_Mask, BERT):
         hidden_states =  super().apply_final_layers(inputs)  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
         outputs.append(hidden_states)
         if self.with_lm:
-            logits = self.final_dense(hidden_states) * self.x_logit_scale # outputs为[btz, seq_len, vocab_size]的logits
+            logits = self.final_dense(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
             activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
             logits = activation(logits)
             outputs.append(logits)

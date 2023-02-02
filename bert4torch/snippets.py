@@ -389,11 +389,11 @@ class AutoRegressiveDecoder(object):
         # 达到长度直接输出
         return output_ids[output_scores.argmax()]
 
-    def random_sample(self, inputs, n, topk=None, topp=None, states=None, temperature=1, min_ends=1):
+    def random_sample(self, inputs_raw, n, topk=None, topp=None, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
-        :param inputs: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
+        :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
         :param topk: int, 这里的topk即beam size
         :param topp: float, 这里的topp是token的概率阈值设置
         :param states:
@@ -401,7 +401,18 @@ class AutoRegressiveDecoder(object):
         :param min_ends:
         :return: n个解码序列组成的list。
         """
-        inputs = [torch.tensor([i], device=self.device) for i in inputs]
+        inputs = []
+        for i in inputs_raw:
+            if isinstance(i, torch.torch.Tensor):
+                pass
+            elif isinstance(i, (list, tuple, np.ndarray)) and add_btz_dim:
+                i = torch.tensor([i], device=self.device)
+            elif isinstance(i, (list, tuple, np.ndarray)) and not add_btz_dim:
+                i = torch.tensor(i, device=self.device)
+            else:
+                raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
+            inputs.append(i)
+
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):

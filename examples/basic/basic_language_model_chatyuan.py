@@ -16,13 +16,14 @@ spm_path = pretrain_model + 'spiece.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
-tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>')
+tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>', keep_accents=True)
 
 model = build_transformer_model(
     config_path,
     checkpoint_path,
     model='mt5.1.1',
-    segment_vocab_size=0
+    segment_vocab_size=0,
+    # logit_scale=False,
 ).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):
@@ -33,16 +34,16 @@ class AutoTitle(AutoRegressiveDecoder):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
 
-    def generate(self, text, topk=1):
+    def generate(self, text, n=1, topp=1, temperature=0.7):
         text = text.replace("\n", "\\n").replace("\t", "\\t")
         token_ids, _ = tokenizer.encode(text, maxlen=768)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
-        output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
-        out_text = tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
+        output_ids = self.random_sample(encoder_output, n, topp=topp, temperature=temperature)  # 基于随机采样
+        out_text = tokenizer.decode([int(i.cpu().numpy()) for i in output_ids[0]])
         return out_text.replace("\\n", "\n").replace("\\t", "\t")
 
-autotitle = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=768, device=device)
+autotitle = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=512, device=device)
 
 if __name__ == '__main__':
     input_text0 = "帮我写一个请假条，我因为新冠不舒服，需要请假3天，请领导批准"
