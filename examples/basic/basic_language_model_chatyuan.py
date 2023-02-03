@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 调用T5 PEGASUS, 使用到是BertTokenizer
+# 调用chatyuan https://github.com/clue-ai/ChatYuan
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -23,7 +23,8 @@ model = build_transformer_model(
     checkpoint_path,
     model='mt5.1.1',
     segment_vocab_size=0,
-    # logit_scale=False,
+    logit_scale=False,
+    token_pad_ids=-1,  # 为了不和decoder_start_ids=0冲突
 ).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):

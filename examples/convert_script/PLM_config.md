@@ -200,6 +200,24 @@
 }
 ```
 
+- t5/[ClueAI_t5_torch_large]--ClueAI-ChatYuan-large-v1
+```json
+{
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 1024,
+  "intermediate_size": 2816,
+  "num_attention_heads": 16,
+  "attention_head_size": 64,
+  "num_hidden_layers": 24,
+  "vocab_size": 32128,
+  "relative_attention_num_buckets": 32,
+  "attention_scale":  false,
+  "is_dropout": true,
+  "max_position_embeddings": 768
+}
+```
+
 - bart/[FudanNLP_torch_base]
 ```json
 {
