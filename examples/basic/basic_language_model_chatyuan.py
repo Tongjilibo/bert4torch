@@ -3,12 +3,11 @@
 
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import SpTokenizer, load_vocab
+from bert4torch.tokenizers import SpTokenizer
 from bert4torch.snippets import AutoRegressiveDecoder
-import jieba
-jieba.initialize()
 
-# bert配置
+
+# 配置
 pretrain_model = 'F:/Projects/pretrain_ckpt/t5/[ClueAI_t5_torch_large]--ClueAI-ChatYuan-large-v1/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'

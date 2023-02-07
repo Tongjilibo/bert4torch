@@ -163,3 +163,22 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
   howpublished={\url{https://github.com/Tongjilibo/bert4torch}},
 }
 ```
+
+## 9. 交流
+- Wechat Discussions
+
+<table border="0">
+  <tbody>
+    <tr align="center" >
+      <td>
+        ​ <a href="https://github.com/Tongjilibo"><img width="200" height="250" src="./docs/pics/wechat.jpg" alt="pic"></a><br>
+        ​ <a href="https://github.com/Tongjilibo">微信号</a> ​
+​
+      </td>
+      <td>
+         <a href="https://github.com/Tongjilibo"><img width="200" height="250" src="./docs/pics/wechat_group.jpg" alt="pic"></a><br>
+         <a href="https://github.com/Tongjilibo">微信群</a> ​
+      </td>
+    </tr>
+  </tbody>
+</table>
