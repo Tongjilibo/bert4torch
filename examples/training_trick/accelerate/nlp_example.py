@@ -1,5 +1,5 @@
 # coding=utf-8
-# 修改官方的accelerate例子，使之可以使用torch4keras框架
+# 修改官方的accelerate例子，使之可以使用bert4torch框架
 
 import argparse
 import torch
@@ -8,9 +8,10 @@ from torch.utils.data import DataLoader
 from accelerate import Accelerator, DistributedType
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, AccelerateCallback
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 import torch.nn as nn
+from torch4keras.model import add_trainer
 
 
 ########################################################################
@@ -146,8 +147,6 @@ def training_function(config, args):
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
-    
-    from torch4keras.model import add_trainer
     model = add_trainer(model)
 
     # 定义使用的loss和optimizer，这里支持自定义
@@ -157,7 +156,6 @@ def training_function(config, args):
         scheduler = lr_scheduler,
         metrics=['accuracy'],
         grad_accumulation_steps=gradient_accumulation_steps,
-        accelerator=accelerator
     )
 
     class Evaluator(Callback):
@@ -187,7 +185,7 @@ def training_function(config, args):
             return right / total
 
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=None, callbacks=[evaluator])
+    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=100, callbacks=[evaluator, AccelerateCallback(accelerator)])
 
 
 if __name__ == "__main__":

@@ -743,6 +743,19 @@ class AdversarialTraining(Callback):
             self.trainer.loss.backward()
 
 
+class AccelerateCallback(Callback):
+    """Accelerate的Callback
+    """
+    def __init__(self, accelerator):
+        self.accelerator = accelerator
+
+    def on_train_begin(self, logs=None):
+        self.trainer.loss_backward = False
+
+    def on_train_step_end(self, logs=None):
+        self.accelerator.backward(self.trainer.loss)
+
+
 class WebServing(object):
     """简单的Web接口，基于bottlepy简单封装，仅作为临时测试使用，不保证性能。
 
