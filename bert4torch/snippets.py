@@ -680,6 +680,7 @@ class AdversarialTraining(Callback):
     :param adversarial: dict, 对抗训练的参数配置，不同模式所需参数不同
     """
     def __init__(self, mode, adversarial={}):
+        super(AdversarialTraining, self).__init__()
         assert mode in {'', 'fgm', 'pgd', 'vat', 'gradient_penalty'}, 'adversarial_train support fgm, pgd, vat and gradient_penalty mode'
         self.mode = mode
         adversarial['epsilon'] = adversarial.get('epsilon', 1.0)
@@ -741,19 +742,6 @@ class AdversarialTraining(Callback):
             self.trainer.loss_detail.update({'loss_sup': self.trainer.loss.item(), 'loss_unsup': adv_loss})
             self.trainer.loss += (adv_loss if adv_loss else 0)
             self.trainer.loss.backward()
-
-
-class AccelerateCallback(Callback):
-    """Accelerate的Callback
-    """
-    def __init__(self, accelerator):
-        self.accelerator = accelerator
-
-    def on_train_begin(self, logs=None):
-        self.trainer.loss_backward = False
-
-    def on_train_step_end(self, logs=None):
-        self.accelerator.backward(self.trainer.loss)
 
 
 class WebServing(object):

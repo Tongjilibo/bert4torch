@@ -185,7 +185,7 @@ def training_function(config, args):
             return right / total
 
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=100, callbacks=[evaluator, AccelerateCallback(accelerator)])
+    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=10, callbacks=[evaluator, AccelerateCallback(accelerator)])
 
 
 if __name__ == "__main__":
