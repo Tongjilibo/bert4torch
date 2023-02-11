@@ -160,7 +160,7 @@ class Model(BaseModel):
         self.dropout = [nn.Dropout(0.1), nn.Dropout(0.3), nn.Dropout(0.5), nn.Dropout(0.7)]
         self.dense = nn.Linear(768, 5+1)  # 包含padding
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         token_ids, entity_ids = inputs[0], inputs[1]
         last_hidden_state = self.bert([token_ids])  # [btz, seq_len, hdsz]
 

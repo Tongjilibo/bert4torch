@@ -120,7 +120,7 @@ class Model(BaseModel):
         self.tail_rel_fc = nn.Linear(768, len(predicate2id)*3)
         self.handshaking_kernel = TplinkerHandshakingKernel(768, shaking_type='cat')
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         last_hidden_state = self.bert(inputs)  # [btz, seq_len, hdsz]
         shaking_hiddens = self.handshaking_kernel(last_hidden_state)  # [btz, pair_len, hdsz]
         ent_shaking_outputs = self.ent_fc(shaking_hiddens)  # [btz, pair_len, 2]

@@ -458,7 +458,7 @@ class BERT(BERT_BASE):
 
         # 进入embedding层
         hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
-        return [hidden_states, attention_mask, conditional_emb] + inputs[index_:]
+        return [hidden_states, attention_mask, conditional_emb] + list(inputs[index_:])
 
     def apply_main_layers(self, inputs):
         """BERT的主体是基于Self-Attention的模块；

@@ -109,7 +109,7 @@ class Model(BaseModel):
                 nn.Linear(hidden_size, 5)
                 )
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         token_ids, segment_ids, entity_ids = inputs
         last_hidden_state = self.bert([token_ids, segment_ids])  # [btz, seq_len, hdsz]
 

@@ -85,7 +85,7 @@ class Model(BaseModel):
                                             layer_norm_cond=c,
                                             ignore_invalid_weights=True)  # 忽略未初始化的权重
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         _, seq_output = self.bert(inputs)  # [btz, seq_len, vocab_size]
         return seq_output
 

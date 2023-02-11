@@ -100,7 +100,7 @@ class Model(BaseModel):
         self.dense2 = nn.Linear(768, len(categories)+1)  # 包含padding
         self.crf = CRF(len(categories))
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         # 一阶段的输出
         token_ids, entity_ids = inputs[0], inputs[1]
         last_hidden_state = self.bert([token_ids])  # [btz, seq_len, hdsz]

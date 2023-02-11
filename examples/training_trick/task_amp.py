@@ -78,7 +78,7 @@ model = Model().to(device)
 model.compile(
     loss=nn.CrossEntropyLoss(),
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
-    use_amp=True,  # True表示使用amp混合精度
+    mixed_precision=True,  # True表示使用amp混合精度
     metrics=['accuracy'],
 )
 

@@ -122,7 +122,7 @@ class Model(BaseModel):
         self.head_output = GlobalPointer(hidden_size=768, heads=len(predicate2id), head_size=64, RoPE=False, tril_mask=False)
         self.tail_output = GlobalPointer(hidden_size=768, heads=len(predicate2id), head_size=64, RoPE=False, tril_mask=False)
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         hidden_states = self.bert(inputs)  # [btz, seq_len, hdsz]
         mask = inputs[0].gt(0).long()
 

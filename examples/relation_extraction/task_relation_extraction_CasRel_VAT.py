@@ -162,7 +162,7 @@ class Model(BaseModel):
         subject = torch.cat([start, end], 2)
         return subject[:, 0]
 
-    def forward(self, inputs):
+    def forward(self, *inputs):
         # 预测subject
         seq_output = self.bert(inputs[:2])  # [btz, seq_len, hdsz]
         subject_preds = (torch.sigmoid(self.linear1(seq_output))) ** 2  # [btz, seq_len, 2]
