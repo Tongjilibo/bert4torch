@@ -1,5 +1,5 @@
 # coding=utf-8
-# 修改官方的accelerate例子，使之可以使用bert4torch框架
+# 修改官方的accelerate例子，使之可以使用torch4keras框架
 
 import argparse
 import torch
@@ -11,8 +11,8 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, AccelerateCallback
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 import torch.nn as nn
+from tqdm import tqdm
 from torch4keras.model import add_trainer
-
 
 ########################################################################
 # This is a fully working simple example to use Accelerate
@@ -148,6 +148,7 @@ def training_function(config, args):
         model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
     model = add_trainer(model)
+    verbose = 1 if accelerator.is_local_main_process else 0
 
     # 定义使用的loss和optimizer，这里支持自定义
     model.compile(
@@ -175,7 +176,7 @@ def training_function(config, args):
 
         def evaluate(self, data):
             total, right = 0., 0.
-            for batch, y_true in data:
+            for batch, y_true in tqdm(data):
                 # We could avoid this line since we set the accelerator with `device_placement=True`.
                 y_pred = model.predict(batch).argmax(dim=-1)
                 y_pred = accelerator.gather(y_pred)
@@ -185,7 +186,7 @@ def training_function(config, args):
             return right / total
 
     evaluator = Evaluator()
-    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=10, callbacks=[evaluator, AccelerateCallback(accelerator)])
+    model.fit(train_dataloader, epochs=num_epochs, steps_per_epoch=10, callbacks=[evaluator, AccelerateCallback(accelerator)], verbose=verbose)
 
 
 if __name__ == "__main__":
