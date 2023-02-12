@@ -110,6 +110,7 @@
 - [task_amp.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_amp.py)：Pytorch的amp混合精度训练
 - [task_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_data_parallel.py)：DataParallel模式的多GPU训练方式
 - [task_distributed_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py)：DistributedDataParallel模式的多GPU训练方式
+- [accelerate](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/accelerate)：配合accelerate包使用
 
 ## 预训练
 - [roberta_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roberta_pretrain)：roberta的mlm预训练，数据生成代码和训练代码
