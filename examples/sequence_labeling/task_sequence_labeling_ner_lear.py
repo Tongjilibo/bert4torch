@@ -80,8 +80,8 @@ def collate_fn(batch):
             if start in start_mapping and end in end_mapping:
                 start = start_mapping[start]
                 end = end_mapping[end]
-                start_labels[categories[label]] = 1
-                end_labels[categories[label]] = 1
+                start_labels[start, categories[label]] = 1
+                end_labels[end, categories[label]] = 1
 
         batch_token_ids.append(tokenizer.tokens_to_ids(tokens))
         batch_start_labels.append(start_labels)
