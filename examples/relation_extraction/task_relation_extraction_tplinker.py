@@ -14,11 +14,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
-maxlen = 50
+maxlen = 64
 batch_size = 64
-config_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载标签字典
@@ -150,7 +150,7 @@ class MyLoss(nn.CrossEntropyLoss):
 
         return {'loss': loss, 'entity_loss': loss_list[0], 'head_loss': loss_list[1], 'tail_loss': loss_list[2]}
 
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 5e-5))
+model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 1e-4))
 
 def extract_spoes(text):
     """抽取输入text所包含的三元组
