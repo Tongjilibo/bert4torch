@@ -76,7 +76,7 @@ class MultilabelCategoricalCrossentropy(nn.Module):
 class SparseMultilabelCategoricalCrossentropy(nn.Module):
     """稀疏版多标签分类的交叉熵；
        请保证y_pred的值域是全体实数，换言之一般情况下y_pred不用加激活函数，尤其是不能加sigmoid或者softmax，预测阶段则输出y_pred大于0的类；
-       详情请看：https://kexue.fm/archives/7359 。
+       详情请看：https://kexue.fm/archives/7359，https://kexue.fm/archives/8888
     """
     def __init__(self, mask_zero=False, epsilon=1e-7, **kwargs):
         super().__init__(**kwargs)
@@ -93,8 +93,8 @@ class SparseMultilabelCategoricalCrossentropy(nn.Module):
         if self.mask_zero:
             infs = zeros + float('inf')
             y_pred = torch.cat([infs, y_pred[..., 1:]], dim=-1)
-        y_pos_2 = torch.gather(y_pred, dim=-1, index=y_true)
-        y_pos_1 = torch.cat([y_pos_2, zeros], dim=-1)
+        y_pos_2 = torch.gather(y_pred, dim=-1, index=y_true)  # [..., num_positive]
+        y_pos_1 = torch.cat([y_pos_2, zeros], dim=-1)  # [..., num_positive+1]
         if self.mask_zero:
             y_pred = torch.cat([-infs, y_pred[..., 1:]], dim=-1)
             y_pos_2 = torch.gather(y_pred, dim=-1, index=y_true)
