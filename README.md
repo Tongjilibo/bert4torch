@@ -71,6 +71,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)，[bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
 
 ## 4. 版本说明
+### 4.1 更新历史
 - **v0.2.7**：20230213 修复random_sample()的bug，适配v0.0.6的torch4keras：增加resume_from_checkpoint和save_to_checkpoint；增加add_trainer方法，重构了Trainer(BaseModel)的实现，增加了AccelerateCallback
 - **v0.2.6**：20221231 build_transformer_model需显式指定add_trainer才从BaseModel继承, 增加guwenbert, macbert，text2vec-bert-chinese, wobert预训练模型，允许position_ids从padding开始, transformer.configs支持点操作，可以使用torch4keras的Trainer(net)来初始化, 修复tokenizer的切分subtoken的bug, 允许embedding_size!=hidden_size
 - **v0.2.5**：20221127 对抗训练从compile转为使用Callback来实现，修复1.7.1版本兼容bug, uie模型内置
@@ -86,6 +87,17 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 - **v0.1.5**：20220504 增加GAU-alpha，混合梯度，梯度裁剪，单机多卡(DP、DDP)
 - **v0.1.4**：20220421 增加了VAT，修复了linux下apply_embedding返回项有问题的情况
 - **v0.1.3**：20220409 初始版本
+
+### 4.2 版本对应关系
+| bert4torch版本 |  torch4keras版本 |
+|  ----  |  ----  |
+|  0.2.7  | 0.0.6 |
+|  0.2.6  | 0.0.5 |
+|  0.2.5  | 0.0.4 |
+|  0.2.4  | 0.0.3.post2 |
+|  0.2.3  | 0.0.2 |
+|  <0.2.3  | —— |
+
 
 ## 5. 更新：
 - **20230219**：增加lion优化器
