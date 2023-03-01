@@ -21,9 +21,10 @@
 - [basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
 - [basic_language_model_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_bart.py): 测试bart模型。
 - [basic_language_model_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_deberta_v2.py): 测试deberta_v2模型。
-- [basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_guwenbert.py): 测试古文bert模型。
+- [basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_guwenbert.py): 测试[古文bert](https://huggingface.co/ethanyt/guwenbert-base)模型。
 - [basic_language_model_wobert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_wobert.py): 测试wobert模型。
-- [basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_chatyuan.py): 测试ChatYuan模型。
+- [basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_chatyuan.py): 测试[ChatYuan](https://github.com/clue-ai/ChatYuan)模型。
+- [basic_language_model_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_albert.py): 测试[albert_chinese](https://github.com/brightmart/albert_zh)模型。
 
 ## 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：句子对分类任务。

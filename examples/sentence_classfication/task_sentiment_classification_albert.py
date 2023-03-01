@@ -18,9 +18,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_tf_small]--albert_small_zh_google/albert_config_small_google.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_tf_small]--albert_small_zh_google/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_tf_small]--albert_small_zh_google/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_torch_small]--albert_small_zh/config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_torch_small]--albert_small_zh/pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/albert/[brightmart_torch_small]--albert_small_zh/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
