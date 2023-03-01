@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 该版本是loss不在forward中计算
+# 该版本是loss在forward中计算
 
 import os
 # 也可命令行传入
@@ -54,7 +54,7 @@ def collate_fn(batch):
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
+    return [batch_token_ids, batch_segment_ids, batch_labels.flatten()], None
 
 # 加载数据集
 train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -68,12 +68,23 @@ class Model(nn.Module):
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
+        self.loss_fn = nn.CrossEntropyLoss()
 
-    def forward(self, token_ids, segment_ids):
+    def forward(self, token_ids, segment_ids, labels):
+        _, pooled_output = self.bert([token_ids, segment_ids])
+        output = self.dropout(pooled_output)
+        output = self.dense(output)
+        loss = self.loss_fn(output, labels)
+        return loss
+
+    @torch.no_grad()
+    def predict(self, token_ids, segment_ids):
+        self.eval()
         _, pooled_output = self.bert([token_ids, segment_ids])
         output = self.dropout(pooled_output)
         output = self.dense(output)
         return output
+
 model = Model().to(device)
 model = BaseModelDP(model)  # 方式一：指定DP模型使用多gpu
 # model = add_trainer(nn.DataParallel(model))  # 方式二：指定DP模型使用多gpu
@@ -95,16 +106,19 @@ class Evaluator(Callback):
     # 定义评价函数
     def evaluate(self, data):
         total, right = 0., 0.
-        for x_true, y_true in data:
-            y_pred = model.predict(x_true).argmax(axis=1)
+        for x_true, _ in data:
+            # 根据dataloader组织一下
+            y_true = x_true[-1]
+            x_true = x_true[:2]
+            # 这里model.module.predict是因为调用model.predict只能得到loss
+            y_pred = model.module.predict(*x_true).argmax(axis=1)
             total += len(y_true)
             right += (y_true == y_pred).sum().item()
         return right / total
 
 # 定义使用的loss和optimizer，这里支持自定义
-criterion = nn.CrossEntropyLoss()
 model.compile(
-    loss=lambda x, y: criterion(x, y).mean(),  # 多个gpu计算的loss的均值
+    loss=lambda x, _: x.mean(),  # 多个gpu计算的loss的均值
     optimizer=optim.Adam(model.parameters(), lr=2e-5),
 )
 
