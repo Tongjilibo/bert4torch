@@ -200,6 +200,24 @@
 }
 ```
 
+- t5/[ClueAi_t5_torch_base]--PromptCLUE-base-v1-5
+```json
+{
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "intermediate_size": 2048,
+  "num_attention_heads": 12,
+  "attention_head_size": 64,
+  "num_hidden_layers": 12,
+  "vocab_size": 32128,
+  "relative_attention_num_buckets": 32,
+  "attention_scale":  false,
+  "is_dropout": true,
+  "max_position_embeddings": 768
+}
+```
+
 - t5/[ClueAI_t5_torch_large]--ClueAI-ChatYuan-large-v1
 ```json
 {

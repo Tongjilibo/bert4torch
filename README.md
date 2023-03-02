@@ -100,7 +100,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 
 
 ## 5. 更新：
-- **20230219**：增加lion优化器
+- **20230303**：增加lion优化器, 增加PromptCLUE模型
 - **20230212**：兼容accelerate包, 增加ChatYuan模型，修复random_sample()的bug
 - **20221230**：增加macbert，text2vec-bert-chinese, wobert模型，增加LEAR的ner示例, 增加PGRC、SPN4RE的关系提取示例，transformer.configs支持点操作，可以使用torch4keras的Trainer(net)来初始化, 修复tokenizer的切分subtoken的bug, 允许embedding_size!=hidden_size
 - **20221127**：增加deberta_v2模型, 对抗训练从compile转为使用Callback来实现，修复1.7.1版本兼容bug, uie模型内置, 增加triton示例, build_transformer_model需显式指定add_trainer才从BaseModel继承, 增加guwenbert预训练模型，允许position_ids从padding开始
@@ -161,7 +161,7 @@ pip install git+https://www.github.com/Tongjilibo/bert4torch.git
 | bart | 复旦 | [torch](https://github.com/fastnlp/CPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py)
 | text2vec | text2vec-base-chinese | [torch](https://huggingface.co/shibing624/text2vec-base-chinese) | 
 | chatyuan | clue-ai | [torch](https://github.com/clue-ai/ChatYuan) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
-
+| PromptCLUE | clue-ai | [torch](https://github.com/clue-ai/PromptCLUE) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/PLM_config.md)
 
 ## 7. 鸣谢
 - 感谢苏神实现的[bert4keras](https://github.com/bojone/bert4keras)，本实现有不少地方参考了bert4keras的源码，在此衷心感谢大佬的无私奉献; 
