@@ -707,6 +707,29 @@ class ALBERT_Unshared(ALBERT):
             encoded_layers.append(hidden_states)
         return [encoded_layers, conditional_emb]
 
+    def variable_mapping(self, prefix='albert'):
+        mapping = super().variable_mapping()
+        prefix_0 = f'{prefix}.encoder.albert_layer_groups.0.albert_layers.0.'
+        for i in range(1, self.num_hidden_layers):
+            mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_0 + 'attention.query.weight',
+                            f'encoderLayer.{i}.multiHeadAttention.q.bias': prefix_0 + 'attention.query.bias',
+                            f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_0 + 'attention.key.weight',
+                            f'encoderLayer.{i}.multiHeadAttention.k.bias': prefix_0 + 'attention.key.bias',
+                            f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_0 + 'attention.value.weight',
+                            f'encoderLayer.{i}.multiHeadAttention.v.bias': prefix_0 + 'attention.value.bias',
+                            f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_0 + 'attention.dense.weight',
+                            f'encoderLayer.{i}.multiHeadAttention.o.bias': prefix_0 + 'attention.dense.bias',
+                            f'encoderLayer.{i}.layerNorm1.weight': prefix_0 + 'attention.LayerNorm.weight',
+                            f'encoderLayer.{i}.layerNorm1.bias': prefix_0 + 'attention.LayerNorm.bias',
+                            f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_0 + 'ffn.weight',
+                            f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_0 + 'ffn.bias',
+                            f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_0 + 'ffn_output.weight',
+                            f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_0 + 'ffn_output.bias',
+                            f'encoderLayer.{i}.layerNorm2.weight': prefix_0 + 'full_layer_layer_norm.weight',
+                            f'encoderLayer.{i}.layerNorm2.bias': prefix_0 + 'full_layer_layer_norm.bias'
+                            })
+        return mapping
+
 
 class NEZHA(BERT):
     """华为推出的NAZHA模型；
