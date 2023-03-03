@@ -207,14 +207,14 @@ class BERT_BASE(nn.Module):
                 state_dict_new[new_key] = self.load_variable(file_state_dict, old_key)
             elif (old_key not in file_state_dict) and (not self.ignore_invalid_weights):
                 # mapping中包含，但模型文件中没有
-                print(f'[WARNIMG] {old_key} not found in pretrain models')
+                print(f'[WARNING] {old_key} not found in pretrain models')
             if new_key in parameters_set:
                 parameters_set.remove(new_key)
 
         # 未能加载预训练权重的Parameter
         if not self.ignore_invalid_weights:
             for key in parameters_set:
-                print(f'[WARNIMG] Parameter {key} not loaded from pretrain models')
+                print(f'[WARNING] Parameter {key} not loaded from pretrain models')
         del file_state_dict
 
         # 将ckpt的权重load到模型结构中
@@ -680,7 +680,7 @@ class ALBERT(BERT):
 
 class ALBERT_Unshared(ALBERT):
     def __init__(self, *args, **kwargs):
-        super(ALBERT_Unshared).__init__(*args, **kwargs)
+        super(ALBERT_Unshared, self).__init__(*args, **kwargs)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(self.encoderLayer[0]) for _ in range(self.num_hidden_layers)])
 
     def apply_main_layers(self, inputs):
