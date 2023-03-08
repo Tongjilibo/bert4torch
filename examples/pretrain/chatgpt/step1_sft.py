@@ -51,7 +51,7 @@ def collate_fn(batch):
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], batch_token_ids
+    return [batch_token_ids], [batch_token_ids, batch_segment_ids]
 
 train_dataloader = DataLoader(MyDataset('./data/prompt_examples.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
@@ -59,17 +59,19 @@ model = build_transformer_model(
     config_path=config_path,
     checkpoint_path=checkpoint_path,
     model='gpt2',
+    segment_vocab_size=0,
     add_trainer=True
 ).to(device)  # 建立模型，加载权重
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-    def forward(self, y_pred, y_true):
+    def forward(self, y_pred, labels):
         '''
         y_pred: [btz, seq_len, vocab_size]
-        y_true: [btz, seq_len]
+        labels: token_ids: [btz, seq_len], segment_ids: [btz, seq_len]
         '''
+        y_true, segment_ids = labels
         y_true = y_true[:, 1:]# 目标token_ids
         y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
         
@@ -78,32 +80,34 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
 
-class AutoTitle(AutoRegressiveDecoder):
-    """seq2seq解码器
+class ArticleCompletion(AutoRegressiveDecoder):
+    """基于随机采样的文章续写
     """
-    @AutoRegressiveDecoder.wraps(default_rtype='logits')
+    @AutoRegressiveDecoder.wraps(default_rtype='probas')
     def predict(self, inputs, output_ids, states):
-        token_ids, segment_ids = inputs
-        token_ids = torch.cat([token_ids, output_ids], 1)
-        segment_ids = torch.cat([segment_ids, torch.ones_like(output_ids, device=device)], 1)
-        y_pred = model.predict([token_ids, segment_ids])
-        return y_pred[:, -1, :]
+        token_ids = torch.cat([inputs[0], output_ids], 1)
+        logits = model.predict([token_ids])
+        return logits[:, -1, :]
 
-    def generate(self, text, topk=1, topp=0.95):
-        max_c_len = maxlen - self.maxlen
-        token_ids, segment_ids = tokenizer.encode(text, maxlen=max_c_len)
-        output_ids = self.beam_search([token_ids, segment_ids], topk=topk)  # 基于beam search
-        return tokenizer.decode(output_ids.cpu().numpy())
+    def generate(self, text, n=1, topp=0.95):
+        token_ids, _ = tokenizer.encode(text)
+        results = self.random_sample([token_ids], n, topp=topp)  # 基于随机采样
+        return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 
-autotitle = AutoTitle(start_id=None, end_id=511, maxlen=512, device=device)
-
+article_completion = ArticleCompletion(
+    start_id=None,
+    end_id=511,  # 511是中文句号
+    maxlen=100,
+    minlen=50,
+    device=device
+)
 
 def just_show():
     s1 = u'别爱我没结果'
     s2 = u'你这样会失去我的'
     for s in [s1, s2]:
-        print(u'生成标题:', autotitle.generate(s))
+        print(u'生成标题:', article_completion.generate(s))
 
 class Evaluator(Callback):
     """评估与保存
@@ -120,6 +124,7 @@ class Evaluator(Callback):
         just_show()
 
 if __name__ == '__main__':
+    just_show()
     evaluator = Evaluator()
 
     model.fit(

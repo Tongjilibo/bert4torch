@@ -109,6 +109,7 @@ class BERT_BASE(nn.Module):
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
+        inputs = [inputs] if isinstance(inputs, torch.Tensor) else inputs
         # Embedding
         outputs = self.apply_embeddings(inputs)
         # Main
@@ -1021,6 +1022,7 @@ class Encoder(BERT):
     def forward(self, inputs):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
         """
+        inputs = [inputs] if isinstance(inputs, torch.Tensor) else inputs
         # Embedding
         outputs = self.apply_embeddings(inputs)
         encoder_attention_mask = [outputs[1]]
@@ -1112,6 +1114,7 @@ class Transformer(BERT_BASE):
             self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
 
     def forward(self, inputs):
+        inputs = [inputs] if isinstance(inputs, torch.Tensor) else inputs
         encoder_input, decoder_input = inputs[:2]
 
         # encoder
