@@ -1433,8 +1433,7 @@ class GPT2(LM_Mask, BERT):
         return mapping
     
     class Gpt2Layer(BertLayer):
-        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用。
-        顺序：LN --> Att --> Add --> LN --> FFN --> Add
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -1479,7 +1478,7 @@ class GPT2_ML(LM_Mask, BERT):
         return mapping
 
     class Gpt2MlLayer(BertLayer):
-        '''未定义在layer.py中是因为该层针对gpt2_mlm模型，不可复用；
+        '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
         def __init__(self, *args, **kwargs):
