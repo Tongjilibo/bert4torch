@@ -55,7 +55,7 @@ class Model(BaseModel):
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, segment_vocab_size=0)
         self.pool_method = pool_method
 
-    def forward(self, token_ids_list):
+    def forward(self, *token_ids_list):
         reps = []
         for token_ids in token_ids_list:
             hidden_state1, pool_cls1 = self.bert([token_ids])

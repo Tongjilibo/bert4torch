@@ -103,13 +103,22 @@ class BERT_BASE(nn.Module):
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
 
-    def forward(self, inputs):
+    def args_segmentate(self, inputs):
+        '''解析输入，转成list，tuple类型
+        '''
+        # 如果是([],)类型的则取第一个元素
+        if (len(inputs)==1) and isinstance(inputs[0], (tuple,list)):
+            return inputs[0]
+        return inputs
+
+    def forward(self, *inputs):
         """定义模型的训练流程
         
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
-        inputs = [inputs] if isinstance(inputs, torch.Tensor) else inputs
+        # 允许model([token_ids, segment_ids]), model(token_ids, segment_ids)调用方式
+        inputs = self.args_segmentate(inputs)
         # Embedding
         outputs = self.apply_embeddings(inputs)
         # Main
@@ -119,14 +128,14 @@ class BERT_BASE(nn.Module):
         return outputs
 
     @torch.no_grad()
-    def predict(self, inputs):
+    def predict(self, *inputs):
         """定义模型的预测流程
         
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         self.eval()
-        return self.forward(inputs)
+        return self.forward(*inputs)
 
     def init_model_weights(self, module):
         """ 初始化权重
@@ -1019,10 +1028,10 @@ class Encoder(BERT):
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
     
-    def forward(self, inputs):
+    def forward(self, *inputs):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
         """
-        inputs = [inputs] if isinstance(inputs, torch.Tensor) else inputs
+        inputs = self.args_segmentate(inputs)
         # Embedding
         outputs = self.apply_embeddings(inputs)
         encoder_attention_mask = [outputs[1]]
@@ -1113,8 +1122,8 @@ class Transformer(BERT_BASE):
             assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
             self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
 
-    def forward(self, inputs):
-        inputs = [inputs] if isinstance(inputs, torch.Tensor) else inputs
+    def forward(self, *inputs):
+        inputs = self.args_segmentate(inputs)
         encoder_input, decoder_input = inputs[:2]
 
         # encoder

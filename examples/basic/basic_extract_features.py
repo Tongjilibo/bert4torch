@@ -21,6 +21,9 @@ print('\n ===== predicting =====\n')
 model.eval()
 with torch.no_grad():
   print(model([token_ids, segment_ids])[0])
+  # print(model(token_ids, segment_ids)[0])
+  # print(model.predict([token_ids, segment_ids])[0])
+  # print(model.predict(token_ids, segment_ids)[0])
 """
 输出：
 [[[-0.63251007  0.2030236   0.07936534 ...  0.49122632 -0.20493352

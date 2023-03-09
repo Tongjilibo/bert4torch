@@ -132,7 +132,7 @@ class Model(BaseModel):
         self.pool_method = pool_method
         self.scale = scale
 
-    def forward(self, token_ids_list):
+    def forward(self, *token_ids_list):
         token_ids = token_ids_list[0]
         hidden_state1, pooler1 = self.model1([token_ids])
         embeddings_a = get_pool_emb(hidden_state1, pooler1, token_ids.gt(0).long(), self.pool_method)

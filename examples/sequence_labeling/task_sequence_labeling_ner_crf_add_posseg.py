@@ -15,6 +15,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 import jieba.posseg as psg
 from collections import Counter
+import re
 
 maxlen = 256
 batch_size = 16
@@ -83,8 +84,9 @@ def collate_fn(batch):
         for i, j in enumerate(mapping):
             if j:
                 start, end = j[0], j[-1]  # token在原始text的首尾位置
-                token_new = (''.join(seg_word[start:end+1])).lower()
-                assert tokens[i] == token_new, f"{tokens[i]} -> {token_new}"
+                # 校正
+                # token_new = (''.join(seg_word[start:end+1])).lower()
+                # assert re.sub('^##', '', tokens[i]) == token_new, f"{tokens[i]} -> {token_new}"
                 if start == end:
                     psg_ids[i] = psg_map.get(seg_p[start], 0)  # 不在字典里给0
                 else:

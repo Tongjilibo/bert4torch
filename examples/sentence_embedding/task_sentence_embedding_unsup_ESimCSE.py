@@ -191,7 +191,7 @@ class Model(BaseModel):
         self.momentum_encoder = copy.deepcopy(self.encoder)
         self.scale = scale
     
-    def forward(self, token_ids_list):
+    def forward(self, *token_ids_list):
         reps = []
         for token_ids in token_ids_list[:2]:
             hidden_state1, pooler = self.encoder([token_ids])

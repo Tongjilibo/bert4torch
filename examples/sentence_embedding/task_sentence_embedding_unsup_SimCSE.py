@@ -127,7 +127,7 @@ class Model(BaseModel):
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         self.scale = scale
     
-    def forward(self, token_ids_list):
+    def forward(self, *token_ids_list):
         reps = []
         for token_ids in token_ids_list:
             hidden_state1, pooler = self.bert([token_ids])

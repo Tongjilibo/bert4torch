@@ -145,7 +145,7 @@ class Model(BaseModel):
         self.model2 = copy.deepcopy(self.model1)
         self.pool_method = pool_method
 
-    def forward(self, token_ids_list):
+    def forward(self, *token_ids_list):
         token_ids1 = token_ids_list[0]
         hidden_state1, pool_cls1 = self.model1([token_ids1])
         embeddings_a = get_pool_emb(hidden_state1, pool_cls1, token_ids1.gt(0).long(), self.pool_method)

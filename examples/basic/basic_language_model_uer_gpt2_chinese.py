@@ -5,8 +5,8 @@
 
 # ===============transformers======================
 from transformers import BertTokenizer, GPT2LMHeadModel, TextGenerationPipeline
-tokenizer = BertTokenizer.from_pretrained("/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall")
-model = GPT2LMHeadModel.from_pretrained("/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall")
+tokenizer = BertTokenizer.from_pretrained("F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall")
+model = GPT2LMHeadModel.from_pretrained("F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall")
 text_generator = TextGenerationPipeline(model, tokenizer)   
 output = text_generator("这是很久之前的事情了", max_length=100, do_sample=True)
 print('====transformers结果====')
@@ -18,9 +18,9 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.snippets import AutoRegressiveDecoder
 
-config_path = '/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_config.json'
-checkpoint_path = '/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_pytorch_model.bin'
-dict_path = '/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/vocab.txt'
+config_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_config.json'
+checkpoint_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_pytorch_model.bin'
+dict_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器

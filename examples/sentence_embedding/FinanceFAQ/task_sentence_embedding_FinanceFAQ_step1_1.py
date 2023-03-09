@@ -103,7 +103,7 @@ class Model(BaseModel):
         self.pool_method = pool_method
         self.scale = scale
 
-    def forward(self, token_ids_list):
+    def forward(self, *token_ids_list):
         reps = []
         for token_ids in token_ids_list:
             hidden_state1, pool_cls1 = self.bert([token_ids])
