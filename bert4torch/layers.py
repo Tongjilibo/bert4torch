@@ -951,14 +951,16 @@ class RoPEPositionEncoding(nn.Module):
     def __init__(self, max_position, embedding_size):
         super(RoPEPositionEncoding, self).__init__()
         position_embeddings = get_sinusoid_encoding_table(max_position, embedding_size)  # [seq_len, hdsz]
-        cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)
-        sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)
+        cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+        sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
         # register_buffer是为了最外层model.to(device)，不用内部指定device
         self.register_buffer('cos_position', cos_position)
         self.register_buffer('sin_position', sin_position)
     
     def forward(self, qw, seq_dim=-2):
-        # 默认最后两个维度为[seq_len, hdsz]
+        # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
+        # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
+        # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
         seq_len = qw.shape[seq_dim]
         qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
         return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
@@ -1274,8 +1276,9 @@ class GlobalPointer(nn.Module):
 
         # ROPE编码
         if self.RoPE:
-            qw = self.position_embedding(qw)
-            kw = self.position_embedding(kw)
+            # 为了seq_len维度在-2, 所以进行了转置
+            qw = self.position_embedding(qw.transpose(1,-2)).transpose(1,-2)
+            kw = self.position_embedding(kw.transpose(1,-2)).transpose(1,-2)
 
         # 计算内积
         logits = torch.einsum('bmhd,bnhd->bhmn', qw, kw)  # [btz, heads, seq_len, seq_len]

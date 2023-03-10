@@ -13,8 +13,6 @@ from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_ev
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import GlobalPointer
-import random
-import os
 
 maxlen = 256
 batch_size = 16

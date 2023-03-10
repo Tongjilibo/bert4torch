@@ -8,7 +8,7 @@ from itertools import groupby
 from tqdm import tqdm
 from bert4torch.losses import SparseMultilabelCategoricalCrossentropy
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.layers import EfficientGlobalPointer as GlobalPointer
+from bert4torch.layers import EfficientGlobalPointer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, Callback, ListDataset
 import torch
@@ -138,9 +138,9 @@ class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
         self.bert = build_transformer_model(config_path, checkpoint_path)
-        self.argu_output = GlobalPointer(hidden_size=768, heads=len(labels), head_size=64)
-        self.head_output = GlobalPointer(hidden_size=768, heads=1, head_size=64, RoPE=False)
-        self.tail_output = GlobalPointer(hidden_size=768, heads=1, head_size=64, RoPE=False)
+        self.argu_output = EfficientGlobalPointer(hidden_size=768, heads=len(labels), head_size=64)
+        self.head_output = EfficientGlobalPointer(hidden_size=768, heads=1, head_size=64, RoPE=False)
+        self.tail_output = EfficientGlobalPointer(hidden_size=768, heads=1, head_size=64, RoPE=False)
 
     def forward(self, *inputs):
         hidden_states = self.bert(inputs)  # [btz, seq_len, hdsz]
