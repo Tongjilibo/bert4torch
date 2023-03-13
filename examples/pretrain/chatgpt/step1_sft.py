@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 中文GPT模型预训练
+# instructgpt中stage1: Supervised Finetune
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate
@@ -17,6 +17,7 @@ import json
 maxlen = 512
 batch_size = 8
 epochs = 10000
+mask_prompt = False  # 是否把prompt部分mask掉
 
 # 模型配置
 root_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
@@ -71,10 +72,14 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         y_pred: [btz, seq_len, vocab_size]
         labels: token_ids: [btz, seq_len], segment_ids: [btz, seq_len]
         '''
-        y_true, segment_ids = labels
+        y_true, y_mask = labels
         y_true = y_true[:, 1:]# 目标token_ids
         y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
         
+        if mask_prompt:
+            y_mask = y_mask[:, 1:]  # segment_ids，刚好指示了要预测的部分
+            y_true = y_true*y_mask
+
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         y_true = y_true.flatten()
         return super().forward(y_pred, y_true)
