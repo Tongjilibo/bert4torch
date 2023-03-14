@@ -89,7 +89,7 @@
 - [task_relation_extraction_PGRC.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_PGRC.py)：[PGRC](https://github.com/hy-struggle/PRGC)来做关系提取。
 
 ## 文本生成
-- [task_seq2seq_autotitle_unilm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_unilm.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
+- [task_seq2seq_autotitle_csl_unilm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl_unilm.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
 - [task_seq2seq_autotitle_csl_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl_bart.py)：通过BART来做新闻标题生成
 - [task_seq2seq_autotitle_csl_uer_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl_uer_t5.py)：通过T5来做新闻标题生成，用的[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)
 - [task_seq2seq_autotitle_csl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做论文标题生成。
@@ -100,7 +100,7 @@
 - [task_seq2seq_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert.py)：相似问生成，数据增广，参考[SimBERT](https://kexue.fm/archives/7427)
 - [task_seq2seq_ape210k_math_word_problem.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_ape210k_math_word_problem.py)：bert+unilm硬刚小学数学题，参考[博客](https://kexue.fm/archives/7809)
 - [task_kgclue_seq2seq.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_kgclue_seq2seq.py)：seq2seq+前缀树，参考[博客](https://kexue.fm/archives/8802)
-
+- [dialogpt_finetune.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_dialogpt_finetune.py)：基于dialogpt的微调,同时提供微调数据格式, 参考[博客](https://kexue.fm/archives/8802)
 ## 训练Trick
 - [task_sentiment_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_adversarial_training.py)：通过对抗训练，虚拟对抗训练，梯度惩罚等措施来提升分类效果。
 - [task_sentiment_virtual_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_virtual_adversarial_training.py)：通过半监督的虚拟对抗训练等措施来提升分类效果。
