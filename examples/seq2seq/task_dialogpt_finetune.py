@@ -1,4 +1,5 @@
 #! -*- coding: utf-8 -*-
+# 数据集在examples/datasets目录下
 # 基于苏神的NEZHA模型做闲聊任务Finetune
 # 参考苏神博客 https://kexue.fm/archives/7718
 # base测试: https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gpt_dialog.py
@@ -148,7 +149,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
 
-    train_dataloader = DataLoader(MyDataset('LCCD-large-shuf.json'),
+    train_dataloader = DataLoader(MyDataset('../datasets/LCCD-large-shuf.json'),
                                   batch_size=batch_size,
                                   shuffle=True,
                                   collate_fn=collate_fn)
