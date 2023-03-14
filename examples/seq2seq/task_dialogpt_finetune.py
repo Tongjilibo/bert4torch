@@ -148,7 +148,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
 
-    train_dataloader = DataLoader(MyDataset('./LCCD-large-shuf.json'),
+    train_dataloader = DataLoader(MyDataset('LCCD-large-shuf.json'),
                                   batch_size=batch_size,
                                   shuffle=True,
                                   collate_fn=collate_fn)
