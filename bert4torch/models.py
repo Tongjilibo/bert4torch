@@ -4,6 +4,7 @@
 '''
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import copy
 import json
 import re
@@ -1384,11 +1385,11 @@ class GPT(LM_Mask, BERT):
     """
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, max_position, **kwargs):
+    def __init__(self, *args, **kwargs):
         """GPT的embedding是token、position、segment三者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
            使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
         """
-        super(GPT, self).__init__(max_position, **kwargs)
+        super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
@@ -1414,18 +1415,19 @@ class GPT2(LM_Mask, BERT):
     """
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, max_position, **kwargs):
+    def __init__(self, *args, **kwargs):
         """GPT2的embedding是token、position两者embedding之和。
            1、跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
            2、bert的layernorm是在attn/ffc之后，OpenAi-gpt2是在之前。
            使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
         """
-        super(GPT2, self).__init__(max_position, **kwargs)
+        super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
+        layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
+                               is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
-        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=kwargs.get('bias', True))
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.dense.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(self.final_activation)
 
@@ -1447,8 +1449,6 @@ class GPT2(LM_Mask, BERT):
     class Gpt2Layer(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
         def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
@@ -1464,13 +1464,14 @@ class GPT2_ML(LM_Mask, BERT):
     """构建GPT2_ML模型；
     链接: https://github.com/imcaspar/gpt2-ml；
     注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
-    看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第一个跳跃链接是在layernorm前，bert是在之后
+    看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第二个跳跃链接的输入是在layernorm前，bert是在之后
     """
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, max_position, **kwargs):
-        super().__init__(max_position, **kwargs)
-        layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
+                                 is_dropout=self.is_dropout, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
@@ -1493,17 +1494,52 @@ class GPT2_ML(LM_Mask, BERT):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
         def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
             self_attn_output = self.multiHeadAttention(hidden_states, attention_mask)
             hidden_states = hidden_states + self.dropout1(self_attn_output)
             x = self.layerNorm1((hidden_states, conditional_emb))
-            # bert的跳跃连接是在layerNorm之后，gpt2_ml是在layerNorm之前
             ffn_output = self.feedForward(x)
+            # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+layerNorm1的hidden_states, 即这里的x
+            # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加layerNorm1
             hidden_states = hidden_states + self.dropout2(ffn_output)
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
             return hidden_states
+
+
+class LLaMA(GPT2):
+    '''LLaMA
+    改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
+    '''
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'rotary', 'weight': False, 'bias': False, 'norm_mode': 'rmsnorm'})
+        super().__init__(*args, **kwargs)
+
+        for layer in self.encoderLayer:
+            layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, kwargs['multiple_of'])
+
+    def variable_mapping(self):
+        # 映射到权重格式
+        prefix = 'llama'
+        mapping =  super(GPT2, self).variable_mapping(prefix=prefix)
+        mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight'})
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'{prefix}.encoder.layer.%d.' % i
+            mapping.update({f'encoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})
+        return mapping
+    
+    class FeedForward(nn.Module):
+        '''FeedForward和Bert的不一致，Bert只有两个全连接
+        '''
+        def __init__(self, dim: int, hidden_dim: int, multiple_of: int):
+            super().__init__()
+            hidden_dim = int(2 * hidden_dim / 3)
+            hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+            self.intermediateDense = nn.Linear(dim, hidden_dim, bias=False)
+            self.outputDense = nn.Linear(hidden_dim, dim, bias=False)
+            self.intermediateDense2 = nn.Linear(dim, hidden_dim, bias=False)
+
+        def forward(self, x):
+            return self.outputDense(F.silu(self.intermediateDense(x)) * self.intermediateDense2(x))
 
 
 class Transformer_XL(BERT):
@@ -1824,6 +1860,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         'gpt': GPT,
         'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
+        'llama': LLaMA,
         't5': T5,
         't5_encoder': T5_Encoder,
         't5_decoder': T5_Decoder,

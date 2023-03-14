@@ -653,14 +653,17 @@ class SpTokenizer(TokenizerBase):
         import sentencepiece as spm
         self.sp_model = spm.SentencePieceProcessor()
         self.sp_model.Load(sp_model_path)
-        self._token_pad = self.sp_model.id_to_piece(self.sp_model.pad_id())
-        self._token_unk = self.sp_model.id_to_piece(self.sp_model.unk_id())
         self._vocab_size = self.sp_model.get_piece_size()
+        self._token_pad = self.id_to_token(self.sp_model.pad_id())
+        self._token_unk = self.id_to_token(self.sp_model.unk_id())
         self.remove_space = remove_space
         self.keep_accents = keep_accents
         self.do_lower_case = do_lower_case
 
-        for token in ['pad', 'unk', 'mask', 'start', 'end']:
+        # pad和unk肯定存在，改动是为了处理llama中pad_id是-1的情况
+        self._token_pad_id = self.sp_model.pad_id()
+        self._token_unk_id = self.sp_model.unk_id()
+        for token in ['mask', 'start', 'end']:
             try:
                 _token = getattr(self, '_token_%s' % token)
                 _token_id = self.sp_model.piece_to_id(_token)
@@ -692,7 +695,7 @@ class SpTokenizer(TokenizerBase):
     def id_to_token(self, i):
         """id转换为对应的token
         """
-        if i < self._vocab_size:
+        if (0 <= i) and (i < self._vocab_size):
             return self.sp_model.id_to_piece(i)
         else:
             return ''

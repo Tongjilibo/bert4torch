@@ -16,11 +16,19 @@ def convert():
     new_weights = {}
     prefix = 'gpt2'
 
+    # 词向量
     w = torch_weights['transformer.wte.weight']
     new_weights[f'{prefix}.embeddings.word_embeddings.weight'] = w
 
+    # 位置编码
     w = torch_weights['transformer.wpe.weight']
     new_weights[f'{prefix}.embeddings.position_embeddings.weight'] = w
+
+    # layernorm_final
+    w = torch_weights['transformer.ln_f.weight']
+    new_weights[f'{prefix}.LayerNormFinal.weight'] = w
+    b = torch_weights['transformer.ln_f.bias']
+    new_weights[f'{prefix}.LayerNormFinal.bias'] = b
 
     qkv = ['query', 'key', 'value']
     for i in range(num_hidden_layers):
@@ -77,12 +85,6 @@ def convert():
         b = torch_weights['transformer.h.%s.ln_2.bias' % i]
         name = prefix_i + 'output.LayerNorm.bias'
         new_weights[name] = b
-
-        # layernorm_final
-        w = torch_weights['transformer.ln_f.weight']
-        new_weights[f'{prefix}.LayerNormFinal.weight'] = w
-        b = torch_weights['transformer.ln_f.bias']
-        new_weights[f'{prefix}.LayerNormFinal.bias'] = b
         
     torch.save(new_weights, output_ckpt_file)
 
