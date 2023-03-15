@@ -198,7 +198,7 @@ class TokenizerBase(object):
     def ids_to_tokens(self, ids):
         """id序列转换为对应的token序列
         """
-        return [self.id_to_token(i) for i in ids]
+        return [self.id_to_token(int(i)) for i in ids]
 
     def decode(self, ids):
         """转为可读文本

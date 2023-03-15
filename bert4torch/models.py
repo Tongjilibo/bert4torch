@@ -1441,7 +1441,7 @@ class GPT2(LM_Mask, BERT):
 
     def variable_mapping(self):
         # 映射到GPT权重格式
-        mapping =  super(GPT2, self).variable_mapping(prefix='gpt2')
+        mapping = super(GPT2, self).variable_mapping(prefix='gpt2')
         mapping.update({'LayerNormFinal.weight': 'gpt2.LayerNormFinal.weight',
                         'LayerNormFinal.bias': 'gpt2.LayerNormFinal.bias'})
         return mapping
@@ -1506,27 +1506,60 @@ class GPT2_ML(LM_Mask, BERT):
             return hidden_states
 
 
-class LLaMA(GPT2):
+class LLaMA(LM_Mask, BERT):
     '''LLaMA
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
+    @insert_arguments(final_activation='softmax')
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': False, 'bias': False, 'norm_mode': 'rmsnorm'})
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm'})
         super().__init__(*args, **kwargs)
-
+        del self.embeddings.layerNorm
+        layer = self.TransformerBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
+                               is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
+        self.final_activation = get_activation(self.final_activation)
+        # 修改feedword
         for layer in self.encoderLayer:
             layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, kwargs['multiple_of'])
 
-    def variable_mapping(self):
+    def apply_final_layers(self, inputs):
+        hidden_state = super().apply_final_layers(inputs)
+        logit = self.dense(self.LayerNormFinal([hidden_state]))
+        return self.final_activation(logit)
+
+    def load_variable(self, state_dict, name):
+        return super(LLaMA, self).load_variable(state_dict, name, prefix='llama')
+
+    def variable_mapping(self, prefix='llama'):
         # 映射到权重格式
-        prefix = 'llama'
-        mapping =  super(GPT2, self).variable_mapping(prefix=prefix)
-        mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight'})
+        mapping = super(LLaMA, self).variable_mapping(prefix=prefix)
+        mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
+                        'dense.weight': f'{prefix}.dense.weight'})
         for i in range(self.num_hidden_layers):
             prefix_i = f'{prefix}.encoder.layer.%d.' % i
             mapping.update({f'encoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})
         return mapping
     
+    class TransformerBlock(BertLayer):
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
+        '''
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            del self.dropout1
+            del self.dropout2
+
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+            # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
+            x = self.layerNorm1((hidden_states, conditional_emb))
+            hidden_states = hidden_states + self.multiHeadAttention(x, attention_mask)
+            x = self.layerNorm2((hidden_states, conditional_emb))
+            hidden_states = hidden_states +  self.feedForward(x)
+            return hidden_states
+        
     class FeedForward(nn.Module):
         '''FeedForward和Bert的不一致，Bert只有两个全连接
         '''

@@ -11,9 +11,9 @@ checkpoint_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_pytorch_model.b
 spm_path = 'F:/Projects/pretrain_ckpt/llama/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>', keep_accents=True)
+tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama', segment_vocab_size=0).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').to(device)  # 建立模型，加载权重
 
 class ArticleCompletion(AutoRegressiveDecoder):
     """基于随机采样的文章续写
@@ -32,18 +32,11 @@ class ArticleCompletion(AutoRegressiveDecoder):
 
 article_completion = ArticleCompletion(
     start_id=None,
-    end_id=511,  # 511是中文句号
+    end_id=2,
     maxlen=100,
     minlen=50,
     device=device
 )
 
-print('====bert4torch结果====')
-for text in [u'这是很久之前的事情了']:
+for text in [u'I believe the meaning of life is']:
     print(article_completion.generate(text))
-    
-"""
-部分结果：
->>> article_completion.generate(u'这是很久之前的事情了')
-
-"""
