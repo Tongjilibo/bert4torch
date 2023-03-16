@@ -18,18 +18,18 @@ root_model_path = args_model_path
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
-
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, model=args_model, with_mlm='softmax')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, model=args_model, with_mlm='softmax').to(device)  # 建立模型，加载权重
 
 token_ids, segments_ids = tokenizer.encode("今天M很好，我M去公园玩。")
 token_ids[3] = token_ids[8] = tokenizer._token_mask_id
 print(''.join(tokenizer.ids_to_tokens(token_ids)))
 
-tokens_ids_tensor = torch.tensor([token_ids])
-segment_ids_tensor = torch.tensor([segments_ids])
+tokens_ids_tensor = torch.tensor([token_ids], device=device)
+segment_ids_tensor = torch.tensor([segments_ids], device=device)
 
 # 需要传入参数with_mlm
 model.eval()

@@ -92,7 +92,7 @@ class MultiHeadAttentionLayer(nn.Module):
                                                                          embedding_size=self.attention_head_size,
                                                                          max_relative_position=kwargs.get('max_relative_position'))
         elif self.p_bias == 'rotary':  # roformer
-            self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position'), embedding_size=self.attention_head_size)
+            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size)
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position'), 
                                                                   klen=kwargs.get('max_position'), 
@@ -343,7 +343,7 @@ class GatedAttentionUnit(nn.Module):
         
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
         if self.p_bias == 'rotary':  # RoPE
-            self.relative_positions_encoding = RoPEPositionEncoding(max_position=kwargs.get('max_position'), embedding_size=self.attention_head_size)
+            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size)
 
     def forward(self, hidden_states, attention_mask):
         # 投影变换
@@ -948,14 +948,16 @@ class SinusoidalPositionEncoding(nn.Module):
 class RoPEPositionEncoding(nn.Module):
     """旋转式位置编码: https://kexue.fm/archives/8265
     """
-    def __init__(self, max_position, embedding_size):
+    def __init__(self, embedding_size):
         super(RoPEPositionEncoding, self).__init__()
-        position_embeddings = get_sinusoid_encoding_table(max_position, embedding_size)  # [seq_len, hdsz]
+        self.max_seq_len_cache = -1
+        self.embedding_size = embedding_size
+    
+    def initialize(self, max_position):
+        position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size)  # [seq_len, hdsz]
         cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
         sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        # register_buffer是为了最外层model.to(device)，不用内部指定device
-        self.register_buffer('cos_position', cos_position)
-        self.register_buffer('sin_position', sin_position)
+        return cos_position, sin_position
     
     def forward(self, qw, seq_dim=-2):
         # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
@@ -963,6 +965,13 @@ class RoPEPositionEncoding(nn.Module):
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
         seq_len = qw.shape[seq_dim]
         qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
+        
+        # 超过缓存长度
+        if seq_len > self.max_seq_len_cache:
+            cos_position, sin_position = self.initialize(seq_len)
+            self.cos_position, self.sin_position = cos_position.to(qw.device), sin_position.to(qw.device)
+            self.max_seq_len_cache = seq_len
+
         return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
 
 
@@ -1254,7 +1263,7 @@ class GlobalPointer(nn.Module):
     将序列的每个(start, end)作为整体来进行判断
     参考：https://kexue.fm/archives/8373
     """
-    def __init__(self, hidden_size, heads, head_size, RoPE=True, max_len=512, use_bias=True, tril_mask=True):
+    def __init__(self, hidden_size, heads, head_size, RoPE=True, use_bias=True, tril_mask=True):
         super().__init__()
         self.heads = heads
         self.head_size = head_size
@@ -1263,7 +1272,7 @@ class GlobalPointer(nn.Module):
 
         self.dense = nn.Linear(hidden_size, heads * head_size * 2, bias=use_bias)
         if self.RoPE:
-            self.position_embedding = RoPEPositionEncoding(max_len, head_size)
+            self.position_embedding = RoPEPositionEncoding(head_size)
 
     def forward(self, inputs, mask=None):
         ''' 
@@ -1303,7 +1312,7 @@ class EfficientGlobalPointer(nn.Module):
     参考：https://kexue.fm/archives/8877
     这里实现和GlobalPointer相似，而未采用原版的奇偶位来取qw和kw，个人理解两种方式是无区别的
     """
-    def __init__(self, hidden_size, heads, head_size, RoPE=True, max_len=512, use_bias=True, tril_mask=True):
+    def __init__(self, hidden_size, heads, head_size, RoPE=True, use_bias=True, tril_mask=True):
         super().__init__()
         self.heads = heads
         self.head_size = head_size
@@ -1313,7 +1322,7 @@ class EfficientGlobalPointer(nn.Module):
         self.p_dense = nn.Linear(hidden_size, head_size * 2, bias=use_bias)
         self.q_dense = nn.Linear(head_size * 2, heads * 2, bias=use_bias)
         if self.RoPE:
-            self.position_embedding = RoPEPositionEncoding(max_len, head_size)
+            self.position_embedding = RoPEPositionEncoding(head_size)
 
     def forward(self, inputs, mask=None):
         ''' 
