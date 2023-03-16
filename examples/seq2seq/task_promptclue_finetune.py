@@ -23,8 +23,8 @@ spm_path = pretrain_model + 'spiece.model'
 
 token_pad_ids = -100
 max_i_len = 512
-max_t_len = 64
-batch_size = 512
+max_t_len = 128
+batch_size = 32
 epochs = 10
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -39,7 +39,8 @@ model = build_transformer_model(
     model='mt5.1.1',
     segment_vocab_size=0,
     logit_scale=False,
-    token_pad_ids=-1,  # 为了不和decoder_start_ids=0冲突
+    token_pad_ids=token_pad_ids,  # 为了不和decoder_start_ids=0冲突
+    add_trainer=True
 ).to(device)
 
 
@@ -139,7 +140,10 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
 
-    train_dataloader = DataLoader('pCLUE_test_mine.json', batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    train_dataloader = DataLoader(MyDataset('./pCLUE_test_mine.json'),
+                                  batch_size=batch_size,
+                                  shuffle=True,
+                                  collate_fn=collate_fn)
 
     model.fit(train_dataloader=train_dataloader,
               steps_per_epoch=None,
