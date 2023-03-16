@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 调用chatyuan https://github.com/clue-ai/ChatYuan
+# 调用PromptCLUE https://github.com/clue-ai/PromptCLUE
+# huggingface: https://huggingface.co/ClueAI/PromptCLUE-base-v1-5
 
 import torch
 from bert4torch.models import build_transformer_model
