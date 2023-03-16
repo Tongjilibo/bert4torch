@@ -65,6 +65,7 @@ if __name__ == '__main__':
 	"num_hidden_layers": 32,
 	"norm_eps": 1e-06,
 	"hidden_act": "silu",
-	"vocab_size": 32000
+	"vocab_size": 32000,
+	"segment_vocab_size": 0
 }
 '''

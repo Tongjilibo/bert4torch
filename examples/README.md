@@ -27,6 +27,7 @@
 - [basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_chatyuan.py): 测试[ChatYuan](https://github.com/clue-ai/ChatYuan)模型。
 - [basic_language_model_PromptCLUE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_PromptCLUE.py): 测试[PromptCLUE](https://github.com/clue-ai/PromptCLUE)模型。
 - [basic_language_model_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_albert.py): 测试[albert_chinese](https://github.com/brightmart/albert_zh)模型。
+- [basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
 
 ## 文本分类
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：句子对分类任务。

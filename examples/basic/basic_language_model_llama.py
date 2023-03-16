@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：llama的7b模型的测试, 调试中
+# 基本测试：llama的7b模型的测试, fp32精度的单卡占用约27g
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -38,5 +38,5 @@ article_completion = ArticleCompletion(
     device=device
 )
 
-for text in [u'I believe the meaning of life is']:
+for text in [u'I believe the meaning of life is ']:
     print(article_completion.generate(text))
