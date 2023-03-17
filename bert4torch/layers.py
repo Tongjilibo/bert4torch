@@ -35,17 +35,17 @@ class LayerNorm(nn.Module):
             self.dense2 = nn.Linear(conditional_size, hidden_size, bias=False)
             self.dense2.weight.data.uniform_(0, 0)
 
-    def forward(self, x):
-        inputs = x[0]
+    def forward(self, inputs):
+        x = inputs[0]
 
         if self.norm_mode == 'rmsnorm':
             # t5使用的是RMSnorm
-            variance = inputs.to(torch.float32).pow(2).mean(-1, keepdim=True)
-            o = inputs * torch.rsqrt(variance + self.eps)
+            variance = x.float().pow(2).mean(-1, keepdim=True)
+            o = (x.float() * torch.rsqrt(variance + self.eps)).type_as(x)
         else:
-            u = inputs.mean(-1, keepdim=True)
-            s = (inputs - u).pow(2).mean(-1, keepdim=True)
-            o = (inputs - u) / torch.sqrt(s + self.eps)
+            u = x.mean(-1, keepdim=True)
+            s = (x - u).pow(2).mean(-1, keepdim=True)
+            o = (x - u) / torch.sqrt(s + self.eps)
 
         if not hasattr(self, 'weight'):
             self.weight = 1
@@ -53,8 +53,8 @@ class LayerNorm(nn.Module):
             self.bias = 0
 
         if self.conditional_size:
-            cond = x[1]
-            for _ in range(len(inputs.shape) - len(cond.shape)):
+            cond = inputs[1]
+            for _ in range(len(x.shape) - len(cond.shape)):
                 cond = cond.unsqueeze(dim=1)
             return (self.weight + self.dense1(cond)) * o + (self.bias + self.dense2(cond))
         else:
@@ -969,7 +969,7 @@ class RoPEPositionEncoding(nn.Module):
         # 超过缓存长度
         if seq_len > self.max_seq_len_cache:
             cos_position, sin_position = self.initialize(seq_len)
-            self.cos_position, self.sin_position = cos_position.to(qw.device), sin_position.to(qw.device)
+            self.cos_position, self.sin_position = cos_position.type_as(qw).to(qw.device), sin_position.type_as(qw).to(qw.device)
             self.max_seq_len_cache = seq_len
 
         return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]

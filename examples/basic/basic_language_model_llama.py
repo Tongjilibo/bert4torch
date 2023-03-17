@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：llama的7b模型的测试, fp32精度的单卡占用约27g
+# 基本测试：llama的7b模型的测试, fp32精度的单卡占用约27g，fp16的显存占用约14g
+# 使用前需要先进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -13,7 +14,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)  # 建立模型，加载权重
 
 class ArticleCompletion(AutoRegressiveDecoder):
     """基于随机采样的文章续写
@@ -32,9 +33,9 @@ class ArticleCompletion(AutoRegressiveDecoder):
 
 article_completion = ArticleCompletion(
     start_id=None,
-    end_id=2,
-    maxlen=100,
-    minlen=50,
+    end_id=2,  # </s>标记
+    maxlen=256,
+    minlen=20,
     device=device
 )
 
