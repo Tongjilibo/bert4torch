@@ -101,7 +101,9 @@
 - [task_seq2seq_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_simbert.py)：相似问生成，数据增广，参考[SimBERT](https://kexue.fm/archives/7427)
 - [task_seq2seq_ape210k_math_word_problem.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_ape210k_math_word_problem.py)：bert+unilm硬刚小学数学题，参考[博客](https://kexue.fm/archives/7809)
 - [task_kgclue_seq2seq.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_kgclue_seq2seq.py)：seq2seq+前缀树，参考[博客](https://kexue.fm/archives/8802)
-- [dialogpt_finetune.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_dialogpt_finetune.py)：基于dialogpt的微调,同时提供微调数据格式, 参考[博客](https://kexue.fm/archives/8802)
+- [task_dialogpt_finetune.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_dialogpt_finetune.py)：基于dialogpt的微调,同时提供微调数据格式, 参考[博客](https://kexue.fm/archives/8802)
+- [task_promptclue_finetune.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_promptclue_finetune.py)：基于promptclue-base-v1.5的微调
+
 ## 训练Trick
 - [task_sentiment_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_adversarial_training.py)：通过对抗训练，虚拟对抗训练，梯度惩罚等措施来提升分类效果。
 - [task_sentiment_virtual_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_virtual_adversarial_training.py)：通过半监督的虚拟对抗训练等措施来提升分类效果。
