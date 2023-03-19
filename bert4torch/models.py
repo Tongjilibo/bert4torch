@@ -1508,6 +1508,7 @@ class GPT2_ML(LM_Mask, BERT):
 
 class LLaMA(LM_Mask, BERT):
     '''LLaMA
+    链接: https://github.com/facebookresearch/llama
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
     @insert_arguments(final_activation='softmax')
@@ -1573,6 +1574,17 @@ class LLaMA(LM_Mask, BERT):
 
         def forward(self, x):
             return self.outputDense(F.silu(self.intermediateDense(x)) * self.intermediateDense2(x))
+
+
+class GLM(LM_Mask, BERT):
+    '''GLM: https://github.com/THUDM/GLM
+    正在添加中
+    '''
+    @insert_arguments(final_activation='softmax')
+    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
+    def __init__(self, *args, **kwargs):
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm'})
+        super().__init__(*args, **kwargs)
 
 
 class Transformer_XL(BERT):
@@ -1894,6 +1906,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
         'llama': LLaMA,
+        'glm': GLM,
         't5': T5,
         't5_encoder': T5_Encoder,
         't5_decoder': T5_Decoder,
