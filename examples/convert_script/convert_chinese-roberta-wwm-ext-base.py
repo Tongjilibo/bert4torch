@@ -4,6 +4,6 @@
 
 import torch
 
-state_dict = torch.load('F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin')
+state_dict = torch.load('F:/Projects/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin')
 state_dict['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bias']
-torch.save(state_dict, 'F:/Projects/pretrain_ckpt/robert/[hit_torch_base]--chinese-roberta-wwm-ext-base/bert4torch_pytorch_model.bin')
+torch.save(state_dict, 'F:/Projects/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/bert4torch_pytorch_model.bin')
