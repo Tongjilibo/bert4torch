@@ -536,7 +536,7 @@ class BERT(BERT_BASE):
         return outputs if len(outputs) > 1 else outputs[0]
 
     def load_variable(self, state_dict, name, prefix='bert'):
-        """加载单个变量的函数
+        """加载单个变量的函数, 这里的名称均为映射前的
         """
         variable = state_dict[name]
         if name in {
@@ -1585,7 +1585,21 @@ class GLM(LM_Mask, BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm'})
         super().__init__(*args, **kwargs)
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=True) 
 
+    def variable_mapping(self, prefix='llama'):
+        # 映射到权重格式
+        mapping = {
+            'LayerNormFinal.weight': "transformer.final_layernorm.weight",
+            'LayerNormFinal.bias': "transformer.final_layernorm.bias",
+            'dense.weight': "lm_head.weight",
+            'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
+
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'{prefix}.encoder.layer.%d.' % i
+            mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight'})
+        return mapping
 
 class Transformer_XL(BERT):
     '''构建transformer-xl模型, 已加载；
