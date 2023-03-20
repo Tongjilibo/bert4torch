@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 基础测试：英文mlm预测, 适用bert和roberta模型
+# 基础测试：英文mlm预测
+# 权重下载链接：https://huggingface.co/roberta-base
 # 需要先调用进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_roberta-base.py
 
 from bert4torch.models import build_transformer_model
