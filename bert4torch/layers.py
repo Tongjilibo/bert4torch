@@ -503,7 +503,7 @@ class BertLayer(nn.Module):
         3. config.intermediate_size的大小不仅是第一层linear的输出尺寸，也是第二层linear的输入尺寸
     """
     def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, 
-                 is_dropout=False, conditional_size=False, **kwargs):
+                 is_dropout=False, conditional_size=False, pre_post_norm='post', **kwargs):
         super(BertLayer, self).__init__()
         self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
         self.dropout1 = nn.Dropout(dropout_rate)
@@ -511,6 +511,7 @@ class BertLayer(nn.Module):
         self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
         self.dropout2 = nn.Dropout(dropout_rate)
         self.layerNorm2 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
+        self.pre_post_norm = pre_post_norm
         self.is_decoder = kwargs.get('is_decoder')
         if self.is_decoder:
             self.crossAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
@@ -518,19 +519,32 @@ class BertLayer(nn.Module):
             self.layerNorm3 = LayerNorm(hidden_size, eps=1e-12, conditional_size=conditional_size, **kwargs)
 
     def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
-        self_attn_output = self.multiHeadAttention(hidden_states, attention_mask)  # self.decoder为true时候，这里的attention_mask是三角的
+        # self attention
+        if self.pre_post_norm == 'pre':
+            x = self.layerNorm1((hidden_states, conditional_emb))
+        else:
+            x = hidden_states
+        self_attn_output = self.multiHeadAttention(x, attention_mask)  # self.decoder为true时候，这里的attention_mask是三角的
         hidden_states = hidden_states + self.dropout1(self_attn_output)
-        hidden_states = self.layerNorm1((hidden_states, conditional_emb))
+        if self.pre_post_norm == 'post':
+            hidden_states = self.layerNorm1((hidden_states, conditional_emb))
         
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
             cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask)
             hidden_states = hidden_states + self.dropout3(cross_attn_output)
-            hidden_states = self.layerNorm3((hidden_states, conditional_emb))
-            
-        self_attn_output2 = self.feedForward(hidden_states)
-        hidden_states = hidden_states + self.dropout2(self_attn_output2)
-        hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+            if self.pre_post_norm == 'post':
+                hidden_states = self.layerNorm3((hidden_states, conditional_emb))
+
+        # feedforward
+        if self.pre_post_norm == 'pre':
+            x = self.layerNorm2((hidden_states, conditional_emb))
+        else:
+            x = hidden_states
+        feedforward_output = self.feedForward(x)
+        hidden_states = hidden_states + self.dropout2(feedforward_output)
+        if self.pre_post_norm == 'post':
+            hidden_states = self.layerNorm2((hidden_states, conditional_emb))
         return hidden_states
 
 
