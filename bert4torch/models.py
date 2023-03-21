@@ -1583,23 +1583,74 @@ class GLM(LM_Mask, BERT):
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm'})
+        kwargs.update({'p_bias': 'rotary', 'weight': True})
         super().__init__(*args, **kwargs)
-        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=True) 
+        del self.embeddings.layerNorm
+        layer = self.GLMBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
+                        is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
 
-    def variable_mapping(self, prefix='llama'):
+    def load_variable(self, state_dict, name, prefix='transformer'):
+        """加载单个变量的函数, 这里的名称均为映射前的
+        """
+        variable = state_dict[name]
+        if name in {f'{prefix}.embeddings.word_embeddings.weight', 'lm_head.weight'}:
+            return self.load_embeddings(variable)
+        else:
+            return variable
+        
+    def variable_mapping(self, prefix='transformer'):
         # 映射到权重格式
         mapping = {
             'LayerNormFinal.weight': "transformer.final_layernorm.weight",
             'LayerNormFinal.bias': "transformer.final_layernorm.bias",
             'dense.weight': "lm_head.weight",
-            'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
+            'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight',
+            'dense.weight': "lm_head.weight"}
 
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{prefix}.encoder.layer.%d.' % i
-            mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight'})
+            prefix_i = f'{prefix}.layers.%d.' % i
+            mapping.update({
+                f'encoderLayer.{i}.layerNorm1.weight': prefix_i + 'input_layernorm.weight',
+                f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'input_layernorm.bias',
+                f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'post_attention_layernorm.weight',
+                f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'post_attention_layernorm.bias',
+
+                f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight',
+                f'encoderLayer.{i}.multiHeadAttention.q.bias': prefix_i + 'attention.self.query.bias',
+                f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attention.self.key.weight',
+                f'encoderLayer.{i}.multiHeadAttention.k.bias': prefix_i + 'attention.self.key.bias',
+                f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'attention.self.value.weight',
+                f'encoderLayer.{i}.multiHeadAttention.v.bias': prefix_i + 'attention.self.value.bias',
+                f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attention.dense.weight',
+                f'encoderLayer.{i}.multiHeadAttention.o.bias': prefix_i + 'attention.dense.bias',
+                f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'mlp.dense_h_to_4h.weight',
+                f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_i + 'mlp.dense_h_to_4h.bias',
+                f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'mlp.dense_4h_to_h.weight',
+                f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'mlp.dense_4h_to_h.bias',
+                })
         return mapping
+
+    class GLMBlock(BertLayer):
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
+        '''
+        def __init__(self, *args, num_hidden_layers=28, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.num_hidden_layers = num_hidden_layers
+            del self.dropout1
+            del self.dropout2
+
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+            # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
+            x = self.layerNorm1((hidden_states, conditional_emb))
+            alpha = (2 * self.num_hidden_layers) ** 0.5
+            hidden_states = x * alpha + self.multiHeadAttention(x, attention_mask)
+            x = self.layerNorm2((hidden_states, conditional_emb))
+            hidden_states = x *alpha +  self.feedForward(x)
+            return hidden_states
+
 
 class Transformer_XL(BERT):
     '''构建transformer-xl模型, 已加载；

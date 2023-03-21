@@ -520,10 +520,7 @@ class BertLayer(nn.Module):
 
     def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
         # self attention
-        if self.pre_post_norm == 'pre':
-            x = self.layerNorm1((hidden_states, conditional_emb))
-        else:
-            x = hidden_states
+        x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
         self_attn_output = self.multiHeadAttention(x, attention_mask)  # self.decoder为true时候，这里的attention_mask是三角的
         hidden_states = hidden_states + self.dropout1(self_attn_output)
         if self.pre_post_norm == 'post':
@@ -537,10 +534,7 @@ class BertLayer(nn.Module):
                 hidden_states = self.layerNorm3((hidden_states, conditional_emb))
 
         # feedforward
-        if self.pre_post_norm == 'pre':
-            x = self.layerNorm2((hidden_states, conditional_emb))
-        else:
-            x = hidden_states
+        x = self.layerNorm2((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
         feedforward_output = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(feedforward_output)
         if self.pre_post_norm == 'post':
