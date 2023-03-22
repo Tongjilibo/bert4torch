@@ -1583,7 +1583,7 @@ class GLM(LM_Mask, BERT):
     @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True})
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown'})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.GLMBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
