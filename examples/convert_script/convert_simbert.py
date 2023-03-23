@@ -27,11 +27,10 @@ with open(tf_dir + 'bert_config.json', 'r') as f:
 
 torch_state_dict = {}
 
-prefix = 'roformer'
+prefix = 'bert'
 mapping = {
 'bert/embeddings/word_embeddings':  f'{prefix}.embeddings.word_embeddings.weight',
-# 苏神tf ckpt中不存在该层, 舍去
-#'bert/embeddings/position_embeddings':  f'{prefix}.embeddings.position_embeddings.weight',
+'bert/embeddings/position_embeddings':  f'{prefix}.embeddings.position_embeddings.weight',
 'bert/embeddings/token_type_embeddings': f'{prefix}.embeddings.token_type_embeddings.weight',
 'bert/embeddings/LayerNorm/beta': f'{prefix}.embeddings.LayerNorm.bias',
 'bert/embeddings/LayerNorm/gamma': f'{prefix}.embeddings.LayerNorm.weight',
