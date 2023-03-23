@@ -33,13 +33,6 @@
 - [basic_language_model_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_albert.py): 测试[albert_chinese](https://github.com/brightmart/albert_zh)模型。
 - [basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
 
-- [basic_language_model_roberta_english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_english.py)：测试英文版Roberta的MLM模型效果。
--
-
-
-- [basic_language_model_roberta_english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_english.py)：测试英文版Roberta的MLM模型效果。
--
-
 
 ## 文本分类
 
