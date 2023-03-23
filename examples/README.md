@@ -9,7 +9,7 @@
 - [basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gen_gpt.py)：测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
 - [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_make_uncased_model_cased.py)：通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
 - [basic_language_model_bert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_bert.py)：测试BERT的MLM模型效果。
-- [basic_language_model_roberta_small.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_small.py)：测试Roberta的MLM模型效果。
+- [basic_language_model_roberta_small.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_small.py)：测试Roberta-small的MLM模型效果。
 - [basic_language_model_roberta_english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_english.py)：测试英文版Roberta的MLM模型效果。
 - [basic_language_model_ernie.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_ernie.py)：测试百度文心ERNIE的MLM模型效果。
 - [basic_language_model_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_GAU_alpha.py)：测试[GAU-alpha](https://github.com/ZhuiyiTechnology/GAU-alpha)的MLM模型效果。
