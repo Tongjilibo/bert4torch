@@ -1639,15 +1639,18 @@ class GLM(LM_Mask, BERT):
         def __init__(self, *args, num_hidden_layers=28, **kwargs):
             super().__init__(*args, **kwargs)
             self.num_hidden_layers = num_hidden_layers
+            hidden_size, eps = args[0], kwargs.get('layer_norm_eps', 1e-5)
+            self.layerNorm1 = torch.nn.LayerNorm(hidden_size, eps=eps)
+            self.layerNorm2 = torch.nn.LayerNorm(hidden_size, eps=eps)
             del self.dropout1
             del self.dropout2
 
         def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
-            x = self.layerNorm1((hidden_states, conditional_emb))
+            x = self.layerNorm1(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
             hidden_states = x * alpha + self.multiHeadAttention(x, attention_mask)
-            x = self.layerNorm2((hidden_states, conditional_emb))
+            x = self.layerNorm2(conditional_emb)
             hidden_states = x *alpha +  self.feedForward(x)
             return hidden_states
 
