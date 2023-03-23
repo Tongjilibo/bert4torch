@@ -9,7 +9,7 @@ import json
 # 也可以从huggingface下第三方转换的https://huggingface.co/peterchou/simbert-chinese-base
 tf_dir = 'F:/Projects/pretrain_ckpt/simbert/[sushen_tf_base]--chinese_simbert_L-12_H-768_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
-torch_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/pytorch_model1.bin'
+torch_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/pytorch_model.bin'
 
 # small
 tf_dir = 'F:/Projects/pretrain_ckpt/simbert/[sushen_tf_small]--chinese_simbert_L-6_H-384_A-12/'

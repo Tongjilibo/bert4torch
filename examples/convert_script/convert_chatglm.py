@@ -15,14 +15,18 @@ for i in range(1, 9):
 for key, value in state_dict.items():
     if re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight", key):
         l = re.findall('[0-9]+', key)[0]
-        q, k, v = torch.chunk(value, 3, 0)
+        tensor_list = torch.split(value, 128, 0)
+        q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+        q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
         new_weights[f'transformer.layers.{l}.attention.self.query.weight'] = q
         new_weights[f'transformer.layers.{l}.attention.self.key.weight'] = k
         new_weights[f'transformer.layers.{l}.attention.self.value.weight'] = v
         
     elif re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.bias", key):
         l = re.findall('[0-9]+', key)[0]
-        q, k, v = torch.chunk(value, 3, 0)
+        tensor_list = torch.split(value, 128, 0)
+        q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+        q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
         new_weights[f'transformer.layers.{l}.attention.self.query.bias'] = q
         new_weights[f'transformer.layers.{l}.attention.self.key.bias'] = k
         new_weights[f'transformer.layers.{l}.attention.self.value.bias'] = v
