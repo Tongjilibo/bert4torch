@@ -1,5 +1,7 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：
+# 基本测试：chatglm的对话测试
+# 转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
+# fp16半精度下显存占用14G
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -14,7 +16,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().to(device)  # 建立模型，加载权重
 
-class ArticleCompletion(AutoRegressiveDecoder):
+class Chat(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='probas')
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
@@ -27,9 +29,9 @@ class ArticleCompletion(AutoRegressiveDecoder):
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 
-article_completion = ArticleCompletion(
+article_completion = Chat(
     start_id=None,
-    end_id=2,  # </s>标记
+    end_id=150005,  # eos标记
     maxlen=256,
     minlen=20,
     device=device
