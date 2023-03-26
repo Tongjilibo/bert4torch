@@ -16,6 +16,7 @@ from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
+from tqdm import tqdm
 
 
 class BERT_BASE(nn.Module):
@@ -200,7 +201,16 @@ class BERT_BASE(nn.Module):
     def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None):
         """根据mapping从checkpoint加载权重
         """
-        file_state_dict = torch.load(checkpoint, map_location='cpu')  # 加载模型文件
+        # 加载模型文件
+        if isinstance(checkpoint, str):
+            file_state_dict = torch.load(checkpoint, map_location='cpu')
+        elif isinstance(checkpoint, (tuple, list)):
+            file_state_dict = {}
+            for ckpt_path in tqdm(checkpoint, desc='Loading checkpoint shards:'):
+                file_state_dict.update(torch.load(ckpt_path, map_location='cpu'))
+        else:
+            raise ValueError('Args `checkpoint_path` only support `str` and `list(str)` format')
+        
         mapping = mapping or self.variable_mapping()
         parameters_set = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         
@@ -1929,7 +1939,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     """根据配置文件构建模型，可选加载checkpoint权重
 
     :param config_path: str, 模型的config文件地址
-    :param checkpoint_path: str, 模型文件地址, 默认值None表示不加载预训练模型
+    :param checkpoint_path: str/list[str], 模型文件地址, 默认值None表示不加载预训练模型
     :param model: str, 加载的模型结构, 这里Model也可以基于nn.Module自定义后传入, 默认为'bert'
     :param application: str, 模型应用, 支持encoder, lm和unilm格式, 默认为'encoder'
     :param segment_vocab_size: int, type_token_ids数量, 默认为2, 如不传入segment_ids则需设置为0

@@ -516,7 +516,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             return input_ + self.post_process(self.tokenizer.decode(results[0].cpu().numpy()))
         return
 
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=True):
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
         inputs = self.pre_process(text)
         return self.generate_(inputs, n, topk, topp, temperature, text, add_input)
 
@@ -534,7 +534,7 @@ class Seq2SeqGeneration(SeqGeneration):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         return self.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
         
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=True):
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
         inputs = self.pre_process(text)
         inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
