@@ -18,7 +18,7 @@ tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
 speakers = [tokenizer.token_to_id('[speaker1]'), tokenizer.token_to_id('[speaker2]')]
 
 # config中设置shared_segment_embeddings=True，segment embedding用word embedding的权重生成
-model = build_transformer_model(
+encoder = build_transformer_model(
     config_path=config_path,
     checkpoint_path=checkpoint_path,
     model='gpt',
@@ -34,7 +34,7 @@ class ChatBot(AutoRegressiveDecoder):
         curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
         token_ids = torch.cat([token_ids, output_ids], 1)
         segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
-        logits = model.predict([token_ids, segment_ids])
+        logits = encoder.predict([token_ids, segment_ids])
         return logits[:, -1, :]
 
     def response(self, texts, n=1, topk=5):
