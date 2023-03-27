@@ -28,7 +28,7 @@ encoder = build_transformer_model(
 class ChatBot(AutoRegressiveDecoder):
     """基于随机采样的闲聊回复
     """
-    @AutoRegressiveDecoder.wraps(default_rtype='probas')
+    @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids, segment_ids = inputs
         curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]

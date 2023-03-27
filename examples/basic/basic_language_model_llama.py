@@ -23,7 +23,7 @@ tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accent
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)  # 建立模型，加载权重
 
 class ArticleCompletion(AutoRegressiveDecoder):
-    @AutoRegressiveDecoder.wraps(default_rtype='probas')
+    @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
         logits = model.predict([token_ids])

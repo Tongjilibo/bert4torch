@@ -88,7 +88,7 @@ model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.
 class ArticleCompletion(AutoRegressiveDecoder):
     """基于随机采样的文章续写
     """
-    @AutoRegressiveDecoder.wraps(default_rtype='probas')
+    @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
         logits = model.predict([token_ids])

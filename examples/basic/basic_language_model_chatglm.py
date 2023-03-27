@@ -20,7 +20,7 @@ tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().to(device)  # 建立模型，加载权重
 
 class Chat(AutoRegressiveDecoder):
-    @AutoRegressiveDecoder.wraps(default_rtype='probas')
+    @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
         logits = encoder.predict([token_ids])

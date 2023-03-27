@@ -1393,7 +1393,6 @@ class GPT(LM_Mask, BERT):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
     """
-    @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         """GPT的embedding是token、position、segment三者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
@@ -1403,7 +1402,7 @@ class GPT(LM_Mask, BERT):
         del self.embeddings.layerNorm
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
-        self.final_activation = get_activation(self.final_activation)
+        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def apply_final_layers(self, inputs):
         hidden_state = super().apply_final_layers(inputs)
@@ -1423,7 +1422,6 @@ class GPT2(LM_Mask, BERT):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
     """
-    @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         """GPT2的embedding是token、position两者embedding之和。
@@ -1439,7 +1437,7 @@ class GPT2(LM_Mask, BERT):
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=kwargs.get('bias', True))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.dense.weight = self.embeddings.word_embeddings.weight
-        self.final_activation = get_activation(self.final_activation)
+        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def apply_final_layers(self, inputs):
         hidden_state = super().apply_final_layers(inputs)
@@ -1476,7 +1474,6 @@ class GPT2_ML(LM_Mask, BERT):
     注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
     看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第二个跳跃链接的输入是在layernorm前，bert是在之后
     """
-    @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1485,7 +1482,7 @@ class GPT2_ML(LM_Mask, BERT):
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
-        self.final_activation = get_activation(self.final_activation)
+        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def apply_final_layers(self, inputs):
         hidden_state = super().apply_final_layers(inputs)
@@ -1521,7 +1518,6 @@ class LLaMA(LM_Mask, BERT):
     链接: https://github.com/facebookresearch/llama
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
-    @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm'})
@@ -1532,7 +1528,7 @@ class LLaMA(LM_Mask, BERT):
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
-        self.final_activation = get_activation(self.final_activation)
+        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
         for layer in self.encoderLayer:
             layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, kwargs['multiple_of'])
@@ -1588,9 +1584,12 @@ class LLaMA(LM_Mask, BERT):
 
 class GLM(LM_Mask, BERT):
     '''GLM: https://github.com/THUDM/GLM
-    正在添加中
+    模型结构特点：
+    1）rotray使用的updown+position_encoding_2d
+    2）qkv合并成一个权重convert时不是concat在一起的
+    3）attention_mask类似于Unilm，最后一个token仅能访问之前的，之前的tokens可以互相访问
+    4）跳跃连接有权重设计
     '''
-    @insert_arguments(final_activation='softmax')
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown'})
@@ -1601,7 +1600,7 @@ class GLM(LM_Mask, BERT):
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-        self.final_activation = get_activation(self.final_activation)
+        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def load_variable(self, state_dict, name, prefix='transformer'):
         """加载单个变量的函数, 这里的名称均为映射前的
