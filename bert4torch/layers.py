@@ -161,7 +161,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
-        if self.p_bias == 'rotary' and hasattr(self, 'position_encoding_2d'):  # chatglm独有逻辑
+        if self.p_bias == 'rotary' and self.position_encoding_2d:  # chatglm独有逻辑
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
             q1 = self.relative_positions_encoding(q1)
@@ -172,7 +172,7 @@ class MultiHeadAttentionLayer(nn.Module):
             k2 = self.relative_positions_encoding(k2, position_ids)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
-        elif self.p_bias == 'rotary' and not hasattr(self, 'position_encoding_2d'):  # 原rotary逻辑
+        elif self.p_bias == 'rotary' and not self.position_encoding_2d:  # 原rotary逻辑
             query_layer = self.relative_positions_encoding(query_layer)
             key_layer = self.relative_positions_encoding(key_layer)
 
