@@ -134,29 +134,35 @@ class MultiHeadAttentionLayer(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, query_states=None):
+    def forward(self, hidden_states, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, query_states=None, past_key_value=None):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
         # encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
         # encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
+        # past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
 
         if query_states is None:
             query_states = hidden_states  # 在deberta_v2中使用
-        mixed_query_layer = self.q(query_states)
-        if encoder_hidden_states is not None:
-            mixed_key_layer = self.k(encoder_hidden_states)
-            mixed_value_layer = self.v(encoder_hidden_states)
-            attention_mask = encoder_attention_mask
-        else:
-            mixed_key_layer = self.k(hidden_states)
-            mixed_value_layer = self.v(hidden_states)
-        # mixed_query_layer shape: [batch_size, query_len, hidden_size]
-        # mixed_query_layer shape: [batch_size, key_len, hidden_size]
-        # mixed_query_layer shape: [batch_size, value_len, hidden_size]
+        query_layer = self.transpose_for_scores(self.q(query_states))
 
-        query_layer = self.transpose_for_scores(mixed_query_layer)
-        key_layer = self.transpose_for_scores(mixed_key_layer)
-        value_layer = self.transpose_for_scores(mixed_value_layer)
+        # 参考hf增加了关于past_key_value的逻辑
+        is_cross_attention = encoder_hidden_states is not None
+        if is_cross_attention and past_key_value is not None:
+            key_layer = past_key_value[0]
+            value_layer = past_key_value[1]
+            attention_mask = encoder_attention_mask
+        elif is_cross_attention:
+            key_layer = self.transpose_for_scores(self.k(encoder_hidden_states))
+            value_layer = self.transpose_for_scores(self.v(encoder_hidden_states))
+            attention_mask = encoder_attention_mask
+        elif past_key_value is not None:
+            key_layer = self.transpose_for_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_scores(self.v(hidden_states))
+            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
+            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
+        else:
+            key_layer = self.transpose_for_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_scores(self.v(hidden_states))
         # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
