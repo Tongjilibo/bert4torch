@@ -134,16 +134,14 @@ class MultiHeadAttentionLayer(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, query_states=None, past_key_value=None):
+    def forward(self, hidden_states, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
         # encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
         # encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
         # past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
 
-        if query_states is None:
-            query_states = hidden_states  # 在deberta_v2中使用
-        query_layer = self.transpose_for_scores(self.q(query_states))
+        query_layer = self.transpose_for_scores(self.q(hidden_states))
 
         # 参考hf增加了关于past_key_value的逻辑
         is_cross_attention = encoder_hidden_states is not None

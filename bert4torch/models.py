@@ -1617,8 +1617,7 @@ class GLM(LM_Mask, BERT):
             'LayerNormFinal.weight': "transformer.final_layernorm.weight",
             'LayerNormFinal.bias': "transformer.final_layernorm.bias",
             'dense.weight': "lm_head.weight",
-            'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight',
-            'dense.weight': "lm_head.weight"}
+            'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
 
         for i in range(self.num_hidden_layers):
             prefix_i = f'{prefix}.layers.%d.' % i

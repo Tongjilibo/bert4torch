@@ -13,7 +13,9 @@ for i in range(1, 9):
     del state_dict_tmp
 
 for key, value in state_dict.items():
-    if re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight", key):
+    if key in {"lm_head.weight", "transformer.word_embeddings.weight"}:
+        new_weights[key] = value[20000:]  # 前2万个token都是图像相关的，因此删减掉
+    elif re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight", key):
         l = re.findall('[0-9]+', key)[0]
         tensor_list = torch.split(value, 128, 0)
         q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
@@ -21,7 +23,6 @@ for key, value in state_dict.items():
         new_weights[f'transformer.layers.{l}.attention.self.query.weight'] = q
         new_weights[f'transformer.layers.{l}.attention.self.key.weight'] = k
         new_weights[f'transformer.layers.{l}.attention.self.value.weight'] = v
-        
     elif re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.bias", key):
         l = re.findall('[0-9]+', key)[0]
         tensor_list = torch.split(value, 128, 0)
@@ -38,8 +39,8 @@ torch.save(new_weights, dir_path + 'bert4torch_pytorch_model.bin')
 '''
 {
   "hidden_act": "gelu", 
-  "bos_token_id": 150004,
-  "eos_token_id": 150005,
+  "bos_token_id": 130004,
+  "eos_token_id": 130005,
   "hidden_size": 4096,
   "intermediate_size": 16384,
   "layer_norm_eps": 1e-05,
@@ -48,7 +49,7 @@ torch.save(new_weights, dir_path + 'bert4torch_pytorch_model.bin')
   "num_hidden_layers": 28,
   "position_encoding_2d": true,
   "torch_dtype": "float16",
-  "vocab_size": 150528,
+  "vocab_size": 130528,
   "segment_vocab_size": 0
 }
 '''

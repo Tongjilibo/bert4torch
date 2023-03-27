@@ -363,6 +363,29 @@ class AutoRegressiveDecoder(object):
             inputs.append(i)
         return inputs
 
+    @staticmethod
+    def topk_topp_wraper(scores, topk=None, topp=None, min_tokens_to_keep=1):
+        '''从hf移植来的简易版本, 暂未使用
+        '''
+        if topk is not None:
+            indices_to_remove = scores < torch.topk(scores, topk)[0][..., -1, None]
+            scores = scores.masked_fill(indices_to_remove, -float("Inf"))
+
+        if topp is not None:
+            sorted_logits, sorted_indices = torch.sort(scores, descending=False)
+            cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
+
+            # Remove tokens with cumulative top_p above the threshold (token with 0 are kept)
+            sorted_indices_to_remove = cumulative_probs <= (1 - topp)
+            if min_tokens_to_keep > 1:
+                # Keep at least min_tokens_to_keep
+                sorted_indices_to_remove[..., -min_tokens_to_keep :] = 0
+
+            # scatter sorted tensors to original indexing
+            indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+            scores = scores.masked_fill(indices_to_remove, -float("Inf"))
+        return scores
+
     def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """beam search解码
         
