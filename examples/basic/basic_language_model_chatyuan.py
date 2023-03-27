@@ -17,7 +17,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 加载并精简词表，建立分词器
 tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>', keep_accents=True)
 
-model = build_transformer_model(
+encoder = build_transformer_model(
     config_path,
     checkpoint_path,
     model='mt5.1.1',
@@ -32,13 +32,13 @@ class AutoTitle(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
-        return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+        return encoder.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
 
     def generate(self, text, n=1, topp=1, temperature=0.7):
         text = text.replace("\n", "\\n").replace("\t", "\\t")
         token_ids, _ = tokenizer.encode(text, maxlen=768)
         token_ids = torch.tensor([token_ids], device=device)
-        encoder_output = model.encoder.predict([token_ids])
+        encoder_output = encoder.encoder.predict([token_ids])
         output_ids = self.random_sample(encoder_output, n, topp=topp, temperature=temperature)  # 基于随机采样
         out_text = tokenizer.decode([int(i.cpu().numpy()) for i in output_ids[0]])
         return out_text.replace("\\n", "\n").replace("\\t", "\t")

@@ -34,3 +34,21 @@ for key, value in state_dict.items():
         new_weights[key] = value
 
 torch.save(new_weights, dir_path + 'bert4torch_pytorch_model.bin')
+
+'''
+{
+  "hidden_act": "gelu", 
+  "bos_token_id": 150004,
+  "eos_token_id": 150005,
+  "hidden_size": 4096,
+  "intermediate_size": 16384,
+  "layer_norm_eps": 1e-05,
+  "max_sequence_length": 2048,
+  "num_attention_heads": 32,
+  "num_hidden_layers": 28,
+  "position_encoding_2d": true,
+  "torch_dtype": "float16",
+  "vocab_size": 150528,
+  "segment_vocab_size": 0
+}
+'''

@@ -316,7 +316,7 @@ class AutoRegressiveDecoder(object):
                 if default_rtype == 'logits':
                     prediction = (nn.Softmax(dim=-1)(prediction[0] / temperature), prediction[1])
                 elif temperature != 1:
-                    probas = torch.power(prediction[0], 1.0 / temperature)
+                    probas = torch.pow(prediction[0], 1.0 / temperature)
                     probas = probas / probas.sum(axis=-1, keepdims=True)
                     prediction = (probas, prediction[1])
 
@@ -324,6 +324,12 @@ class AutoRegressiveDecoder(object):
                     return prediction
                 else:
                     return torch.log(prediction[0] + 1e-12), prediction[1]
+
+            # 增加set_default_rtype函数，用于动态修改闭包中的default_rtype属性
+            def set_default_rtype(value):
+                nonlocal default_rtype
+                default_rtype = value
+            new_predict.set_default_rtype = set_default_rtype
 
             return new_predict
 
@@ -338,17 +344,12 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1, add_btz_dim=True):
-        """beam search解码
-        
-        :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
-        :param topk: int, 这里的topk即beam size
-        :param states:
-        :param temperature: 温度参数，默认为1
-        :param min_ends:
-        :param add_btz_dim: bool, 是否保留btz维度, 默认为True
-        :return: 最优解码序列。
-        """
+    def process_inputs(self, inputs_raw, add_btz_dim=True):
+        '''对输入进行处理
+        '''
+        # 传入的Tensor直接[]后返回
+        if isinstance(inputs_raw, torch.torch.Tensor):
+            return [inputs_raw]
         inputs = []
         for i in inputs_raw:
             if isinstance(i, torch.torch.Tensor):
@@ -360,7 +361,20 @@ class AutoRegressiveDecoder(object):
             else:
                 raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(i)
+        return inputs
 
+    def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+        """beam search解码
+        
+        :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
+        :param topk: int, 这里的topk即beam size
+        :param states:
+        :param temperature: 温度参数，默认为1
+        :param min_ends:
+        :param add_btz_dim: bool, 是否保留btz维度, 默认为True
+        :return: 最优解码序列。
+        """
+        inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
         output_ids, output_scores = self.first_output_ids, torch.zeros(1, device=self.device)
         for step in range(self.maxlen):
             scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
@@ -401,18 +415,7 @@ class AutoRegressiveDecoder(object):
         :param min_ends:
         :return: n个解码序列组成的list。
         """
-        inputs = []
-        for i in inputs_raw:
-            if isinstance(i, torch.torch.Tensor):
-                pass
-            elif isinstance(i, (list, tuple, np.ndarray)) and add_btz_dim:
-                i = torch.tensor([i], device=self.device)
-            elif isinstance(i, (list, tuple, np.ndarray)) and not add_btz_dim:
-                i = torch.tensor(i, device=self.device)
-            else:
-                raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
-            inputs.append(i)
-
+        inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
@@ -461,6 +464,81 @@ class AutoRegressiveDecoder(object):
             results.append(ids)
         # 返回结果
         return results
+
+
+class SeqGeneration(AutoRegressiveDecoder):
+    '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以cover大部分的情况
+    '''
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='probas', use_segment_ids=False):
+        # 去除了device入参，因为可以直接使用传入的model.device
+        super().__init__(start_id, end_id, maxlen, minlen, next(model.parameters()).device)
+        self.encoder = model
+        self.decoder = None
+        self.tokenizer = tokenizer
+        assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample` and `beam_search`.'
+        self.mode = mode
+        self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
+        self.use_segment_ids = use_segment_ids  # 是否使用use_segment_ids
+        
+    @AutoRegressiveDecoder.wraps()
+    def predict(self, inputs, output_ids, states):
+        assert isinstance(inputs, (tuple, list))
+        if len(inputs) == 1:
+            token_ids = torch.cat([inputs[0], output_ids], 1)
+            logits = self.encoder.predict([token_ids])
+        if len(inputs) >= 2:  # 第二个是segment_ids
+            token_ids, segment_ids = inputs
+            curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
+            token_ids = torch.cat([token_ids, output_ids], 1)
+            segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
+            logits = self.encoder.predict([token_ids, segment_ids])       
+        return logits[:, -1, :]
+    
+    def pre_process(self, text):
+        # 前处理，可以按照自定义
+        inputs = self.tokenizer.encode(text, maxlen=self.maxlen)
+        return inputs if self.use_segment_ids else [inputs[0]]
+    
+    def post_process(self, text):
+        # 后处理，可以按照自定义
+        return text
+
+    def generate_(self, inputs, n, topk, topp, temperature, text, add_input):
+        if self.mode == 'random_sample':
+            results = self.random_sample(inputs, n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
+        elif self.mode == 'beam_search':
+            results = [self.beam_search(inputs, topk=topk)]  # 基于beam search
+        
+        input_ = text if add_input else ''
+        if len(results) > 1:
+            return [input_ + self.post_process(self.tokenizer.decode(ids.cpu().numpy())) for ids in results]
+        elif len(results) == 1:
+            return input_ + self.post_process(self.tokenizer.decode(results[0].cpu().numpy()))
+        return
+
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
+        inputs = self.pre_process(text)
+        return self.generate_(inputs, n, topk, topp, temperature, text, add_input)
+
+
+class Seq2SeqGeneration(SeqGeneration):
+    '''encoder-decoder语言模型的解码
+    '''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.decoder = self.encoder.decoder
+        self.encoder = self.encoder.encoder
+
+    @AutoRegressiveDecoder.wraps()
+    def predict(self, inputs, output_ids, states):
+        # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
+        return self.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+        
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
+        inputs = self.pre_process(text)
+        inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
+        encoder_output = self.encoder.predict(inputs)
+        return super().generate_(encoder_output, n, topk, topp, temperature, text, add_input)
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):

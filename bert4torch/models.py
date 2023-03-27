@@ -16,6 +16,7 @@ from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
+from tqdm import tqdm
 
 
 class BERT_BASE(nn.Module):
@@ -200,7 +201,16 @@ class BERT_BASE(nn.Module):
     def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None):
         """根据mapping从checkpoint加载权重
         """
-        file_state_dict = torch.load(checkpoint, map_location='cpu')  # 加载模型文件
+        # 加载模型文件
+        if isinstance(checkpoint, str):
+            file_state_dict = torch.load(checkpoint, map_location='cpu')
+        elif isinstance(checkpoint, (tuple, list)):
+            file_state_dict = {}
+            for ckpt_path in tqdm(checkpoint, desc='Loading checkpoint shards:'):
+                file_state_dict.update(torch.load(ckpt_path, map_location='cpu'))
+        else:
+            raise ValueError('Args `checkpoint_path` only support `str` and `list(str)` format')
+        
         mapping = mapping or self.variable_mapping()
         parameters_set = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         
@@ -1587,10 +1597,11 @@ class GLM(LM_Mask, BERT):
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.GLMBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                        is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
+                is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
-        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size)
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
+        self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.final_activation = get_activation(self.final_activation)
 
     def load_variable(self, state_dict, name, prefix='transformer'):
         """加载单个变量的函数, 这里的名称均为映射前的
@@ -1617,7 +1628,6 @@ class GLM(LM_Mask, BERT):
                 f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'input_layernorm.bias',
                 f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'post_attention_layernorm.weight',
                 f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'post_attention_layernorm.bias',
-
                 f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight',
                 f'encoderLayer.{i}.multiHeadAttention.q.bias': prefix_i + 'attention.self.query.bias',
                 f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attention.self.key.weight',
@@ -1632,7 +1642,18 @@ class GLM(LM_Mask, BERT):
                 f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'mlp.dense_4h_to_h.bias',
                 })
         return mapping
-
+    
+    def apply_embeddings(self, inputs):
+        outputs = super().apply_embeddings(inputs)
+        # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
+        outputs[1][..., :-1] = 1
+        return outputs
+    
+    def apply_final_layers(self, inputs):
+        hidden_state = super().apply_final_layers(inputs)
+        logit = self.dense(self.LayerNormFinal(hidden_state))
+        return self.final_activation(logit)
+    
     class GLMBlock(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
@@ -1650,7 +1671,7 @@ class GLM(LM_Mask, BERT):
             x = self.layerNorm1(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
             hidden_states = x * alpha + self.multiHeadAttention(x, attention_mask)
-            x = self.layerNorm2(conditional_emb)
+            x = self.layerNorm2(hidden_states)
             hidden_states = x *alpha +  self.feedForward(x)
             return hidden_states
 
@@ -1918,7 +1939,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     """根据配置文件构建模型，可选加载checkpoint权重
 
     :param config_path: str, 模型的config文件地址
-    :param checkpoint_path: str, 模型文件地址, 默认值None表示不加载预训练模型
+    :param checkpoint_path: str/list[str], 模型文件地址, 默认值None表示不加载预训练模型
     :param model: str, 加载的模型结构, 这里Model也可以基于nn.Module自定义后传入, 默认为'bert'
     :param application: str, 模型应用, 支持encoder, lm和unilm格式, 默认为'encoder'
     :param segment_vocab_size: int, type_token_ids数量, 默认为2, 如不传入segment_ids则需设置为0

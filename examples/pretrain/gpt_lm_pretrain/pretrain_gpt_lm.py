@@ -48,7 +48,7 @@ def collate_fn(batch):
 train_dataloader = DataLoader(ListDataset(glob.glob('F:/Projects/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
-model = build_transformer_model(
+encoder = build_transformer_model(
     config_path=config_path,
     checkpoint_path=checkpoint_path,
     model='gpt',
@@ -69,7 +69,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         y_true = y_true.flatten()
         return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
+encoder.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(encoder.parameters(), 1e-5))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器
@@ -79,7 +79,7 @@ class AutoTitle(AutoRegressiveDecoder):
         token_ids, segment_ids = inputs
         token_ids = torch.cat([token_ids, output_ids], 1)
         segment_ids = torch.cat([segment_ids, torch.ones_like(output_ids, device=device)], 1)
-        y_pred = model.predict([token_ids, segment_ids])
+        y_pred = encoder.predict([token_ids, segment_ids])
         return y_pred[:, -1, :]
 
     def generate(self, text, topk=1, topp=0.95):
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     just_show()
     evaluator = Evaluator()
 
-    model.fit(
+    encoder.fit(
         train_dataloader,
         steps_per_epoch=None,
         epochs=epochs,
@@ -124,4 +124,4 @@ if __name__ == '__main__':
     )
 
 else:
-    model.load_weights('./best_model.pt')
+    encoder.load_weights('./best_model.pt')

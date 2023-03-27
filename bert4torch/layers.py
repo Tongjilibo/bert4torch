@@ -63,10 +63,12 @@ class LayerNorm(nn.Module):
 
 class MultiHeadAttentionLayer(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 return_attention_scores=False, bias=True, **kwargs):
+                 return_attention_scores=False, bias=True, layer_id=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
+        self.layer_id = layer_id  # 第几层
+
         # assert hidden_size % num_attention_heads == 0  # 旧逻辑，t5_pegasus_small中不可以整除
         # 兼容t5_pegasus_small
         if kwargs.get('attention_head_size'):
@@ -91,8 +93,11 @@ class MultiHeadAttentionLayer(nn.Module):
                                                                          klen=kwargs.get('max_position'),
                                                                          embedding_size=self.attention_head_size,
                                                                          max_relative_position=kwargs.get('max_relative_position'))
-        elif self.p_bias == 'rotary':  # roformer
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size, **kwargs)
+        elif self.p_bias == 'rotary':  # roformer, llama, chatglm
+            # position_encoding_2d 目前仅在chatglm中使用
+            self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
+            embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
+            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, **kwargs)
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position'), 
                                                                   klen=kwargs.get('max_position'), 
@@ -156,7 +161,18 @@ class MultiHeadAttentionLayer(nn.Module):
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
-        if self.p_bias == 'rotary':
+        if self.p_bias == 'rotary' and hasattr(self, 'position_encoding_2d'):  # chatglm独有逻辑
+            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
+            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+            q1 = self.relative_positions_encoding(q1)
+            k1 = self.relative_positions_encoding(k1)
+            position_ids = torch.cat((torch.zeros(q1.shape[2]-1, dtype=torch.long, device=q1.device),
+                                     torch.arange(1, dtype=torch.long, device=q1.device) + 1))
+            q2 = self.relative_positions_encoding(q2, position_ids)
+            k2 = self.relative_positions_encoding(k2, position_ids)
+            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
+            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
+        elif self.p_bias == 'rotary' and not hasattr(self, 'position_encoding_2d'):  # 原rotary逻辑
             query_layer = self.relative_positions_encoding(query_layer)
             key_layer = self.relative_positions_encoding(key_layer)
 
@@ -967,19 +983,25 @@ class RoPEPositionEncoding(nn.Module):
     
     def initialize(self, max_position):
         position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size)  # [seq_len, hdsz]
-        cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+        if self.rope_rank == 'adjacent':
+            cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+            sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+        elif self.rope_rank == 'updown':  # 目前仅chatglm使用
+            cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
+            sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
+        else:
+            raise ValueError('Args `rope_rank` only support `adjacent` and `adjacent` mode')
         return cos_position, sin_position
     
-    def forward(self, qw, seq_dim=-2):
+    def forward(self, qw, position_ids=None, seq_dim=-2):
         # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
         seq_len = qw.shape[seq_dim]
         if self.rope_rank == 'adjacent':
             qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
-        elif self.rope_rank == 'updown':
-            qw2 = torch.stack([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1).reshape_as(qw)
+        elif self.rope_rank == 'updown':  # 目前仅chatglm使用
+            qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
         
         # 超过缓存长度
         if seq_len > self.max_seq_len_cache:
@@ -987,6 +1009,11 @@ class RoPEPositionEncoding(nn.Module):
             self.cos_position, self.sin_position = cos_position.type_as(qw).to(qw.device), sin_position.type_as(qw).to(qw.device)
             self.max_seq_len_cache = seq_len
 
+        # 传入position_ids来获取cos和sin，目前只在chatglm中使用
+        if position_ids is not None:
+            cos = F.embedding(position_ids, self.cos_position)
+            sin = F.embedding(position_ids, self.sin_position)
+            return qw * cos + qw2 * sin
         return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
 
 
