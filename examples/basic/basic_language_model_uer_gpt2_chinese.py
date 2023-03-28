@@ -31,10 +31,10 @@ model = build_transformer_model(config_path=config_path, checkpoint_path=checkpo
 class ArticleCompletion(AutoRegressiveDecoder):
     """基于随机采样的文章续写
     """
-    @AutoRegressiveDecoder.wraps(default_rtype='logits', use_states=True)
+    @AutoRegressiveDecoder.wraps(default_rtype='logits', use_states=False)
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
-        logits = model.predict([token_ids], past_key_value=None, use_cache=True)
+        logits = model.predict([token_ids])
         return logits[:, -1, :]
 
     def generate(self, text, n=1, topp=0.95):
