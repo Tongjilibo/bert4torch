@@ -310,7 +310,9 @@ class AutoRegressiveDecoder(object):
                 assert rtype in ['probas', 'logits']
                 prediction = predict(self, inputs, output_ids, states)
 
-                if not use_states:
+                if use_states:
+                    assert len(prediction) == 2, 'Should return 2 output when set use_states=True'
+                else:
                     prediction = (prediction, None)
 
                 if default_rtype == 'logits':

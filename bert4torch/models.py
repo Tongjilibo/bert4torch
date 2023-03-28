@@ -105,7 +105,7 @@ class BERT_BASE(nn.Module):
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
 
-    def args_segmentate(self, inputs):
+    def args_segmentate(self, inputs, **model_kwargs):
         '''解析输入，转成list，tuple类型
         '''
         # 如果是([],)类型的则取第一个元素
@@ -113,31 +113,31 @@ class BERT_BASE(nn.Module):
             return inputs[0]
         return inputs
 
-    def forward(self, *inputs):
+    def forward(self, *inputs, **model_kwargs):
         """定义模型的训练流程
         
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         # 允许model([token_ids, segment_ids]), model(token_ids, segment_ids)调用方式
-        inputs = self.args_segmentate(inputs)
+        inputs = self.args_segmentate(inputs, **model_kwargs)
         # Embedding
-        outputs = self.apply_embeddings(inputs)
+        outputs = self.apply_embeddings(inputs, **model_kwargs)
         # Main
-        outputs = self.apply_main_layers(outputs)
+        outputs = self.apply_main_layers(outputs, **model_kwargs)
         # Final
-        outputs = self.apply_final_layers(outputs)
+        outputs = self.apply_final_layers(outputs, **model_kwargs)
         return outputs
 
     @torch.no_grad()
-    def predict(self, *inputs):
+    def predict(self, *inputs, **model_kwargs):
         """定义模型的预测流程
         
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         self.eval()
-        return self.forward(*inputs)
+        return self.forward(*inputs, **model_kwargs)
 
     def init_model_weights(self, module):
         """ 初始化权重
@@ -256,7 +256,7 @@ class BERT_BASE(nn.Module):
         return inputs
     
     def apply_on_layer_end(self, l_i, inputs):
-        '''新增对layer block输出进行操作的函数
+        '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用
         '''
         return inputs
 
@@ -404,7 +404,7 @@ class BERT(BERT_BASE):
             self.mlmDecoder.bias = self.mlmBias
         # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
-    def apply_embeddings(self, inputs):
+    def apply_embeddings(self, inputs, **model_kwargs):
         """BERT的embedding是token、position、segment三者embedding之和
 
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
@@ -481,7 +481,7 @@ class BERT(BERT_BASE):
         hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
         return [hidden_states, attention_mask, conditional_emb] + list(inputs[index_:])
 
-    def apply_main_layers(self, inputs):
+    def apply_main_layers(self, inputs, **model_kwargs):
         """BERT的主体是基于Self-Attention的模块；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         
@@ -497,8 +497,9 @@ class BERT(BERT_BASE):
         encoded_layers = [hidden_states] # 添加embedding的输出
         layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
         for l_i, layer_module in enumerate(self.encoderLayer):
+            past_key_value = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
             layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
-            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
+            hidden_states = grad_checkpoint(layer_module, *layer_inputs, past_key_value=past_key_value) if self.gradient_checkpoint else layer_module(*layer_inputs, past_key_value=past_key_value)
             layer_inputs[0] = hidden_states
             layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
 
@@ -1457,10 +1458,10 @@ class GPT2(LM_Mask, BERT):
     class Gpt2Layer(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+        def forward(self, hidden_states, attention_mask, conditional_emb=None, *model_args, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
-            self_attn_output = self.multiHeadAttention(x, attention_mask)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, **model_kwargs)
             hidden_states = hidden_states + self.dropout1(self_attn_output)
             x = self.layerNorm2((hidden_states, conditional_emb))
             ffn_output = self.feedForward(x)
