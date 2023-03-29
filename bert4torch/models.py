@@ -44,7 +44,6 @@ class BERT_BASE(nn.Module):
             keep_hidden_layers=None, # 保留的hidden_layer层的id
             hierarchical_position=None,  # 是否层次分解位置编码
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
-            return_model_kwargs=False, # 是否返回model_args
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -75,7 +74,6 @@ class BERT_BASE(nn.Module):
         self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
         self.hierarchical_position = hierarchical_position
         self.gradient_checkpoint = gradient_checkpoint
-        self.return_model_kwargs = return_model_kwargs
 
     def build(
         self,
@@ -129,7 +127,7 @@ class BERT_BASE(nn.Module):
         model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
         outputs = self.apply_final_layers(**model_kwargs)
-        if self.return_model_kwargs:
+        if model_kwargs.get('return_model_kwargs', False):
             return outputs, model_kwargs
         return outputs
 
@@ -1016,7 +1014,6 @@ class UIE(BERT):
 class Encoder(BERT):
     def __init__(self, *args, **kwargs):
         kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
-        kwargs['return_model_kwargs'] = True  # 返回model_kwargs方便解析attention_mask
         super().__init__(*args, **kwargs)
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
@@ -1024,7 +1021,8 @@ class Encoder(BERT):
     def forward(self, *inputs, **model_kwargs):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
         """
-        outputs, model_kwargs = super().forward(*inputs, **model_kwargs)
+        # 返回model_kwargs方便解析attention_mask
+        outputs, model_kwargs = super().forward(*inputs, return_model_kwargs=True, **model_kwargs)
         return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
 

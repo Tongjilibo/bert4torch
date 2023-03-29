@@ -32,25 +32,25 @@ model = build_transformer_model(
 
 
 # 第一种自定义方式
-# class AutoTitle(AutoRegressiveDecoder):
-#     """seq2seq解码器
-#     """
-#     @AutoRegressiveDecoder.wraps(default_rtype='logits')
-#     def predict(self, inputs, output_ids, states):
-#         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
-#         return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+class AutoTitle(AutoRegressiveDecoder):
+    """seq2seq解码器
+    """
+    @AutoRegressiveDecoder.wraps(default_rtype='logits')
+    def predict(self, inputs, output_ids, states):
+        # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
+        return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
 
-#     def generate(self, text, topk=1):
-#         token_ids, _ = tokenizer.encode(text, maxlen=256)
-#         token_ids = torch.tensor([token_ids], device=device)
-#         encoder_output = model.encoder.predict([token_ids])
-#         output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
-#         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
-# autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
+    def generate(self, text, topk=1):
+        token_ids, _ = tokenizer.encode(text, maxlen=256)
+        token_ids = torch.tensor([token_ids], device=device)
+        encoder_output = model.encoder.predict([token_ids])
+        output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
+        return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
+autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
 
 # 第二种方式
-autotitle = Seq2SeqGeneration(model, tokenizer, start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, 
-                              maxlen=32, default_rtype='logits', mode='beam_search')
+# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, 
+#                               maxlen=32, default_rtype='logits', mode='beam_search')
 
 if __name__ == '__main__':
     print(autotitle.generate('今天天气不错啊', topk=1))
