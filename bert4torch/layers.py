@@ -97,7 +97,7 @@ class MultiHeadAttentionLayer(nn.Module):
             # position_encoding_2d 目前仅在chatglm中使用
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, **kwargs)
+            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, rope_rank=kwargs.get('rope_rank', 'adjacent'))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position'), 
                                                                   klen=kwargs.get('max_position'), 
@@ -467,7 +467,7 @@ class BertEmbeddings(nn.Module):
         if embedding_size != hidden_size:
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
 
-    def forward(self, token_ids, segment_ids=None, position_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None):
+    def forward(self, token_ids=None, segment_ids=None, position_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None):
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):
             words_embeddings = self.word_embeddings(token_ids)
         else:
@@ -581,7 +581,7 @@ class T5Layer(BertLayer):
             del self.crossAttention.relative_positions_encoding
             del self.crossAttention.relative_positions
 
-    def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, **model_kwargs):
         # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
         x = self.layerNorm1((hidden_states, conditional_emb))
         self_attn_output = self.multiHeadAttention(x, attention_mask)
@@ -632,7 +632,7 @@ class XlnetLayer(BertLayer):
         # multiattn层无bias
         self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, bias=False, **kwargs)
 
-    def forward(self, hidden_states, segment_ids, pos_emb, attention_mask, mems_i, conditional_emb=None):
+    def forward(self, hidden_states=None, segment_ids=None, pos_emb=None, attention_mask=None, mems_i=None, conditional_emb=None):
         # 拼接mems和query，mems_i: [btz, m_len, hdsz], w: [btz, q_len, hdsz] = [btz, k_len, hdsz]
         hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
         

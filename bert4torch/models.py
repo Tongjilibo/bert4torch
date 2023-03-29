@@ -44,6 +44,7 @@ class BERT_BASE(nn.Module):
             keep_hidden_layers=None, # 保留的hidden_layer层的id
             hierarchical_position=None,  # 是否层次分解位置编码
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
+            return_model_kwargs=False, # 是否返回model_args
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -74,6 +75,7 @@ class BERT_BASE(nn.Module):
         self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
         self.hierarchical_position = hierarchical_position
         self.gradient_checkpoint = gradient_checkpoint
+        self.return_model_kwargs = return_model_kwargs
 
     def build(
         self,
@@ -105,7 +107,7 @@ class BERT_BASE(nn.Module):
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
 
-    def args_segmentate(self, inputs, **input_kwargs):
+    def args_segmentate(self, inputs, **model_kwargs):
         '''解析输入，转成list，tuple类型
         '''
         # 传入[x1,x2]时，*inputs会解析成([x1,x2],)，此时需要取第一个元素
@@ -113,31 +115,33 @@ class BERT_BASE(nn.Module):
             return inputs[0]
         return inputs
 
-    def forward(self, *inputs, **input_kwargs):
+    def forward(self, *inputs, **model_kwargs):
         """定义模型的训练流程
         
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         # 允许model([token_ids, segment_ids]), model(token_ids, segment_ids)调用方式
-        inputs = self.args_segmentate(inputs, **input_kwargs)
+        inputs = self.args_segmentate(inputs, **model_kwargs)
         # Embedding
-        outputs = self.apply_embeddings(*inputs, **input_kwargs)
+        model_kwargs = self.apply_embeddings(*inputs, **model_kwargs)
         # Main
-        outputs = self.apply_main_layers(*outputs, **input_kwargs)
+        model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
-        outputs = self.apply_final_layers(*outputs, **input_kwargs)
+        outputs = self.apply_final_layers(**model_kwargs)
+        if self.return_model_kwargs:
+            return outputs, model_kwargs
         return outputs
 
     @torch.no_grad()
-    def predict(self, *inputs, **input_kwargs):
+    def predict(self, *inputs, **model_kwargs):
         """定义模型的预测流程
         
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         self.eval()
-        return self.forward(*inputs, **input_kwargs)
+        return self.forward(*inputs, **model_kwargs)
 
     def init_model_weights(self, module):
         """ 初始化权重
@@ -241,21 +245,21 @@ class BERT_BASE(nn.Module):
         # 将ckpt的权重load到模型结构中
         self.load_state_dict(state_dict_new, strict=False)
 
-    def apply_embeddings(self, *inputs, **input_kwargs):
+    def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError
 
-    def apply_main_layers(self, *inputs, **input_kwargs):
+    def apply_main_layers(self, *inputs, **model_kwargs):
         raise NotImplementedError
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
+    def apply_final_layers(self, *inputs, **model_kwargs):
         raise NotImplementedError
     
-    def apply_on_layer_begin(self, l_i, inputs):
+    def apply_on_layer_begin(self, **inputs):
         '''新增对layer block输入进行操作的函数
         '''
         return inputs
     
-    def apply_on_layer_end(self, l_i, inputs):
+    def apply_on_layer_end(self, **inputs):
         '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用
         '''
         return inputs
@@ -290,7 +294,8 @@ class LM_Mask(object):
     def compute_attention_bias(self, inputs=None):
         """通过idxs序列的比较来得到对应的mask
         """
-        seq_len = inputs[0].shape[1]
+        token_ids = inputs[0]
+        seq_len = token_ids.shape[1]
         attention_bias = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.long, device=inputs[0].device), diagonal=0)
         self.attention_bias = attention_bias.unsqueeze(0).unsqueeze(1)
         return self.attention_bias
@@ -404,7 +409,7 @@ class BERT(BERT_BASE):
             self.mlmDecoder.bias = self.mlmBias
         # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
-    def apply_embeddings(self, *inputs, **input_kwargs):
+    def apply_embeddings(self, *inputs, **model_kwargs):
         """BERT的embedding是token、position、segment三者embedding之和
 
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
@@ -479,45 +484,43 @@ class BERT(BERT_BASE):
 
         # 进入embedding层
         hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
-        return [hidden_states, attention_mask, conditional_emb] + list(inputs[index_:])
+        model_kwargs.update({'hidden_states': hidden_states,  'attention_mask': attention_mask, 'conditional_emb': conditional_emb})
+        
+        # 解析encoder_hidden_state, encoder_attention_mask
+        if len(inputs[index_:]) >=2:
+            model_kwargs['encoder_hidden_states'], model_kwargs['encoder_attention_mask'] = inputs[index_], inputs[index_+1]
+        return model_kwargs
 
-    def apply_main_layers(self, *inputs, **input_kwargs):
+    def apply_main_layers(self, **model_kwargs):
         """BERT的主体是基于Self-Attention的模块；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         
         :param inputs: List[torch.Tensor], 默认顺序为[hidden_states, attention_mask, conditional_emb]
         :return: List[torch.Tensor], 默认顺序为[encoded_layers, conditional_emb]
         """
-        hidden_states, attention_mask, conditional_emb = inputs[:3]
-        if len(inputs[3:]) >= 2:
-            encoder_hidden_state, encoder_attention_mask = inputs[3], inputs[4]
-        else:
-            encoder_hidden_state, encoder_attention_mask = None, None
-
-        encoded_layers = [hidden_states] # 添加embedding的输出
-        past_key_values = input_kwargs.get('past_key_values', [None]*self.num_hidden_layers)
-        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
+        encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
-            # layer_inputs.append(past_key_values[l_i])
-            layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
-            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
-            layer_inputs[0] = hidden_states
-            layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
+            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
+            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
+            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs['hidden_states'] = hidden_states
+            model_kwargs = self.apply_on_layer_end(**model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
             encoded_layers.append(hidden_states)
-        return [encoded_layers, conditional_emb]
+        model_kwargs['encoded_layers'] = encoded_layers
+        return model_kwargs
     
-    def apply_final_layers(self, *inputs, **input_kwargs):
+    def apply_final_layers(self, **model_kwargs):
         """根据剩余参数决定输出
 
         :param inputs: List[torch.Tensor], 默认顺序为[encoded_layers, conditional_emb]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
         # 获取最后一层隐藏层的输出
-        encoded_layers, conditional_emb = inputs
+        encoded_layers, conditional_emb = model_kwargs['encoded_layers'], model_kwargs.get('conditional_emb', None)
         sequence_output = encoded_layers[-1]
         # 是否取最后一层输出
         if not self.output_all_encoded_layers:
@@ -616,29 +619,27 @@ class ALBERT(BERT):
         super(ALBERT, self).__init__(*args, **kwargs)
         self.encoderLayer = nn.ModuleList([self.encoderLayer[0]])  # 取上述的第一行
 
-    def apply_main_layers(self, *inputs, **input_kwargs):
+    def apply_main_layers(self, **model_kwargs):
         """BERT的主体是基于Self-Attention的模块（和BERT区别是始终使用self.encoderLayer[0]）；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         """
-        hidden_states, attention_mask, conditional_emb = inputs[:3]
-        if len(inputs[3:]) >= 2:
-            encoder_hidden_state, encoder_attention_mask = inputs[3], inputs[4]
-        else:
-            encoder_hidden_state, encoder_attention_mask = None, None
 
-        encoded_layers = [hidden_states] # 添加embedding的输出
-        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
+        encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i in range(self.num_hidden_layers):
-            layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
-            hidden_states = self.encoderLayer[0](*layer_inputs)
-            layer_inputs[0] = hidden_states
-            layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
+            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
+            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
+            layer_module = self.encoderLayer[0]
+            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs['hidden_states'] = hidden_states
+            model_kwargs = self.apply_on_layer_end(**model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
             encoded_layers.append(hidden_states)
-        return [encoded_layers, conditional_emb]
+        model_kwargs['encoded_layers'] =  encoded_layers
+        return model_kwargs
+
 
     def variable_mapping(self, prefix='albert'):
         mapping = {
@@ -706,29 +707,11 @@ class ALBERT_Unshared(ALBERT):
         super(ALBERT_Unshared, self).__init__(*args, **kwargs)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(self.encoderLayer[0]) for _ in range(self.num_hidden_layers)])
 
-    def apply_main_layers(self, *inputs, **input_kwargs):
-        """BERT的主体是基于Self-Attention的模块（和ALBERT区别是所有层权重独立）；
+    def apply_main_layers(self, **model_kwargs):
+        """BERT的主体是基于Self-Attention的模块（和ALBERT区别是所有层权重独立）；这里就是调用BERT类的方法
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         """
-        hidden_states, attention_mask, conditional_emb = inputs
-        if len(inputs[3:]) >= 2:
-            encoder_hidden_state, encoder_attention_mask = inputs[3], inputs[4]
-        else:
-            encoder_hidden_state, encoder_attention_mask = None, None
-
-        encoded_layers = [hidden_states] # 添加embedding的输出
-        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
-        for i in range(self.num_hidden_layers):
-            layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
-            hidden_states = self.encoderLayer[i](*layer_inputs)
-            layer_inputs[0] = hidden_states
-            layer_inputs = self.apply_on_layer_end(i, layer_inputs)
-
-            if self.output_all_encoded_layers:
-                encoded_layers.append(hidden_states)
-        if not self.output_all_encoded_layers:
-            encoded_layers.append(hidden_states)
-        return [encoded_layers, conditional_emb]
+        return BERT.apply_main_layers(self, **model_kwargs)
 
     def variable_mapping(self, prefix='albert'):
         mapping = super().variable_mapping()
@@ -803,11 +786,11 @@ class RoFormerV2(RoFormer):
                 mapping_new[k] = v
         return mapping_new
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
+    def apply_final_layers(self, **model_kwargs):
         """根据剩余参数决定输出
         """
         # 获取最后一层隐藏层的输出
-        encoded_layers, conditional_emb = inputs
+        encoded_layers = model_kwargs['encoded_layers']
         sequence_output = encoded_layers[-1]
         # 是否取最后一层输出
         if not self.output_all_encoded_layers:
@@ -846,7 +829,7 @@ class GAU_alpha(RoFormerV2):
             self.gau = GatedAttentionUnit(**kwargs)
             self.dropout1 = nn.Dropout(kwargs.get('dropout_rate'))
             self.layerNorm1 = LayerNorm(**kwargs)
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_args):
             gau_hidden_states = self.gau(hidden_states, attention_mask)
             hidden_states = hidden_states + self.dropout1(gau_hidden_states)
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
@@ -867,8 +850,8 @@ class ELECTRA(BERT):
             self.dense_prediction = nn.Linear(self.hidden_size, 1)
             self.dense_prediction_act = get_activation('sigmoid') if self.with_discriminator is True else get_activation(self.with_discriminator)
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_states = super().apply_final_layers(*inputs, **input_kwargs)  # 仅有hidden_state一项输出
+    def apply_final_layers(self, **model_kwargs):
+        hidden_states = super().apply_final_layers(**model_kwargs)  # 仅有hidden_state一项输出
         if self.with_discriminator:
             logit = self.dense_act(self.dense(hidden_states))
             return [hidden_states, self.dense_prediction_act(self.dense_prediction(logit))]
@@ -939,31 +922,27 @@ class DebertaV2(BERT):
             self.encoderLayer[i].multiHeadAttention.layernorm.weight = self.encoderLayer[0].multiHeadAttention.layernorm.weight
             self.encoderLayer[i].multiHeadAttention.layernorm.bias = self.encoderLayer[0].multiHeadAttention.layernorm.bias
     
-    def apply_main_layers(self, *inputs, **input_kwargs):
+    def apply_main_layers(self, **model_kwargs):
         """DebertaV2：主要区别是第0层后，会通过卷积层
         """
-        hidden_states, attention_mask, conditional_emb = inputs[:3]
-        if len(inputs[3:]) >= 2:
-            encoder_hidden_state, encoder_attention_mask = inputs[3], inputs[4]
-        else:
-            encoder_hidden_state, encoder_attention_mask = None, None
 
-        encoded_layers = [hidden_states] # 添加embedding的输出
-        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
+        encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
-            layer_inputs = self.apply_on_layer_begin(l_i, layer_inputs)
-            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
+            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
+            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
+            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
             # 第0层要经过卷积
             if l_i == 0 and self.conv is not None:
-                hidden_states = self.conv(encoded_layers[0], hidden_states, attention_mask.squeeze(1).squeeze(1))
-            layer_inputs[0] = hidden_states
-            layer_inputs = self.apply_on_layer_end(l_i, layer_inputs)
+                hidden_states = self.conv(encoded_layers[0], hidden_states, model_kwargs['attention_mask'].squeeze(1).squeeze(1))
+            model_kwargs['hidden_states'] = hidden_states
+            model_kwargs = self.apply_on_layer_end(**model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
             encoded_layers.append(hidden_states)
-        return [encoded_layers, conditional_emb]
+        model_kwargs['encoded_layers'] =  encoded_layers
+        return model_kwargs
 
     def variable_mapping(self):
         mapping = super(DebertaV2, self).variable_mapping(prefix='deberta')
@@ -1007,8 +986,8 @@ class UIE(BERT):
                 return output+task_type_embeddings(torch.zeros(input[0].size(), dtype=torch.int64, device=input[0].device))
             self.embeddings.word_embeddings.register_forward_hook(hook)
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_states = super().apply_final_layers(*inputs, **input_kwargs)  # 仅有hidden_state一项输出
+    def apply_final_layers(self, **model_kwargs):
+        hidden_states = super().apply_final_layers(**model_kwargs)  # 仅有hidden_state一项输出
         sequence_output = hidden_states[0] if isinstance(hidden_states, (tuple, list)) else hidden_states
 
         start_logits = self.linear_start(sequence_output)
@@ -1037,22 +1016,16 @@ class UIE(BERT):
 class Encoder(BERT):
     def __init__(self, *args, **kwargs):
         kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
+        kwargs['return_model_kwargs'] = True  # 返回model_kwargs方便解析attention_mask
         super().__init__(*args, **kwargs)
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
     
-    def forward(self, *inputs, **input_kwargs):
+    def forward(self, *inputs, **model_kwargs):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
         """
-        inputs = self.args_segmentate(inputs)
-        # Embedding
-        outputs = self.apply_embeddings(*inputs, **input_kwargs)
-        encoder_attention_mask = [outputs[1]]
-        # Main
-        outputs = self.apply_main_layers(*outputs, **input_kwargs)
-        # Final
-        outputs = self.apply_final_layers(*outputs, **input_kwargs)
-        return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + encoder_attention_mask
+        outputs, model_kwargs = super().forward(*inputs, **model_kwargs)
+        return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
 
 class Decoder(LM_Mask, BERT):
@@ -1077,28 +1050,28 @@ class Decoder(LM_Mask, BERT):
             else:
                 self.x_logit_scale = 1.
 
-    def apply_main_layers(self, *inputs, **input_kwargs):
+    def apply_main_layers(self, **model_kwargs):
         """Dencoder主体是基于Self-Attention、Cross-Attention的模块；
         顺序：Att1 --> Add --> LN --> Att2 --> Add -->  LN --> FFN --> Add --> LN
         """
-        hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask = inputs[:5]
-        decoded_layers = [hidden_states] # 添加embedding的输出
-        layer_inputs = [hidden_states, attention_mask, conditional_emb, encoder_hidden_state, encoder_attention_mask]
-        for i, layer_module in enumerate(self.decoderLayer):
-            layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
-            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
-            layer_inputs[0] = hidden_states
-            layer_inputs = self.apply_on_layer_end(i, layer_inputs)
+        decoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
+        for l_i, layer_module in enumerate(self.decoderLayer):
+            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
+            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
+            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs['hidden_states'] = hidden_states
+            model_kwargs = self.apply_on_layer_end(**model_kwargs)
 
             if self.output_all_encoded_layers:
                 decoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
             decoded_layers.append(hidden_states)
-        return [decoded_layers, conditional_emb]
+        model_kwargs['encoded_layers'] = decoded_layers
+        return model_kwargs
     
-    def apply_final_layers(self, *inputs, **input_kwargs):
+    def apply_final_layers(self, **model_kwargs):
         outputs = []
-        hidden_states =  super().apply_final_layers(*inputs, **input_kwargs)  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
+        hidden_states = super().apply_final_layers(**model_kwargs)  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
         outputs.append(hidden_states)
         if self.with_lm:
             logits = self.final_dense(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
@@ -1140,11 +1113,11 @@ class Transformer(BERT_BASE):
         encoder_input, decoder_input = inputs[:2]
 
         # encoder
-        encoder_hidden_state, encoder_attention_mask = self.encoder(encoder_input)
+        encoder_hidden_states, encoder_attention_mask = self.encoder(encoder_input)
 
         # decoder
-        decoder_outputs = self.decoder(decoder_input + [encoder_hidden_state, encoder_attention_mask])
-        return [encoder_hidden_state] + decoder_outputs  # 输出encoder_hidden_state和decoder_hidden_state，以应对一些多任务情况
+        decoder_outputs = self.decoder(decoder_input + [encoder_hidden_states, encoder_attention_mask])
+        return [encoder_hidden_states] + decoder_outputs  # 输出encoder_hidden_state和decoder_hidden_state，以应对一些多任务情况
 
 
 class BART(Transformer):
@@ -1251,8 +1224,8 @@ class T5_Encoder(Encoder):
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_states = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_states = super().apply_final_layers(**model_kwargs)
         return self.dropout(self.final_layer_norm([hidden_states]))
 
     def load_variable(self, state_dict, name, prefix=''):
@@ -1306,9 +1279,11 @@ class T5_Decoder(Decoder):
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        inputs[0][1] = self.dropout(self.final_layer_norm([inputs[0][1]]))  # 在转logit前把最后一层的hidden_states加layernorm
-        return super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        # 这里的encoded_layers没有改成decoded_layers是想使用super()
+        last_hidden_states = model_kwargs['encoded_layers'][-1]
+        model_kwargs['encoded_layers'][-1] = self.dropout(self.final_layer_norm([last_hidden_states]))  # 在转logit前把最后一层的hidden_states加layernorm
+        return super().apply_final_layers(**model_kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):
         # 加载单个变量的函数
@@ -1399,8 +1374,8 @@ class GPT(LM_Mask, BERT):
         self.dense.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_state = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_state = super().apply_final_layers(**model_kwargs)
         logit = self.dense(hidden_state)
         return self.final_activation(logit)
 
@@ -1434,8 +1409,8 @@ class GPT2(LM_Mask, BERT):
         self.dense.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_state = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_state = super().apply_final_layers(**model_kwargs)
         logit = self.dense(self.LayerNormFinal([hidden_state]))
         return self.final_activation(logit)
 
@@ -1452,10 +1427,10 @@ class GPT2(LM_Mask, BERT):
     class Gpt2Layer(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, *model_args, **input_kwargs):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
-            self_attn_output = self.multiHeadAttention(x, attention_mask, **input_kwargs)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, **model_kwargs)
             hidden_states = hidden_states + self.dropout1(self_attn_output)
             x = self.layerNorm2((hidden_states, conditional_emb))
             ffn_output = self.feedForward(x)
@@ -1479,8 +1454,8 @@ class GPT2_ML(LM_Mask, BERT):
         self.dense.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_state = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_state = super().apply_final_layers(**model_kwargs)
         logit = self.dense(hidden_state)
         return self.final_activation(logit)
 
@@ -1496,7 +1471,7 @@ class GPT2_ML(LM_Mask, BERT):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             self_attn_output = self.multiHeadAttention(hidden_states, attention_mask)
             hidden_states = hidden_states + self.dropout1(self_attn_output)
             x = self.layerNorm1((hidden_states, conditional_emb))
@@ -1528,8 +1503,8 @@ class LLaMA(LM_Mask, BERT):
         for layer in self.encoderLayer:
             layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, kwargs['multiple_of'])
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_state = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_state = super().apply_final_layers(**model_kwargs)
         logit = self.dense(self.LayerNormFinal([hidden_state]))
         return self.final_activation(logit)
 
@@ -1554,7 +1529,7 @@ class LLaMA(LM_Mask, BERT):
             del self.dropout1
             del self.dropout2
 
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
             hidden_states = hidden_states + self.multiHeadAttention(x, attention_mask)
@@ -1636,14 +1611,14 @@ class GLM(LM_Mask, BERT):
                 })
         return mapping
     
-    def apply_embeddings(self, *inputs, **input_kwargs):
-        outputs = super().apply_embeddings(*inputs, **input_kwargs)
+    def apply_embeddings(self, *inputs, **model_kwargs):
+        outputs = super().apply_embeddings(*inputs, **model_kwargs)
         # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
         outputs[1][..., :-1] = 1
         return outputs
     
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_state = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_state = super().apply_final_layers(**model_kwargs)
         logit = self.dense(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
     
@@ -1659,7 +1634,7 @@ class GLM(LM_Mask, BERT):
             del self.dropout1
             del self.dropout2
 
-        def forward(self, hidden_states, attention_mask, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None):
+        def forward(self, hidden_states=None, attention_mask=None, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.layerNorm1(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
@@ -1768,7 +1743,7 @@ class Transformer_XL(BERT):
         attention_mask = attention_mask[None, None, :, :]
         return attention_mask
 
-    def apply_embeddings(self, *inputs, **input_kwargs):
+    def apply_embeddings(self, *inputs, **model_kwargs):
         '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入
         '''
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
@@ -1802,33 +1777,32 @@ class Transformer_XL(BERT):
             attention_mask = (inputs[0] != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)
             non_tgt_mask = torch.eye(qlen).to(attention_mask)[None, None, :, :]
             non_tgt_mask = ((1 - attention_mask - non_tgt_mask) <= 0).long()
+        model_kwargs.update({'hidden_states': word_emb, 'segment_ids': segment_ids, 'pos_emb': pos_emb, 
+                             'attention_mask': non_tgt_mask})
+        return model_kwargs
 
-        return [word_emb, segment_ids, pos_emb, non_tgt_mask, None]
-
-    def apply_main_layers(self, *inputs, **input_kwargs):
-        hidden_states, segment_ids, pos_emb, attention_mask, conditional_emb = inputs[:5]
-        encoded_layers = [hidden_states] # 添加embedding的输出
-
-        layer_inputs = [hidden_states, segment_ids, pos_emb, attention_mask, None, conditional_emb]
+    def apply_main_layers(self, **model_kwargs):
+        encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for i, layer_module in enumerate(self.encoderLayer):
             mems_i = None if self.mems is None else self.mems[i]
-            layer_inputs[-2] = mems_i
-            layer_inputs = self.apply_on_layer_begin(i, layer_inputs)
-            hidden_states = grad_checkpoint(layer_module, *layer_inputs) if self.gradient_checkpoint else layer_module(*layer_inputs)
-            layer_inputs[0] = hidden_states
-            layer_inputs = self.apply_on_layer_end(i, layer_inputs)
+            model_kwargs['mems_i'] = mems_i
+            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
+            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs['hidden_states'] = hidden_states
+            model_kwargs = self.apply_on_layer_end(**model_kwargs)
             encoded_layers.append(hidden_states)
         
         # 原实现中word_emb, pos_emb和core_out(hidden_states)使用同一个dropout
         hidden_states = self.dropout(hidden_states)
-        qlen = inputs[0].size(1)  # query长度
+        qlen = hidden_states.size(1)  # query长度
         mlen = self.mems[0].size(0) if self.mems is not None else 0
         self._update_mems(encoded_layers, mlen, qlen)
         
         if not self.output_all_encoded_layers:
             # 不返回所有层，即返回顶层
             encoded_layers = encoded_layers[:1] + [hidden_states]
-        return [encoded_layers, conditional_emb]
+        model_kwargs['encoded_layers'] = encoded_layers
+        return model_kwargs
     
     def load_variable(self, state_dict, name, prefix=''):
         # 这里由于预训练模型使用了AdapterEmbedding，因此暂不支持
@@ -1878,8 +1852,8 @@ class XLNET(Transformer_XL):
         pos_emb = self.dropout(pos_emb)  # 用word_emb的dropout
         return pos_emb
 
-    def apply_final_layers(self, *inputs, **input_kwargs):
-        hidden_state = super().apply_final_layers(*inputs, **input_kwargs)
+    def apply_final_layers(self, **model_kwargs):
+        hidden_state = super().apply_final_layers(**model_kwargs)
         if self.with_lm:
             return [hidden_state, self.dense(hidden_state)]
         else:
