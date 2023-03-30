@@ -4,13 +4,10 @@
 # 注意苏神版本的roberta-small/tiny的ckpt无pooler层, 区别于bert base转换脚本需要删除pooler层
 # 使用的时候需要with_pool=False, 否则会有warnings, CLS的输出直接按last_hidden_state[:, 0]取得
 
-# PS: 暂时不支持苏神的roberta-small/tiny key+版本, 暂时列入todo list
-
 import torch
 import tensorflow as tf
 import json
 
-# 也可以从huggingface下第三方转换的https://huggingface.co/peterchou/simbert-chinese-base
 tf_dir = './tf_chinese_roberta_L-6_H-384-384_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
 torch_path = './pt_chinese_roberta_L-6_H-384-384_A-12/pytorch_model.bin'
