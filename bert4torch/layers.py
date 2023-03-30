@@ -81,14 +81,8 @@ class MultiHeadAttentionLayer(nn.Module):
         self.output_attentions = output_attentions
 
         self.bias = bias
-        # 适配attention_key_size
-        if kwargs.get('attention_key_size'):
-            attention_key_size = kwargs.get('attention_key_size')
-            self.q = nn.Linear(attention_key_size, self.inner_dim, bias=bias)
-            self.k = nn.Linear(attention_key_size, self.inner_dim, bias=bias)
-        else:
-            self.q = nn.Linear(hidden_size, self.inner_dim, bias=bias)
-            self.k = nn.Linear(hidden_size, self.inner_dim, bias=bias)
+        self.q = nn.Linear(hidden_size, self.inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, self.inner_dim, bias=bias)
         self.v = nn.Linear(hidden_size, self.inner_dim, bias=bias)
         self.o = nn.Linear(self.inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
