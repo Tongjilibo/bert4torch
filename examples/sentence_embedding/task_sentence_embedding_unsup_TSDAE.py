@@ -137,7 +137,7 @@ class Model(BaseModel):
                                                with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         # 用bert的权重来初始化decoder，crossAttn部分是随机初始化的
         self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, application='lm', dropout_rate=dropout_rate, 
-                                               output_all_encoded_layers=output_all_encoded_layers, is_decoder=True, segment_vocab_size=0)
+                                               output_all_encoded_layers=output_all_encoded_layers, is_decoder=True, add_cross_attention=True, segment_vocab_size=0)
         self.pool_method = pool_method
 
         # 绑定encoder和decoder的权重

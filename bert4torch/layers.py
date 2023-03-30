@@ -63,11 +63,12 @@ class LayerNorm(nn.Module):
 
 class MultiHeadAttentionLayer(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 return_attention_scores=False, bias=True, layer_id=None, **kwargs):
+                 output_attentions=False, bias=True, layer_id=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.layer_id = layer_id  # 第几层
+        self.is_decoder = kwargs.get('is_decoder', False)
 
         # assert hidden_size % num_attention_heads == 0  # 旧逻辑，t5_pegasus_small中不可以整除
         # 兼容t5_pegasus_small
@@ -77,7 +78,7 @@ class MultiHeadAttentionLayer(nn.Module):
             self.attention_head_size = int(hidden_size / num_attention_heads)
         self.inner_dim = self.num_attention_heads * self.attention_head_size  # 新逻辑
         self.attention_scale = attention_scale
-        self.return_attention_scores = return_attention_scores
+        self.output_attentions = output_attentions
 
         self.bias = bias
         self.q = nn.Linear(hidden_size, self.inner_dim, bias=bias)
@@ -134,7 +135,7 @@ class MultiHeadAttentionLayer(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, **input_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, **model_kwargs):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
         # encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
@@ -179,6 +180,9 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.p_bias == 'rotary' and not self.position_encoding_2d:  # 原rotary逻辑
             query_layer = self.relative_positions_encoding(query_layer)
             key_layer = self.relative_positions_encoding(key_layer)
+
+        if self.is_decoder:
+            past_key_value = (key_layer, value_layer)
 
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
@@ -251,11 +255,8 @@ class MultiHeadAttentionLayer(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # 是否返回attention scores
-        if self.return_attention_scores:
-            # 这里返回的attention_scores没有经过softmax, 可在外部进行归一化操作
-            return self.o(context_layer), attention_scores
-        else:
-            return self.o(context_layer)
+        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+        return outputs + (past_key_value,) if self.is_decoder else outputs
 
     def disentangled_attention_bias(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
         '''deberta_v2使用，和原版区别是query_layer是4维
@@ -533,24 +534,27 @@ class BertLayer(nn.Module):
         self.dropout2 = nn.Dropout(dropout_rate)
         self.layerNorm2 = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
         self.pre_post_norm = pre_post_norm
-        self.is_decoder = kwargs.get('is_decoder')
-        if self.is_decoder:
+        self.is_decoder = kwargs.get('is_decoder', False)
+        self.add_cross_attention = kwargs.get('add_cross_attention', False)
+        if self.add_cross_attention and self.is_decoder:
             self.crossAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
             self.dropout3 = nn.Dropout(dropout_rate)
             self.layerNorm3 = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, **input_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
         # self attention
         x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)  # self.decoder为true时候，这里的attention_mask是三角的
-        hidden_states = hidden_states + self.dropout1(self_attn_output)
+        hidden_states = hidden_states + self.dropout1(self_attn_output[0])
+        model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
         if self.pre_post_norm == 'post':
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
         
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
-            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, past_key_value)
-            hidden_states = hidden_states + self.dropout3(cross_attn_output)
+            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value)
+            hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
+            model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
             if self.pre_post_norm == 'post':
                 hidden_states = self.layerNorm3((hidden_states, conditional_emb))
 
@@ -560,7 +564,8 @@ class BertLayer(nn.Module):
         hidden_states = hidden_states + self.dropout2(feedforward_output)
         if self.pre_post_norm == 'post':
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
-        return hidden_states
+        model_kwargs['hidden_states'] = hidden_states
+        return model_kwargs
 
 
 class T5Layer(BertLayer):
@@ -577,26 +582,29 @@ class T5Layer(BertLayer):
             self.feedForward = self.T5PositionWiseFeedForward(hidden_size=args[0], intermediate_size=args[4], **kwargs)
 
         # decoder中间有crossAttention
-        if self.is_decoder and hasattr(self.crossAttention, 'relative_positions_encoding'):
+        if self.add_cross_attention and self.is_decoder and hasattr(self.crossAttention, 'relative_positions_encoding'):
             del self.crossAttention.relative_positions_encoding
             del self.crossAttention.relative_positions
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
         # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
         x = self.layerNorm1((hidden_states, conditional_emb))
-        self_attn_output = self.multiHeadAttention(x, attention_mask)
-        hidden_states = hidden_states + self.dropout1(self_attn_output)
+        self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+        hidden_states = hidden_states + self.dropout1(self_attn_output[0])
+        model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
 
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
             x = self.layerNorm3((hidden_states, conditional_emb))
-            cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask)
-            hidden_states = hidden_states + self.dropout3(cross_attn_output)
+            cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value)
+            hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
+            model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
 
         x = self.layerNorm2((hidden_states, conditional_emb))
         ffn_output = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(ffn_output)
-        return hidden_states
+        model_kwargs['hidden_states'] = hidden_states
+        return model_kwargs
 
     class T5PositionWiseFeedForward(PositionWiseFeedForward):
         '''参考transformer包: https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py
@@ -632,7 +640,7 @@ class XlnetLayer(BertLayer):
         # multiattn层无bias
         self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, bias=False, **kwargs)
 
-    def forward(self, hidden_states=None, segment_ids=None, pos_emb=None, attention_mask=None, mems_i=None, conditional_emb=None):
+    def forward(self, hidden_states=None, segment_ids=None, pos_emb=None, attention_mask=None, mems_i=None, conditional_emb=None, **model_kwargs):
         # 拼接mems和query，mems_i: [btz, m_len, hdsz], w: [btz, q_len, hdsz] = [btz, k_len, hdsz]
         hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
         
@@ -640,7 +648,7 @@ class XlnetLayer(BertLayer):
         if self.pre_lnorm:
             hidden_states_cat = self.layerNorm1((hidden_states_cat, conditional_emb))
         self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask, segment_ids)
-        hidden_states = hidden_states + self.dropout1(self_attn_output)
+        hidden_states = hidden_states + self.dropout1(self_attn_output[0])
         if not self.pre_lnorm:  # post_lnorm
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
 
@@ -650,7 +658,8 @@ class XlnetLayer(BertLayer):
         hidden_states = hidden_states + self.dropout2(self_attn_output2)
         if not self.pre_lnorm:  # post_lnorm
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
-        return hidden_states
+        model_kwargs['hidden_states'] = hidden_states
+        return model_kwargs
 
     class RelPartialLearnableMultiHeadAttn(MultiHeadAttentionLayer):
         '''Transformer_XL式相对位置编码, 这里修改成了MultiHeadAttentionLayer的batch_first代码格式
@@ -757,11 +766,8 @@ class XlnetLayer(BertLayer):
             context_layer = context_layer.view(*new_context_layer_shape)
 
             # 是否返回attention scores
-            if self.return_attention_scores:
-                # 这里返回的attention_scores没有经过softmax, 可在外部进行归一化操作
-                return self.o(context_layer), attention_scores
-            else:
-                return self.o(context_layer)
+            outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+            return outputs
 
 
 class AdaptiveEmbedding(nn.Module):

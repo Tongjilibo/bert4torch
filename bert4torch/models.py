@@ -252,15 +252,25 @@ class BERT_BASE(nn.Module):
     def apply_final_layers(self, *inputs, **model_kwargs):
         raise NotImplementedError
     
-    def apply_on_layer_begin(self, **inputs):
+    def apply_on_layer_begin(self, l_i, **model_kwargs):
         '''新增对layer block输入进行操作的函数
         '''
-        return inputs
+        model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
+        model_kwargs['cross_past_key_value'] = model_kwargs.get('cross_past_key_values', [None]*self.num_hidden_layers)[l_i]
+        return model_kwargs
     
-    def apply_on_layer_end(self, **inputs):
+    def apply_on_layer_end(self, l_i, **model_kwargs):
         '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用
         '''
-        return inputs
+        if model_kwargs.get('past_key_value', None) is not None:
+            if 'past_key_values' not in model_kwargs:
+                model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
+            model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
+        if model_kwargs.get('cross_past_key_value', None) is not None:
+            if 'cross_past_key_values' not in model_kwargs:
+                model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
+            model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']
+        return model_kwargs
 
     def compute_attention_bias(self, inputs=None):
         """定义每一层的Attention Bias
@@ -498,11 +508,11 @@ class BERT(BERT_BASE):
         """
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
-            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
-            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
-            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
-            model_kwargs['hidden_states'] = hidden_states
-            model_kwargs = self.apply_on_layer_end(**model_kwargs)
+            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs.update(outputs)
+            hidden_states = model_kwargs['hidden_states']
+            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
@@ -624,12 +634,12 @@ class ALBERT(BERT):
 
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i in range(self.num_hidden_layers):
-            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
-            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
+            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
             layer_module = self.encoderLayer[0]
-            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
-            model_kwargs['hidden_states'] = hidden_states
-            model_kwargs = self.apply_on_layer_end(**model_kwargs)
+            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs.update(outputs)
+            hidden_states = model_kwargs['hidden_states']
+            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
@@ -827,11 +837,12 @@ class GAU_alpha(RoFormerV2):
             self.gau = GatedAttentionUnit(**kwargs)
             self.dropout1 = nn.Dropout(kwargs.get('dropout_rate'))
             self.layerNorm1 = LayerNorm(**kwargs)
-        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_args):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             gau_hidden_states = self.gau(hidden_states, attention_mask)
             hidden_states = hidden_states + self.dropout1(gau_hidden_states)
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
-            return hidden_states
+            model_kwargs['hidden_states'] = hidden_states
+            return model_kwargs
 
     
 class ELECTRA(BERT):
@@ -926,19 +937,18 @@ class DebertaV2(BERT):
 
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
-            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
-            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
-            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs.update(outputs)
             # 第0层要经过卷积
             if l_i == 0 and self.conv is not None:
-                hidden_states = self.conv(encoded_layers[0], hidden_states, model_kwargs['attention_mask'].squeeze(1).squeeze(1))
-            model_kwargs['hidden_states'] = hidden_states
-            model_kwargs = self.apply_on_layer_end(**model_kwargs)
+                model_kwargs['hidden_states'] = self.conv(encoded_layers[0], model_kwargs['hidden_states'], model_kwargs['attention_mask'].squeeze(1).squeeze(1))
+            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
-                encoded_layers.append(hidden_states)
+                encoded_layers.append(model_kwargs['hidden_states'])
         if not self.output_all_encoded_layers:
-            encoded_layers.append(hidden_states)
+            encoded_layers.append(model_kwargs['hidden_states'])
         model_kwargs['encoded_layers'] =  encoded_layers
         return model_kwargs
 
@@ -1023,6 +1033,7 @@ class Encoder(BERT):
         """
         # 返回model_kwargs方便解析attention_mask
         outputs, model_kwargs = super().forward(*inputs, return_model_kwargs=True, **model_kwargs)
+        # return: [encoder_hidden_states, encoder_attention_mask]
         return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
 
@@ -1054,22 +1065,22 @@ class Decoder(LM_Mask, BERT):
         """
         decoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.decoderLayer):
-            model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
-            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
-            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
-            model_kwargs['hidden_states'] = hidden_states
-            model_kwargs = self.apply_on_layer_end(**model_kwargs)
+            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs.update(outputs)
+            hidden_states = model_kwargs['hidden_states']
+            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 decoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
             decoded_layers.append(hidden_states)
-        model_kwargs['encoded_layers'] = decoded_layers
+        model_kwargs['decoded_layers'] = decoded_layers
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
         outputs = []
-        hidden_states = super().apply_final_layers(**model_kwargs)  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
+        hidden_states = model_kwargs['decoded_layers'][-1]  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
         outputs.append(hidden_states)
         if self.with_lm:
             logits = self.final_dense(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
@@ -1098,7 +1109,7 @@ class Transformer(BERT_BASE):
         self.encoder.build(**kwargs)
 
         # decoder
-        self.decoder = Decoder(*args, **kwargs)
+        self.decoder = Decoder(*args, add_cross_attention=True, **kwargs)
         self.decoder.build(**kwargs)
 
         if tie_emb_src_tgt_weight:
@@ -1279,8 +1290,8 @@ class T5_Decoder(Decoder):
 
     def apply_final_layers(self, **model_kwargs):
         # 这里的encoded_layers没有改成decoded_layers是想使用super()
-        last_hidden_states = model_kwargs['encoded_layers'][-1]
-        model_kwargs['encoded_layers'][-1] = self.dropout(self.final_layer_norm([last_hidden_states]))  # 在转logit前把最后一层的hidden_states加layernorm
+        last_hidden_states = model_kwargs['decoded_layers'][-1]
+        model_kwargs['decoded_layers'][-1] = self.dropout(self.final_layer_norm([last_hidden_states]))  # 在转logit前把最后一层的hidden_states加layernorm
         return super().apply_final_layers(**model_kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):
@@ -1337,6 +1348,7 @@ class T5(Transformer):
         self.encoder.build(**kwargs)
 
         # decoder
+        kwargs['add_cross_attention'] = True
         self.decoder = T5_Decoder(*args, **kwargs)
         self.decoder.build(**kwargs)
 
@@ -1360,13 +1372,14 @@ class T5(Transformer):
 class GPT(LM_Mask, BERT):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
+    Todo: 理论上gpt系列应该从Decoder继承，自动实现is_decoder=True，且使用decoderLayer
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         """GPT的embedding是token、position、segment三者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
            使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
         """
-        super(GPT, self).__init__(*args, **kwargs)
+        super(GPT, self).__init__(*args, is_decoder=True, **kwargs)
         del self.embeddings.layerNorm
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
@@ -1400,7 +1413,7 @@ class GPT2(LM_Mask, BERT):
         super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                               is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
+                               is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True, **get_kw(BertLayer, kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=kwargs.get('bias', True))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
@@ -1425,15 +1438,18 @@ class GPT2(LM_Mask, BERT):
     class Gpt2Layer(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
-        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
-            self_attn_output = self.multiHeadAttention(x, attention_mask, **model_kwargs)
-            hidden_states = hidden_states + self.dropout1(self_attn_output)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+            hidden_states = hidden_states + self.dropout1(self_attn_output[0])
+            model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
+
             x = self.layerNorm2((hidden_states, conditional_emb))
             ffn_output = self.feedForward(x)
             hidden_states = hidden_states + self.dropout2(ffn_output)
-            return hidden_states
+            model_kwargs['hidden_states'] = hidden_states
+            return model_kwargs
 
 
 class GPT2_ML(LM_Mask, BERT):
@@ -1446,7 +1462,7 @@ class GPT2_ML(LM_Mask, BERT):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                                 is_dropout=self.is_dropout, conditional_size=self.conditional_size)
+                                 is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
@@ -1469,16 +1485,19 @@ class GPT2_ML(LM_Mask, BERT):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
-        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
-            self_attn_output = self.multiHeadAttention(hidden_states, attention_mask)
-            hidden_states = hidden_states + self.dropout1(self_attn_output)
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
+            self_attn_output = self.multiHeadAttention(hidden_states, attention_mask, past_key_value=past_key_value)
+            hidden_states = hidden_states + self.dropout1(self_attn_output[0])
             x = self.layerNorm1((hidden_states, conditional_emb))
+            model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
+
             ffn_output = self.feedForward(x)
             # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+layerNorm1的hidden_states, 即这里的x
             # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加layerNorm1
             hidden_states = hidden_states + self.dropout2(ffn_output)
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
-            return hidden_states
+            model_kwargs['hidden_states'] = hidden_states
+            return model_kwargs
 
 
 class LLaMA(LM_Mask, BERT):
@@ -1488,7 +1507,7 @@ class LLaMA(LM_Mask, BERT):
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm'})
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.TransformerBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
@@ -1527,13 +1546,17 @@ class LLaMA(LM_Mask, BERT):
             del self.dropout1
             del self.dropout2
 
-        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
-            hidden_states = hidden_states + self.multiHeadAttention(x, attention_mask)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+            hidden_states = hidden_states + self_attn_output[0]
+            model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
+
             x = self.layerNorm2((hidden_states, conditional_emb))
             hidden_states = hidden_states +  self.feedForward(x)
-            return hidden_states
+            model_kwargs['hidden_states'] = hidden_states
+            return model_kwargs
         
     class FeedForward(nn.Module):
         '''FeedForward和Bert的不一致，Bert只有两个全连接
@@ -1560,7 +1583,7 @@ class GLM(LM_Mask, BERT):
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown'})
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.GLMBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
@@ -1632,14 +1655,18 @@ class GLM(LM_Mask, BERT):
             del self.dropout1
             del self.dropout2
 
-        def forward(self, hidden_states=None, attention_mask=None, **model_kwargs):
+        def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.layerNorm1(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
-            hidden_states = x * alpha + self.multiHeadAttention(x, attention_mask)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+            hidden_states = x * alpha + self_attn_output[0]
+            model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
+
             x = self.layerNorm2(hidden_states)
             hidden_states = x *alpha +  self.feedForward(x)
-            return hidden_states
+            model_kwargs['hidden_states'] = hidden_states
+            return model_kwargs
 
 
 class Transformer_XL(BERT):
@@ -1781,13 +1808,14 @@ class Transformer_XL(BERT):
 
     def apply_main_layers(self, **model_kwargs):
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for i, layer_module in enumerate(self.encoderLayer):
-            mems_i = None if self.mems is None else self.mems[i]
+        for l_i, layer_module in enumerate(self.encoderLayer):
+            mems_i = None if self.mems is None else self.mems[l_i]
             model_kwargs['mems_i'] = mems_i
-            model_kwargs = self.apply_on_layer_begin(**model_kwargs)
-            hidden_states = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
-            model_kwargs['hidden_states'] = hidden_states
-            model_kwargs = self.apply_on_layer_end(**model_kwargs)
+            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            model_kwargs.update(outputs)
+            hidden_states = model_kwargs['hidden_states']
+            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
             encoded_layers.append(hidden_states)
         
         # 原实现中word_emb, pos_emb和core_out(hidden_states)使用同一个dropout
