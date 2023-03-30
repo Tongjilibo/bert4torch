@@ -494,7 +494,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以cover大部分的情况
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='probas', use_segment_ids=False):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='probas', use_segment_ids=False, use_cache=False):
         # 去除了device入参，因为可以直接使用传入的model.device
         super().__init__(start_id, end_id, maxlen, minlen, next(model.parameters()).device)
         self.encoder = model
@@ -504,19 +504,30 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.mode = mode
         self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
         self.use_segment_ids = use_segment_ids  # 是否使用use_segment_ids
+        self.use_cache = use_cache
         
     @AutoRegressiveDecoder.wraps()
     def predict(self, inputs, output_ids, states):
         assert isinstance(inputs, (tuple, list))
-        if len(inputs) == 1:
-            token_ids = torch.cat([inputs[0], output_ids], 1)
-            logits = self.encoder.predict([token_ids])
-        if len(inputs) >= 2:  # 第二个是segment_ids
-            token_ids, segment_ids = inputs
-            curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
-            token_ids = torch.cat([token_ids, output_ids], 1)
-            segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
-            logits = self.encoder.predict([token_ids, segment_ids])       
+        if self.use_cache:
+            if len(inputs) == 1:
+                inputs = [output_ids[-1]]
+            elif len(inputs) >= 2:  # 第二个是segment_ids
+                token_ids, segment_ids = inputs
+                curr_segment_ids = token_ids[0, -1]
+                inputs = [output_ids[-1], curr_segment_ids]
+        else:
+            if len(inputs) == 1:
+                token_ids = torch.cat([inputs[0], output_ids], 1)
+                inputs = [token_ids]
+            elif len(inputs) >= 2:  # 第二个是segment_ids
+                token_ids, segment_ids = inputs
+                curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
+                token_ids = torch.cat([token_ids, output_ids], 1)
+                segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
+                inputs = [token_ids, segment_ids]
+
+            logits = self.encoder.predict(inputs)
         return logits[:, -1, :]
     
     def pre_process(self, text):
@@ -530,7 +541,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     def generate_(self, inputs, n, topk, topp, temperature, text, add_input):
         if self.mode == 'random_sample':
-            results = self.random_sample(inputs, n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
+            results = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
         elif self.mode == 'beam_search':
             results = [self.beam_search(inputs, topk=topk)]  # 基于beam search
         
