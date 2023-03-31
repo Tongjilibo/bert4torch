@@ -327,11 +327,16 @@ class AutoRegressiveDecoder(object):
                 else:
                     return torch.log(prediction[0] + 1e-12), prediction[1]
 
-            # 增加set_default_rtype函数，用于动态修改闭包中的default_rtype属性
+            # 增加函数，用于动态修改闭包中的属性
             def set_default_rtype(value):
                 nonlocal default_rtype
                 default_rtype = value
             new_predict.set_default_rtype = set_default_rtype
+
+            def set_use_states(value):
+                nonlocal use_states
+                use_states = value
+            new_predict.set_use_states = set_use_states
 
             return new_predict
 
@@ -494,7 +499,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以cover大部分的情况
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='probas', use_segment_ids=False, use_cache=False):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='probas', use_states=True, use_segment_ids=False):
         # 去除了device入参，因为可以直接使用传入的model.device
         super().__init__(start_id, end_id, maxlen, minlen, next(model.parameters()).device)
         self.encoder = model
@@ -503,19 +508,19 @@ class SeqGeneration(AutoRegressiveDecoder):
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample` and `beam_search`.'
         self.mode = mode
         self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
+        self.predict.set_use_states(use_states)  # 动态修改闭包中的use_states
+        self.use_states = use_states
         self.use_segment_ids = use_segment_ids  # 是否使用use_segment_ids
-        self.use_cache = use_cache
-        
-    @AutoRegressiveDecoder.wraps()
-    def predict(self, inputs, output_ids, states):
-        assert isinstance(inputs, (tuple, list))
-        if self.use_cache:
+    
+    @staticmethod
+    def prepara_inputs(inputs, output_ids, include_past=True):
+        if include_past is False:
             if len(inputs) == 1:
-                inputs = [output_ids[-1]]
+                inputs = [output_ids[:, -1:]]
             elif len(inputs) >= 2:  # 第二个是segment_ids
-                token_ids, segment_ids = inputs
-                curr_segment_ids = token_ids[0, -1]
-                inputs = [output_ids[-1], curr_segment_ids]
+                token_ids = inputs[0]
+                curr_segment_ids = token_ids[0, -1:]
+                inputs = [output_ids[:, -1:], curr_segment_ids]
         else:
             if len(inputs) == 1:
                 token_ids = torch.cat([inputs[0], output_ids], 1)
@@ -526,35 +531,57 @@ class SeqGeneration(AutoRegressiveDecoder):
                 token_ids = torch.cat([token_ids, output_ids], 1)
                 segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
                 inputs = [token_ids, segment_ids]
+        return inputs
 
+    @AutoRegressiveDecoder.wraps()
+    def predict(self, inputs, output_ids, states):
+        assert isinstance(inputs, (tuple, list))
+        if states is not None:
+            assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
+        
+        # 使用cache
+        if self.use_states:
+            inputs = self.prepara_inputs(inputs, output_ids, include_past=(states is None))
+            states = {'return_model_kwargs': True} if states is None else states
+            # attention_mask是根据token_ids生成的，因此这里重置下
+            if 'attention_mask' in states:
+                attention_mask = states['attention_mask']
+                seq_len = attention_mask.shape[-1]
+                states['attention_mask'] = torch.ones(seq_len+1)[None, None, None, :].to(attention_mask)
+
+            logits, states = self.encoder.predict(inputs, **states)
+            return logits[:, -1, :], states
+
+        # 不使用cache
+        elif not self.use_states:
+            inputs = self.prepara_inputs(inputs, output_ids, include_past=True)
             logits = self.encoder.predict(inputs)
-        return logits[:, -1, :]
-    
+            return logits[:, -1, :]
+
     def pre_process(self, text):
         # 前处理，可以按照自定义
         inputs = self.tokenizer.encode(text, maxlen=self.maxlen)
         return inputs if self.use_segment_ids else [inputs[0]]
     
-    def post_process(self, text):
+    def post_process(self, input_, output_ids):
         # 后处理，可以按照自定义
-        return text
+        if len(output_ids) > 1:
+            return [input_ + self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
+        elif len(output_ids) == 1:
+            return input_ + self.tokenizer.decode(output_ids[0].cpu().numpy())
+        return output_ids
 
-    def generate_(self, inputs, n, topk, topp, temperature, text, add_input):
+    def generate_(self, inputs, n, topk, topp, temperature):
         if self.mode == 'random_sample':
-            results = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
+            output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
         elif self.mode == 'beam_search':
-            results = [self.beam_search(inputs, topk=topk)]  # 基于beam search
-        
-        input_ = text if add_input else ''
-        if len(results) > 1:
-            return [input_ + self.post_process(self.tokenizer.decode(ids.cpu().numpy())) for ids in results]
-        elif len(results) == 1:
-            return input_ + self.post_process(self.tokenizer.decode(results[0].cpu().numpy()))
-        return
+            output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
+        return output_ids
 
     def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
         inputs = self.pre_process(text)
-        return self.generate_(inputs, n, topk, topp, temperature, text, add_input)
+        output_ids = self.generate_(inputs, n, topk, topp, temperature)
+        return self.post_process(text if add_input else '', output_ids)
 
 
 class Seq2SeqGeneration(SeqGeneration):
@@ -574,7 +601,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text)
         inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        return super().generate_(encoder_output, n, topk, topp, temperature, text, add_input)
+        output_ids = super().generate_(encoder_output, n, topk, topp, temperature)
+        return self.post_process(self, text if add_input else '', output_ids)
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):

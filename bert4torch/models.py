@@ -443,21 +443,25 @@ class BERT(BERT_BASE):
 
         # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
         # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸
-        if self.custom_attention_mask:
-            attention_mask = inputs[index_].long().unsqueeze(1).unsqueeze(2)
-            index_ += 1
-        elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
-            attention_mask = (token_ids != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)  # 默认0为mask_value
-            if self.token_pad_ids < 0:
-                token_ids = token_ids * attention_mask[:,0,0,:]
-        else:  # 自定义word_embedding，目前仅有VAT中使用
-            attention_mask = self.attention_mask_cache
-        self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
-        
-        self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
-        if self.attention_bias is not None:
-            attention_mask = attention_mask * self.attention_bias  # 不可访问padding
-            # attention_mask = self.attention_bias  # 可以访问padding
+        if 'attention_mask' in model_kwargs:
+            # attention_mask是根据token_ids生成的，因此外部需要重置下，目前是带cache解码时候使用
+            attention_mask = model_kwargs['attention_mask']
+        else:
+            if self.custom_attention_mask:
+                attention_mask = inputs[index_].long().unsqueeze(1).unsqueeze(2)
+                index_ += 1
+            elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
+                attention_mask = (token_ids != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)  # 默认0为mask_value
+                if self.token_pad_ids < 0:
+                    token_ids = token_ids * attention_mask[:,0,0,:]
+            else:  # 自定义word_embedding，目前仅有VAT中使用
+                attention_mask = self.attention_mask_cache
+            self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
+            
+            self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
+            if self.attention_bias is not None:
+                attention_mask = attention_mask * self.attention_bias  # 不可访问padding
+                # attention_mask = self.attention_bias  # 可以访问padding
 
         # pytorch >= 1.5时候会导致StopIteration错误
         # https://github.com/huggingface/transformers/issues/3936
