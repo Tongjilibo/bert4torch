@@ -420,49 +420,59 @@ class BERT(BERT_BASE):
     def apply_embeddings(self, *inputs, **model_kwargs):
         """BERT的embedding是token、position、segment三者embedding之和
 
-        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
+        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有), additional_input(若有)]
         :return: List[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
         """
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
+        # ========================= token_ids =========================
         token_ids = inputs[0]
         index_ = 1
+        
+        # ========================= segment_ids =========================
         if self.segment_vocab_size > 0:
             segment_ids = inputs[index_]
             index_ += 1
         else:
             segment_ids = None
 
-        if self.custom_position_ids is True:  # 自定义position_ids
+        # ========================= position_ids =========================
+        if model_kwargs.get('position_ids') is not None:
+            position_ids = model_kwargs['position_ids']
+        elif self.custom_position_ids is True:  # 自定义position_ids
             position_ids = inputs[index_]
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
             position_ids = create_position_ids_from_input_ids(token_ids, self.token_pad_ids)
+        elif hasattr(self.embeddings, 'position_embeddings'):
+            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device)
         else:
             position_ids = None
+        model_kwargs['position_ids'] = position_ids
 
+        # ========================= attention_mask =========================
+        # 这里input_attention_mask表示传入[btz, seq_len], 而attention_mask是[btz, 1, 1/q_len, seq_len]
+        if model_kwargs.get('input_attention_mask') is not None:
+            # attention_mask是根据token_ids生成的，因此外部需要重置下，目前是带cache解码时候使用
+            attention_mask = model_kwargs['input_attention_mask']
+        elif self.custom_attention_mask:
+            attention_mask = inputs[index_].long()
+            index_ += 1
+        elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
+            attention_mask = (token_ids != self.token_pad_ids).long()  # 默认0为mask_value
+            if self.token_pad_ids < 0:
+                token_ids = token_ids * attention_mask
+        else:  # 自定义word_embedding，目前仅有VAT中使用
+            attention_mask = self.attention_mask_cache
+        self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
+        model_kwargs['input_attention_mask'] = attention_mask
         # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
         # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸
-        if 'attention_mask' in model_kwargs:
-            # attention_mask是根据token_ids生成的，因此外部需要重置下，目前是带cache解码时候使用
-            attention_mask = model_kwargs['attention_mask']
-        else:
-            if self.custom_attention_mask:
-                attention_mask = inputs[index_].long().unsqueeze(1).unsqueeze(2)
-                index_ += 1
-            elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
-                attention_mask = (token_ids != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)  # 默认0为mask_value
-                if self.token_pad_ids < 0:
-                    token_ids = token_ids * attention_mask[:,0,0,:]
-            else:  # 自定义word_embedding，目前仅有VAT中使用
-                attention_mask = self.attention_mask_cache
-            self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
-            
-            self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
-            if self.attention_bias is not None:
-                attention_mask = attention_mask * self.attention_bias  # 不可访问padding
-                # attention_mask = self.attention_bias  # 可以访问padding
-
+        attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+        self.compute_attention_bias([token_ids, segment_ids])  # 根据lm或者unilm需要对mask做调整
+        if self.attention_bias is not None:
+            attention_mask = attention_mask * self.attention_bias  # 不可访问padding
+            # attention_mask = self.attention_bias  # 可以访问padding
         # pytorch >= 1.5时候会导致StopIteration错误
         # https://github.com/huggingface/transformers/issues/3936
         # https://github.com/huggingface/transformers/issues/4189
@@ -472,16 +482,15 @@ class BERT(BERT_BASE):
         except StopIteration:
             attention_mask = attention_mask.to(dtype=torch.float32)
         
-        # 对mask矩阵中，数值为0的转换成很大的负数，使得不需要attention的位置经过softmax后,分数趋近于0
-        # attention_mask = (1.0 - attention_mask) * -10000.0
-        # conditional layer_norm
+        # ========================= conditional layer_norm =========================
         if self.layer_norm_conds is None:
             conditional_emb = None
         else:
             conditional_emb = self.layer_norm_conds(inputs[index_])
             index_ += 1
 
-        # addtional_embeddng, 比如加入词性，音调，word粒度的自定义embedding
+        # ========================= addtional_embeddng =========================
+        # 比如加入词性，音调，word粒度的自定义embedding
         if isinstance(self.layer_add_embs, nn.Module):  # 单个
             additional_embs = [self.layer_add_embs(inputs[index_])]
             index_ += 1
@@ -496,7 +505,7 @@ class BERT(BERT_BASE):
 
         # 进入embedding层
         hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
-        model_kwargs.update({'hidden_states': hidden_states,  'attention_mask': attention_mask, 'conditional_emb': conditional_emb})
+        model_kwargs.update({'hidden_states': hidden_states, 'attention_mask':attention_mask, 'conditional_emb': conditional_emb})
         
         # 解析encoder_hidden_state, encoder_attention_mask
         if len(inputs[index_:]) >=2:
@@ -1637,10 +1646,10 @@ class GLM(LM_Mask, BERT):
         return mapping
     
     def apply_embeddings(self, *inputs, **model_kwargs):
-        outputs = super().apply_embeddings(*inputs, **model_kwargs)
+        model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
-        outputs[1][..., :-1] = 1
-        return outputs
+        model_kwargs['attention_mask'][..., :-1] = 1
+        return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)

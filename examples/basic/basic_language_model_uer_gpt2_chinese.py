@@ -37,9 +37,10 @@ class ArticleCompletion(AutoRegressiveDecoder):
         logits = model.predict([token_ids])
         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.95):
+    def generate(self, text, n=1, topp=0.7, add_input=True):
         token_ids, _ = tokenizer.encode(text)
         results = self.random_sample([token_ids], n, topp=topp)  # 基于随机采样
+        add_input = text if add_input else ''
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 article_completion = ArticleCompletion(
@@ -51,12 +52,12 @@ article_completion = ArticleCompletion(
 )
 
 # 第二种方式
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=511, 
-                                   maxlen=100, minlen=50, default_rtype='logits', mode='random_sample')
+article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=511, mode='random_sample',
+                                   maxlen=100, minlen=50, default_rtype='logits', use_states=True)
 
 print('====bert4torch结果====')
 for text in [u'这是很久之前的事情了']:
-    print(article_completion.generate(text))
+    print(article_completion.generate(text, add_input=True))
     
 """
 部分结果：

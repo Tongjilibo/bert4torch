@@ -69,32 +69,21 @@ class MultiHeadAttentionLayer(nn.Module):
         self.num_attention_heads = num_attention_heads
         self.layer_id = layer_id  # 第几层
         self.is_decoder = kwargs.get('is_decoder', False)
-
-        # assert hidden_size % num_attention_heads == 0  # 旧逻辑，t5_pegasus_small中不可以整除
-        # 兼容t5_pegasus_small
-        if kwargs.get('attention_head_size'):
-            self.attention_head_size = kwargs.get('attention_head_size')
-        else:
-            self.attention_head_size = int(hidden_size / num_attention_heads)
-
-        self.inner_dim = self.num_attention_heads * self.attention_head_size  # 新逻辑
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
-
         self.bias = bias
 
-        if kwargs.get('attention_key_size'):
-            self.attention_key_size = kwargs.get('attention_key_size')
-            self.q = nn.Linear(hidden_size, self.attention_key_size * self.num_attention_heads, bias=bias)
-            self.k = nn.Linear(hidden_size, self.attention_key_size * self.num_attention_heads, bias=bias)
+        # t5_pegasus_small中hidden_size/num_attention_heads != 0
+        # 苏神的roberta small中qk的维度和v不同
+        self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
+        self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
+        self.qk_inner_dim = self.attention_key_size * self.num_attention_heads
+        self.v_inner_dim = self.attention_head_size * self.num_attention_heads
 
-        else:
-            self.q = nn.Linear(hidden_size, self.inner_dim, bias=bias)
-            self.k = nn.Linear(hidden_size, self.inner_dim, bias=bias)
-
-        self.v = nn.Linear(hidden_size, self.inner_dim, bias=bias)
-        self.o = nn.Linear(self.inner_dim, hidden_size, bias=bias)
-
+        self.q = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias)
+        self.v = nn.Linear(hidden_size, self.v_inner_dim, bias=bias)
+        self.o = nn.Linear(self.v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
@@ -140,14 +129,16 @@ class MultiHeadAttentionLayer(nn.Module):
 
             self.pos_dropout = nn.Dropout(dropout_rate)
 
-    def transpose_for_scores(self, x, layername=''):
-        if hasattr(self, 'attention_key_size') and layername in ('query', 'key'):
-            new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
-        else:
-            new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+    def transpose_for_qk_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
-
+    
+    def transpose_for_v_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1, 3)
+    
     def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, **model_kwargs):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
@@ -155,7 +146,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
         # past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
 
-        query_layer = self.transpose_for_scores(self.q(hidden_states), layername='query')
+        query_layer = self.transpose_for_qk_scores(self.q(hidden_states))
 
         # 参考hf增加了关于past_key_value的逻辑
         is_cross_attention = encoder_hidden_states is not None
@@ -164,17 +155,17 @@ class MultiHeadAttentionLayer(nn.Module):
             value_layer = past_key_value[1]
             attention_mask = encoder_attention_mask
         elif is_cross_attention:
-            key_layer = self.transpose_for_scores(self.k(encoder_hidden_states), layername='key')
-            value_layer = self.transpose_for_scores(self.v(encoder_hidden_states))
+            key_layer = self.transpose_for_qk_scores(self.k(encoder_hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
             attention_mask = encoder_attention_mask
         elif past_key_value is not None:
-            key_layer = self.transpose_for_scores(self.k(hidden_states), layername='key')
-            value_layer = self.transpose_for_scores(self.v(hidden_states))
+            key_layer = self.transpose_for_qk_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         else:
-            key_layer = self.transpose_for_scores(self.k(hidden_states), layername='key')
-            value_layer = self.transpose_for_scores(self.v(hidden_states))
+            key_layer = self.transpose_for_qk_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
         # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
@@ -264,7 +255,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # 所以在调用view之前，需要contiguous来返回一个contiguous copy；
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
 
-        new_context_layer_shape = context_layer.size()[:-2] + (self.inner_dim,)
+        new_context_layer_shape = context_layer.size()[:-2] + (self.v_inner_dim,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # 是否返回attention scores
@@ -291,8 +282,8 @@ class MultiHeadAttentionLayer(nn.Module):
 
         rel_embeddings = rel_embeddings[0 : att_span * 2, :].unsqueeze(0)
         if self.share_att_key:
-            pos_query_layer = self.transpose_for_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
-            pos_key_layer = self.transpose_for_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_query_layer = self.transpose_for_qk_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_key_layer = self.transpose_for_qk_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
         else:
             # 这里逻辑去掉了
             pass
@@ -503,11 +494,8 @@ class BertEmbeddings(nn.Module):
             for emb in additional_embs:
                 embeddings += emb
 
-        if hasattr(self, 'position_embeddings'):
-            seq_length = token_ids.size(1)
-            if position_ids is None:
-                position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
-                position_ids = position_ids.unsqueeze(0).repeat(token_ids.shape[0], 1)
+        if hasattr(self, 'position_embeddings') and (position_ids is not None):
+            position_ids = position_ids.unsqueeze(0).repeat(token_ids.shape[0], 1)
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
 
@@ -730,9 +718,9 @@ class XlnetLayer(BertLayer):
             mixed_key_layer = self.k(cat)
             mixed_value_layer = self.v(cat)
 
-            w_head_q = self.transpose_for_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
-            w_head_k = self.transpose_for_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
-            w_head_v = self.transpose_for_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
+            w_head_q = self.transpose_for_qk_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
+            w_head_k = self.transpose_for_qk_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
+            w_head_v = self.transpose_for_v_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
 
             r_head_k = self.r(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
             r_head_k = r_head_k.view(rlen, self.num_attention_heads, self.attention_head_size)  # rlen x n_head x d_head

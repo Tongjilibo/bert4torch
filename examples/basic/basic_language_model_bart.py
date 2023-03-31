@@ -14,7 +14,7 @@ print('transformers output: ', tokenizer.convert_ids_to_tokens(pred_ids[0]))
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import AutoRegressiveDecoder
+from bert4torch.snippets import AutoRegressiveDecoder, Seq2SeqGeneration
 import torch
 
 # bert配置
@@ -26,6 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 model = build_transformer_model(config_path, checkpoint_path, model='bart', segment_vocab_size=0).to(device)
 
+# 第一种方式
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器
     """
@@ -42,4 +43,8 @@ class AutoTitle(AutoRegressiveDecoder):
 
 autotitle = AutoTitle(start_id=102, end_id=tokenizer._token_end_id, maxlen=32, device=device)
 
-print('bert4torch output: ', autotitle.generate("北京是[MASK]的首都"))
+# 第二种方式
+# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
+#                               maxlen=32, default_rtype='logits', use_states=True)
+
+print('bert4torch output: ', autotitle.generate("北京是[MASK]的首都", topk=4))

@@ -497,9 +497,11 @@ class AutoRegressiveDecoder(object):
 
 
 class SeqGeneration(AutoRegressiveDecoder):
-    '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以cover大部分的情况
+    '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='probas', use_states=True, use_segment_ids=False):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='logits', use_states=True):
+        '''
+        '''
         # 去除了device入参，因为可以直接使用传入的model.device
         super().__init__(start_id, end_id, maxlen, minlen, next(model.parameters()).device)
         self.encoder = model
@@ -510,7 +512,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
         self.predict.set_use_states(use_states)  # 动态修改闭包中的use_states
         self.use_states = use_states
-        self.use_segment_ids = use_segment_ids  # 是否使用use_segment_ids
+        self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
     
     @staticmethod
     def prepara_inputs(inputs, output_ids, include_past=True):
@@ -544,11 +546,11 @@ class SeqGeneration(AutoRegressiveDecoder):
             inputs = self.prepara_inputs(inputs, output_ids, include_past=(states is None))
             states = {'return_model_kwargs': True} if states is None else states
             # attention_mask是根据token_ids生成的，因此这里重置下
-            if 'attention_mask' in states:
-                attention_mask = states['attention_mask']
-                seq_len = attention_mask.shape[-1]
-                states['attention_mask'] = torch.ones(seq_len+1)[None, None, None, :].to(attention_mask)
-
+            if states.get('input_attention_mask') is not None:
+                attention_mask = states['input_attention_mask']
+                states['input_attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
+            if states.get('position_ids') is not None:
+                states['position_ids'] = states['position_ids'][-1:]+1
             logits, states = self.encoder.predict(inputs, **states)
             return logits[:, -1, :], states
 
@@ -575,6 +577,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         if self.mode == 'random_sample':
             output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
         elif self.mode == 'beam_search':
+            assert topk is not None, 'Args `topk` can not be None in beam_search'
             output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
         return output_ids
 
@@ -591,18 +594,48 @@ class Seq2SeqGeneration(SeqGeneration):
         super().__init__(*args, **kwargs)
         self.decoder = self.encoder.decoder
         self.encoder = self.encoder.encoder
+        self.use_segment_ids = hasattr(self.encoder, 'segment_vocab_size') and (self.encoder.segment_vocab_size > 0)  # 是否使用segment_ids
 
+    @staticmethod
+    def prepara_inputs(encoder_outputs, decoder_inputs, include_past=True):
+        if include_past is False:
+            # 这里未做判断，因为一般seq2seq模型都没有segment_ids
+            inputs = [decoder_inputs[:, -1:]] + encoder_outputs
+        else:
+            inputs = [decoder_inputs] + encoder_outputs
+        return inputs
+    
     @AutoRegressiveDecoder.wraps()
     def predict(self, inputs, output_ids, states):
-        # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
-        return self.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+        assert isinstance(inputs, (tuple, list))
+        if states is not None:
+            assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
+        
+        # 使用cache
+        if self.use_states:
+            inputs = self.prepara_inputs(inputs, output_ids, include_past=(states is None))
+            states = {'return_model_kwargs': True} if states is None else states
+            # attention_mask是根据token_ids生成的，因此这里重置下
+            if states.get('input_attention_mask') is not None:
+                attention_mask = states['input_attention_mask']
+                states['input_attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
+            if states.get('position_ids') is not None:
+                states['position_ids'] = states['position_ids'][-1:]+1
+            logits, states = self.decoder.predict(inputs, **states)
+            return logits[-1][:, -1, :], states
+
+        # 不使用cache
+        elif not self.use_states:
+            # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
+            inputs = self.prepara_inputs(inputs, output_ids, include_past=True)
+            return self.decoder.predict(inputs)[-1][:, -1, :]  # 保留最后一位
         
     def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
         inputs = self.pre_process(text)
         inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         output_ids = super().generate_(encoder_output, n, topk, topp, temperature)
-        return self.post_process(self, text if add_input else '', output_ids)
+        return self.post_process(text if add_input else '', output_ids)
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
