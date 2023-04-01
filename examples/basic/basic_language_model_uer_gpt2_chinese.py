@@ -53,7 +53,7 @@ article_completion = ArticleCompletion(
 
 # 第二种方式
 article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=511, mode='random_sample',
-                                   maxlen=100, minlen=50, default_rtype='logits', use_states=True)
+                                   maxlen=100, default_rtype='logits', use_states=True)
 
 print('====bert4torch结果====')
 for text in [u'这是很久之前的事情了']:

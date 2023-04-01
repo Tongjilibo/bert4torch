@@ -407,6 +407,7 @@ class AutoRegressiveDecoder(object):
         inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
         output_ids, output_scores = self.first_output_ids, torch.zeros(1, device=self.device)
         for step in range(self.maxlen):
+            self.step = step
             scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
             if step == 0:  # 第1步预测后将输入重复topk次
                 inputs = [i.repeat([topk]+[1]*(len(i.shape)-1)) for i in inputs]
@@ -425,12 +426,14 @@ class AutoRegressiveDecoder(object):
                 else:  # 否则，只保留未完成部分
                     flag = ~is_end | (end_counts < min_ends)  # 标记未完成序列
                     if not flag.all():  # 如果有已完成的
+                        self.flag = flag  # 记录已经完成序列
                         inputs = [i[flag] for i in inputs]  # 扔掉已完成序列
                         output_ids = output_ids[flag]  # 扔掉已完成序列
                         output_scores = output_scores[flag]  # 扔掉已完成序列
                         end_counts = end_counts[flag]  # 扔掉已完成end计数
                         topk = flag.sum()  # topk相应变化
         # 达到长度直接输出
+        self.flag = None
         return output_ids[output_scores.argmax()]
 
     def random_sample(self, inputs_raw, n, topk=None, topp=None, states=None, temperature=1, min_ends=1, add_btz_dim=True):
@@ -449,6 +452,7 @@ class AutoRegressiveDecoder(object):
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
+            self.step = step
             probas, states = self.predict(inputs, output_ids, states, temperature, 'probas')  # 计算当前概率
             probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
             if step == 0:  # 第1步预测后将结果重复n次
@@ -481,6 +485,7 @@ class AutoRegressiveDecoder(object):
             if output_ids.shape[1] >= self.minlen:  # 最短长度判断
                 flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
                 if flag.any():  # 如果有已完成的
+                    self.flag = flag  # 记录已经完成序列
                     for ids in output_ids[flag]:  # 存好已完成序列
                         results.append(ids)
                     flag = (flag == False)  # 标记未完成序列
@@ -493,6 +498,7 @@ class AutoRegressiveDecoder(object):
         for ids in output_ids:
             results.append(ids)
         # 返回结果
+        self.flag = None
         return results
 
 
@@ -501,11 +507,20 @@ class SeqGeneration(AutoRegressiveDecoder):
     '''
     def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='logits', use_states=True):
         '''
+        :param model: 模型
+        :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
+        :param start_id: int, decoder初始的token_id
+        :param end_id: int, 结束解码的token_id
+        :param maxlen: int, 最大解码长度
+        :param minlen: int, 最小解码长度
+        :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
+        :param use_states: str, 是否使用cache
         '''
+        
         # 去除了device入参，因为可以直接使用传入的model.device
         super().__init__(start_id, end_id, maxlen, minlen, next(model.parameters()).device)
-        self.encoder = model
-        self.decoder = None
+        self.encoder = None
+        self.decoder = model
         self.tokenizer = tokenizer
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample` and `beam_search`.'
         self.mode = mode
@@ -549,15 +564,30 @@ class SeqGeneration(AutoRegressiveDecoder):
             if states.get('input_attention_mask') is not None:
                 attention_mask = states['input_attention_mask']
                 states['input_attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
+            # position_ids也需要修改下
             if states.get('position_ids') is not None:
                 states['position_ids'] = states['position_ids'][-1:]+1
-            logits, states = self.encoder.predict(inputs, **states)
+            # past_key_values和btz维度对不上
+            if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != output_ids.shape[0]:
+                btz = output_ids.shape[0]
+                if self.step == 1:  # beam_search在step=1时候btz=束宽
+                    for l_i, past_key_value in enumerate(states['past_key_values']):
+                        states['past_key_values'][l_i] = (past_key_value[0].repeat(btz, 1, 1, 1),
+                                                        past_key_value[1].repeat(btz, 1, 1, 1))
+                elif hasattr(self, 'flag'):  # 有的部分序列已经完成
+                    for l_i, past_key_value in enumerate(states['past_key_values']):
+                        states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
+                else:
+                    raise ValueError("decoder output_ids and past_key_values's batch_size not same")
+            logits, states = self.decoder.predict(inputs, **states)
+            logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return logits[:, -1, :], states
 
         # 不使用cache
         elif not self.use_states:
             inputs = self.prepara_inputs(inputs, output_ids, include_past=True)
-            logits = self.encoder.predict(inputs)
+            logits = self.decoder.predict(inputs)
+            logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return logits[:, -1, :]
 
     def pre_process(self, text):
@@ -592,8 +622,8 @@ class Seq2SeqGeneration(SeqGeneration):
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.decoder = self.encoder.decoder
-        self.encoder = self.encoder.encoder
+        self.encoder = self.decoder.encoder
+        self.decoder = self.decoder.decoder
         self.use_segment_ids = hasattr(self.encoder, 'segment_vocab_size') and (self.encoder.segment_vocab_size > 0)  # 是否使用segment_ids
 
     @staticmethod
@@ -603,32 +633,9 @@ class Seq2SeqGeneration(SeqGeneration):
             inputs = [decoder_inputs[:, -1:]] + encoder_outputs
         else:
             inputs = [decoder_inputs] + encoder_outputs
+        # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         return inputs
-    
-    @AutoRegressiveDecoder.wraps()
-    def predict(self, inputs, output_ids, states):
-        assert isinstance(inputs, (tuple, list))
-        if states is not None:
-            assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
-        
-        # 使用cache
-        if self.use_states:
-            inputs = self.prepara_inputs(inputs, output_ids, include_past=(states is None))
-            states = {'return_model_kwargs': True} if states is None else states
-            # attention_mask是根据token_ids生成的，因此这里重置下
-            if states.get('input_attention_mask') is not None:
-                attention_mask = states['input_attention_mask']
-                states['input_attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-            if states.get('position_ids') is not None:
-                states['position_ids'] = states['position_ids'][-1:]+1
-            logits, states = self.decoder.predict(inputs, **states)
-            return logits[-1][:, -1, :], states
-
-        # 不使用cache
-        elif not self.use_states:
-            # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
-            inputs = self.prepara_inputs(inputs, output_ids, include_past=True)
-            return self.decoder.predict(inputs)[-1][:, -1, :]  # 保留最后一位
+            
         
     def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
         inputs = self.pre_process(text)
