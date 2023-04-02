@@ -688,19 +688,6 @@ def cal_ts_num(tensor_shape):
     print(cal_num)
 
 
-def get_kw(cls, kwargs):
-    '''保留排除cls的入参后的kwargs
-
-    :param cls: 类
-    :param kwargs: dict, 所有参数
-    '''
-    kwargs_new = {}
-    for k in kwargs:
-        if k not in set(inspect.getargspec(cls)[0]):
-            kwargs_new[k] = kwargs[k]
-    return kwargs_new
-
-
 class FGM():
     '''FGM对抗训练
     '''

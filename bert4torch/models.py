@@ -8,9 +8,9 @@ import torch.nn.functional as F
 import copy
 import json
 import re
-from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, Identity, T5Layer, GatedAttentionUnit, XlnetLayer
+from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
-from bert4torch.snippets import insert_arguments, delete_arguments, get_kw, torch_div
+from bert4torch.snippets import insert_arguments, delete_arguments, torch_div
 from bert4torch.snippets import take_along_dim, create_position_ids_from_input_ids, DottableDict
 from bert4torch.activations import get_activation
 import warnings
@@ -104,6 +104,13 @@ class BERT_BASE(nn.Module):
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
+
+    def get_kw(self, *args, **kwargs):
+        '''把self.属性设置到kwargs中, 方便传参
+        '''
+        for arg in args:
+            kwargs[arg] = getattr(self, arg)
+        return kwargs
 
     def args_segmentate(self, inputs, **model_kwargs):
         '''解析输入，转成list，tuple类型
@@ -384,15 +391,14 @@ class BERT(BERT_BASE):
         self.token_pad_ids = token_pad_ids
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
-        self.layer_norm_conds = layer_norm_cond
+        self.layer_norm_cond = layer_norm_cond
         self.layer_add_embs = layer_add_embs
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
-        self.embeddings = BertEmbeddings(self.vocab_size, self.embedding_size, self.hidden_size, self.max_position, self.segment_vocab_size, self.shared_segment_embeddings, 
-                                         self.dropout_rate, self.conditional_size, **get_kw(BertEmbeddings, kwargs))
-        kwargs['max_position'] = self.max_position  # 相对位置编码需要使用    
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                          is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.embeddings = BertEmbeddings(**self.get_kw('vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
+                                                       'shared_segment_embeddings', 'dropout_rate', 'conditional_size', **kwargs))
+        layer = BertLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                        'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         
         if self.with_pool:
             # Pooler部分（提取CLS向量）
@@ -437,6 +443,7 @@ class BERT(BERT_BASE):
             segment_ids = None
 
         # ========================= position_ids =========================
+        # [btz, seq_len]
         if model_kwargs.get('position_ids') is not None:
             position_ids = model_kwargs['position_ids']
         elif self.custom_position_ids is True:  # 自定义position_ids
@@ -445,7 +452,7 @@ class BERT(BERT_BASE):
         elif self.custom_position_ids == 'start_at_padding':
             position_ids = create_position_ids_from_input_ids(token_ids, self.token_pad_ids)
         elif hasattr(self.embeddings, 'position_embeddings'):
-            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device)
+            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
         else:
             position_ids = None
         model_kwargs['position_ids'] = position_ids
@@ -483,10 +490,10 @@ class BERT(BERT_BASE):
             attention_mask = attention_mask.to(dtype=torch.float32)
         
         # ========================= conditional layer_norm =========================
-        if self.layer_norm_conds is None:
+        if self.layer_norm_cond is None:
             conditional_emb = None
         else:
-            conditional_emb = self.layer_norm_conds(inputs[index_])
+            conditional_emb = self.layer_norm_cond(inputs[index_])
             index_ += 1
 
         # ========================= addtional_embeddng =========================
@@ -833,7 +840,7 @@ class GAU_alpha(RoFormerV2):
         super().__init__(*args, **kwargs)
 
         layer = self.GAU_Layer(**kwargs)
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
     
     def load_variable(self, state_dict, name, prefix=''):
         variable = state_dict[name]
@@ -1236,8 +1243,8 @@ class T5_Encoder(Encoder):
         del self.embeddings.layerNorm
 
         # t5的layernorm都在前面，因此重新定义了下
-        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
-                            conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
+        layer = T5Layer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                      'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
@@ -1291,8 +1298,8 @@ class T5_Decoder(Decoder):
         del self.embeddings.layerNorm
 
         # t5的layernorm都在前面，因此重新定义了下
-        layer = T5Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=self.is_dropout, 
-                            conditional_size=self.conditional_size, is_decoder=True, **get_kw(BertLayer, kwargs))
+        layer = T5Layer(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                                       'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
         
         # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
@@ -1425,9 +1432,9 @@ class GPT2(LM_Mask, BERT):
         """
         super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.Gpt2Layer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                               is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True, **get_kw(BertLayer, kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        layer = self.Gpt2Layer(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                                              'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=kwargs.get('bias', True))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.dense.weight = self.embeddings.word_embeddings.weight
@@ -1476,7 +1483,7 @@ class GPT2_ML(LM_Mask, BERT):
         super().__init__(*args, **kwargs)
         layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
                                  is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.dense.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
@@ -1523,9 +1530,9 @@ class LLaMA(LM_Mask, BERT):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.TransformerBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                               is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        layer = self.TransformerBlock(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                                                     'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
@@ -1599,9 +1606,9 @@ class GLM(LM_Mask, BERT):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.GLMBlock(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                is_dropout=self.is_dropout, conditional_size=self.conditional_size, **get_kw(BertLayer, kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        layer = self.GLMBlock(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
@@ -1703,7 +1710,7 @@ class Transformer_XL(BERT):
         # embedding
         if kwargs.get('adaptive_embedding'):
             cutoffs, div_val, sample_softmax = kwargs.get('cutoffs', []), kwargs.get('div_val', 1), kwargs.get('sample_softmax', False)
-            self.embeddings = AdaptiveEmbedding(self.vocab_size, self.embedding_size, self.hidden_size, cutoffs, div_val, sample_softmax, **get_kw(AdaptiveEmbedding, kwargs))
+            self.embeddings = AdaptiveEmbedding(self.vocab_size, self.embedding_size, self.hidden_size, cutoffs, div_val, sample_softmax)
         else:
             self.embeddings = nn.Embedding(self.vocab_size, self.embedding_size)
         self.pos_embeddings = XlnetPositionsEncoding(self.embedding_size)
@@ -1720,10 +1727,9 @@ class Transformer_XL(BERT):
             self.r_s_bias = None
 
         # transformer block
-        layer = XlnetLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, 
-                           self.hidden_act, is_dropout=self.is_dropout, conditional_size=self.conditional_size, r_w_bias=self.r_w_bias, r_r_bias=self.r_r_bias,
-                           r_s_bias=None, **get_kw(BertLayer, kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else Identity() for layer_id in range(self.num_hidden_layers)])
+        layer = XlnetLayer(r_s_bias=None, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 'intermediate_size', 
+                                                        'hidden_act', 'is_dropout', 'conditional_size', 'r_w_bias', 'r_r_bias', **kwargs))
+        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
 
         # 映射
         if self.with_lm:
@@ -1969,7 +1975,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
     :return: A pytorch model instance
     """
-    configs = {}
+    configs = DottableDict()
     if config_path is not None:
         configs.update(json.load(open(config_path)))
     configs.update(kwargs)
@@ -2048,5 +2054,5 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
 
     if checkpoint_path is not None:
         transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
-    transformer.configs = DottableDict(configs)
+    transformer.configs = configs
     return transformer

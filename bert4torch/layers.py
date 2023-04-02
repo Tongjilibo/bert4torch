@@ -495,7 +495,7 @@ class BertEmbeddings(nn.Module):
                 embeddings += emb
 
         if hasattr(self, 'position_embeddings') and (position_ids is not None):
-            position_ids = position_ids.unsqueeze(0).repeat(token_ids.shape[0], 1)
+            position_ids = position_ids.repeat(token_ids.shape[0], 1)
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
 
@@ -578,9 +578,7 @@ class T5Layer(BertLayer):
 
         # 如果是t5.1.1结构，则FFN层需要变更
         if version.endswith('t5.1.1'):
-            kwargs['dropout_rate'] = args[2]
-            kwargs['hidden_act'] = args[5]
-            self.feedForward = self.T5PositionWiseFeedForward(hidden_size=args[0], intermediate_size=args[4], **kwargs)
+            self.feedForward = self.T5PositionWiseFeedForward(**kwargs)
 
         # decoder中间有crossAttention
         if self.add_cross_attention and self.is_decoder and hasattr(self.crossAttention, 'relative_positions_encoding'):
@@ -830,12 +828,12 @@ class AdaptiveEmbedding(nn.Module):
         return embed
 
 
-class Identity(nn.Module):
+class BlockIdentity(nn.Module):
     def __init__(self, *args, **kwargs):
-        super(Identity, self).__init__()
+        super(BlockIdentity, self).__init__()
 
-    def forward(self, *args):
-        return args[0]
+    def forward(self, *args, **kwargs):
+        return kwargs
 
 
 class XlnetPositionsEncoding(nn.Module):
