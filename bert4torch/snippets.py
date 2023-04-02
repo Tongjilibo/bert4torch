@@ -566,7 +566,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 states['input_attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
             # position_ids也需要修改下
             if states.get('position_ids') is not None:
-                states['position_ids'] = states['position_ids'][-1:]+1
+                states['position_ids'] = states['position_ids'][:, -1:]+1
             # past_key_values和btz维度对不上
             if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != output_ids.shape[0]:
                 btz = output_ids.shape[0]

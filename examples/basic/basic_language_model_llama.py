@@ -11,7 +11,7 @@
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
-from bert4torch.snippets import AutoRegressiveDecoder
+from bert4torch.snippets import AutoRegressiveDecoder, SeqGeneration
 
 config_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_pytorch_model.bin'
@@ -22,6 +22,7 @@ tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accent
 
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)  # 建立模型，加载权重
 
+# 第一种方式
 class ArticleCompletion(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
@@ -42,6 +43,10 @@ article_completion = ArticleCompletion(
     minlen=20,
     device=device
 )
+
+# 第二种方式
+# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
+#                                    maxlen=256, default_rtype='logits', use_states=True)
 
 for text in [u'I believe the meaning of life is ']:
     print(article_completion.generate(text))

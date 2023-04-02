@@ -44,7 +44,7 @@ class AutoTitle(AutoRegressiveDecoder):
 autotitle = AutoTitle(start_id=102, end_id=tokenizer._token_end_id, maxlen=32, device=device)
 
 # 第二种方式
-# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
-#                               maxlen=32, default_rtype='logits', use_states=True)
+autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
+                              maxlen=32, default_rtype='logits', use_states=True)
 
 print('bert4torch output: ', autotitle.generate("北京是[MASK]的首都", topk=4))

@@ -1530,8 +1530,8 @@ class LLaMA(LM_Mask, BERT):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.TransformerBlock(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                                                     'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
+        layer = self.TransformerBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                                    'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
@@ -1596,7 +1596,7 @@ class LLaMA(LM_Mask, BERT):
 class GLM(LM_Mask, BERT):
     '''GLM: https://github.com/THUDM/GLM
     模型结构特点：
-    1）rotray使用的updown+position_encoding_2d
+    1）rotary使用的updown+position_encoding_2d
     2）qkv合并成一个权重convert时不是concat在一起的
     3）attention_mask类似于Unilm，最后一个token仅能访问之前的，之前的tokens可以互相访问
     4）跳跃连接有权重设计
@@ -1606,8 +1606,8 @@ class GLM(LM_Mask, BERT):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        layer = self.GLMBlock(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
+        layer = self.GLMBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                            'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
@@ -1666,10 +1666,10 @@ class GLM(LM_Mask, BERT):
     class GLMBlock(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
         '''
-        def __init__(self, *args, num_hidden_layers=28, **kwargs):
+        def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.num_hidden_layers = num_hidden_layers
-            hidden_size, eps = args[0], kwargs.get('layer_norm_eps', 1e-5)
+            self.num_hidden_layers = kwargs['num_hidden_layers']
+            hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
             self.layerNorm1 = torch.nn.LayerNorm(hidden_size, eps=eps)
             self.layerNorm2 = torch.nn.LayerNorm(hidden_size, eps=eps)
             del self.dropout1
