@@ -451,10 +451,8 @@ class BERT(BERT_BASE):
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
             position_ids = create_position_ids_from_input_ids(token_ids, self.token_pad_ids)
-        elif hasattr(self.embeddings, 'position_embeddings'):
-            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
         else:
-            position_ids = None
+            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
         model_kwargs['position_ids'] = position_ids
 
         # ========================= attention_mask =========================
@@ -1569,7 +1567,7 @@ class LLaMA(LM_Mask, BERT):
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
-            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = hidden_states + self_attn_output[0]
             model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
 
@@ -1656,6 +1654,10 @@ class GLM(LM_Mask, BERT):
         model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
         model_kwargs['attention_mask'][..., :-1] = 1
+        seq_len = model_kwargs['position_ids'].shape[1]
+        device = model_kwargs['position_ids'].device
+        model_kwargs['position_ids'] = torch.cat((torch.zeros(seq_len-1, dtype=torch.long, device=device),
+                                                  torch.arange(1, dtype=torch.long, device=device) + 1))
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
@@ -1679,7 +1681,7 @@ class GLM(LM_Mask, BERT):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.layerNorm1(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
-            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = x * alpha + self_attn_output[0]
             model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
 

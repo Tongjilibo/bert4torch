@@ -174,15 +174,13 @@ class MultiHeadAttentionLayer(nn.Module):
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
             q1 = self.relative_positions_encoding(q1)
             k1 = self.relative_positions_encoding(k1)
-            position_ids = torch.cat((torch.zeros(q1.shape[2]-1, dtype=torch.long, device=q1.device),
-                                     torch.arange(1, dtype=torch.long, device=q1.device) + 1))
-            q2 = self.relative_positions_encoding(q2, position_ids)
-            k2 = self.relative_positions_encoding(k2, position_ids)
+            q2 = self.relative_positions_encoding(q2, model_kwargs['position_ids'])
+            k2 = self.relative_positions_encoding(k2, model_kwargs['position_ids'])
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
         elif self.p_bias == 'rotary' and not self.position_encoding_2d:  # 原rotary逻辑
-            query_layer = self.relative_positions_encoding(query_layer)
-            key_layer = self.relative_positions_encoding(key_layer)
+            query_layer = self.relative_positions_encoding(query_layer, model_kwargs['position_ids'])
+            key_layer = self.relative_positions_encoding(key_layer, model_kwargs['position_ids'])
 
         if self.is_decoder:
             past_key_value = (key_layer, value_layer)
@@ -1017,7 +1015,7 @@ class RoPEPositionEncoding(nn.Module):
             self.cos_position, self.sin_position = cos_position.type_as(qw).to(qw.device), sin_position.type_as(qw).to(qw.device)
             self.max_seq_len_cache = seq_len
 
-        # 传入position_ids来获取cos和sin，目前只在chatglm中使用
+        # 传入position_ids来获取cos和sin, 主要是在use_cache时候能直接取到对应位置的编码
         if position_ids is not None:
             cos = F.embedding(position_ids, self.cos_position)
             sin = F.embedding(position_ids, self.sin_position)

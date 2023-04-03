@@ -81,11 +81,12 @@ class BERT_THESEUS(BERT):
             raise Exception('Replace rate must be in the range (0, 1]!')
         self.bernoulli = Bernoulli(torch.tensor([replacing_rate]))
 
-    def apply_main_layers(self, inputs):
+    def apply_main_layers(self, **model_kwargs):
         """BERT的主体是基于Self-Attention的模块
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
+        v0.2.8以后输入输出是以字典形式，这里进行修改
         """
-        hidden_states, attention_mask, conditional_emb = inputs
+        hidden_states, attention_mask, conditional_emb = model_kwargs['hidden_states'], model_kwargs['attention_mask'], model_kwargs['conditional_emb']
         encoded_layers = [hidden_states] # 添加embedding的输出
 
         if self.training:
@@ -102,12 +103,15 @@ class BERT_THESEUS(BERT):
 
         # forward
         for i, layer_module in enumerate(inference_layers):
-            hidden_states = layer_module(hidden_states, attention_mask, conditional_emb)
+            outputs = layer_module(hidden_states, attention_mask, conditional_emb)
+            hidden_states = outputs['hidden_states']
+            model_kwargs.update(outputs)
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)
         if not self.output_all_encoded_layers:
             encoded_layers.append(hidden_states)
-        return [encoded_layers, conditional_emb]
+        model_kwargs['encoded_layers'] = encoded_layers
+        return model_kwargs
 
 # 定义bert上的模型结构
 class Model(BaseModel):

@@ -232,11 +232,11 @@ class Model(BaseModel):
         g_pred[:, 0] = tokenizer._token_start_id
         e_labels = (g_pred != input_ids) * attention_mask
         e_inputs = g_pred * attention_mask
-        # cls位置需要用句向量替换
-        embeddings = self.discriminator.apply_embeddings([e_inputs])
-        embeddings[0] = torch.cat([reps.unsqueeze(1), embeddings[0][:, 1:, :]], dim=1)
-        outputs = self.discriminator.apply_main_layers(embeddings)
-        mlm_outputs = self.discriminator.apply_final_layers(outputs)
+        # cls位置需要用句向量替换，从v0.2.8开始几个apply_的返回值是字典，修改了下格式
+        outputs = self.discriminator.apply_embeddings(e_inputs)
+        outputs['hidden_states'] = torch.cat([reps.unsqueeze(1), outputs['hidden_states'][:, 1:, :]], dim=1)
+        outputs = self.discriminator.apply_main_layers(**outputs)
+        mlm_outputs = self.discriminator.apply_final_layers(**outputs)
         prediction_scores = self.electra_head(mlm_outputs)
         return scores, prediction_scores, e_labels
     

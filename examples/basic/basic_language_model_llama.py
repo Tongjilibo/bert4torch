@@ -45,8 +45,8 @@ article_completion = ArticleCompletion(
 )
 
 # 第二种方式
-# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
-#                                    maxlen=256, default_rtype='logits', use_states=True)
+article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
+                                   maxlen=256, default_rtype='logits', use_states=True)
 
 for text in [u'I believe the meaning of life is ']:
     print(article_completion.generate(text))
