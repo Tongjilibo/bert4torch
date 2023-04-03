@@ -126,7 +126,6 @@ class MultiHeadAttentionLayer(nn.Module):
             self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
             if "layer_norm" in self.norm_rel_ebd:
                 self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
-
             self.pos_dropout = nn.Dropout(dropout_rate)
 
     def transpose_for_qk_scores(self, x):
@@ -545,7 +544,7 @@ class BertLayer(nn.Module):
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
         # self attention
         x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
-        self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)  # self.decoder为true时候，这里的attention_mask是三角的
+        self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)  # self.decoder为true时候，这里的attention_mask是三角的
         hidden_states = hidden_states + self.dropout1(self_attn_output[0])
         model_kwargs['past_key_value'] = self_attn_output[-1] if self.is_decoder else past_key_value
         if self.pre_post_norm == 'post':
@@ -553,7 +552,7 @@ class BertLayer(nn.Module):
         
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
-            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value)
+            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, **model_kwargs)
             hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
             model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
             if self.pre_post_norm == 'post':
