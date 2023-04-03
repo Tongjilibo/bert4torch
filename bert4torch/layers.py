@@ -1005,13 +1005,13 @@ class RoPEPositionEncoding(nn.Module):
         # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
-        seq_len = qw.shape[seq_dim]
         if self.rope_rank == 'adjacent':
             qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
         elif self.rope_rank == 'updown':  # 目前仅chatglm使用
             qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
         
         # 超过缓存长度
+        seq_len = position_ids.max() + 1 if position_ids is not None else qw.shape[seq_dim]
         if seq_len > self.max_seq_len_cache:
             cos_position, sin_position = self.initialize(seq_len)
             self.cos_position, self.sin_position = cos_position.type_as(qw).to(qw.device), sin_position.type_as(qw).to(qw.device)

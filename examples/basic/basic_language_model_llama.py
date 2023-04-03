@@ -30,9 +30,10 @@ class ArticleCompletion(AutoRegressiveDecoder):
         logits = model.predict([token_ids])
         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.95):
+    def generate(self, text, n=1, topp=0.95, add_input=True):
         token_ids, _ = tokenizer.encode(text)
         results = self.random_sample([token_ids], n, topp=topp)  # 基于随机采样
+        text = text if add_input else ''
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 
@@ -49,4 +50,4 @@ article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mo
                                    maxlen=256, default_rtype='logits', use_states=True)
 
 for text in [u'I believe the meaning of life is ']:
-    print(article_completion.generate(text))
+    print(article_completion.generate(text, add_input=True))

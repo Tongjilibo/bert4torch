@@ -6,7 +6,7 @@
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
-from bert4torch.snippets import AutoRegressiveDecoder
+from bert4torch.snippets import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 
@@ -30,6 +30,7 @@ def tokenize_decode(token_ids):
 
 encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().to(device)  # 建立模型，加载权重
 
+# 第一种方式
 class Chat(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
@@ -42,6 +43,10 @@ class Chat(AutoRegressiveDecoder):
         results = self.random_sample([token_ids], n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
         return tokenize_decode(results[0].cpu().numpy())
 generation = Chat(start_id=None, end_id=tokenize_encode(['<eop>'])[0], maxlen=2048, device=device)
+
+# 第二种方式
+article_completion = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenize_encode(['<eop>'])[0], mode='random_sample',
+                                   maxlen=2048, default_rtype='logits', use_states=True)
 
 def chat(query, history=[]):
     if not history:
