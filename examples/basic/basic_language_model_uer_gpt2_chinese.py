@@ -45,14 +45,13 @@ class ArticleCompletion(AutoRegressiveDecoder):
 
 article_completion = ArticleCompletion(
     start_id=None,
-    end_id=511,  # 511是中文句号
+    end_id=50256,
     maxlen=100,
-    minlen=50,
     device=device
 )
 
 # 第二种方式
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=511, mode='random_sample',
+article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=50256, mode='random_sample',
                                    maxlen=100, default_rtype='logits', use_states=True)
 
 print('====bert4torch结果====')

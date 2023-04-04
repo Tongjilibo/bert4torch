@@ -393,7 +393,7 @@ class AutoRegressiveDecoder(object):
             scores = scores.masked_fill(indices_to_remove, -float("Inf"))
         return scores
 
-    def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+    def beam_search(self, inputs_raw, topk=50, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """beam search解码
         
         :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
@@ -436,13 +436,13 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return output_ids[output_scores.argmax()]
 
-    def random_sample(self, inputs_raw, n, topk=None, topp=None, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+    def random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
         :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
-        :param topk: int, 这里的topk即beam size
-        :param topp: float, 这里的topp是token的概率阈值设置
+        :param topk: int, 这里的topk是指仅保留topk的值，hf中默认为50
+        :param topp: float, 这里的topp是token的概率阈值设置，hf中默认值为1.0
         :param states:
         :param temperature: 温度参数，默认为1
         :param min_ends:
@@ -607,7 +607,6 @@ class SeqGeneration(AutoRegressiveDecoder):
         if self.mode == 'random_sample':
             output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
         elif self.mode == 'beam_search':
-            assert topk is not None, 'Args `topk` can not be None in beam_search'
             output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
         return output_ids
 
