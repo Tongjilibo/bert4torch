@@ -942,17 +942,20 @@ class DebertaV2(BERT):
         # Encoder中transformer_block前的其他网络结构
         self.relative_attention = kwargs.get("relative_attention", True)
         self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
-        # 仅有一层
-        self.encoderLayer = nn.ModuleList([self.encoderLayer[0]])  # 取上述的第一行
-    
+        
+        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        for i in range(1, self.num_hidden_layers):
+            self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
+            self.encoderLayer[i].multiHeadAttention.layernorm.weight = self.encoderLayer[0].multiHeadAttention.layernorm.weight
+            self.encoderLayer[i].multiHeadAttention.layernorm.bias = self.encoderLayer[0].multiHeadAttention.layernorm.bias
+
     def apply_main_layers(self, **model_kwargs):
         """DebertaV2：主要区别是第0层后，会通过卷积层
         """
 
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for l_i in range(self.num_hidden_layers):
+        for l_i, layer_module in enumerate(self.encoderLayer):
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
-            layer_module = self.encoderLayer[0]
             outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
             model_kwargs.update(outputs)
             # 第0层要经过卷积
