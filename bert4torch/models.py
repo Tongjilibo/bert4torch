@@ -1458,12 +1458,13 @@ class GPT2(LM_Mask, BERT):
             x = self.layerNorm1((hidden_states, conditional_emb))
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
             hidden_states = hidden_states + self.dropout1(self_attn_output[0])
-            if self.is_decoder:
-                model_kwargs['past_key_value'] = self_attn_output[-1]
 
             x = self.layerNorm2((hidden_states, conditional_emb))
             ffn_output = self.feedForward(x)
             hidden_states = hidden_states + self.dropout2(ffn_output)
+
+            if self.is_decoder:
+                model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs
 
@@ -1505,14 +1506,14 @@ class GPT2_ML(LM_Mask, BERT):
             self_attn_output = self.multiHeadAttention(hidden_states, attention_mask, past_key_value=past_key_value)
             hidden_states = hidden_states + self.dropout1(self_attn_output[0])
             x = self.layerNorm1((hidden_states, conditional_emb))
-            if self.is_decoder:
-                model_kwargs['past_key_value'] = self_attn_output[-1]
 
             ffn_output = self.feedForward(x)
             # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+layerNorm1的hidden_states, 即这里的x
             # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加layerNorm1
             hidden_states = hidden_states + self.dropout2(ffn_output)
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+            if self.is_decoder:
+                model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs
 
@@ -1568,11 +1569,11 @@ class LLaMA(LM_Mask, BERT):
             x = self.layerNorm1((hidden_states, conditional_emb))
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = hidden_states + self_attn_output[0]
-            if self.is_decoder:
-                model_kwargs['past_key_value'] = self_attn_output[-1]
 
             x = self.layerNorm2((hidden_states, conditional_emb))
             hidden_states = hidden_states +  self.feedForward(x)
+            if self.is_decoder:
+                model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs
         
@@ -1683,11 +1684,12 @@ class GLM(LM_Mask, BERT):
             alpha = (2 * self.num_hidden_layers) ** 0.5
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = x * alpha + self_attn_output[0]
-            if self.is_decoder:
-                model_kwargs['past_key_value'] = self_attn_output[-1]
 
             x = self.layerNorm2(hidden_states)
             hidden_states = x *alpha +  self.feedForward(x)
+
+            if self.is_decoder:
+                model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs
 

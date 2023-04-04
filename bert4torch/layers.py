@@ -544,8 +544,6 @@ class BertLayer(nn.Module):
         x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)  # self.decoder为true时候，这里的attention_mask是三角的
         hidden_states = hidden_states + self.dropout1(self_attn_output[0])
-        if self.is_decoder:
-            model_kwargs['past_key_value'] = self_attn_output[-1]
         if self.pre_post_norm == 'post':
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
         
@@ -563,6 +561,9 @@ class BertLayer(nn.Module):
         hidden_states = hidden_states + self.dropout2(feedforward_output)
         if self.pre_post_norm == 'post':
             hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+        
+        if self.is_decoder:
+            model_kwargs['past_key_value'] = self_attn_output[-1]
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
 
@@ -588,8 +589,6 @@ class T5Layer(BertLayer):
         x = self.layerNorm1((hidden_states, conditional_emb))
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
         hidden_states = hidden_states + self.dropout1(self_attn_output[0])
-        if self.is_decoder:
-            model_kwargs['past_key_value'] = self_attn_output[-1]
 
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
@@ -598,9 +597,13 @@ class T5Layer(BertLayer):
             hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
             model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
 
+        # feed forward
         x = self.layerNorm2((hidden_states, conditional_emb))
         ffn_output = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(ffn_output)
+
+        if self.is_decoder:
+            model_kwargs['past_key_value'] = self_attn_output[-1]
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
 
