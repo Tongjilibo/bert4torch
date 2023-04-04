@@ -46,7 +46,7 @@ elif version == 2:
           continue
       
       k = k.replace('model.', '')
-      # 主要变更就是默认有514个位置，舍弃前两个位置
+      # 主要变更就是舍弃前两个位置
       if 'embed_positions.weight' in k:
           v = v[2:]
           state_dict_new[k] = v
