@@ -1607,6 +1607,7 @@ class GLM(LM_Mask, BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown', 'is_decoder': True})
         super().__init__(*args, **kwargs)
+        self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
         del self.embeddings.layerNorm
         layer = self.GLMBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
@@ -1658,10 +1659,20 @@ class GLM(LM_Mask, BERT):
         model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
         model_kwargs['attention_mask'][..., :-1] = 1
-        seq_len = model_kwargs['position_ids'].shape[1]
-        device = model_kwargs['position_ids'].device
-        model_kwargs['position_ids'] = torch.cat((torch.zeros(seq_len-1, dtype=torch.long, device=device),
-                                                  torch.arange(1, dtype=torch.long, device=device) + 1))
+        # 对position_ids进行修改
+        eop_token_ids = model_kwargs.get('eop_token_ids', 130004)
+        position_ids = model_kwargs['position_ids']
+        context_len = position_ids.shape[1]
+        device = position_ids.device
+        if model_kwargs.get('past_key_values') is not None:
+            # Todo
+            pass
+        elif self.position_encoding_2d:
+            seq = inputs[0][0].tolist()
+            seq_len = seq.index(eop_token_ids)
+            block_position_ids = torch.cat((torch.zeros(seq_len, dtype=torch.long, device=device),
+                                            torch.arange(context_len-seq_len, dtype=torch.long, device=device) + 1))
+            model_kwargs['position_ids'] = torch.stack((position_ids, block_position_ids.unsqueeze(0)), dim=1)
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
@@ -1684,7 +1695,7 @@ class GLM(LM_Mask, BERT):
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.layerNorm1(hidden_states)
-            alpha = (2 * self.num_hidden_layers) ** 0.5
+            alpha = (2 * 28) ** 0.5
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = x * alpha + self_attn_output[0]
 

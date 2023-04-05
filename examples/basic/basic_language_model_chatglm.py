@@ -13,7 +13,7 @@ import os
 
 dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
@@ -45,14 +45,14 @@ class Chat(AutoRegressiveDecoder):
 generation = Chat(start_id=None, end_id=tokenize_encode(['<eop>'])[0], maxlen=2048, device=device)
 
 # 第二种方式
-class Chat(SeqGeneration):
-    def pre_process(self, text):
-        return [tokenize_encode(text)]
-    def post_process(self, input_, output_ids):
-        return tokenize_decode(output_ids[0].cpu().numpy())
+# class Chat(SeqGeneration):
+#     def pre_process(self, text):
+#         return [tokenize_encode(text)]
+#     def post_process(self, input_, output_ids):
+#         return tokenize_decode(output_ids[0].cpu().numpy())
 
-generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenize_encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=2048, default_rtype='logits', use_states=False)
+# generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenize_encode(['<eop>'])[0], mode='random_sample',
+#                   maxlen=2048, default_rtype='logits', use_states=False)
 
 def chat(query, history=[]):
     if not history:
