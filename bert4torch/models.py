@@ -1660,15 +1660,23 @@ class GLM(LM_Mask, BERT):
         # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
         model_kwargs['attention_mask'][..., :-1] = 1
         # 对position_ids进行修改
+        input_ids = inputs[0][0]
         eop_token_ids = model_kwargs.get('eop_token_ids', 130004)
+        MASK, gMASK = model_kwargs.get('mask_token_ids', 130000), model_kwargs.get('gmask_token_ids', 130001)
+        mask_token = MASK if MASK in input_ids else gMASK
         position_ids = model_kwargs['position_ids']
-        context_len = position_ids.shape[1]
         device = position_ids.device
+        seq = input_ids.tolist()
+        mask_position = seq.index(mask_token)
+
         if model_kwargs.get('past_key_values') is not None:
-            # Todo
-            pass
+            context_len = seq.index(eop_token_ids)
+            if self.position_encoding_2d:
+                position_ids = torch.tensor([[[mask_position], [len(position_ids) - context_len]]], dtype=torch.long, device=device)
+            else:
+                position_ids = torch.tensor([[mask_position]], dtype=torch.long, device=device)
         elif self.position_encoding_2d:
-            seq = inputs[0][0].tolist()
+            context_len = position_ids.shape[1]
             seq_len = seq.index(eop_token_ids)
             block_position_ids = torch.cat((torch.zeros(seq_len, dtype=torch.long, device=device),
                                             torch.arange(context_len-seq_len, dtype=torch.long, device=device) + 1))
