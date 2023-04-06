@@ -45,14 +45,14 @@ class Chat(AutoRegressiveDecoder):
 generation = Chat(start_id=None, end_id=tokenize_encode(['<eop>'])[0], maxlen=2048, device=device)
 
 # 第二种方式
-# class Chat(SeqGeneration):
-#     def pre_process(self, text):
-#         return [tokenize_encode(text)]
-#     def post_process(self, input_, output_ids):
-#         return tokenize_decode(output_ids[0].cpu().numpy())
+class Chat(SeqGeneration):
+    def pre_process(self, text):
+        return [tokenize_encode(text)]
+    def post_process(self, input_, output_ids):
+        return tokenize_decode(output_ids[0].cpu().numpy())
 
-# generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenize_encode(['<eop>'])[0], mode='random_sample',
-#                   maxlen=2048, default_rtype='logits', use_states=False)
+generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenize_encode(['<eop>'])[0], mode='random_sample',
+                  maxlen=2048, default_rtype='logits', use_states=False)
 
 def chat(query, history=[]):
     if not history:

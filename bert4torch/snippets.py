@@ -558,8 +558,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         # 使用cache
         if self.use_states:
+            token_ids = self.prepara_inputs(inputs, output_ids)[0]
             inputs = self.prepara_inputs(inputs, output_ids, include_past=(states is None))
             states = {'return_model_kwargs': True} if states is None else states
+            # token_ids也返回下
+            if self.step >= 1:
+                states['token_ids'] = token_ids
             # attention_mask是根据token_ids生成的，因此这里重置下
             if states.get('input_attention_mask') is not None:
                 attention_mask = states['input_attention_mask']
