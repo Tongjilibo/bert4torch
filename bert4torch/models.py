@@ -1607,6 +1607,7 @@ class GLM(LM_Mask, BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown', 'is_decoder': True})
         super().__init__(*args, **kwargs)
+        self.bos_token_id, self.mask_token_ids, self.gmask_token_ids = kwargs['bos_token_id'], kwargs['mask_token_ids'], kwargs['gmask_token_ids']
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
         del self.embeddings.layerNorm
         layer = self.GLMBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
@@ -1655,32 +1656,51 @@ class GLM(LM_Mask, BERT):
                 })
         return mapping
     
-    def apply_embeddings(self, *inputs, **model_kwargs):
-        model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
+    def prepare_inputs_for_generation(self, *inputs, **model_kwargs):
+        '''generation(生成)阶段对attention_mask和position_ids做处理
+        '''
         # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
         model_kwargs['attention_mask'][..., :-1] = 1
         # 对position_ids进行修改
-        input_ids = inputs[0][0]
-        eop_token_ids = model_kwargs.get('eop_token_ids', 130004)
-        MASK, gMASK = model_kwargs.get('mask_token_ids', 130000), model_kwargs.get('gmask_token_ids', 130001)
-        mask_token = MASK if MASK in input_ids else gMASK
+        token_ids = inputs[0]
+        if 'token_ids' in model_kwargs:
+            token_ids = torch.cat([model_kwargs['token_ids'], inputs[0]], dim=1)
+        model_kwargs['token_ids'] = token_ids
+
+        seqs = token_ids.tolist()
+        mask_token = self.mask_token_ids if self.mask_token_ids in token_ids else self.gmask_token_ids  # 倒数第2位
         position_ids = model_kwargs['position_ids']
         device = position_ids.device
-        seq = input_ids.tolist()
-        mask_position = seq.index(mask_token)
+        batch_size, seq_len = token_ids.shape[0], token_ids.shape[1]
+        mask_positions = [seq.index(mask_token) for seq in seqs]
+        context_lens = [seq.index(self.bos_token_id) for seq in seqs]  # bos_token_id是倒数第一位
 
         if model_kwargs.get('past_key_values') is not None:
-            context_len = seq.index(eop_token_ids)
+            # 使用cache
             if self.position_encoding_2d:
-                position_ids = torch.tensor([[[mask_position], [len(position_ids) - context_len]]], dtype=torch.long, device=device)
+                position_ids = torch.tensor([[mask_position, seq_len - context_length] for mask_position, context_length in
+                                            zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
             else:
-                position_ids = torch.tensor([[mask_position]], dtype=torch.long, device=device)
+                position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
+
         elif self.position_encoding_2d:
-            context_len = position_ids.shape[1]
-            seq_len = seq.index(eop_token_ids)
-            block_position_ids = torch.cat((torch.zeros(seq_len, dtype=torch.long, device=device),
-                                            torch.arange(context_len-seq_len, dtype=torch.long, device=device) + 1))
+            # 不使用cache
+            position_ids = position_ids.repeat(batch_size, 1)
+            block_position_ids = [torch.cat((torch.zeros(context_len, dtype=torch.long, device=device),
+                                            torch.arange(seq_len-context_len, dtype=torch.long, device=device) + 1)) for context_len in context_lens]
+            block_position_ids = torch.stack(block_position_ids, dim=0)
             model_kwargs['position_ids'] = torch.stack((position_ids, block_position_ids.unsqueeze(0)), dim=1)
+        return model_kwargs
+
+    def apply_embeddings(self, *inputs, **model_kwargs):
+        model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
+        
+        if self.training is True:
+            # 训练阶段
+            pass
+        else:
+            # generation(生成)阶段
+            model_kwargs = self.prepare_inputs_for_generation(*inputs, **model_kwargs)
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):

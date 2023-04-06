@@ -39,6 +39,8 @@ for i in range(1, 9):
   "hidden_act": "gelu", 
   "bos_token_id": 130004,
   "eos_token_id": 130005,
+  "mask_token_ids": 130000,
+  "gmask_token_ids": 130001,
   "hidden_size": 4096,
   "intermediate_size": 16384,
   "layer_norm_eps": 1e-05,
