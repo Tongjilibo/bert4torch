@@ -599,12 +599,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         inputs = self.tokenizer.encode(text, maxlen=self.maxlen)
         return inputs if self.use_segment_ids else [inputs[0]]
     
-    def post_process(self, input_, output_ids):
+    def post_process(self, input_text, output_ids):
         # 后处理，可以按照自定义
         if len(output_ids) > 1:
-            return [input_ + self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
+            return [input_text + self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
         elif len(output_ids) == 1:
-            return input_ + self.tokenizer.decode(output_ids[0].cpu().numpy())
+            return input_text + self.tokenizer.decode(output_ids[0].cpu().numpy())
         return output_ids
 
     def generate_(self, inputs, n, topk, topp, temperature):

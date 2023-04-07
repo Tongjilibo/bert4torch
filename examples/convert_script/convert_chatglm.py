@@ -11,9 +11,10 @@ for i in range(1, 9):
     # 保存成多个文件
     new_weights = {}
     for key, value in state_dict_tmp.items():
-        if key in {"lm_head.weight", "transformer.word_embeddings.weight"}:
-            new_weights[key] = value[20000:]  # 前2万个token都是图像相关的，因此删减掉
-        elif re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight", key):
+        # 旧逻辑是删除前20000个token，但是清华官方repo在20230406时候清理了，这里就改为不删减
+        # if key in {"lm_head.weight", "transformer.word_embeddings.weight"}:
+        #     new_weights[key] = value[20000:]  # 前2万个token都是图像相关的，因此删减掉
+        if re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight", key):
             l = re.findall('[0-9]+', key)[0]
             tensor_list = torch.split(value, 128, 0)
             q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]

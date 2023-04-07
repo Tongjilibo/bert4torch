@@ -148,12 +148,15 @@ class MultiHeadAttentionLayer(nn.Module):
         query_layer = self.transpose_for_qk_scores(self.q(hidden_states))
 
         # 参考hf增加了关于past_key_value的逻辑
-        is_cross_attention = encoder_hidden_states is not None
-        if is_cross_attention and past_key_value is not None:
+        if self.p_bias == 'rotary':
+            # rotary有cache情况下，需要先rope后再和past_key_value concat
+            key_layer = self.transpose_for_qk_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
+        elif (encoder_hidden_states is not None) and past_key_value is not None:
             key_layer = past_key_value[0]
             value_layer = past_key_value[1]
             attention_mask = encoder_attention_mask
-        elif is_cross_attention:
+        elif encoder_hidden_states is not None:
             key_layer = self.transpose_for_qk_scores(self.k(encoder_hidden_states))
             value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
             attention_mask = encoder_attention_mask
@@ -169,18 +172,22 @@ class MultiHeadAttentionLayer(nn.Module):
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
-        if self.p_bias == 'rotary' and self.position_encoding_2d:  # chatglm独有逻辑
-            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
-            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-            q1 = self.relative_positions_encoding(q1, model_kwargs['position_ids'][:, 0, :])
-            k1 = self.relative_positions_encoding(k1, model_kwargs['position_ids'][:, 0, :])
-            q2 = self.relative_positions_encoding(q2, model_kwargs['position_ids'][:, 1, :])
-            k2 = self.relative_positions_encoding(k2, model_kwargs['position_ids'][:, 1, :])
-            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
-            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
-        elif self.p_bias == 'rotary' and not self.position_encoding_2d:  # 原rotary逻辑
-            query_layer = self.relative_positions_encoding(query_layer, model_kwargs['position_ids'])
-            key_layer = self.relative_positions_encoding(key_layer, model_kwargs['position_ids'])
+        if self.p_bias == 'rotary':
+            if self.position_encoding_2d:  # chatglm独有逻辑
+                q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
+                k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+                q1 = self.relative_positions_encoding(q1, model_kwargs['position_ids'][:, 0, :])
+                k1 = self.relative_positions_encoding(k1, model_kwargs['position_ids'][:, 0, :])
+                q2 = self.relative_positions_encoding(q2, model_kwargs['position_ids'][:, 1, :])
+                k2 = self.relative_positions_encoding(k2, model_kwargs['position_ids'][:, 1, :])
+                query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
+                key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
+            else:  # 原rotary逻辑
+                query_layer = self.relative_positions_encoding(query_layer, model_kwargs['position_ids'])
+                key_layer = self.relative_positions_encoding(key_layer, model_kwargs['position_ids'])
+            if past_key_value is not None:  # 过了rope再concat
+                key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
+                value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
 
         if self.is_decoder:
             past_key_value = (key_layer, value_layer)
