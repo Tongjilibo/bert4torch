@@ -1657,7 +1657,7 @@ class GLM(LM_Mask, BERT):
         return mapping
     
     def get_position_ids(self, position_ids, seq_len, context_lens, mask_positions, device, gmask=False):
-        '''不适用cache时候的postion_ids
+        '''不使用cache时候的postion_ids
         '''
         position_ids = position_ids.repeat(len(context_lens), 1)
         if self.position_encoding_2d:
@@ -1689,10 +1689,10 @@ class GLM(LM_Mask, BERT):
 
         if model_kwargs.get('past_key_values') is not None:  # 使用cache
             assert model_kwargs.get('token_ids') is not None, 'Args `token_ids` cannot be None when use cache'
-            if self.position_encoding_2d:
+            if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_length] for mask_position, context_length in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
-            else:
+            else:  # [btz, 1]
                 position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
             model_kwargs['position_ids'] = position_ids
         else:  # 不使用cache

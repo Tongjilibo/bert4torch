@@ -50,7 +50,6 @@ class Chat(SeqGeneration):
         return [tokenize_encode(text)]
     def post_process(self, input_, output_ids):
         return tokenize_decode(output_ids[0].cpu().numpy())
-
 generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenize_encode(['<eop>'])[0], mode='random_sample',
                   maxlen=2048, default_rtype='logits', use_states=False)
 
@@ -67,6 +66,7 @@ def chat(query, history=[]):
     response = response.strip()
     response = response.replace("[[训练时间]]", "2023年")
     history = history + [(query, response)]
+    torch.cuda.empty_cache()  # 清理显存
     return response, history
 
 
