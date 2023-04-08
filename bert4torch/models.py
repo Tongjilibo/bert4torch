@@ -74,6 +74,7 @@ class BERT_BASE(nn.Module):
         self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
         self.hierarchical_position = hierarchical_position
         self.gradient_checkpoint = gradient_checkpoint
+        self.quantized = False
 
     def build(
         self,
@@ -302,6 +303,20 @@ class BERT_BASE(nn.Module):
         else:
             self.output = outputs[0]
 
+    def quantize(self, bits: int, empty_init=False, **kwargs):
+        if bits == 0:
+            return
+
+        from .quantization import quantize
+
+        if self.quantized:
+            print("Already quantized.")
+            return self
+
+        self.quantized = True
+        self.quantization_bit = bits
+        self = quantize(self, bits, empty_init=empty_init, **kwargs)
+        return self
 
 class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）
@@ -1597,6 +1612,7 @@ class LLaMA(LM_Mask, BERT):
 
 class GLM(LM_Mask, BERT):
     '''GLM: https://github.com/THUDM/GLM
+    Unilm设计，可定义为GLM(UniLM_MASK, BERT)但是要求传入segement_ids比较麻烦，这里继承LM_MASK并使用get_masks()重新构造attention_mask
     模型结构特点：
     1）rotary使用的updown+position_encoding_2d
     2）qkv合并成一个权重convert时不是concat在一起的
@@ -1655,7 +1671,14 @@ class GLM(LM_Mask, BERT):
                 f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'mlp.dense_4h_to_h.bias',
                 })
         return mapping
-    
+
+    def get_masks(self, attention_mask, context_lens):
+        '''调整mask使得在content_lens前是bi_attention
+        '''
+        for i, context_len in enumerate(context_lens):
+            attention_mask[i, :, :, :context_len] = 1
+        return attention_mask
+        
     def get_position_ids(self, position_ids, seq_len, context_lens, mask_positions, device, gmask=False):
         '''不使用cache时候的postion_ids
         '''
@@ -1674,8 +1697,8 @@ class GLM(LM_Mask, BERT):
                     position_ids[context_length:] = mask_positions[i]
         return position_ids
 
-    def prepare_inputs_for_generation(self, *inputs, **model_kwargs):
-        '''generation(生成)阶段对attention_mask和position_ids做处理
+    def prepare_inputs(self, *inputs, **model_kwargs):
+        '''对attention_mask(参考unilm方式)和position_ids做处理
         '''
         token_ids = model_kwargs['token_ids'] if model_kwargs.get('token_ids') is not None else inputs[0]
         mask_token = self.mask_token_id if self.mask_token_id in token_ids else self.gmask_token_id  # 倒数第2位
@@ -1690,16 +1713,14 @@ class GLM(LM_Mask, BERT):
         if model_kwargs.get('past_key_values') is not None:  # 使用cache
             assert model_kwargs.get('token_ids') is not None, 'Args `token_ids` cannot be None when use cache'
             if self.position_encoding_2d:  # [btz, 2, 1]
-                position_ids = torch.tensor([[mask_position, seq_len - context_length] for mask_position, context_length in
+                position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
             else:  # [btz, 1]
                 position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
             model_kwargs['position_ids'] = position_ids
         else:  # 不使用cache
-            # 对attention_mask需要进行修改, 类似于UniLM的encoder可以互相访问，decoder中只能访问:t-1之前的
-            model_kwargs['attention_mask'][..., :-1] = 1
+            model_kwargs['attention_mask'] = self.get_masks(model_kwargs['attention_mask'], context_lens)
             model_kwargs['position_ids'] = self.get_position_ids(position_ids, seq_len, context_lens, mask_positions, device, gmask=use_gmask)
-
         return model_kwargs
 
     def apply_embeddings(self, *inputs, **model_kwargs):
@@ -1707,10 +1728,8 @@ class GLM(LM_Mask, BERT):
         
         if self.training is True:
             # 训练阶段
-            pass
-        else:
-            # generation(生成)阶段
-            model_kwargs = self.prepare_inputs_for_generation(*inputs, **model_kwargs)
+            assert model_kwargs.get('past_key_values') is None, 'Args `past_key_values` should be none When self.training is True'
+        model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
@@ -2090,10 +2109,10 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     else:
         raise ValueError('"model" args type should be string or nn.Module')
 
+    # 使用 lm/unilm
     application = application.lower()
     if application in ['lm', 'unilm'] and model in ['electra', 't5', ]:
         raise ValueError(f'"{model}" model can not be used as "{application}" application.\n')
-
     if application == 'lm':
         MODEL = extend_with_language_model(MODEL)
     elif application == 'unilm':
@@ -2105,10 +2124,12 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
             pass
         MODEL = MyModel
 
+    # 生成网络结构
     transformer = MODEL(**configs)
     transformer.build(**configs)
     transformer.apply(transformer.init_model_weights)  # 初始化权重
 
+    # 权重加载
     if checkpoint_path is not None:
         transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
     transformer.configs = configs

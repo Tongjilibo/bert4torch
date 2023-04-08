@@ -1,8 +1,8 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：chatglm的对话测试
+# 基本测试：chatglm的对话测试, 使用前请先使用转换脚本转一下权重
+# 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
 # 官方项目：https://github.com/THUDM/ChatGLM-6B
 # hf链接：https://huggingface.co/THUDM/chatglm-6b
-# 转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
 # fp16半精度下显存占用14G
 # 20230406 官方项目对20000个和图像相关的进行的裁剪，因此本项目之前裁剪及tokenize的作废，使用最新的tokenize不需要进行offset
 
@@ -19,8 +19,8 @@ config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
-encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().to(device)  # 建立模型，加载权重
+tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
+encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)  # 建立模型，加载权重
 
 # 第一种方式: 自定义解码
 class Chat(AutoRegressiveDecoder):
