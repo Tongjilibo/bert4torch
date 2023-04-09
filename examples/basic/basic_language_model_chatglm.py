@@ -23,18 +23,18 @@ tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_rem
 encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)  # 建立模型，加载权重
 
 # 第一种方式: 自定义解码
-class Chat(AutoRegressiveDecoder):
-    @AutoRegressiveDecoder.wraps(default_rtype='logits')
-    def predict(self, inputs, output_ids, states):
-        token_ids = torch.cat([inputs[0], output_ids], 1)
-        logits = encoder.predict([token_ids])
-        return logits[:, -1, :]
+# class Chat(AutoRegressiveDecoder):
+#     @AutoRegressiveDecoder.wraps(default_rtype='logits')
+#     def predict(self, inputs, output_ids, states):
+#         token_ids = torch.cat([inputs[0], output_ids], 1)
+#         logits = encoder.predict([token_ids])
+#         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topk=50, topp=0.7, temperature=0.95):
-        token_ids = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
-        return tokenizer.decode(results[0].cpu().numpy())
-generation = Chat(start_id=None, end_id=tokenizer.encode(['<eop>'])[0], maxlen=2048, device=device)
+#     def generate(self, text, n=1, topk=50, topp=0.7, temperature=0.95):
+#         token_ids = tokenizer.encode(text)
+#         results = self.random_sample([token_ids], n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
+#         return tokenizer.decode(results[0].cpu().numpy())
+# generation = Chat(start_id=None, end_id=tokenizer.encode(['<eop>'])[0], maxlen=2048, device=device)
 
 # 第二种方式：调用封装好的接口，可使用cache
 class Chat(SeqGeneration):

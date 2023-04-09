@@ -12,6 +12,9 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
 from bert4torch.snippets import AutoRegressiveDecoder, SeqGeneration
+import platform
+import os
+
 
 config_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_pytorch_model.bin'
@@ -20,7 +23,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().quantize(8).to(device)  # 建立模型，加载权重
 
 # 第一种方式
 class ArticleCompletion(AutoRegressiveDecoder):
@@ -41,7 +44,6 @@ article_completion = ArticleCompletion(
     start_id=None,
     end_id=2,  # </s>标记
     maxlen=256,
-    minlen=20,
     device=device
 )
 
@@ -49,5 +51,19 @@ article_completion = ArticleCompletion(
 article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
                                    maxlen=256, default_rtype='logits', use_states=True)
 
-for text in [u'I believe the meaning of life is ']:
-    print(article_completion.generate(text, add_input=True))
+
+if __name__ == '__main__':
+    os_name = platform.system()
+    print("Welcome to use llama-7b model，type `clear` to clear history，type `stop` to stop program")
+    while True:
+        query = input("\nUser：")
+        if query == "stop":
+            break
+        if query == "clear":
+            command = 'cls' if os_name == 'Windows' else 'clear'
+            os.system(command)
+            print("Welcome to use llama-7b model，type `clear` to clear history，type `stop` to stop program")
+            continue
+        response = article_completion.generate(query, add_input=True)
+        torch.cuda.empty_cache()  # 清理显存
+        print(f"\nllama-7b：{response}")

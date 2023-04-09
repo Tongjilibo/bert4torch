@@ -40,7 +40,6 @@ class BERT_BASE(nn.Module):
             keep_tokens=None,  # 要保留的词ID列表
             compound_tokens=None,  # 扩展Embedding
             residual_attention_scores=False,  # Attention矩阵加残差
-            ignore_invalid_weights=False,  # 允许跳过不存在的权重
             keep_hidden_layers=None, # 保留的hidden_layer层的id
             hierarchical_position=None,  # 是否层次分解位置编码
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
@@ -70,7 +69,6 @@ class BERT_BASE(nn.Module):
         self.position_bias = None
         self.attention_scores = None
         self.residual_attention_scores = residual_attention_scores
-        self.ignore_invalid_weights = ignore_invalid_weights
         self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
         self.hierarchical_position = hierarchical_position
         self.gradient_checkpoint = gradient_checkpoint
@@ -105,6 +103,7 @@ class BERT_BASE(nn.Module):
         #     layer_norm_cond_hidden_act or 'linear',
         # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
+        self.skip_init = kwargs['skip_init']
 
     def get_kw(self, *args, **kwargs):
         '''把self.属性设置到kwargs中, 方便传参
@@ -152,7 +151,10 @@ class BERT_BASE(nn.Module):
     def init_model_weights(self, module):
         """ 初始化权重
         """
-        if isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
+        if self.skip_init == 'meta':
+            if isinstance(module, (nn.Linear, nn.Embedding)):
+                module.to_empty(device='cpu')
+        elif isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
             # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
             # 此种初始化对于加载预训练模型后进行finetune没有任何影响，
             # cf https://github.com/pytorch/pytorch/pull/5617
@@ -208,48 +210,70 @@ class BERT_BASE(nn.Module):
 
         return embeddings
 
-    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None):
+    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, verbose=1):
         """根据mapping从checkpoint加载权重
         """
         # 加载模型文件
         if isinstance(checkpoint, str):
             file_state_dict = torch.load(checkpoint, map_location='cpu')
-        elif isinstance(checkpoint, (tuple, list)):
-            file_state_dict = {}
-            for ckpt_path in tqdm(checkpoint, desc='Loading checkpoint shards:'):
-                file_state_dict.update(torch.load(ckpt_path, map_location='cpu'))
         else:
-            raise ValueError('Args `checkpoint_path` only support `str` and `list(str)` format')
+            raise ValueError('Args `checkpoint_path` only support `str` format')
         
         mapping = mapping or self.variable_mapping()
-        parameters_set = set([i[0] for i in self.named_parameters()])  # 可更新的变量
+        model_params = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         
-        # 如果模型文件和模型结构中同时存在，且不在预设的mapping中，则更新mapping
+        # 如果ckpt和model中同时存在，且不在预设的mapping中，则更新mapping
         # 主要是如为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
-        for layer_name in parameters_set:
+        for layer_name in model_params:
             if (layer_name in file_state_dict) and (layer_name not in mapping):
                 mapping.update({layer_name: layer_name})
 
-        state_dict_new ={}
+        state_dict_new = {}
+        missing_keys, needed_keys = [], []  # 都是old_keys的名字
         for new_key, old_key in mapping.items():
+            # mapping和model不一致，忽略，如with_nsp=False时候在mapping中有但是model中没有
             if new_key not in self.state_dict():
                 continue
-            elif old_key in file_state_dict: # mapping中包含，且模型结构中有
+            # model中有，且ckpt中有，正常加载
+            elif old_key in file_state_dict:
                 state_dict_new[new_key] = self.load_variable(file_state_dict, old_key)
-            elif (old_key not in file_state_dict) and (not self.ignore_invalid_weights):
-                # mapping中包含，但模型文件中没有
-                print(f'[WARNING] {old_key} not found in pretrain models')
-            if new_key in parameters_set:
-                parameters_set.remove(new_key)
-
-        # 未能加载预训练权重的Parameter
-        if not self.ignore_invalid_weights:
-            for key in parameters_set:
-                print(f'[WARNING] Parameter {key} not loaded from pretrain models')
+            # model中有，但ckpt中没有，ckpt中缺失部分参数
+            elif old_key not in file_state_dict:
+                missing_keys.append(old_key)
+            # 保留未能加载预训练权重的Parameter
+            if new_key in model_params:
+                model_params.remove(new_key)
+            needed_keys.append(old_key)
         del file_state_dict
+
+        # mismatch keys的处理
+        if verbose != 0:
+            for key in missing_keys:
+                print(f'[WARNING] {key} not found in pretrain models')
+            for key in model_params:
+                print(f'[WARNING] Parameter {key} not loaded from pretrain models')
 
         # 将ckpt的权重load到模型结构中
         self.load_state_dict(state_dict_new, strict=False)
+        del state_dict_new
+        return missing_keys, needed_keys
+
+    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, verbose=1):
+        """逐个ckpt加载
+        """
+        if isinstance(checkpoints, str):
+            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, verbose=verbose)
+        elif isinstance(checkpoints, (tuple, list)):
+            all_missing_keys = []
+            for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
+                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, verbose=0)
+                all_missing_keys.extend(missing_keys)
+            all_missing_set = set(all_missing_keys).difference(set(needed_keys))
+            if verbose != 0:
+                for key in all_missing_set:
+                    print(f'[WARNING] {key} not found in pretrain models')
+        else:
+            raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
 
     def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError
@@ -317,6 +341,7 @@ class BERT_BASE(nn.Module):
         self.quantization_bit = bits
         self = quantize(self, bits, empty_init=empty_init, **kwargs)
         return self
+
 
 class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）
@@ -1550,7 +1575,7 @@ class LLaMA(LM_Mask, BERT):
                                                     'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False, device=kwargs['skip_init']) 
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
         for layer in self.encoderLayer:
@@ -1630,7 +1655,7 @@ class GLM(LM_Mask, BERT):
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False, device=kwargs['skip_init'])
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def load_variable(self, state_dict, name, prefix='transformer'):
@@ -2049,6 +2074,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     :param keep_hidden_layers: 保留的hidden_layer层的id, 默认为None表示全部使用
     :param hierarchical_position: 是否层次分解位置编码, 默认为None表示不使用
     :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
+    :param skip_init: bool, 是否初始化
     :return: A pytorch model instance
     """
     configs = DottableDict()
@@ -2061,6 +2087,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
+    configs['skip_init'] = 'meta' if configs.get('skip_init') is True else 'cpu'
     
     models = {
         'bert': BERT,
@@ -2131,6 +2158,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
 
     # 权重加载
     if checkpoint_path is not None:
-        transformer.load_weights_from_pytorch_checkpoint(checkpoint_path)   
+        verbose = not configs.get('ignore_invalid_weights', False)
+        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)   
     transformer.configs = configs
     return transformer

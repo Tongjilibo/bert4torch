@@ -51,6 +51,7 @@ for i in range(1, 9):
   "position_encoding_2d": true,
   "torch_dtype": "float16",
   "vocab_size": 130528,
-  "segment_vocab_size": 0
+  "segment_vocab_size": 0,
+  "skip_init": true
 }
 '''

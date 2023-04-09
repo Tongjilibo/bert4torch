@@ -8,8 +8,9 @@ import torch
 import base64
 import ctypes
 from typing import List
+import re
+from tqdm import tqdm
 import logging
-
 logger = logging.getLogger(__name__)
 
 try:
@@ -151,73 +152,27 @@ class QuantizedLinear(Linear):
 
 
 def quantize(model, weight_bit_width, empty_init=False, **kwargs):
-    """Replace fp16 linear with quantized linear"""
-
-    for layer in model.encoderLayer:
-        layer.multiHeadAttention.q = QuantizedLinear(
-            weight_bit_width=weight_bit_width,
-            weight_tensor=layer.multiHeadAttention.q.weight.to(torch.cuda.current_device()),
-            bias_tensor=layer.multiHeadAttention.q.bias,
-            in_features=layer.multiHeadAttention.q.in_features,
-            out_features=layer.multiHeadAttention.q.out_features,
-            bias=True,
-            dtype=torch.half,
-            device=layer.multiHeadAttention.q.weight.device,
-            empty_init=empty_init
-        )
-        layer.multiHeadAttention.k = QuantizedLinear(
-            weight_bit_width=weight_bit_width,
-            weight_tensor=layer.multiHeadAttention.k.weight.to(torch.cuda.current_device()),
-            bias_tensor=layer.multiHeadAttention.k.bias,
-            in_features=layer.multiHeadAttention.k.in_features,
-            out_features=layer.multiHeadAttention.k.out_features,
-            bias=True,
-            dtype=torch.half,
-            device=layer.multiHeadAttention.k.weight.device,
-            empty_init=empty_init
-        )
-        layer.multiHeadAttention.v = QuantizedLinear(
-            weight_bit_width=weight_bit_width,
-            weight_tensor=layer.multiHeadAttention.v.weight.to(torch.cuda.current_device()),
-            bias_tensor=layer.multiHeadAttention.v.bias,
-            in_features=layer.multiHeadAttention.v.in_features,
-            out_features=layer.multiHeadAttention.v.out_features,
-            bias=True,
-            dtype=torch.half,
-            device=layer.multiHeadAttention.v.weight.device,
-            empty_init=empty_init
-        )
-        layer.multiHeadAttention.o = QuantizedLinear(
-            weight_bit_width=weight_bit_width,
-            weight_tensor=layer.multiHeadAttention.o.weight.to(torch.cuda.current_device()),
-            bias_tensor=layer.multiHeadAttention.o.bias,
-            in_features=layer.multiHeadAttention.o.in_features,
-            out_features=layer.multiHeadAttention.o.out_features,
-            bias=True,
-            dtype=torch.half,
-            device=layer.multiHeadAttention.o.weight.device,
-            empty_init=empty_init
-        )
-        layer.feedForward.intermediateDense = QuantizedLinear(
-            weight_bit_width=weight_bit_width,
-            weight_tensor=layer.feedForward.intermediateDense.weight.to(torch.cuda.current_device()),
-            bias_tensor=layer.feedForward.intermediateDense.bias,
-            in_features=layer.feedForward.intermediateDense.in_features,
-            out_features=layer.feedForward.intermediateDense.out_features,
-            bias=True,
-            dtype=torch.half,
-            device=layer.feedForward.intermediateDense.weight.device,
-            empty_init=empty_init
-        )
-        layer.feedForward.outputDense = QuantizedLinear(
-            weight_bit_width=weight_bit_width,
-            weight_tensor=layer.feedForward.outputDense.weight.to(torch.cuda.current_device()),
-            bias_tensor=layer.feedForward.outputDense.bias,
-            in_features=layer.feedForward.outputDense.in_features,
-            out_features=layer.feedForward.outputDense.out_features,
-            bias=True,
-            dtype=torch.half,
-            device=layer.feedForward.outputDense.weight.device,
-            empty_init=empty_init
-        )
+    """Replace fp16 linear with quantized linear
+    这里修改了hard code, 可以适配其他模型
+    """
+    for name, module in tqdm(model.named_modules(), desc='Quantize linear layers'):
+        if isinstance(module, Linear):
+            module = QuantizedLinear(
+                    weight_bit_width=weight_bit_width,
+                    weight_tensor=module.weight.to(torch.cuda.current_device()),
+                    bias_tensor=module.bias,
+                    in_features=module.in_features,
+                    out_features=module.out_features,
+                    bias=True,
+                    dtype=torch.half,
+                    device=module.weight.device,
+                    empty_init=empty_init
+                )
+            # 赋值
+            name_new = list(name)
+            for iter_ in re.finditer('\.[0-9]+\.', name):
+                iter_str = name[iter_.start():iter_.end()]
+                name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
+                name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
+            exec('model.' + ''.join(name_new) + ' = module')
     return model
