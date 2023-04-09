@@ -356,7 +356,7 @@ class AutoRegressiveDecoder(object):
         '''
         # 传入的Tensor直接[]后返回
         if isinstance(inputs_raw, torch.torch.Tensor):
-            return [inputs_raw]
+            return [inputs_raw.to(self.device)]
         inputs = []
         for i in inputs_raw:
             if isinstance(i, torch.torch.Tensor):

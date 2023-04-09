@@ -1579,7 +1579,7 @@ class LLaMA(LM_Mask, BERT):
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
         for layer in self.encoderLayer:
-            layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, kwargs['multiple_of'])
+            layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, **kwargs)
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
@@ -1623,13 +1623,13 @@ class LLaMA(LM_Mask, BERT):
     class FeedForward(nn.Module):
         '''FeedForward和Bert的不一致，Bert只有两个全连接
         '''
-        def __init__(self, dim: int, hidden_dim: int, multiple_of: int):
+        def __init__(self, dim: int, hidden_dim: int, multiple_of: int, **kwargs):
             super().__init__()
             hidden_dim = int(2 * hidden_dim / 3)
             hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
-            self.intermediateDense = nn.Linear(dim, hidden_dim, bias=False)
-            self.outputDense = nn.Linear(hidden_dim, dim, bias=False)
-            self.intermediateDense2 = nn.Linear(dim, hidden_dim, bias=False)
+            self.intermediateDense = nn.Linear(dim, hidden_dim, bias=False, device=kwargs['skip_init'])
+            self.outputDense = nn.Linear(hidden_dim, dim, bias=False, device=kwargs['skip_init'])
+            self.intermediateDense2 = nn.Linear(dim, hidden_dim, bias=False, device=kwargs['skip_init'])
 
         def forward(self, x):
             return self.outputDense(F.silu(self.intermediateDense(x)) * self.intermediateDense2(x))

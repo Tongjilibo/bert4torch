@@ -3,9 +3,9 @@
 
 import torch
 
-ckpt_dir = './llama/pt_llama_belle_7b/'
+ckpt_dir = 'F:/Projects/pretrain_ckpt/llama/belle-llama-7b-2m/'
 ckpt_file = ckpt_dir + 'pytorch_model.bin'
-output_ckpt_file = ckpt_file + 'bert4torch_pytorch_model.bin'
+output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 num_hidden_layers = 32
 
 state_dict = torch.load(ckpt_file)
@@ -53,6 +53,7 @@ torch.save(new_state_dict, output_ckpt_file)
 	"norm_eps": 1e-06,
 	"hidden_act": "silu",
 	"vocab_size": 32000,
-	"segment_vocab_size": 0
+	"segment_vocab_size": 0,
+    "skip_init": true
 }
 '''

@@ -25,7 +25,7 @@ pip install bert4torch
 安装最新版
 
 ```shell
-pip install git+https://www.github.com/Tongjilibo/bert4torch.git
+pip install git+https://github.com/Tongjilibo/bert4torch
 ```
 
 - **注意事项**：pip包的发布慢于git上的开发版本，git clone**注意引用路径**，注意权重是否需要转换
