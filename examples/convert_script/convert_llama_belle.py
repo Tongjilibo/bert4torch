@@ -54,6 +54,7 @@ torch.save(new_state_dict, output_ckpt_file)
 	"hidden_act": "silu",
 	"vocab_size": 32000,
 	"segment_vocab_size": 0,
-    "skip_init": true
+    "skip_init": true,
+	"rope_rank": "updown"
 }
 '''

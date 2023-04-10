@@ -1646,7 +1646,7 @@ class GLM(LM_Mask, BERT):
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True, 'rope_rank': 'updown', 'is_decoder': True})
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True})
         super().__init__(*args, **kwargs)
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs['bos_token_id'], kwargs['mask_token_id'], kwargs['gmask_token_id']
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
