@@ -3,6 +3,7 @@
 # 源项目链接：https://github.com/LianjiaTech/BELLE
 # belle模型：https://huggingface.co/BelleGroup/BELLE-LLAMA-7B-2M
 # 使用前需要先使用转换脚本转换下权重：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_belle.py
+# 需要安装git上最新版bert4torch: pip install git+https://github.com/Tongjilibo/bert4torch
 
 import torch
 from bert4torch.models import build_transformer_model

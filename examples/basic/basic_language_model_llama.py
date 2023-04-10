@@ -1,6 +1,7 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：llama的7b模型的测试, fp32精度的单卡占用约27g，fp16的显存占用约14g
-# 使用前需要安装最新版本的bert4torch并进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
+# 需要安装git上最新版bert4torch: pip install git+https://github.com/Tongjilibo/bert4torch
+# 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
 
 # 0. Install lastest bert4torch: `pip install git+https://www.github.com/Tongjilibo/bert4torch.git` or git clone
 # 1. Download weights：[Github](https://github.com/facebookresearch/llama) | [huggingface](https://huggingface.co/decapoda-research/llama-7b-hf) | [torrent](https://pan.baidu.com/s/1yBaYZK5LHIbJyCCbtFLW3A?pwd=phhd)，本人实现是基于第三种
