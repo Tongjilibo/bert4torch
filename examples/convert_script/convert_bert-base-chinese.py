@@ -19,6 +19,7 @@ for k, v in state_dict.items():
         state_dict_new[k] = v
     else:
         state_dict_new[k] = v
+state_dict_new['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bias']
 torch.save(state_dict_new, dir_path + 'bert4torch_pytorch_model.bin')
 
 # config配置

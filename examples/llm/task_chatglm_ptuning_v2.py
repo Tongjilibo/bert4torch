@@ -16,8 +16,15 @@ import json
 # 基本参数
 max_source_length = 64
 max_target_length = 64
-batch_size = 1
+pre_seq_len = 128
+max_seq_length = max_source_length + max_target_length
+ignore_pad_token_for_loss = True
+batch_size = 2
 epochs = 4
+prefix = ''
+prompt_column = 'content'
+response_column = 'summary'
+history_column = None
 
 # 模型配置
 dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
@@ -37,23 +44,45 @@ class MyDataset(ListDataset):
         with open(filename, encoding='utf-8') as f:
             for l in f:
                 l = json.loads(l)
-                prompt, answer = l['content'], l['summary']
-                D.append((prompt, answer))
+                prompt, response = l[prompt_column], l[response_column]
+                history = l.get('history_column', None)
+                D.append((prompt, response, history))
         return D
 
 def collate_fn(batch):
     batch_token_ids, batch_labels = [], []
-    for prompt, answer in batch:
-        token_ids = tokenizer.encode(prompt, maxlen=max_source_length, truncation=True)[0]
-        labels = tokenizer(answer, max_length=max_target_length, truncation=True)[0]
-        batch_token_ids.append(token_ids+labels)
-        batch_labels.append([-100]*len(token_ids)+labels)
+    for query, answer, history in batch:
+        if history_column is None:
+            prompt = query
+        else:
+            prompt = ""
+            for i, (old_query, answer) in enumerate(history):
+                prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, answer)
+            prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
 
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels), dtype=torch.long, device=device)
-    return [batch_token_ids], [batch_token_ids]
+        prompt = prefix + prompt
+        a_ids = tokenizer.encode(text=prompt, add_special_tokens=False)
+        b_ids = tokenizer.encode(text=answer, add_special_tokens=False)
 
-train_dataloader = DataLoader(MyDataset('./data/prompt_examples.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+        if len(a_ids) > max_source_length - 1:
+            a_ids = a_ids[:max_source_length - 1]
+
+        if len(b_ids) > max_target_length - 2:
+            b_ids = b_ids[:max_target_length - 2]
+
+        input_ids = tokenizer.build_inputs_with_special_tokens(a_ids, b_ids)
+        context_length = input_ids.index(tokenizer.bos_token_id)
+        mask_position = context_length - 1
+        labels = [-100] * context_length + input_ids[mask_position+1:]
+        batch_token_ids.append(input_ids)
+        batch_labels.append(labels)
+
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
+    batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
+    return [batch_token_ids], [batch_labels]
+
+train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+dev_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 class PrefixEncoder(torch.nn.Module):
     """
@@ -71,10 +100,10 @@ class PrefixEncoder(torch.nn.Module):
             self.trans = torch.nn.Sequential(
                 torch.nn.Linear(config.hidden_size, config.hidden_size),
                 torch.nn.Tanh(),
-                torch.nn.Linear(config.hidden_size, config.num_layers * config.hidden_size * 2)
+                torch.nn.Linear(config.hidden_size, config.num_hidden_layers * config.hidden_size * 2)
             )
         else:
-            self.embedding = torch.nn.Embedding(config.pre_seq_len, config.num_layers * config.hidden_size * 2)
+            self.embedding = torch.nn.Embedding(config.pre_seq_len, config.num_hidden_layers * config.hidden_size * 2)
 
     def forward(self, prefix: torch.Tensor):
         if self.prefix_projection:
@@ -87,15 +116,33 @@ class PrefixEncoder(torch.nn.Module):
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm')
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=None, model='glm', token_pad_ids=tokenizer.pad_token_id, num_hidden_layers=3).half().quantize(4)
+        self.config = self.encoder.configs
+        self.config.pre_seq_len = 128
+        self.config.prefix_projection = False
         for param in self.parameters():
             param.requires_grad = False
-        self.prefix_tokens = torch.arange(self.pre_seq_len).long()
-        self.prefix_encoder = PrefixEncoder(self.configs)
+        self.prefix_tokens = torch.arange(self.config.pre_seq_len).long()
+        self.prefix_encoder = PrefixEncoder(self.config)
         self.dropout = torch.nn.Dropout(0.1)
 
-    def forward(self, token_ids, segment_ids):
-        hidden_state, pool_cls, seq_logit = self.encoder([token_ids, segment_ids])
+    def forward(self, token_ids):
+        batch_size = token_ids.shape[0]
+        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(token_ids.device)
+        past_key_values = self.prefix_encoder(prefix_tokens).type(torch.float16)
+        past_key_values = past_key_values.view(
+            batch_size,
+            self.config.pre_seq_len,
+            self.config.num_hidden_layers * 2,
+            self.config.num_attention_heads,
+            self.config.hidden_size // self.config.num_attention_heads
+        )
+        # b, seq_len, nh, hidden_size
+        past_key_values = self.dropout(past_key_values)
+        past_key_values = past_key_values.permute([2, 0, 1, 3, 4]).split(2)
+        past_key_values = [(v[0], v[1]) for v in past_key_values]
+
+        hidden_state, pool_cls, seq_logit = self.encoder([token_ids])
         return
 model = Model().to(device)
 
@@ -105,7 +152,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
     def forward(self, y_pred, labels):
         '''
         y_pred: [btz, seq_len, vocab_size]
-        labels: token_ids: [btz, seq_len], segment_ids: [btz, seq_len]
+        labels: token_ids: [btz, seq_len]
         '''
         y_true, y_mask = labels
         y_true = y_true[:, 1:]# 目标token_ids
@@ -146,7 +193,6 @@ class Evaluator(Callback):
         just_show()
 
 if __name__ == '__main__':
-    just_show()
     evaluator = Evaluator()
 
     model.fit(
