@@ -1029,8 +1029,9 @@ class RoPEPositionEncoding(nn.Module):
 
         # 传入position_ids来获取cos和sin, 主要是在use_cache时候能直接取到对应位置的编码
         if position_ids is not None:
-            cos = F.embedding(position_ids, self.cos_position)
-            sin = F.embedding(position_ids, self.sin_position)
+            # position_ids: [btz, seq_len]
+            cos = F.embedding(position_ids, self.cos_position).unsqueeze(seq_dim-1)  # btz>1时候需要unsqueeze
+            sin = F.embedding(position_ids, self.sin_position).unsqueeze(seq_dim-1)
             return qw * cos + qw2 * sin
         return qw * self.cos_position[:seq_len] + qw2 * self.sin_position[:seq_len]
 

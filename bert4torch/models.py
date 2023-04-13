@@ -1736,7 +1736,6 @@ class GLM(LM_Mask, BERT):
         seq_len = token_ids.shape[1]
 
         if model_kwargs.get('past_key_values') is not None:  # 使用cache
-            assert model_kwargs.get('token_ids') is not None, 'Args `token_ids` cannot be None when use cache'
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
@@ -1750,10 +1749,6 @@ class GLM(LM_Mask, BERT):
 
     def apply_embeddings(self, *inputs, **model_kwargs):
         model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
-        
-        if self.training is True:
-            # 训练阶段
-            assert model_kwargs.get('past_key_values') is None, 'Args `past_key_values` should be none When self.training is True'
         model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
     

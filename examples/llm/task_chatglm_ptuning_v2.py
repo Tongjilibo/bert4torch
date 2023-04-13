@@ -142,7 +142,7 @@ class Model(BaseModel):
         past_key_values = past_key_values.permute([2, 0, 1, 3, 4]).split(2)
         past_key_values = [(v[0], v[1]) for v in past_key_values]
 
-        hidden_state, pool_cls, seq_logit = self.encoder([token_ids])
+        logits = self.encoder([token_ids], past_key_values=past_key_values)
         return
 model = Model().to(device)
 
