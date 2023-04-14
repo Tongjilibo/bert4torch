@@ -194,19 +194,17 @@ class Evaluator(Callback):
     
     @staticmethod
     def evaluate(data):
-        embeddings1, embeddings2, labels = [], [], []
-        for (text1_ids, text2_ids), label in data:
-            embeddings1.append(model.predict(text1_ids))
-            embeddings2.append(model.predict(text2_ids))
-            labels.append(label)
+        cosine_scores, labels = [], []
+        for (text1_ids, text2_ids), label in tqdm(data, desc='Evaluate'):
+            embeddings1 = model.predict(text1_ids)
+            embeddings2 = model.predict(text2_ids)
+            cosine_score = F.cosine_similarity(embeddings1, embeddings2).cpu().numpy()
+            cosine_scores.append(cosine_score)
+            labels.append(label.cpu().numpy())
 
-        embeddings1 = torch.cat(embeddings1)
-        embeddings2 = torch.cat(embeddings2)
-        labels = torch.cat(labels)
-
-        sims = F.cosine_similarity(embeddings1, embeddings2).cpu().numpy()
-        labels = labels.cpu().numpy()
-        return spearmanr(sims, labels)[0]
+        labels = np.concatenate(labels)
+        cosine_scores = np.concatenate(cosine_scores)
+        return spearmanr(cosine_scores, labels)[0]
 
 if __name__ == "__main__":
     evaluator = Evaluator()

@@ -15,6 +15,7 @@ from scipy.stats import spearmanr
 import random
 from tqdm import tqdm
 import sys
+import numpy as np
 
 # =============================基本参数=============================
 # pooling, task_name = sys.argv[1:]  # 传入参数
@@ -181,15 +182,16 @@ class Evaluator(Callback):
 
     # 定义评价函数
     def evaluate(self, data):
-        embeddings1, embeddings2, labels = [], [], []
-        for (batch_token_ids1, batch_token_ids2), batch_labels in tqdm(data, desc='Evaluate'):
-            embeddings1.append(model.predict(batch_token_ids1))
-            embeddings2.append(model.predict(batch_token_ids2))
-            labels.append(batch_labels)
-        embeddings1 = torch.cat(embeddings1).cpu().numpy()
-        embeddings2 = torch.cat(embeddings2).cpu().numpy()
-        labels = torch.cat(labels).cpu().numpy()
-        cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))  # cosine距离是1-paired
+        cosine_scores, labels = [], []
+        for (batch_token1_ids, batch_token2_ids), batch_labels in tqdm(data, desc='Evaluate'):
+            embeddings1 = model.predict(batch_token1_ids).cpu().numpy()
+            embeddings2 = model.predict(batch_token2_ids).cpu().numpy()
+            cosine_score = 1 - paired_cosine_distances(embeddings1, embeddings2)
+            cosine_scores.append(cosine_score)
+            labels.append(batch_labels.cpu().numpy())
+        labels = np.concatenate(labels)
+        cosine_scores = np.concatenate(cosine_scores)
+
         eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
         return eval_pearson_cosine
 
