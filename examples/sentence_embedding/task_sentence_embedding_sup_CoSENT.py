@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
 from tqdm import tqdm
+import numpy as np
 import sys
 
 # =============================基本参数=============================
@@ -125,16 +126,15 @@ class Evaluator(Callback):
 
     # 定义评价函数
     def evaluate(self, data):
-        embeddings1, embeddings2, labels = [], [], []
+        cosine_scores, labels = [], []
         for batch_token_ids, batch_labels in tqdm(data, desc='Evaluate'):
             embeddings = model.predict(batch_token_ids)
-            embeddings1.append(embeddings[::2])
-            embeddings2.append(embeddings[1::2])
-            labels.append(batch_labels[::2])
-        embeddings1 = torch.cat(embeddings1).cpu().numpy()
-        embeddings2 = torch.cat(embeddings2).cpu().numpy()
-        labels = torch.cat(labels).cpu().numpy()
-        cosine_scores = 1 - (paired_cosine_distances(embeddings1, embeddings2))
+            cosine_score = 1 - paired_cosine_distances(embeddings[::2].cpu().numpy(), embeddings[1::2].cpu().numpy())
+            cosine_scores.append(cosine_score)
+            labels.append(batch_labels[::2].cpu().numpy())
+        cosine_scores = np.concatenate(cosine_scores)
+        labels = np.concatenate(labels)
+        
         eval_pearson_cosine, _ = spearmanr(labels, cosine_scores)
         return eval_pearson_cosine
 
