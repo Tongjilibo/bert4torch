@@ -565,9 +565,9 @@ class SeqGeneration(AutoRegressiveDecoder):
             if self.step >= 1:
                 states['token_ids'] = token_ids
             # attention_mask是根据token_ids生成的，因此这里重置下
-            if states.get('input_attention_mask') is not None:
+            if states.get('input_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
                 attention_mask = states['input_attention_mask']
-                states['input_attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
+                states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
             # position_ids也需要修改下
             if states.get('position_ids') is not None:
                 states['position_ids'] = states['position_ids'][:, -1:]+1

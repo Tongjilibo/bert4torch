@@ -78,8 +78,8 @@ def collate_fn(batch):
         batch_labels.append(labels)
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    return [batch_token_ids], [batch_labels]
+    batch_labels = torch.tensor(sequence_padding(batch_labels, value=-100), dtype=torch.long, device=device)
+    return [batch_token_ids], batch_labels
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 dev_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -116,7 +116,7 @@ class PrefixEncoder(torch.nn.Module):
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=None, model='glm', token_pad_ids=tokenizer.pad_token_id, num_hidden_layers=3).half().quantize(4)
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False
@@ -137,32 +137,31 @@ class Model(BaseModel):
             self.config.num_attention_heads,
             self.config.hidden_size // self.config.num_attention_heads
         )
-        # b, seq_len, nh, hidden_size
+        # b, nh, seq_len, hidden_size
         past_key_values = self.dropout(past_key_values)
-        past_key_values = past_key_values.permute([2, 0, 1, 3, 4]).split(2)
+        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         past_key_values = [(v[0], v[1]) for v in past_key_values]
 
         logits = self.encoder([token_ids], past_key_values=past_key_values)
-        return
+        return logits
 model = Model().to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-    def forward(self, y_pred, labels):
+    def forward(self, logits, labels):
         '''
-        y_pred: [btz, seq_len, vocab_size]
+        logits: [btz, seq_len, vocab_size]
         labels: token_ids: [btz, seq_len]
         '''
-        y_true, y_mask = labels
-        y_true = y_true[:, 1:]# 目标token_ids
-        y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
-        
 
-        y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_true = y_true.flatten()
-        return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
+        logits = logits[:, :-1, :]  # 预测序列，错开一位
+        labels = labels[:, 1:]# 目标token_ids
+        
+        logits = logits.reshape(-1, logits.shape[-1])
+        labels = labels.flatten()
+        return super().forward(logits, labels)
+model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(model.parameters(), 1e-5))
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
@@ -173,10 +172,10 @@ generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eo
                   maxlen=2048, default_rtype='logits', use_states=True)
 
 def just_show():
-    s1 = u'别爱我没结果'
-    s2 = u'你这样会失去我的'
+    s1 = u'你好'
+    s2 = u'你能做什么'
     for s in [s1, s2]:
-        print(u'生成标题:', generation.generate(s))
+        print(u'ChatGLM-6B：', generation.generate(s, topk=50, topp=0.7, temperature=0.95))
 
 class Evaluator(Callback):
     """评估与保存
@@ -193,6 +192,7 @@ class Evaluator(Callback):
         just_show()
 
 if __name__ == '__main__':
+    # just_show()
     evaluator = Evaluator()
 
     model.fit(

@@ -496,10 +496,10 @@ class BERT(BERT_BASE):
         model_kwargs['position_ids'] = position_ids
 
         # ========================= attention_mask =========================
-        # 这里input_attention_mask表示传入[btz, seq_len], 而attention_mask是[btz, 1, 1/q_len, seq_len]
-        if model_kwargs.get('input_attention_mask') is not None:
+        # 这里attention_mask表示传入[btz, seq_len], 而后续的attention_mask其实是extended_attention_mask[btz, 1, 1/q_len, seq_len]
+        if model_kwargs.get('attention_mask') is not None:
             # attention_mask是根据token_ids生成的，因此外部需要重置下，目前是带cache解码时候使用
-            attention_mask = model_kwargs['input_attention_mask']
+            attention_mask = model_kwargs['attention_mask']
         elif self.custom_attention_mask:
             attention_mask = inputs[index_].long()
             index_ += 1
@@ -1735,7 +1735,7 @@ class GLM(LM_Mask, BERT):
         context_lens = [seq.index(self.bos_token_id) for seq in seqs]  # bos_token_id是倒数第一位
         seq_len = token_ids.shape[1]
 
-        if model_kwargs.get('past_key_values') is not None:  # 使用cache
+        if model_kwargs.get('return_model_kwargs', False) and model_kwargs.get('past_key_values') is not None:  # 使用cache
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
