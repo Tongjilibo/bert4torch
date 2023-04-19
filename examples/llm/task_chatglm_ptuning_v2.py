@@ -10,15 +10,21 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from transformers import AutoTokenizer
-from bert4torch.snippets import AutoRegressiveDecoder, ListDataset, SeqGeneration
+from bert4torch.snippets import ListDataset, SeqGeneration
 import json
+import jieba 
+from rouge_chinese import Rouge
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+import numpy as np
 
 # 基本参数
 max_source_length = 64
 max_target_length = 64
+lr = 2e-2
+batch_size = 1
+grad_accumulation_steps = 16
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
-batch_size = 2
 epochs = 4
 prefix = ''
 prompt_column = 'content'
@@ -81,7 +87,7 @@ def collate_fn(batch):
     return [batch_token_ids], batch_labels
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-dev_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+dev_dataset = MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json')
 
 class PrefixEncoder(torch.nn.Module):
     """
@@ -144,7 +150,7 @@ class Model(BaseModel):
         logits = self.encoder([token_ids], past_key_values=past_key_values)
         return logits
 model = Model().to(device)
-print(f"  Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -161,7 +167,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         logits = logits.reshape(-1, logits.shape[-1])
         labels = labels.flatten()
         return super().forward(logits, labels)
-model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(model.parameters(), 1e-5))
+model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(model.parameters(), lr), grad_accumulation_steps=grad_accumulation_steps)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
@@ -169,13 +175,7 @@ class Chat(SeqGeneration):
     def post_process(self, output_ids):
         return tokenizer.decode(output_ids[0].cpu().numpy())
 generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=2048, default_rtype='logits', use_states=True)
-
-def just_show():
-    s1 = u'你好'
-    s2 = u'你能做什么'
-    for s in [s1, s2]:
-        print(u'ChatGLM-6B：', generation.generate(s, topk=50, topp=0.7, temperature=0.95))
+                  maxlen=512, default_rtype='logits', use_states=False)
 
 class Evaluator(Callback):
     """评估与保存
@@ -184,22 +184,46 @@ class Evaluator(Callback):
         self.lowest = 1e10
 
     def on_epoch_end(self, steps, epoch, logs=None):
+        score_dict = self.evaluate(dev_dataset.data)
+        print(score_dict)
         # 保存最优
         if logs['loss'] <= self.lowest:
             self.lowest = logs['loss']
             # model.save_weights('./best_model.pt')
-        # 演示效果
-        just_show()
+    
+    def evaluate(self, data):
+        preds, labels = [], []
+        for prompt, label in data:
+            pred = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
+            preds.append(pred)
+            labels.append(label)
+
+        score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
+        for pred, label in zip(preds, labels):
+            hypothesis = list(jieba.cut(pred))
+            reference = list(jieba.cut(label))
+            rouge = Rouge()
+            scores = rouge.get_scores(' '.join(hypothesis) , ' '.join(reference))
+            result = scores[0]
+            
+            for k, v in result.items():
+                score_dict[k].append(round(v["f"] * 100, 4))
+            bleu_score = sentence_bleu([list(label)], list(pred), smoothing_function=SmoothingFunction().method3)
+            score_dict["bleu-4"].append(round(bleu_score * 100, 4))
+
+        for k, v in score_dict.items():
+            score_dict[k] = float(np.mean(v))
+        return score_dict
+
 
 if __name__ == '__main__':
-    # just_show()
     evaluator = Evaluator()
 
     model.fit(
         train_dataloader,
         steps_per_epoch=None,
         epochs=epochs,
-        callbacks=[]
+        callbacks=[evaluator]
     )
 
 else:

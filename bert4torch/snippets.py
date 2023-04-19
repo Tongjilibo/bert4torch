@@ -649,7 +649,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         output_ids = self.generate_(inputs, n, topk, topp, temperature)
         return self.post_process(output_ids)
 
-    def stream_geneate(self, text, topk=None, topp=None, temperature=1):
+    def stream_generate(self, text, topk=None, topp=None, temperature=1):
         '''stream输出预测的结果
         '''
         inputs = self.pre_process(text)
@@ -682,7 +682,7 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super().generate_(encoder_output, n, topk, topp, temperature)
         return self.post_process(output_ids)
 
-    def stream_geneate(self, text, topk=None, topp=None, temperature=1):
+    def stream_generate(self, text, topk=None, topp=None, temperature=1):
         '''stream输出t预测的结果
         '''
         inputs = self.pre_process(text)

@@ -21,13 +21,13 @@ dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+os_name = platform.system()
+clear_command = 'cls' if os_name == 'Windows' else 'clear'
+stop_stream = False
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)  # 建立模型，加载权重
 
-os_name = platform.system()
-clear_command = 'cls' if os_name == 'Windows' else 'clear'
-stop_stream = False
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
@@ -74,8 +74,8 @@ def chat(query, history=[]):
 
     for response in generation.stream_generate(prompt, topk=50, topp=0.7, temperature=0.95):
         response = process_response(response)
-        history = history + [(query, response)]
-        yield response, history
+        new_history = history + [(query, response)]
+        yield response, new_history
 
 
 def main():

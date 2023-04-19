@@ -155,24 +155,28 @@ def quantize(model, weight_bit_width, empty_init=False, **kwargs):
     """Replace fp16 linear with quantized linear
     这里修改了hard code, 可以适配其他模型
     """
-    for name, module in tqdm(model.named_modules(), desc='Quantize linear layers'):
+    modules_trans = {}
+    for name, module in model.named_modules():
         if isinstance(module, Linear):
-            module = QuantizedLinear(
-                    weight_bit_width=weight_bit_width,
-                    weight_tensor=module.weight.to(torch.cuda.current_device()),
-                    bias_tensor=module.bias,
-                    in_features=module.in_features,
-                    out_features=module.out_features,
-                    bias=True,
-                    dtype=torch.half,
-                    device=module.weight.device,
-                    empty_init=empty_init
-                )
-            # 赋值
-            name_new = list(name)
-            for iter_ in re.finditer('\.[0-9]+\.', name):
-                iter_str = name[iter_.start():iter_.end()]
-                name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
-                name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
-            exec('model.' + ''.join(name_new) + ' = module')
+            modules_trans[name] = module
+    
+    for name, module in tqdm(modules_trans.items(), desc='Quantize linear layers'):
+        module = QuantizedLinear(
+                weight_bit_width=weight_bit_width,
+                weight_tensor=module.weight.to(torch.cuda.current_device()),
+                bias_tensor=module.bias,
+                in_features=module.in_features,
+                out_features=module.out_features,
+                bias=True,
+                dtype=torch.half,
+                device=module.weight.device,
+                empty_init=empty_init
+            )
+        # 赋值
+        name_new = list(name)
+        for iter_ in re.finditer('\.[0-9]+\.', name):
+            iter_str = name[iter_.start():iter_.end()]
+            name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
+            name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
+        exec('model.' + ''.join(name_new) + ' = module')
     return model
