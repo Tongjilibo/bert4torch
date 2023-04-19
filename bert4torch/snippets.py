@@ -436,6 +436,58 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return output_ids[output_scores.argmax()]
 
+    def __random_sample_step(self, step, n, inputs, output_ids, states, temperature, topk, topp):
+        '''为了random_sample和stream_random_sample共用，抽离出来的单步逻辑
+        '''
+        self.step = step
+        probas, states = self.predict(inputs, output_ids, states, temperature, 'probas')  # 计算当前概率
+        probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
+        if step == 0:  # 第1步预测后将结果重复n次
+            probas = probas.repeat([n]+[1]*(len(probas.shape)-1))
+            inputs = [i.repeat([n]+[1]*(len(i.shape)-1)) for i in inputs]
+            output_ids = output_ids.repeat([n]+[1]*(len(output_ids.shape)-1))
+        if topk is not None:
+            k_indices = probas.argsort(dim=-1, descending=True)[:, :topk]  # 仅保留topk
+            probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
+            probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
+        if topp is not None:
+            p_indices = probas.argsort(dim=-1, descending=True)  # 从高到低排序
+            probas = take_along_dim(probas, p_indices, dim=-1)  # 排序概率
+            cumsum_probas = torch.cumsum(probas, dim=-1)  # 累积概率
+            flag = torch.roll(cumsum_probas >= topp, 1, dims=1)  # 标记超过topp的部分
+            flag[:, 0] = False  # 结合上面的torch.roll，实现平移一位的效果
+            probas[flag] = 0  # 后面的全部置零
+            probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
+
+        sample_func = lambda p: torch.multinomial(p, 1)  # 按概率采样函数
+        sample_ids = torch.stack([sample_func(p) for p in probas])
+        sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
+        if topp is not None:
+            sample_ids = take_along_dim(p_indices, sample_ids, dim=1)  # 对齐原id
+        if topk is not None:
+            sample_ids = take_along_dim(k_indices, sample_ids, dim=1)  # 对齐原id
+        output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
+        return inputs, output_ids, states
+
+    def __random_sample_end(self, inputs, output_ids, results, min_ends):
+        break_tag = False
+        is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
+        end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        if output_ids.shape[1] >= self.minlen:  # 最短长度判断
+            flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
+            if flag.any():  # 如果有已完成的
+                self.flag = flag  # 记录已经完成序列
+                for ids in output_ids[flag]:  # 存好已完成序列
+                    results.append(ids)
+                flag = (flag == False)  # 标记未完成序列
+                inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
+                output_ids = output_ids[flag]  # 只保留未完成部分候选集
+                end_counts = end_counts[flag]  # 只保留未完成部分end计数
+                if len(output_ids) == 0:
+                    break_tag = True
+
+        return inputs, output_ids, results, break_tag
+
     def random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
@@ -452,54 +504,32 @@ class AutoRegressiveDecoder(object):
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
-            self.step = step
-            probas, states = self.predict(inputs, output_ids, states, temperature, 'probas')  # 计算当前概率
-            probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
-            if step == 0:  # 第1步预测后将结果重复n次
-                probas = probas.repeat([n]+[1]*(len(probas.shape)-1))
-                inputs = [i.repeat([n]+[1]*(len(i.shape)-1)) for i in inputs]
-                output_ids = output_ids.repeat([n]+[1]*(len(output_ids.shape)-1))
-            if topk is not None:
-                k_indices = probas.argsort(dim=-1, descending=True)[:, :topk]  # 仅保留topk
-                probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
-                probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
-            if topp is not None:
-                p_indices = probas.argsort(dim=-1, descending=True)  # 从高到低排序
-                probas = take_along_dim(probas, p_indices, dim=-1)  # 排序概率
-                cumsum_probas = torch.cumsum(probas, dim=-1)  # 累积概率
-                flag = torch.roll(cumsum_probas >= topp, 1, dims=1)  # 标记超过topp的部分
-                flag[:, 0] = False  # 结合上面的torch.roll，实现平移一位的效果
-                probas[flag] = 0  # 后面的全部置零
-                probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
+            inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+            inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
+            if break_tag:
+                break
 
-            sample_func = lambda p: torch.multinomial(p, 1)  # 按概率采样函数
-            sample_ids = torch.stack([sample_func(p) for p in probas])
-            sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
-            if topp is not None:
-                sample_ids = take_along_dim(p_indices, sample_ids, dim=1)  # 对齐原id
-            if topk is not None:
-                sample_ids = take_along_dim(k_indices, sample_ids, dim=1)  # 对齐原id
-            output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
-            is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
-            end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
-            if output_ids.shape[1] >= self.minlen:  # 最短长度判断
-                flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
-                if flag.any():  # 如果有已完成的
-                    self.flag = flag  # 记录已经完成序列
-                    for ids in output_ids[flag]:  # 存好已完成序列
-                        results.append(ids)
-                    flag = (flag == False)  # 标记未完成序列
-                    inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
-                    output_ids = output_ids[flag]  # 只保留未完成部分候选集
-                    end_counts = end_counts[flag]  # 只保留未完成部分end计数
-                    if len(output_ids) == 0:
-                        break
         # 如果还有未完成序列，直接放入结果
         for ids in output_ids:
             results.append(ids)
         # 返回结果
         self.flag = None
         return results
+
+    def stream_random_sample(self, inputs_raw, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+        """随机采样n个结果；stream输出
+        """
+        n = 1
+        inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
+        output_ids = self.first_output_ids
+        results = []
+        for step in range(self.maxlen):
+            inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+            yield output_ids
+            inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
+            if break_tag:
+                break
+        self.flag = None
 
 
 class SeqGeneration(AutoRegressiveDecoder):
@@ -599,12 +629,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         inputs = self.tokenizer.encode(text, maxlen=self.maxlen)
         return inputs if self.use_segment_ids else [inputs[0]]
     
-    def post_process(self, input_text, output_ids):
+    def post_process(self, output_ids):
         # 后处理，可以按照自定义
         if len(output_ids) > 1:
-            return [input_text + self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
+            return [self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
         elif len(output_ids) == 1:
-            return input_text + self.tokenizer.decode(output_ids[0].cpu().numpy())
+            return self.tokenizer.decode(output_ids[0].cpu().numpy())
         return output_ids
 
     def generate_(self, inputs, n, topk, topp, temperature):
@@ -614,11 +644,17 @@ class SeqGeneration(AutoRegressiveDecoder):
             output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
         return output_ids
 
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1):
         inputs = self.pre_process(text)
         output_ids = self.generate_(inputs, n, topk, topp, temperature)
-        return self.post_process(text if add_input else '', output_ids)
+        return self.post_process(output_ids)
 
+    def stream_geneate(self, text, topk=None, topp=None, temperature=1):
+        '''stream输出预测的结果
+        '''
+        inputs = self.pre_process(text)
+        for output_ids in  self.stream_random_sample(inputs, topk=topk, topp=topp, temperature=temperature):  # stream随机采样
+            yield self.post_process(output_ids)
 
 class Seq2SeqGeneration(SeqGeneration):
     '''encoder-decoder语言模型的解码
@@ -639,13 +675,21 @@ class Seq2SeqGeneration(SeqGeneration):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         return inputs
             
-        
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1, add_input=False):
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1):
         inputs = self.pre_process(text)
         inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         output_ids = super().generate_(encoder_output, n, topk, topp, temperature)
-        return self.post_process(text if add_input else '', output_ids)
+        return self.post_process(output_ids)
+
+    def stream_geneate(self, text, topk=None, topp=None, temperature=1):
+        '''stream输出t预测的结果
+        '''
+        inputs = self.pre_process(text)
+        inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
+        encoder_output = self.encoder.predict(inputs)
+        for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature):  # stream随机采样
+            yield self.post_process(output_ids)
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):

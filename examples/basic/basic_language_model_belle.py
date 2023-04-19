@@ -56,7 +56,7 @@ class Chat(SeqGeneration):
         else:
             token_ids = tokenizer.encode(text)[0]
         return [token_ids]
-    def post_process(self, input_text, output_ids):
+    def post_process(self, output_ids):
         if use_hf_tokenize:
             return tokenizer.batch_decode(output_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
         else:

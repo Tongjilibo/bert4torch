@@ -16,7 +16,6 @@ import json
 # 基本参数
 max_source_length = 64
 max_target_length = 64
-pre_seq_len = 128
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 batch_size = 2
@@ -145,6 +144,7 @@ class Model(BaseModel):
         logits = self.encoder([token_ids], past_key_values=past_key_values)
         return logits
 model = Model().to(device)
+print(f"  Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -166,7 +166,7 @@ model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(mod
 class Chat(SeqGeneration):
     def pre_process(self, text):
         return [tokenizer.encode(text)]
-    def post_process(self, input_text, output_ids):
+    def post_process(self, output_ids):
         return tokenizer.decode(output_ids[0].cpu().numpy())
 generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
                   maxlen=2048, default_rtype='logits', use_states=True)

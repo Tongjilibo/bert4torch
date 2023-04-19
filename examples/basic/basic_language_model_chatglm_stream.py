@@ -13,6 +13,7 @@ from transformers import AutoTokenizer
 from bert4torch.snippets import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
+import signal
 import re
 
 
@@ -24,21 +25,10 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)  # 建立模型，加载权重
 
-# 第一种方式: 自定义解码
-# class Chat(AutoRegressiveDecoder):
-#     @AutoRegressiveDecoder.wraps(default_rtype='logits')
-#     def predict(self, inputs, output_ids, states):
-#         token_ids = torch.cat([inputs[0], output_ids], 1)
-#         logits = encoder.predict([token_ids])
-#         return logits[:, -1, :]
+os_name = platform.system()
+clear_command = 'cls' if os_name == 'Windows' else 'clear'
+stop_stream = False
 
-#     def generate(self, text, n=1, topk=50, topp=0.7, temperature=0.95):
-#         token_ids = tokenizer.encode(text)
-#         results = self.random_sample([token_ids], n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
-#         return tokenizer.decode(results[0].cpu().numpy())
-# generation = Chat(start_id=None, end_id=tokenizer.encode(['<eop>'])[0], maxlen=2048, device=device)
-
-# 第二种方式：调用封装好的接口，可使用cache
 class Chat(SeqGeneration):
     def pre_process(self, text):
         return [tokenizer.encode(text)]
@@ -46,6 +36,17 @@ class Chat(SeqGeneration):
         return tokenizer.decode(output_ids[0].cpu().numpy())
 generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
                   maxlen=2048, default_rtype='logits', use_states=True)
+
+def build_prompt(history):
+    prompt = "欢迎使用 ChatGLM-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序"
+    for query, response in history:
+        prompt += f"\n\n用户：{query}"
+        prompt += f"\n\nChatGLM-6B：{response}"
+    return prompt
+
+def signal_handler(signal, frame):
+    global stop_stream
+    stop_stream = True
 
 def process_response(response):
     response = response.strip()
@@ -71,16 +72,15 @@ def chat(query, history=[]):
             prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, response)
         prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
 
-    response = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
-    response = process_response(response)
-    history = history + [(query, response)]
-    torch.cuda.empty_cache()  # 清理显存
-    return response, history
+    for response in generation.stream_generate(prompt, topk=50, topp=0.7, temperature=0.95):
+        response = process_response(response)
+        history = history + [(query, response)]
+        yield response, history
 
 
-if __name__ == '__main__':
-    os_name = platform.system()
+def main():
     history = []
+    global stop_stream
     print("欢迎使用 ChatGLM-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序")
     while True:
         query = input("\n用户：")
@@ -88,9 +88,22 @@ if __name__ == '__main__':
             break
         if query.strip() == "clear":
             history = []
-            command = 'cls' if os_name == 'Windows' else 'clear'
-            os.system(command)
+            os.system(clear_command)
             print("欢迎使用 ChatGLM-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序")
             continue
-        response, history = chat(query, history=history)
-        print(f"ChatGLM-6B：{response}")
+        count = 0
+        for response, history in chat(query, history=history):
+            if stop_stream:
+                stop_stream = False
+                break
+            else:
+                count += 1
+                if count % 8 == 0:
+                    os.system(clear_command)
+                    print(build_prompt(history), flush=True)
+                    signal.signal(signal.SIGINT, signal_handler)
+        os.system(clear_command)
+        print(build_prompt(history), flush=True)
+
+if __name__ == '__main__':
+    main()
