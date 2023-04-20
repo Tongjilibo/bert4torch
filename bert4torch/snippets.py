@@ -14,7 +14,6 @@ import inspect
 import json
 import torch.nn.functional as F
 import random
-from bert4torch.adapters import BottleneckAdapterLayer
 from torch4keras.snippets import *
 
 
@@ -1193,6 +1192,32 @@ def add_adapter(model, adapter_method='bottleneck', **kwargs):
     -------
     model: object, 加入adapter后的模型对象
     """
+    class BottleneckAdapterLayer(nn.Module):
+        def __init__(self, adapter_input_size, bottleneck_size, adapter_non_linearity='gelu'):
+            super().__init__()
+            from .activations import get_activation
+            self.adapter_input_size = adapter_input_size
+            self.bottleneck_size = bottleneck_size
+            self.non_linearity = get_activation(adapter_non_linearity)
+
+            # down proj
+            self.down_proj = nn.Linear(self.adapter_input_size, self.bottleneck_size)
+            # up proj
+            self.up_proj = nn.Linear(self.bottleneck_size, self.adapter_input_size)
+
+            self.init_weights()
+
+        def init_weights(self, init_mean=0.0, init_std=0.01):
+            self.down_proj.weight.data.normal_(mean=init_mean, std=init_std)
+            self.down_proj.bias.data.zero_()
+            self.up_proj.weight.data.normal_(mean=init_mean, std=init_std)
+            self.up_proj.bias.data.zero_()
+
+        def forward(self, x):
+            output = self.up_proj(self.non_linearity(self.down_proj(x)))
+            output = x + output
+            return output
+    
     num_trainable_params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
     # 冻结模型参数
     for param in model.parameters():
@@ -1201,16 +1226,16 @@ def add_adapter(model, adapter_method='bottleneck', **kwargs):
     if adapter_method == 'bottleneck':
         bottlenect_size = kwargs.get('bottlenect_size', 64)
         # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
-        for layer_id in range(model.bert.num_hidden_layers):
-            transformer_layer = model.bert.encoderLayer[layer_id].multiHeadAttention.o
+        for layer_id in range(model.num_hidden_layers):
+            transformer_layer = model.encoderLayer[layer_id].multiHeadAttention.o
             out_featuers = transformer_layer.out_features
             adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
-            model.bert.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
+            model.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
 
-            transformer_layer = model.bert.encoderLayer[layer_id].feedForward
+            transformer_layer = model.encoderLayer[layer_id].feedForward
             out_featuers = transformer_layer.outputDense.out_features
             adapter2 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
-            model.bert.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
+            model.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
 
     # 待新增其余类型adapter
     else:

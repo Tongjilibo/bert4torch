@@ -100,6 +100,7 @@ def predict(input, chatbot, max_length, top_p, temperature, history):
         chatbot[-1] = (parse_text(input), parse_text(response))       
 
         yield chatbot, history
+    torch.cuda.empty_cache()  # 清理显存
 
 
 def reset_user_input():

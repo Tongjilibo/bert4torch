@@ -74,7 +74,6 @@ def chat(query, history=[]):
     response = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
     response = process_response(response)
     history = history + [(query, response)]
-    torch.cuda.empty_cache()  # 清理显存
     return response, history
 
 
@@ -94,3 +93,5 @@ if __name__ == '__main__':
             continue
         response, history = chat(query, history=history)
         print(f"ChatGLM-6B：{response}")
+        torch.cuda.empty_cache()  # 清理显存
+

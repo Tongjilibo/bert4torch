@@ -104,6 +104,7 @@ def main():
                     signal.signal(signal.SIGINT, signal_handler)
         os.system(clear_command)
         print(build_prompt(history), flush=True)
+        torch.cuda.empty_cache()  # 清理显存
 
 if __name__ == '__main__':
     main()

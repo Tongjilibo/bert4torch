@@ -4,8 +4,7 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, \
-    add_adapter
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, add_adapter
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -74,7 +73,9 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+        bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+        # adapter 模式
+        self.bert = add_adapter(bert)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
@@ -85,9 +86,7 @@ class Model(BaseModel):
         output = self.dense(output)
         return output
 
-
-# adapter 模式
-model = add_adapter(model=Model()).to(device)
+model = Model().to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
