@@ -14,6 +14,7 @@ import inspect
 import json
 import torch.nn.functional as F
 import random
+from bert4torch.adapters import BottleneckAdapterLayer
 from torch4keras.snippets import *
 
 
@@ -1164,6 +1165,7 @@ def create_position_ids_from_input_ids(input_ids, padding_idx, past_key_values_l
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask
     return incremental_indices.long() + padding_idx
 
+
 class DottableDict(dict):
     '''支持点操作符的字典
     '''
@@ -1175,3 +1177,47 @@ class DottableDict(dict):
             self.__dict__ = self
         else:
             self.__dict__ = dict()
+
+
+def add_adapter(model, adapter_method='bottleneck', **kwargs):
+    """
+    使模型可用adapter模式进行训练
+
+    Parameters:
+    ----------
+    model: object, 模型对象
+
+    adapter_method: str, adapter类型, 当前只支持bottlenect_adapter
+
+    Returns:
+    -------
+    model: object, 加入adapter后的模型对象
+    """
+    num_trainable_params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # 冻结模型参数
+    for param in model.parameters():
+        param.requires_grad = False
+
+    if adapter_method == 'bottleneck':
+        bottlenect_size = kwargs.get('bottlenect_size', 64)
+        # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
+        for layer_id in range(model.bert.num_hidden_layers):
+            transformer_layer = model.bert.encoderLayer[layer_id].multiHeadAttention.o
+            out_featuers = transformer_layer.out_features
+            adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
+            model.bert.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
+
+            transformer_layer = model.bert.encoderLayer[layer_id].feedForward
+            out_featuers = transformer_layer.outputDense.out_features
+            adapter2 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
+            model.bert.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
+
+    # 待新增其余类型adapter
+    else:
+        pass
+
+    num_trainable_params_after = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print('Trainable params: {0}({1:.2f}%)'.format(num_trainable_params_after,
+                                                   100 * num_trainable_params_after / num_trainable_params_before))
+    return model
+
