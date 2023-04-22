@@ -4,11 +4,13 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, add_adapter
+from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb
+from bert4torch.activations import get_activation
 import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+
 
 maxlen = 256
 batch_size = 16
@@ -66,6 +68,63 @@ valid_dataloader = DataLoader(
 test_dataloader = DataLoader(
     MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']), batch_size=batch_size,
     collate_fn=collate_fn)
+
+class BottleneckAdapterLayer(nn.Module):
+    def __init__(self, adapter_input_size, bottleneck_size, adapter_non_linearity='gelu'):
+        super().__init__()
+        self.adapter_input_size = adapter_input_size
+        self.bottleneck_size = bottleneck_size
+        self.non_linearity = get_activation(adapter_non_linearity)
+
+        # down proj
+        self.down_proj = nn.Linear(self.adapter_input_size, self.bottleneck_size)
+        # up proj
+        self.up_proj = nn.Linear(self.bottleneck_size, self.adapter_input_size)
+
+        self.init_weights()
+
+    def init_weights(self, init_mean=0.0, init_std=0.01):
+        self.down_proj.weight.data.normal_(mean=init_mean, std=init_std)
+        self.down_proj.bias.data.zero_()
+        self.up_proj.weight.data.normal_(mean=init_mean, std=init_std)
+        self.up_proj.bias.data.zero_()
+
+    def forward(self, x):
+        output = self.up_proj(self.non_linearity(self.down_proj(x)))
+        output = x + output
+        return output
+    
+def add_adapter(model, adapter_method='bottleneck', **kwargs):
+    """
+    使模型可用adapter模式进行训练
+    """
+    num_trainable_params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # 冻结模型参数
+    for param in model.parameters():
+        param.requires_grad = False
+
+    if adapter_method == 'bottleneck':
+        bottlenect_size = kwargs.get('bottlenect_size', 64)
+        # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
+        for layer_id in range(model.num_hidden_layers):
+            transformer_layer = model.encoderLayer[layer_id].multiHeadAttention.o
+            out_featuers = transformer_layer.out_features
+            adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
+            model.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
+
+            transformer_layer = model.encoderLayer[layer_id].feedForward
+            out_featuers = transformer_layer.outputDense.out_features
+            adapter2 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
+            model.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
+
+    # 待新增其余类型adapter
+    else:
+        pass
+
+    num_trainable_params_after = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print('Trainable params: {0}({1:.2f}%)'.format(num_trainable_params_after,
+                                                   100 * num_trainable_params_after / num_trainable_params_before))
+    return model
 
 
 # 定义bert上的模型结构

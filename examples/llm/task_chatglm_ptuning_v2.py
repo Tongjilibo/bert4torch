@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# chatglm的指令微调, 还在调试中
+# chatglm的指令微调, 目前评估evaluate有点慢，可以限制只评估部分数据
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate
@@ -16,6 +16,7 @@ import jieba
 from rouge_chinese import Rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
+from tqdm import tqdm
 
 # 基本参数
 max_source_length = 64
@@ -54,17 +55,20 @@ class MyDataset(ListDataset):
                 D.append((prompt, response, history))
         return D
 
+def build_prompt(query, history):
+    if history_column is None:
+        prompt = query
+    else:
+        prompt = ""
+        for i, (old_query, answer) in enumerate(history):
+            prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, answer)
+        prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
+    return prompt
+
 def collate_fn(batch):
     batch_token_ids, batch_labels = [], []
     for query, answer, history in batch:
-        if history_column is None:
-            prompt = query
-        else:
-            prompt = ""
-            for i, (old_query, answer) in enumerate(history):
-                prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, answer)
-            prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
-
+        prompt = build_prompt(query, history)
         prompt = prefix + prompt
         a_ids = tokenizer.encode(text=prompt, add_special_tokens=False)
         b_ids = tokenizer.encode(text=answer, add_special_tokens=False)
@@ -181,19 +185,21 @@ class Evaluator(Callback):
     """评估与保存
     """
     def __init__(self):
-        self.lowest = 1e10
+        self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
         score_dict = self.evaluate(dev_dataset.data)
-        print(score_dict)
         # 保存最优
-        if logs['loss'] <= self.lowest:
-            self.lowest = logs['loss']
-            # model.save_weights('./best_model.pt')
+        if score_dict['bleu-4'] > self.best:
+            self.best = score_dict['bleu-4']
+            # model.save_weights('./best_model.pt')         
+        score_dict['best'] = self.best
+        print(score_dict)
     
     def evaluate(self, data):
         preds, labels = [], []
-        for prompt, label in data:
+        for query, label, history in tqdm(data, desc='Evaluating'):
+            prompt = build_prompt(query, history)
             pred = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
             preds.append(pred)
             labels.append(label)

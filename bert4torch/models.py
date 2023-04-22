@@ -2154,6 +2154,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     # 权重加载
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
-        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)   
+        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)
     transformer.configs = configs
     return transformer
