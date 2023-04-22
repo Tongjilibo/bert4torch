@@ -1,6 +1,8 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：moss的int4, int8推理
+# 基本测试：moss的int8推理
 # 原项目：https://github.com/OpenLMLab/MOSS
+# int8推理最低占用18G显存
+
 import platform
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
@@ -11,7 +13,7 @@ ckpt_path = 'F:\\Projects\\pretrain_ckpt\\moss\\moss-moon-003-sft'
 tokenizer = AutoTokenizer.from_pretrained(ckpt_path, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(ckpt_path, trust_remote_code=True).half()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = quantize(model, 4, empty_init=False).to(device)
+model = quantize(model, 8, empty_init=False).to(device)
 
 def clear():
     os.system('cls' if platform.system() == 'Windows' else 'clear')
@@ -38,7 +40,6 @@ def main():
     text_to_speech_switch = '- Text-to-speech: disabled.\n'
 
     meta_instruction = meta_instruction  + web_search_switch + calculator_switch + equation_solver_switch + text_to_image_switch + image_edition_switch + text_to_speech_switch
-    meta_instruction = ''  # 测试使用
     prompt = meta_instruction
     print("欢迎使用 MOSS 人工智能助手！输入内容即可进行对话。输入 clear 以清空对话历史，输入 stop 以终止对话。")
     while True:
@@ -51,14 +52,12 @@ def main():
             prompt = meta_instruction
             continue
         prompt += '<|Human|>: ' + query + '<eoh>\n<|MOSS|>:'
-        inputs = tokenizer(prompt, return_tensors="pt")
-        print(inputs)
+        inputs = tokenizer(prompt, return_tensors="pt").to(device)
         with torch.no_grad():
             outputs = model.generate(
                 inputs.input_ids.cuda(), 
                 attention_mask=inputs.attention_mask.cuda(), 
-                # max_length=4096, 
-                max_new_tokens=128,
+                max_length=4096, 
                 do_sample=True, 
                 top_k=50, 
                 top_p=0.95, 
