@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：moss的int8推理
+# 基本测试：moss的int8推理, 量化方法是参考chatglm的
+# 需要安装bert4torch最新版，命令：pip install git+https://github.com/Tongjilibo/bert4torch
 # 原项目：https://github.com/OpenLMLab/MOSS
 # int8推理最低占用18G显存
 

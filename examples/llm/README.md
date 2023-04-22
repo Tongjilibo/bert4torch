@@ -1,6 +1,7 @@
 # 支持的大模型
 
-chatglm | llama | moss
+- 目前支持的大模型：`chatglm | belle | llama | moss`
+- 需要安装最新版的bert4toch: `pip install git+https://github.com/Tongjilibo/bert4torch`
 
 ## 调用
 - [basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
