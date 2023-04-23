@@ -38,14 +38,13 @@ model = build_transformer_model(config_path=config_path,
 #         logits = model.predict([token_ids])
 #         return logits[:, -1, :]
 
-#     def generate(self, text, n=1, topk=30, topp=0.85, temperature=0.5, add_input=True):
+#     def generate(self, text, n=1, topk=30, topp=0.85, temperature=0.5):
 #         if use_hf_tokenize:
 #             token_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
 #         else:
 #             token_ids = tokenizer.encode(text)[0]
 #         results = self.random_sample([token_ids], n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
-#         text = text if add_input else ''
-#         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results][0]
+#         return [tokenizer.decode(ids.cpu().numpy()) for ids in results][0]
 # generation = ArticleCompletion(start_id=None, end_id=2, maxlen=512, device=device)
 
 # 第二种方式：调用封装好的接口，可使用cache
@@ -79,6 +78,6 @@ if __name__ == '__main__':
             continue
         # 必须指定human + assistant的prompt
         query = f"Human: {query} \n\nAssistant: "
-        response = generation.generate(query, topk=30, topp=0.85, temperature=0.5, add_input=False)
+        response = generation.generate(query, topk=30, topp=0.85, temperature=0.5)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nBelle：{response}")

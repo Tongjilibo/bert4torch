@@ -203,7 +203,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 }
 ```
 
-## 9. 交流
+## 9. 其他
 
 - Wechat Discussions
 
@@ -222,7 +222,15 @@ pip install git+https://github.com/Tongjilibo/bert4torch
   </tbody>
 </table>
 
+- Star History Chart
 
-## 10. Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Tongjilibo/bert4torch&type=Date)](https://star-history.com/#Tongjilibo/bert4torch&Date)
+<table border="0">
+  <tbody>
+    <tr align="center" >
+      <td>
+         <a href="https://star-history.com/#Tongjilibo/bert4torch&Date"><img width="400" height="250" src="https://api.star-history.com/svg?repos=Tongjilibo/bert4torch&type=Date" alt="pic"></a><br>
+         <a href="https://star-history.com/#Tongjilibo/bert4torch&Date">Star History Chart</a> 
+      </td>
+    </tr>
+  </tbody>
+</table>

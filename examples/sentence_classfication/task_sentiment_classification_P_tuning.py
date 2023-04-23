@@ -83,7 +83,7 @@ class MyDataset(ListDataset):
             if label != 2:
                 token_ids = token_ids[:1] + desc_ids + token_ids[1:]
                 segment_ids = [0] * len(desc_ids) + segment_ids
-            if self.kwargs['random']:
+            if self.kwargs['random']:  # 对部分token_ids转为[mask]
                 source_ids, target_ids = random_masking(token_ids)
             else:
                 source_ids, target_ids = token_ids[:], token_ids[:]

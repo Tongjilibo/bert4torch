@@ -34,11 +34,10 @@ class ArticleCompletion(AutoRegressiveDecoder):
         logits = model.predict([token_ids])
         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.95, add_input=True):
+    def generate(self, text, n=1, topp=0.95):
         token_ids, _ = tokenizer.encode(text)
         results = self.random_sample([token_ids], n, topp=topp)  # 基于随机采样
-        text = text if add_input else ''
-        return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
+        return [tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 
 article_completion = ArticleCompletion(
@@ -65,6 +64,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use llama-7b model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query, add_input=True)
+        response = article_completion.generate(query)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama-7b：{response}")
