@@ -1,5 +1,7 @@
 #! -*- coding: utf-8 -*-
-# belle模型：https://huggingface.co/BelleGroup/BELLE-LLAMA-7B-2M
+# LLaMA模型不允许发布调优后的完整模型权重，但是可以发布原始的模型的diff。因此需要先用脚本合并llama官方权重bell_llama的模型diff
+# 模型说明： https://github.com/LianjiaTech/BELLE/tree/main/models
+# belle_llama模型：https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc
 
 import torch
 
@@ -40,7 +42,7 @@ for i in range(num_hidden_layers):
     # layernorm2
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict['model.layers.{0}.post_attention_layernorm.weight'.format(i)]
 
-torch.save(new_state_dict, output_ckpt_file)
+# torch.save(new_state_dict, output_ckpt_file)
 
 # config文件
 '''

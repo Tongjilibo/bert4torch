@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from torch4keras.snippets import *
+from bert4torch.layers import BottleneckAdapterLayer
 try:
     # torch4keras0.0.7增加了callbacks
     from torch4keras.callbacks import *
@@ -230,6 +232,43 @@ class AdversarialTraining(Callback):
             self.trainer.loss_detail.update({'loss_sup': self.trainer.loss.item(), 'loss_unsup': adv_loss})
             self.trainer.loss += (adv_loss if adv_loss else 0)
             self.trainer.loss.backward()
+
+
+class AdapterCallback(Callback):
+    '''adapter的实现
+    adapter_module: 需要使用adapter的网络主体
+    '''
+    def __init__(self, adapter_module, adapter_method='bottleneck', bottlenect_size=None, **kwargs):
+        self.adapter_module = adapter_module
+        self.adapter_method= adapter_method
+        self.bottlenect_size = bottlenect_size or 64
+    
+    def on_train_begin(self, logs=None):
+        module = self.adapter_module
+        params_before = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        # 冻结模型参数
+        for param in module.parameters():
+            param.requires_grad = False
+
+        if self.adapter_method == 'bottleneck':
+            # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
+            for layer_id in range(module.num_hidden_layers):
+                transformer_layer = module.encoderLayer[layer_id].multiHeadAttention.o
+                out_featuers = transformer_layer.out_features
+                adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=self.bottlenect_size).cuda()
+                module.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
+
+                transformer_layer = module.encoderLayer[layer_id].feedForward
+                out_featuers = transformer_layer.outputDense.out_features
+                adapter2 = BottleneckAdapterLayer(out_featuers, bottleneck_size=self.bottlenect_size).cuda()
+                module.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
+
+        # 待新增其余类型adapter
+        else:
+            pass
+
+        params_after = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print(f"Using adapter training and reduce trainable parameters from {params_before} to {params_after} ({params_after/params_before:.2f}%)")
 
 
 class LoraCallback(Callback):

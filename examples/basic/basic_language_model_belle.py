@@ -1,7 +1,9 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：belle-7b模型的基本测试
+# 基本测试：belle-llama-7b模型的基本测试
 # 源项目链接：https://github.com/LianjiaTech/BELLE
-# belle模型：https://huggingface.co/BelleGroup/BELLE-LLAMA-7B-2M
+# LLaMA模型不允许发布调优后的完整模型权重，但是可以发布原始的模型的diff。因此需要先用脚本合并llama官方权重bell_llama的模型diff
+# 模型说明： https://github.com/LianjiaTech/BELLE/tree/main/models
+# belle_llama模型：https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc
 # 使用前需要先使用转换脚本转换下权重：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_belle.py
 # 需要安装git上最新版bert4torch: pip install git+https://github.com/Tongjilibo/bert4torch
 
