@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch4keras.snippets import *
 try:
     # torch4keras0.0.7增加了callbacks
