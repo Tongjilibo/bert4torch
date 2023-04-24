@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
 # chatglm的指令微调, 基于lora, 还在测试中
+# peft和transformer包是耦合的，因此很难用于一般的模型
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, Callback, text_segmentate
@@ -9,15 +10,15 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
-from transformers import AutoTokenizer
 from bert4torch.snippets import ListDataset, SeqGeneration
+from bert4torch.callbacks import LoraCallback
+from transformers import AutoTokenizer
 import json
 import jieba 
 from rouge_chinese import Rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
-from peft import get_peft_model, LoraConfig, TaskType
 
 
 # 基本参数
@@ -98,18 +99,6 @@ dev_dataset = MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json')
     
 # model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', token_pad_ids=tokenizer.pad_token_id, num_hidden_layers=2)
-
-# setup peft
-peft_config = LoraConfig(
-    task_type=TaskType.CAUSAL_LM,
-    inference_mode=False,
-    r=8,
-    lora_alpha=32,
-    lora_dropout=0.1,
-)
-model = get_peft_model(model, peft_config)
-
-print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

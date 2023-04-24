@@ -10,7 +10,8 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything, AdversarialTraining
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, seed_everything
+from bert4torch.callbacks import AdversarialTraining
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.tokenizers import Tokenizer, SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel

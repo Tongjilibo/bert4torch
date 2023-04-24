@@ -10,7 +10,8 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, get_pool_emb, seed_everything, AdversarialTraining
+from bert4torch.snippets import sequence_padding, Callback, ListDataset, text_segmentate, get_pool_emb, seed_everything
+from bert4torch.callbacks import AdversarialTraining
 from bert4torch.tokenizers import Tokenizer
 
 maxlen = 256
