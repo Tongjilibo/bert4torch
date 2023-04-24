@@ -5,7 +5,9 @@ import glob, re
 from tqdm import tqdm
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
-from bert4torch.snippets import sequence_padding, AutoRegressiveDecoder, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.callbacks import Callback
+from bert4torch.generation import AutoRegressiveDecoder
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchinfo import summary

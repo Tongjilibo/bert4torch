@@ -3,7 +3,8 @@
 # 初测测试指标从80%降到77%左右，未细测
 
 from task_sentence_embedding_sup_CosineMSELoss import model, train_dataloader, Model, device, valid_dataloader, evaluate
-from bert4torch.snippets import Callback, get_pool_emb
+from bert4torch.snippets import get_pool_emb
+from bert4torch.callbacks import Callback
 import torch.optim as optim
 import torch.nn as nn
 from bert4torch.models import build_transformer_model

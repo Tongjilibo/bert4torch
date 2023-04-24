@@ -10,7 +10,7 @@
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
-from bert4torch.snippets import AutoRegressiveDecoder, SeqGeneration
+from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 import signal

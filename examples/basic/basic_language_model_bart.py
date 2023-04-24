@@ -20,7 +20,7 @@ print('transformers output: ', tokenizer.convert_ids_to_tokens(pred_ids[0]))
 # ==============================bert4torch=====================================
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import AutoRegressiveDecoder, Seq2SeqGeneration
+from bert4torch.generation import AutoRegressiveDecoder, Seq2SeqGeneration
 import torch
 
 # bert配置

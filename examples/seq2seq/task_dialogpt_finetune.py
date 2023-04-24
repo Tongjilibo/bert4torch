@@ -11,7 +11,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import AutoRegressiveDecoder, ListDataset, sequence_padding, Callback
+from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.snippets import ListDataset, sequence_padding
+from bert4torch.callbacks import Callback
 from bert4torch.tokenizers import Tokenizer
 
 # 一些基础配置

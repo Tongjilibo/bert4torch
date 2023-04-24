@@ -4,7 +4,8 @@
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import ContrastiveLoss
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, get_pool_emb, seed_everything
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, ListDataset, get_pool_emb, seed_everything
 import torch.nn as nn
 import torch
 import torch.optim as optim

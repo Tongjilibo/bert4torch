@@ -3,7 +3,8 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, Checkpoint
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything, Checkpoint
 import torch.nn as nn
 import torch
 import torch.optim as optim

@@ -8,7 +8,8 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything, text_segmentate, get_pool_emb
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, ListDataset, seed_everything, text_segmentate, get_pool_emb
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.losses import RDropLoss
 from tqdm import tqdm

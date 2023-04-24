@@ -11,8 +11,9 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 from torch import nn, optim
 import torch
 from torch.utils.data import DataLoader
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
-from bert4torch.snippets import AutoRegressiveDecoder
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.generation import AutoRegressiveDecoder
 from sympy import Integer
 import warnings
 warnings.filterwarnings("ignore")

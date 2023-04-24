@@ -3,7 +3,8 @@
 # 改DDP需几行代码，参考https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py
 
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, Callback
+from bert4torch.snippets import sequence_padding
+from bert4torch.callbacks import Callback
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from torch.utils.data import Dataset
 import torch.nn as nn

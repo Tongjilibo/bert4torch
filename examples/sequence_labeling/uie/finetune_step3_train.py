@@ -1,7 +1,8 @@
 import torch
 from torch.utils.data import DataLoader
 from model import uie_model, tokenizer, custom_model
-from bert4torch.snippets import seed_everything, sequence_padding, Callback
+from bert4torch.snippets import seed_everything, sequence_padding
+from bert4torch.callbacks import Callback
 from torch import nn
 from torch.utils.data import Dataset
 import json

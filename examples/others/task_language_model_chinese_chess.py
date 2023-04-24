@@ -8,12 +8,14 @@
 
 import json
 import numpy as np
+import bert4torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from bert4torch.snippets import sequence_padding, ListDataset, Callback
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.callbacks import Callback
 from cchess import *
 
 # 基本信息

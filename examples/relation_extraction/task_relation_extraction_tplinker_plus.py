@@ -6,7 +6,8 @@
 import json
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback, ListDataset
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, ListDataset
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import TplinkerHandshakingKernel
 from tqdm import tqdm

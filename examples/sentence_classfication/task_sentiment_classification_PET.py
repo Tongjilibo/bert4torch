@@ -14,7 +14,8 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model
 from torch.optim import Adam
 import torch.nn.functional as F
-from bert4torch.snippets import sequence_padding, ListDataset, Callback
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.callbacks import Callback
 from torch.utils.data import DataLoader
 
 num_classes = 2

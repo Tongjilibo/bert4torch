@@ -2,7 +2,8 @@
 # 中文GPT模型预训练
 
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, Callback
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.callbacks import Callback
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -10,7 +11,7 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import AutoRegressiveDecoder, ListDataset
+from bert4torch.generation import AutoRegressiveDecoder
 import glob
 
 # 基本参数

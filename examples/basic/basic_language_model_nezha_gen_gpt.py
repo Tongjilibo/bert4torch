@@ -6,7 +6,7 @@
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import AutoRegressiveDecoder
+from bert4torch.generation import AutoRegressiveDecoder
 
 config_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_noah_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[huawei_noah_tf_base]--chinese_nezha_gpt_L-12_H-768_A-12/pytorch_model.bin'

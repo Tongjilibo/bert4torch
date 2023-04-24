@@ -4,8 +4,8 @@
 ```python
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import Callback, Logger, Tensorboard, ListDataset
-from bert4torch.callbacks import AdversarialTraining
+from bert4torch.snippets import ListDataset
+from bert4torch.callbacks import Callback, Logger, Tensorboard, AdversarialTraining
 import torch.nn as nn
 import torch
 import torch.optim as optim

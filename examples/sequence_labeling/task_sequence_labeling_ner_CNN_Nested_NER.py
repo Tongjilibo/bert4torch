@@ -7,7 +7,8 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.nn as nn
-from bert4torch.snippets import sequence_padding, Callback, ListDataset, seed_everything
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm
 from bert4torch.tokenizers import Tokenizer

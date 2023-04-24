@@ -3,7 +3,7 @@
 # peft和transformer包是耦合的，因此很难用于一般的模型
 
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate
+from bert4torch.snippets import sequence_padding, text_segmentate
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import ListDataset, SeqGeneration
-from bert4torch.callbacks import LoraCallback
+from bert4torch.callbacks import Callback
 from transformers import AutoTokenizer
 import json
 import jieba 

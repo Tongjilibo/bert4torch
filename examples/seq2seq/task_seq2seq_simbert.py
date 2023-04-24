@@ -9,7 +9,8 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, AutoRegressiveDecoder, Callback, get_pool_emb
+from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, Callback, get_pool_emb
+from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.tokenizers import Tokenizer, load_vocab
 
 # 基本信息

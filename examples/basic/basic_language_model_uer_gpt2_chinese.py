@@ -16,7 +16,7 @@ print(output)
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import AutoRegressiveDecoder, SeqGeneration
+from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 
 config_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_pytorch_model.bin'

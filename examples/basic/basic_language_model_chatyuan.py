@@ -4,7 +4,7 @@
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
-from bert4torch.snippets import AutoRegressiveDecoder
+from bert4torch.generation import AutoRegressiveDecoder
 
 
 # 配置

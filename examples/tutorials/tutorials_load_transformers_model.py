@@ -10,7 +10,8 @@
 from transformers import AutoModelForSequenceClassification
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import BaseModel
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
 import torch.nn as nn
 import torch
 import torch.optim as optim

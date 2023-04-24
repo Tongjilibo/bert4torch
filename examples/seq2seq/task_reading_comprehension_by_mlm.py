@@ -6,7 +6,8 @@ import json, os
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding
-from bert4torch.snippets import Callback, ListDataset
+from bert4torch.snippets import ListDataset
+from bert4torch.callbacks import Callback
 from tqdm import tqdm
 import torch
 from torchinfo import summary

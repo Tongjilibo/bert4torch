@@ -12,7 +12,8 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import ListDataset, sequence_padding, Callback
+from bert4torch.snippets import ListDataset, sequence_padding
+from bert4torch.callbacks import Callback
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr, spearmanr
 import numpy as np

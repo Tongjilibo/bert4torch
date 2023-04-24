@@ -8,7 +8,8 @@ from torch.utils.data import DataLoader
 from accelerate import Accelerator, DistributedType
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import sequence_padding, Callback, text_segmentate, ListDataset, seed_everything, get_pool_emb, AccelerateCallback
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything, get_pool_emb, AccelerateCallback
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 import torch.nn as nn
 from tqdm import tqdm

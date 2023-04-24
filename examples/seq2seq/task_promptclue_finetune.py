@@ -13,7 +13,9 @@ import json
 from torch.utils.data import DataLoader
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
-from bert4torch.snippets import AutoRegressiveDecoder, sequence_padding, Callback, ListDataset
+from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.callbacks import Callback
 
 # 配置
 pretrain_model = './pt_clueAI-PromptCLUE-base-v1-5/'

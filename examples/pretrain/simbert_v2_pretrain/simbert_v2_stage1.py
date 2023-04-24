@@ -9,8 +9,9 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, AutoRegressiveDecoder
-from bert4torch.snippets import Callback, truncate_sequences, get_pool_emb
+from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, truncate_sequences, get_pool_emb
+from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.callbacks import Callback
 from bert4torch.tokenizers import Tokenizer
 import jieba
 jieba.initialize()

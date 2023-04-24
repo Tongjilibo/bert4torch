@@ -25,7 +25,8 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import sequence_padding, Callback
+from bert4torch.snippets import sequence_padding
+from bert4torch.callbacks import Callback
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 import json
 import codecs

@@ -9,7 +9,8 @@ import numpy as np
 import scipy.stats
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.snippets import sequence_padding, Callback, get_pool_emb
+from bert4torch.callbacks import Callback
+from bert4torch.snippets import sequence_padding, get_pool_emb
 from torch.utils.data import DataLoader
 from torch import optim, nn
 import torch

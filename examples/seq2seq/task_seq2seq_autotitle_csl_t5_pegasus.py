@@ -6,8 +6,9 @@
 import json, os
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
-from bert4torch.snippets import sequence_padding, seed_everything
-from bert4torch.snippets import AutoRegressiveDecoder, Callback, ListDataset
+from bert4torch.snippets import sequence_padding, seed_everything, ListDataset
+from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.callbacks import Callback
 from tqdm import tqdm
 import torch
 import torch.nn as nn

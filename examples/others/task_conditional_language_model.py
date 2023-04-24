@@ -3,10 +3,11 @@
 # 按类随机生成文本，这个demo的类别是情感极性（正／负）
 # 请参考：https://kexue.fm/archives/7124
 
-from pydantic import NoneStrBytes
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer, load_vocab
-from bert4torch.snippets import sequence_padding, text_segmentate, Callback, AutoRegressiveDecoder, ListDataset
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
+from bert4torch.callbacks import Callback
+from bert4torch.generation import AutoRegressiveDecoder
 import torch
 from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim

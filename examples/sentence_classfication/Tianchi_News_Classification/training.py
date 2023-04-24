@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 from bert4torch.models import build_transformer_model, BaseModel
 from torch.utils.data import DataLoader
-from bert4torch.snippets import sequence_padding, ListDataset, Callback
-from bert4torch.callbacks import EarlyStopping, AdversarialTraining
+from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.callbacks import Callback, EarlyStopping, AdversarialTraining
 from bert4torch.tokenizers import Tokenizer
 import torch.nn.functional as F
 from sklearn.metrics import f1_score

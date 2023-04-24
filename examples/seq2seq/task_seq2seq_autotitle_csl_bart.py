@@ -4,7 +4,7 @@
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, seed_everything
-from bert4torch.snippets import AutoRegressiveDecoder, Callback
+from bert4torch.generation import AutoRegressiveDecoder, Callback
 import torch
 import torch.nn as nn
 import torch.optim as optim

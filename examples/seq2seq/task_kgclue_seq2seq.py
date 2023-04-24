@@ -13,7 +13,9 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from bert4torch.snippets import ListDataset, sequence_padding, AutoRegressiveDecoder, Callback
+from bert4torch.snippets import ListDataset, sequence_padding
+from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.callbacks import Callback
 from tqdm import tqdm
 from collections import defaultdict
 # import pylcs
