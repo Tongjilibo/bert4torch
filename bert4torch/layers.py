@@ -1686,7 +1686,28 @@ class BottleneckAdapterLayer(nn.Module):
         output = x + output
         return output
     
+def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
+    # 冻结模型参数
+    for param in model.parameters():
+        param.requires_grad = False
+    if adapter_method == 'bottleneck':
+        # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
+        for layer_id in range(model.num_hidden_layers):
+            transformer_layer = model.encoderLayer[layer_id].multiHeadAttention.o
+            out_featuers = transformer_layer.out_features
+            adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
+            model.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
 
+            transformer_layer = model.encoderLayer[layer_id].feedForward
+            out_featuers = transformer_layer.outputDense.out_features
+            adapter2 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
+            model.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
+    # 待新增其余类型adapter
+    else:
+        pass
+    return model
+
+    
 class LoraLinear(lora.LoRALayer, nn.Module):
     """Replace in-place ops to out-of-place ops to fit gemini. Convert a torch.nn.Linear to LoraLinear.
     使用的是microsoft的loralib包
@@ -1768,12 +1789,10 @@ class LoraLinear(lora.LoRALayer, nn.Module):
         else:
             return F.linear(x, T(self.weight), bias=self.bias)
 
-
 def lora_linear_wrapper(linear: nn.Linear, lora_rank: int, lora_alpha: int = 1) -> LoraLinear:
     assert lora_rank <= linear.in_features, f'LoRA rank ({lora_rank}) must be less than or equal to in features ({linear.in_features})'
     lora_linear = LoraLinear(linear.weight, linear.bias, r=lora_rank, lora_alpha=lora_alpha, merge_weights=False)
     return lora_linear
-
 
 def convert_to_lora_recursively(module: nn.Module, lora_rank: int, lora_alpha: int = 1) -> None:
     for name, child in module.named_children():
@@ -1781,3 +1800,10 @@ def convert_to_lora_recursively(module: nn.Module, lora_rank: int, lora_alpha: i
             setattr(module, name, lora_linear_wrapper(child, lora_rank, lora_alpha))
         else:
             convert_to_lora_recursively(child, lora_rank, lora_alpha)
+
+def convert_to_lora(model, lora_rank=0, lora_alpha=1, lora_train_bias='none'):
+    if lora_rank <= 0:
+        return model
+    convert_to_lora_recursively(model, lora_rank, lora_alpha)
+    lora.mark_only_lora_as_trainable(model, lora_train_bias)
+    return model

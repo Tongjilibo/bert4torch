@@ -1,12 +1,10 @@
 #! -*- coding:utf-8 -*-
-# 情感分类任务, 加载bert权重
-# valid_acc: 94.72, test_acc: 94.11
+# 情感分类任务, 加载bert权重, adapter方式
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything, get_pool_emb
-from bert4torch.callbacks import AdapterCallback
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -76,7 +74,7 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True).add_adapter()
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
@@ -138,7 +136,7 @@ def inference(texts):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[AdapterCallback(model.bert), evaluator])
+        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
     else:
         model.load_weights('best_model.pt')
         inference(['我今天特别开心', '我今天特别生气'])

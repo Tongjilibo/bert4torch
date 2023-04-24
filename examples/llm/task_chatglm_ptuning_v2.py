@@ -11,7 +11,8 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from transformers import AutoTokenizer
-from bert4torch.snippets import ListDataset, SeqGeneration
+from bert4torch.snippets import ListDataset
+from bert4torch.generation import SeqGeneration
 import json
 import jieba 
 from rouge_chinese import Rouge

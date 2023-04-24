@@ -10,7 +10,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import ListDataset, SeqGeneration
+from bert4torch.snippets import ListDataset
+from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback
 from transformers import AutoTokenizer
 import json
@@ -96,9 +97,8 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 dev_dataset = MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json')
 
-    
-# model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', token_pad_ids=tokenizer.pad_token_id, num_hidden_layers=2)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', num_hidden_layers=2,
+                                token_pad_ids=tokenizer.pad_token_id, add_trainer=True).half().convert_to_lora(lora_rank=64).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
