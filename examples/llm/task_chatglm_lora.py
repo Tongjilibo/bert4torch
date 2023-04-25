@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # chatglm的指令微调, 基于lora, 还在测试中
-# peft和transformer包是耦合的，因此很难用于一般的模型
+# peft和transformer包是耦合的，因此这里用法和hf的略有不同
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -20,6 +20,7 @@ from rouge_chinese import Rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
+from peft import LoraConfig
 
 
 # 基本参数
@@ -97,8 +98,16 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 dev_dataset = MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json')
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
-                                token_pad_ids=tokenizer.pad_token_id, add_trainer=True).half().convert_to_lora(lora_rank=8, lora_alpha=32).to(device)
+peft_config = LoraConfig(
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        target_modules=['q', 'k', 'v']
+    )
+
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', num_hidden_layers=1,
+                                token_pad_ids=tokenizer.pad_token_id, add_trainer=True).get_peft_model(peft_config).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

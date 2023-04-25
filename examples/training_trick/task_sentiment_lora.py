@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from peft import LoraConfig
 
 maxlen = 256
 batch_size = 16
@@ -58,7 +59,6 @@ train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
-from peft import LoraConfig
 peft_config = LoraConfig(
         inference_mode=False,
         r=8,

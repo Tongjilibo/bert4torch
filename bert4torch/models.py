@@ -17,10 +17,6 @@ import warnings
 from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
 from tqdm import tqdm
-try:
-    import peft
-except:
-    peft = None
 
 
 class BERT_BASE(nn.Module):
@@ -353,20 +349,17 @@ class BERT_BASE(nn.Module):
         '''
         from .layers import add_adapter
         self = add_adapter(self, adapter_method, bottlenect_size)
+        self.print_trainable_parameters()
         return self
-    
-    def convert_to_lora(self, **lora_configs):
-        '''把linear层转化为lora_linear层
-        '''
-        from .layers import convert_to_lora
-        self = convert_to_lora(self, **lora_configs)
-        return self
-    
+        
     def get_peft_model(self, peft_config):
         '''hf的peft库：https://github.com/huggingface/peft
         '''
+        import peft
         if isinstance(peft_config, peft.LoraConfig):
             self = peft.LoraModel(peft_config, self)
+        elif isinstance(peft_config, peft.AdaLoraConfig):
+            self = peft.AdaLoraModel(peft_config, self)
         self.print_trainable_parameters()
         return self
 
