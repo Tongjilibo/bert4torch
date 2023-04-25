@@ -194,7 +194,7 @@ class Evaluator(Callback):
         # 保存最优
         if score_dict['bleu-4'] > self.best:
             self.best = score_dict['bleu-4']
-            # model.save_weights('./best_model.pt')         
+            model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存PrefixEncoder权重
         score_dict['best'] = self.best
         print(score_dict)
     
@@ -235,4 +235,4 @@ if __name__ == '__main__':
     )
 
 else:
-    model.load_weights('./best_model.pt')
+    model.load_weights('./best_model.pt', strict=False)

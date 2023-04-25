@@ -1687,6 +1687,7 @@ class BottleneckAdapterLayer(nn.Module):
         return output
     
 def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
+    params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
     # 冻结模型参数
     for param in model.parameters():
         param.requires_grad = False
@@ -1705,6 +1706,8 @@ def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
     # 待新增其余类型adapter
     else:
         pass
+    params_after = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"[INFO] Using adapter training and reduce trainable parameters from {params_before} to {params_after} ({params_after/params_before:.2f}%)")
     return model
 
     
@@ -1802,8 +1805,13 @@ def convert_to_lora_recursively(module: nn.Module, lora_rank: int, lora_alpha: i
             convert_to_lora_recursively(child, lora_rank, lora_alpha)
 
 def convert_to_lora(model, lora_rank=0, lora_alpha=1, lora_train_bias='none'):
+    '''把linear层转化为lora_linear层
+    '''
+    params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if lora_rank <= 0:
         return model
     convert_to_lora_recursively(model, lora_rank, lora_alpha)
     lora.mark_only_lora_as_trainable(model, lora_train_bias)
+    params_after = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"[INFO] Using lora training and reduce trainable parameters from {params_before} to {params_after} ({params_after/params_before:.2f}%)")
     return model

@@ -348,20 +348,14 @@ class BERT_BASE(nn.Module):
         '''增加adapter层
         '''
         from .layers import add_adapter
-        params_before = sum(p.numel() for p in self.parameters() if p.requires_grad)
         self = add_adapter(self, adapter_method, bottlenect_size)
-        params_after = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        print(f"[INFO] Using adapter training and reduce trainable parameters from {params_before} to {params_after} ({params_after/params_before:.2f}%)")
         return self
     
     def convert_to_lora(self, lora_rank, lora_alpha=1, lora_train_bias='none'):
         '''把linear层转化为lora_linear层
         '''
         from .layers import convert_to_lora
-        params_before = sum(p.numel() for p in self.parameters() if p.requires_grad)
         self = convert_to_lora(self, lora_rank, lora_alpha, lora_train_bias)
-        params_after = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        print(f"[INFO] Using lora training and reduce trainable parameters from {params_before} to {params_after} ({params_after/params_before:.2f}%)")
         return self
     
 

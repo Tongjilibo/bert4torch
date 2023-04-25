@@ -94,7 +94,7 @@ class Evaluator(Callback):
         test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:
             self.best_val_acc = val_acc
-            # model.save_weights('best_model.pt')
+            model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存lora权重
         print(f'val_acc: {val_acc:.5f}, test_acc: {test_acc:.5f}, best_val_acc: {self.best_val_acc:.5f}\n')
 
     # 定义评价函数
@@ -123,5 +123,5 @@ if __name__ == '__main__':
         evaluator = Evaluator()
         model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
     else:
-        model.load_weights('best_model.pt')
+        model.load_weights('best_model.pt', strict=False)
         inference(['我今天特别开心', '我今天特别生气'])
