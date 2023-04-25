@@ -167,6 +167,11 @@ class AutoRegressiveDecoder(object):
         # 达到长度直接输出
         self.flag = None
         return output_ids[output_scores.argmax()]
+    
+    def batch_beam_search(self, inputs_raw, topk=50, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+        """beam search解码, batch版本
+        """
+        return
 
     def __random_sample_step(self, step, n, inputs, output_ids, states, temperature, topk, topp):
         '''为了random_sample和stream_random_sample共用，抽离出来的单步逻辑
@@ -247,7 +252,12 @@ class AutoRegressiveDecoder(object):
         # 返回结果
         self.flag = None
         return results
-
+    
+    def batch_random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+        """随机采样n个结果，batch版本
+        """
+        return
+    
     def stream_random_sample(self, inputs_raw, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
         """随机采样n个结果；stream输出
         """
@@ -373,6 +383,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         if self.mode == 'random_sample':
             output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
         elif self.mode == 'beam_search':
+            output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
+        elif self.mode == 'batch_random_sample':
+            output_ids = self.batch_random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
+        elif self.mode == 'batch_beam_search':
             output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
         return output_ids
 

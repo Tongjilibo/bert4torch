@@ -17,6 +17,7 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
+import os
 
 config_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/bert4torch_pytorch_model.bin'
@@ -56,7 +57,11 @@ article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=50256
 print('====bert4torch结果====')
 for text in [u'这是很久之前的事情了']:
     print(text + article_completion.generate(text, n=1))
-    
+
+for output in article_completion.stream_generate('这是很久之前的事情了'):
+    os.system('clear')
+    print(text+output, flush=True)
+
 """
 部分结果：
 >>> article_completion.generate(u'这是很久之前的事情了')
