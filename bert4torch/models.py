@@ -17,6 +17,10 @@ import warnings
 from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
 from tqdm import tqdm
+try:
+    import peft
+except:
+    peft = None
 
 
 class BERT_BASE(nn.Module):
@@ -351,13 +355,37 @@ class BERT_BASE(nn.Module):
         self = add_adapter(self, adapter_method, bottlenect_size)
         return self
     
-    def convert_to_lora(self, lora_rank, lora_alpha=1, lora_train_bias='none'):
+    def convert_to_lora(self, **lora_configs):
         '''把linear层转化为lora_linear层
         '''
         from .layers import convert_to_lora
-        self = convert_to_lora(self, lora_rank, lora_alpha, lora_train_bias)
+        self = convert_to_lora(self, **lora_configs)
         return self
     
+    def get_peft_model(self, peft_config):
+        '''hf的peft库：https://github.com/huggingface/peft
+        '''
+        if isinstance(peft_config, peft.LoraConfig):
+            self = peft.LoraModel(peft_config, self)
+        self.print_trainable_parameters()
+        return self
+
+    def print_trainable_parameters(self):
+        """
+        Prints the number of trainable parameters in the model.
+        """
+        trainable_params = 0
+        all_param = 0
+        for _, param in self.named_parameters():
+            num_params = param.numel()
+            # if using DS Zero 3 and the weights are initialized empty
+            if num_params == 0 and hasattr(param, "ds_numel"):
+                num_params = param.ds_numel
+
+            all_param += num_params
+            if param.requires_grad:
+                trainable_params += num_params
+        print(f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}")
 
 class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）

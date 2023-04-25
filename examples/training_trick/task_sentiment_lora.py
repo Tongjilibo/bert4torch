@@ -10,7 +10,6 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-
 maxlen = 256
 batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
@@ -59,12 +58,21 @@ train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_class
 valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
+from peft import LoraConfig
+peft_config = LoraConfig(
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        target_modules=['q', 'k', 'v']
+    )
+
 # 定义bert上的模型结构
 class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True).convert_to_lora(lora_rank=32)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True).get_peft_model(peft_config)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
@@ -121,7 +129,7 @@ def inference(texts):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = Evaluator()
-        model.fit(train_dataloader, epochs=10, steps_per_epoch=None, callbacks=[evaluator])
+        model.fit(train_dataloader, epochs=10, steps_per_epoch=100, callbacks=[evaluator])
     else:
         model.load_weights('best_model.pt', strict=False)
         inference(['我今天特别开心', '我今天特别生气'])

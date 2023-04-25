@@ -1792,25 +1792,27 @@ class LoraLinear(lora.LoRALayer, nn.Module):
         else:
             return F.linear(x, T(self.weight), bias=self.bias)
 
-def lora_linear_wrapper(linear: nn.Linear, lora_rank: int, lora_alpha: int = 1) -> LoraLinear:
+def lora_linear_wrapper(linear, lora_rank, lora_alpha, lora_dropout, fan_in_fan_out, merge_weights) -> LoraLinear:
     assert lora_rank <= linear.in_features, f'LoRA rank ({lora_rank}) must be less than or equal to in features ({linear.in_features})'
-    lora_linear = LoraLinear(linear.weight, linear.bias, r=lora_rank, lora_alpha=lora_alpha, merge_weights=False)
+    lora_linear = LoraLinear(linear.weight, linear.bias, r=lora_rank, lora_alpha=lora_alpha, lora_dropout=lora_dropout, 
+                             fan_in_fan_out=fan_in_fan_out, merge_weights=merge_weights)
     return lora_linear
 
-def convert_to_lora_recursively(module: nn.Module, lora_rank: int, lora_alpha: int = 1) -> None:
+def convert_to_lora_recursively(module, lora_rank, lora_alpha, lora_dropout, fan_in_fan_out, merge_weights) -> None:
     for name, child in module.named_children():
         if isinstance(child, nn.Linear):
-            setattr(module, name, lora_linear_wrapper(child, lora_rank, lora_alpha))
+            setattr(module, name, lora_linear_wrapper(child, lora_rank, lora_alpha, lora_dropout, fan_in_fan_out, merge_weights))
         else:
-            convert_to_lora_recursively(child, lora_rank, lora_alpha)
+            convert_to_lora_recursively(child, lora_rank, lora_alpha, lora_dropout, fan_in_fan_out, merge_weights)
 
-def convert_to_lora(model, lora_rank=0, lora_alpha=1, lora_train_bias='none'):
+def convert_to_lora(model:nn.Module, lora_rank:int=8, lora_alpha:float=1, lora_train_bias:str='none', lora_dropout:float=0, 
+                    fan_in_fan_out:bool=False, merge_weights:bool=False, target_modules:Optional[Union[List[str], str]]=None):
     '''把linear层转化为lora_linear层
     '''
     params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
     if lora_rank <= 0:
         return model
-    convert_to_lora_recursively(model, lora_rank, lora_alpha)
+    convert_to_lora_recursively(model, lora_rank, lora_alpha, lora_dropout, fan_in_fan_out, merge_weights)
     lora.mark_only_lora_as_trainable(model, lora_train_bias)
     params_after = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[INFO] Using lora training and reduce trainable parameters from {params_before} to {params_after} ({params_after/params_before:.2f}%)")

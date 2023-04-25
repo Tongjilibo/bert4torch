@@ -97,8 +97,8 @@ def collate_fn(batch):
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 dev_dataset = MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json')
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', num_hidden_layers=2,
-                                token_pad_ids=tokenizer.pad_token_id, add_trainer=True).half().convert_to_lora(lora_rank=64).to(device)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
+                                token_pad_ids=tokenizer.pad_token_id, add_trainer=True).half().convert_to_lora(lora_rank=8, lora_alpha=32).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -123,7 +123,7 @@ class Chat(SeqGeneration):
     def post_process(self, output_ids):
         return tokenizer.decode(output_ids[0].cpu().numpy())
 generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=512, default_rtype='logits', use_states=False)
+                  maxlen=512, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
