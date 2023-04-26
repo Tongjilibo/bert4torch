@@ -55,12 +55,12 @@ article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=50256
                                    maxlen=100, default_rtype='logits', use_states=True)
 
 print('====bert4torch结果====')
-for text in [u'这是很久之前的事情了']:
-    print(text + article_completion.generate(text, n=1))
+for text_list in [u'这是很久之前的事情了']:
+    print(text_list + article_completion.generate(text_list, n=1))
 
 for output in article_completion.stream_generate('这是很久之前的事情了'):
     os.system('clear')
-    print(text+output, flush=True)
+    print(text_list+output, flush=True)
 
 """
 部分结果：

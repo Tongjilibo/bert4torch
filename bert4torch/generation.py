@@ -90,19 +90,16 @@ class AutoRegressiveDecoder(object):
         if isinstance(inputs_raw, torch.torch.Tensor):
             return [inputs_raw.to(self.device)]
         inputs = []
-        for i in inputs_raw:
-            if isinstance(i, torch.torch.Tensor):
+        for input_ in inputs_raw:
+            if isinstance(input_, torch.torch.Tensor):
                 pass
-            elif isinstance(i, (list, tuple, np.ndarray)):
+            elif isinstance(input_, (list, tuple, np.ndarray)):
                 # 单条样本为[1,2,3]格式，需转为[[1,2,3]]
-                i = i if all(isinstance(j, list) for j in i) else [i]
-                i = torch.tensor(sequence_padding(i, value=self.pad_id), device=self.device)
+                input_ = input_ if all(isinstance(j, (tuple,list)) for j in input_) else [input_]
+                input_ = torch.tensor(sequence_padding(input_, value=self.pad_id), device=self.device)
             else:
                 raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
-            if i.dim() == 1:
-                i = i.unsqueeze(0)
-            assert i.dim() == 2, f'Expect 2 dims but get {i.dim()}'
-            inputs.append(i)
+            inputs.append(input_)
         return inputs
 
     @staticmethod
@@ -241,24 +238,6 @@ class AutoRegressiveDecoder(object):
         """
         inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
-        results = []
-        for step in range(self.maxlen):
-            inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
-            inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
-            if break_tag:
-                break
-
-        # 如果还有未完成序列，直接放入结果
-        for ids in output_ids:
-            results.append(ids)
-        # 返回结果
-        self.flag = None
-        return results
-    
-    def batch_random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1):
-        """随机采样n个结果，batch版本
-        """
-        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         results = []
@@ -274,7 +253,7 @@ class AutoRegressiveDecoder(object):
         # 返回结果
         self.flag = None
         return results
-
+    
     def stream_random_sample(self, inputs_raw, topk=50, topp=1.0, states=None, temperature=1, min_ends=1):
         """随机采样n个结果；stream输出
         """
@@ -294,7 +273,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, mode='random_sample', default_rtype='logits', use_states=True):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=0, mode='random_sample', default_rtype='logits', use_states=True):
         '''
         :param model: 模型
         :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
@@ -311,19 +290,24 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.encoder = None
         self.decoder = model
         self.tokenizer = tokenizer
-        assert mode in {'random_sample', 'beam_search', 'batch_random_sample', 'batch_beam_search'}, \
-                    'Args `mode` only support `random_sample/beam_search/batch_random_sample/batch_beam_search`.'
+        assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
-        self.pad_id = pad_id or 0
-        if mode in {'batch_random_sample', 'batch_beam_search'}:
-            print('[INFO] Args `pad_id` not specified and set pad_id=0')
+        self.pad_id = pad_id
         self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
         self.predict.set_use_states(use_states)  # 动态修改闭包中的use_states
         self.use_states = use_states
         self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
     
-    @staticmethod
-    def prepare_inputs(inputs, output_ids, include_past=True):
+    def concat_token_ids(self, token_ids, output_ids):
+        '''把非padding部分concat在一起
+        '''
+        inputs = []
+        for token_ids_i, output_ids_i in zip(token_ids, output_ids):
+            pad_index = (token_ids_i != self.pad_id).sum()
+            inputs.append(torch.cat([token_ids_i[:pad_index], output_ids_i, token_ids_i[pad_index:]]))
+        return torch.stack(inputs)
+
+    def prepare_inputs(self, inputs, output_ids, include_past=True):
         if include_past is False:
             if len(inputs) == 1:
                 inputs = [output_ids[:, -1:]]
@@ -333,12 +317,14 @@ class SeqGeneration(AutoRegressiveDecoder):
                 inputs = [output_ids[:, -1:], curr_segment_ids]
         else:
             if len(inputs) == 1:
-                token_ids = torch.cat([inputs[0], output_ids], 1)
+                # token_ids = torch.cat([inputs[0], output_ids], 1)
+                token_ids = self.concat_token_ids(inputs[0], output_ids)
                 inputs = [token_ids]
             elif len(inputs) >= 2:  # 第二个是segment_ids
                 token_ids, segment_ids = inputs
+                # token_ids = torch.cat([token_ids, output_ids], 1)
+                token_ids = self.concat_token_ids(inputs[0], output_ids)
                 curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
-                token_ids = torch.cat([token_ids, output_ids], 1)
                 segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
                 inputs = [token_ids, segment_ids]
         return inputs
@@ -400,24 +386,24 @@ class SeqGeneration(AutoRegressiveDecoder):
             return self.tokenizer.decode(output_ids[0].cpu().numpy())
         return output_ids
 
-    def generate_(self, inputs, n, topk, topp, temperature):
+    def _generate(self, inputs, n, topk, topp, temperature):
         if self.mode == 'random_sample':
             output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
         elif self.mode == 'beam_search':
             output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
-        elif self.mode == 'batch_random_sample':
-            output_ids = self.batch_random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
-        elif self.mode == 'batch_beam_search':
-            output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
         return output_ids
 
     def generate(self, text, n=1, topk=None, topp=None, temperature=1):
+        '''样本生成
+        '''
+        if isinstance(text, (tuple,list)):  # batch预测n要设置为1
+            n = 1
         inputs = self.pre_process(text)
-        output_ids = self.generate_(inputs, n, topk, topp, temperature)
+        output_ids = self._generate(inputs, n, topk, topp, temperature)
         return self.post_process(output_ids)
 
     def stream_generate(self, text, topk=None, topp=None, temperature=1):
-        '''stream输出预测的结果
+        '''单条样本stream输出预测的结果
         '''
         inputs = self.pre_process(text)
         for output_ids in  self.stream_random_sample(inputs, topk=topk, topp=topp, temperature=temperature):  # stream随机采样
@@ -443,10 +429,12 @@ class Seq2SeqGeneration(SeqGeneration):
         return inputs
             
     def generate(self, text, n=1, topk=None, topp=None, temperature=1):
+        if isinstance(text, (tuple,list)):  # batch预测n要设置为1
+            n = 1
         inputs = self.pre_process(text)
         inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super().generate_(encoder_output, n, topk, topp, temperature)
+        output_ids = super()._generate(encoder_output, n, topk, topp, temperature)
         return self.post_process(output_ids)
 
     def stream_generate(self, text, topk=None, topp=None, temperature=1):

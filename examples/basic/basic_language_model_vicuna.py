@@ -47,7 +47,7 @@ article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mo
 
 if __name__ == '__main__':
     os_name = platform.system()
-    print("Welcome to use llama-7b model，type `clear` to clear history，type `stop` to stop program")
+    print("Welcome to use vicuna-7b model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
         if query == "stop":
