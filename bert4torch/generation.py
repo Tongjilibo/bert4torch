@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from .snippets import take_along_dim, torch_div
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding
 
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
@@ -83,7 +83,7 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def process_inputs(self, inputs_raw, add_btz_dim=True):
+    def process_inputs(self, inputs_raw) -> list:
         '''对输入进行处理
         '''
         # 传入的Tensor直接[]后返回
@@ -93,12 +93,15 @@ class AutoRegressiveDecoder(object):
         for i in inputs_raw:
             if isinstance(i, torch.torch.Tensor):
                 pass
-            elif isinstance(i, (list, tuple, np.ndarray)) and add_btz_dim:
-                i = torch.tensor([i], device=self.device)
-            elif isinstance(i, (list, tuple, np.ndarray)) and not add_btz_dim:
-                i = torch.tensor(i, device=self.device)
+            elif isinstance(i, (list, tuple, np.ndarray)):
+                # 单条样本为[1,2,3]格式，需转为[[1,2,3]]
+                i = i if all(isinstance(j, list) for j in i) else [i]
+                i = torch.tensor(sequence_padding(i, value=self.pad_id), device=self.device)
             else:
                 raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
+            if i.dim() == 1:
+                i = i.unsqueeze(0)
+            assert i.dim() == 2, f'Expect 2 dims but get {i.dim()}'
             inputs.append(i)
         return inputs
 
@@ -125,7 +128,7 @@ class AutoRegressiveDecoder(object):
             scores = scores.masked_fill(indices_to_remove, -float("Inf"))
         return scores
 
-    def beam_search(self, inputs_raw, topk=50, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+    def beam_search(self, inputs_raw, topk=50, states=None, temperature=1, min_ends=1):
         """beam search解码
         
         :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
@@ -133,10 +136,9 @@ class AutoRegressiveDecoder(object):
         :param states:
         :param temperature: 温度参数，默认为1
         :param min_ends:
-        :param add_btz_dim: bool, 是否保留btz维度, 默认为True
         :return: 最优解码序列。
         """
-        inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
+        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
         output_ids, output_scores = self.first_output_ids, torch.zeros(1, device=self.device)
         for step in range(self.maxlen):
             self.step = step
@@ -168,7 +170,7 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return output_ids[output_scores.argmax()]
     
-    def batch_beam_search(self, inputs_raw, topk=50, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+    def batch_beam_search(self, inputs_raw, topk=50, states=None, temperature=1, min_ends=1):
         """beam search解码, batch版本
         """
         return
@@ -225,7 +227,7 @@ class AutoRegressiveDecoder(object):
 
         return inputs, output_ids, results, break_tag
 
-    def random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+    def random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
@@ -237,7 +239,7 @@ class AutoRegressiveDecoder(object):
         :param min_ends:
         :return: n个解码序列组成的list。
         """
-        inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
+        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
@@ -253,16 +255,31 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return results
     
-    def batch_random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+    def batch_random_sample(self, inputs_raw, n, topk=50, topp=1.0, states=None, temperature=1, min_ends=1):
         """随机采样n个结果，batch版本
         """
-        return
-    
-    def stream_random_sample(self, inputs_raw, topk=50, topp=1.0, states=None, temperature=1, min_ends=1, add_btz_dim=True):
+        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
+        btz = inputs[0].shape[0]
+        output_ids = self.first_output_ids.repeat(btz, 1)
+        results = []
+        for step in range(self.maxlen):
+            inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+            inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
+            if break_tag:
+                break
+
+        # 如果还有未完成序列，直接放入结果
+        for ids in output_ids:
+            results.append(ids)
+        # 返回结果
+        self.flag = None
+        return results
+
+    def stream_random_sample(self, inputs_raw, topk=50, topp=1.0, states=None, temperature=1, min_ends=1):
         """随机采样n个结果；stream输出
         """
         n = 1
-        inputs = self.process_inputs(inputs_raw, add_btz_dim)  # 对输入进行处理
+        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
@@ -277,7 +294,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, mode='random_sample', default_rtype='logits', use_states=True):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, mode='random_sample', default_rtype='logits', use_states=True):
         '''
         :param model: 模型
         :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
@@ -294,15 +311,19 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.encoder = None
         self.decoder = model
         self.tokenizer = tokenizer
-        assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample` and `beam_search`.'
+        assert mode in {'random_sample', 'beam_search', 'batch_random_sample', 'batch_beam_search'}, \
+                    'Args `mode` only support `random_sample/beam_search/batch_random_sample/batch_beam_search`.'
         self.mode = mode
+        self.pad_id = pad_id or 0
+        if mode in {'batch_random_sample', 'batch_beam_search'}:
+            print('[INFO] Args `pad_id` not specified and set pad_id=0')
         self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
         self.predict.set_use_states(use_states)  # 动态修改闭包中的use_states
         self.use_states = use_states
         self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
     
     @staticmethod
-    def prepara_inputs(inputs, output_ids, include_past=True):
+    def prepare_inputs(inputs, output_ids, include_past=True):
         if include_past is False:
             if len(inputs) == 1:
                 inputs = [output_ids[:, -1:]]
@@ -330,8 +351,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         # 使用cache
         if self.use_states:
-            token_ids = self.prepara_inputs(inputs, output_ids)[0]
-            inputs = self.prepara_inputs(inputs, output_ids, include_past=(states is None))
+            token_ids = self.prepare_inputs(inputs, output_ids)[0]
+            inputs = self.prepare_inputs(inputs, output_ids, include_past=(states is None))
             states = {'return_model_kwargs': True} if states is None else states
             # token_ids也返回下
             if self.step >= 1:
@@ -361,7 +382,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # 不使用cache
         elif not self.use_states:
-            inputs = self.prepara_inputs(inputs, output_ids, include_past=True)
+            inputs = self.prepare_inputs(inputs, output_ids, include_past=True)
             logits = self.decoder.predict(inputs)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return logits[:, -1, :]
@@ -412,7 +433,7 @@ class Seq2SeqGeneration(SeqGeneration):
         self.use_segment_ids = hasattr(self.encoder, 'segment_vocab_size') and (self.encoder.segment_vocab_size > 0)  # 是否使用segment_ids
 
     @staticmethod
-    def prepara_inputs(encoder_outputs, decoder_inputs, include_past=True):
+    def prepare_inputs(encoder_outputs, decoder_inputs, include_past=True):
         if include_past is False:
             # 这里未做判断，因为一般seq2seq模型都没有segment_ids
             inputs = [decoder_inputs[:, -1:]] + encoder_outputs

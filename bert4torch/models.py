@@ -347,7 +347,7 @@ class BERT_BASE(nn.Module):
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):
         '''增加adapter层
         '''
-        from .layers import add_adapter
+        from bert4torch.layers import add_adapter
         self = add_adapter(self, adapter_method, bottlenect_size)
         self.print_trainable_parameters()
         return self
