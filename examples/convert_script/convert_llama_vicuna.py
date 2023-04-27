@@ -29,7 +29,7 @@ prefix, state_dict, new_state_dict = 'llama', {}, {}
 
 for file in ckpt_files:
     ckpt_file = ckpt_dir + file
-    for k, v in torch.load(ckpt_file):
+    for k, v in torch.load(ckpt_file).items():
         state_dict[k] = v
 
 new_state_dict[f'{prefix}.embeddings.word_embeddings.weight'] = state_dict['model.embed_tokens.weight']
@@ -60,7 +60,7 @@ for i in range(num_hidden_layers):
     # layernorm2
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict['model.layers.{0}.post_attention_layernorm.weight'.format(i)]
 
-# torch.save(new_state_dict, output_ckpt_file)
+torch.save(new_state_dict, output_ckpt_file)
 
 # config文件
 '''
