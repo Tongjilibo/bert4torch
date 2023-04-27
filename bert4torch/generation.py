@@ -23,6 +23,7 @@ class AutoRegressiveDecoder(object):
         self.minlen = minlen
         self.models = {}
         self.device = device
+        self.use_batch = False
         if start_id is None:
             self.first_output_ids = torch.empty((1, 0), dtype=int, device=device)
         else:
@@ -83,23 +84,27 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def process_inputs(self, inputs_raw) -> list:
-        '''对输入进行处理
+    def __prepare_cur_inputs(self, inputs_raw) -> list:
+        '''对当前输入进行处理
+        return: list[tensor]
         '''
         # 传入的Tensor直接[]后返回
-        if isinstance(inputs_raw, torch.torch.Tensor):
+        if isinstance(inputs_raw, torch.Tensor):
+            self.input_seqlen = torch.ones(inputs_raw.shape[0]).to(self.device) * inputs_raw.shape[1]
             return [inputs_raw.to(self.device)]
         inputs = []
         for input_ in inputs_raw:
-            if isinstance(input_, torch.torch.Tensor):
+            if isinstance(input_, torch.Tensor):
                 pass
             elif isinstance(input_, (list, tuple, np.ndarray)):
                 # 单条样本为[1,2,3]格式，需转为[[1,2,3]]
-                input_ = input_ if all(isinstance(j, (tuple,list)) for j in input_) else [input_]
+                input_ = input_ if self.use_batch else [input_]
+                self.input_seqlen = torch.tensor([len(i) for i in input_]).to(self.device)
                 input_ = torch.tensor(sequence_padding(input_, value=self.pad_id), device=self.device)
             else:
                 raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_)
+        
         return inputs
 
     @staticmethod
@@ -135,7 +140,7 @@ class AutoRegressiveDecoder(object):
         :param min_ends:
         :return: 最优解码序列。
         """
-        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
+        inputs = self.__prepare_cur_inputs(inputs_raw)  # 对输入进行处理
         output_ids, output_scores = self.first_output_ids, torch.zeros(1, device=self.device)
         for step in range(self.maxlen):
             self.step = step
@@ -236,7 +241,7 @@ class AutoRegressiveDecoder(object):
         :param min_ends:
         :return: n个解码序列组成的list。
         """
-        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
+        inputs = self.__prepare_cur_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
@@ -258,7 +263,7 @@ class AutoRegressiveDecoder(object):
         """随机采样n个结果；stream输出
         """
         n = 1
-        inputs = self.process_inputs(inputs_raw)  # 对输入进行处理
+        inputs = self.__prepare_cur_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
@@ -298,16 +303,20 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_states = use_states
         self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
     
-    def concat_token_ids(self, token_ids, output_ids):
-        '''把非padding部分concat在一起
+    def __prepare_next_inputs(self, inputs, output_ids, include_past=True):
+        '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids
         '''
-        inputs = []
-        for token_ids_i, output_ids_i in zip(token_ids, output_ids):
-            pad_index = (token_ids_i != self.pad_id).sum()
-            inputs.append(torch.cat([token_ids_i[:pad_index], output_ids_i, token_ids_i[pad_index:]]))
-        return torch.stack(inputs)
+        def concat_token_ids(token_ids, output_ids):
+            '''把非padding部分concat在一起
+            '''
+            if not self.use_batch:
+                return torch.cat([token_ids, output_ids], 1)
+            
+            inputs = []
+            for seq_l, token_ids_i, output_ids_i in zip(self.input_seqlen, token_ids, output_ids):
+                inputs.append(torch.cat([token_ids_i[:seq_l], output_ids_i, token_ids_i[seq_l:]]))
+            return torch.stack(inputs)
 
-    def prepare_inputs(self, inputs, output_ids, include_past=True):
         if include_past is False:
             if len(inputs) == 1:
                 inputs = [output_ids[:, -1:]]
@@ -317,17 +326,25 @@ class SeqGeneration(AutoRegressiveDecoder):
                 inputs = [output_ids[:, -1:], curr_segment_ids]
         else:
             if len(inputs) == 1:
-                # token_ids = torch.cat([inputs[0], output_ids], 1)
-                token_ids = self.concat_token_ids(inputs[0], output_ids)
+                token_ids = concat_token_ids(inputs[0], output_ids)
                 inputs = [token_ids]
             elif len(inputs) >= 2:  # 第二个是segment_ids
                 token_ids, segment_ids = inputs
-                # token_ids = torch.cat([token_ids, output_ids], 1)
-                token_ids = self.concat_token_ids(inputs[0], output_ids)
+                token_ids = concat_token_ids(inputs[0], output_ids)
                 curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
                 segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
                 inputs = [token_ids, segment_ids]
         return inputs
+
+    def __get_last_token_logits(self, logits, output_ids):
+        '''获取最后一个token的logits
+        '''
+        if not self.use_batch:
+            return logits[:, -1, :]
+        else:
+            # 由于batch是padding过的，因此要找到padding前的位置
+            last_token_index = self.input_seqlen + output_ids.shape[1] - 1
+            return torch.stack([logit[index_, :] for index_, logit in zip(last_token_index, logits)])
 
     @AutoRegressiveDecoder.wraps()
     def predict(self, inputs, output_ids, states):
@@ -337,16 +354,16 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         # 使用cache
         if self.use_states:
-            token_ids = self.prepare_inputs(inputs, output_ids)[0]
-            inputs = self.prepare_inputs(inputs, output_ids, include_past=(states is None))
+            inputs = self.__prepare_next_inputs(inputs, output_ids, include_past=(states is None))
             states = {'return_model_kwargs': True} if states is None else states
-            # token_ids也返回下
+            # past_token_ids也返回下
             if self.step >= 1:
-                states['token_ids'] = token_ids
+                states['past_token_ids'] = self.__prepare_next_inputs(inputs, output_ids)[0]
             # attention_mask是根据token_ids生成的，因此这里重置下
             if states.get('input_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
                 attention_mask = states['input_attention_mask']
                 states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
+                del states['input_attention_mask']
             # position_ids也需要修改下
             if states.get('position_ids') is not None:
                 states['position_ids'] = states['position_ids'][:, -1:]+1
@@ -364,14 +381,16 @@ class SeqGeneration(AutoRegressiveDecoder):
                     raise ValueError("decoder output_ids and past_key_values's batch_size not same")
             logits, states = self.decoder.predict(inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
+            if self.step == 0:  # 第0步需要注意padding部分
+                return self.__get_last_token_logits(logits, output_ids), states
             return logits[:, -1, :], states
 
         # 不使用cache
         elif not self.use_states:
-            inputs = self.prepare_inputs(inputs, output_ids, include_past=True)
+            inputs = self.__prepare_next_inputs(inputs, output_ids, include_past=True)
             logits = self.decoder.predict(inputs)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
-            return logits[:, -1, :]
+            return self.__get_last_token_logits(logits, output_ids)
 
     def pre_process(self, text):
         # 前处理，可以按照自定义
@@ -397,7 +416,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         '''样本生成
         '''
         if isinstance(text, (tuple,list)):  # batch预测n要设置为1
+            self.use_batch = True
             n = 1
+        elif isinstance(text, str):
+            self.use_batch = False
+        else:
+            raise ValueError('Args `text` only support str/tuple/list format')
         inputs = self.pre_process(text)
         output_ids = self._generate(inputs, n, topk, topp, temperature)
         return self.post_process(output_ids)
@@ -419,7 +443,7 @@ class Seq2SeqGeneration(SeqGeneration):
         self.use_segment_ids = hasattr(self.encoder, 'segment_vocab_size') and (self.encoder.segment_vocab_size > 0)  # 是否使用segment_ids
 
     @staticmethod
-    def prepare_inputs(encoder_outputs, decoder_inputs, include_past=True):
+    def __prepare_next_inputs(encoder_outputs, decoder_inputs, include_past=True):
         if include_past is False:
             # 这里未做判断，因为一般seq2seq模型都没有segment_ids
             inputs = [decoder_inputs[:, -1:]] + encoder_outputs
@@ -430,9 +454,14 @@ class Seq2SeqGeneration(SeqGeneration):
             
     def generate(self, text, n=1, topk=None, topp=None, temperature=1):
         if isinstance(text, (tuple,list)):  # batch预测n要设置为1
+            self.use_batch = True
             n = 1
+        elif isinstance(text, str):
+            self.use_batch = False
+        else:
+            raise ValueError('Args `text` only support str/tuple/list format')
         inputs = self.pre_process(text)
-        inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
+        inputs = self.__prepare_cur_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         output_ids = super()._generate(encoder_output, n, topk, topp, temperature)
         return self.post_process(output_ids)
@@ -441,7 +470,7 @@ class Seq2SeqGeneration(SeqGeneration):
         '''stream输出t预测的结果
         '''
         inputs = self.pre_process(text)
-        inputs = self.process_inputs(inputs)  # 有时候需要list转tensor
+        inputs = self.__prepare_cur_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature):  # stream随机采样
             yield self.post_process(output_ids)

@@ -1762,7 +1762,7 @@ class GLM(LM_Mask, BERT):
     def prepare_inputs(self, *inputs, **model_kwargs):
         '''对attention_mask(参考unilm方式)和position_ids做处理
         '''
-        token_ids = model_kwargs['token_ids'] if model_kwargs.get('token_ids') is not None else inputs[0]
+        token_ids = model_kwargs['past_token_ids'] if model_kwargs.get('past_token_ids') is not None else inputs[0]
         mask_token = self.mask_token_id if self.mask_token_id in token_ids else self.gmask_token_id  # 倒数第2位
         use_gmask = False if self.mask_token_id in token_ids else True
         position_ids = model_kwargs['position_ids']
