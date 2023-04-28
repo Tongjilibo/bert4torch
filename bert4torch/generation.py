@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding
 
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
@@ -127,7 +127,7 @@ class AutoRegressiveDecoder(object):
                 input_new = torch.tensor(sequence_padding(input_, value=self.pad_id, mode=self.pad_mode), device=self.device)
 
                 # padding在右边则input_seqlen是真实的长度，左边则统一为最大程度
-                if self.pad_mode == 'post':
+                if self.pad_mode in {'post', 'right'}:
                     self.input_seqlen = torch.tensor([len(i) for i in input_]).to(self.device)
                 else:
                     max_len = input_new.shape[1]
@@ -168,8 +168,8 @@ class AutoRegressiveDecoder(object):
                     return output_ids[best]  # 直接输出
                 else:  # 否则，只保留未完成部分
                     flag = ~is_end | (end_counts < min_ends)  # 标记未完成序列
+                    self.flag = flag  # 记录未完成序列
                     if not flag.all():  # 如果有已完成的
-                        self.flag = flag  # 记录未完成序列
                         inputs = [i[flag] for i in inputs]  # 扔掉已完成序列
                         output_ids = output_ids[flag]  # 扔掉已完成序列
                         output_scores = output_scores[flag]  # 扔掉已完成序列
@@ -218,11 +218,11 @@ class AutoRegressiveDecoder(object):
         end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
         if output_ids.shape[1] >= self.minlen:  # 最短长度判断
             flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
+            self.flag = (flag == False)  # 记录未完成序列
             if flag.any():  # 如果有已完成的
                 for ids in output_ids[flag]:  # 存好已完成序列
                     results.append(ids)
                 flag = (flag == False)  # 标记未完成序列，True表示未完成
-                self.flag = flag  # 记录未完成序列
                 inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
                 output_ids = output_ids[flag]  # 只保留未完成部分候选集
                 end_counts = end_counts[flag]  # 只保留未完成部分end计数
@@ -358,37 +358,50 @@ class SeqGeneration(AutoRegressiveDecoder):
         if states is not None:
             assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
         
-        # 使用cache
+        # 使用cache, 输入只能padding在左侧
         if self.use_states:
             states = {'return_model_kwargs': True} if states is None else states
-            # 返回past_token_ids
+
+            # next_inputs：step=0时候输入全部，>=1时候输入last_token
+            next_inputs = self.__prepare_next_inputs(inputs, output_ids, include_past=self.step==0)
+
+            # past_token_ids: inputs+output_ids
             if self.step >= 1:
                 states['past_token_ids'] = self.__prepare_next_inputs(inputs, output_ids)[0]
-            # 准备输入：step=0时候输入全部，>=1时候输入last_token
-            next_inputs = self.__prepare_next_inputs(inputs, output_ids, include_past=self.step==0)
-            # attention_mask是根据token_ids生成的，因此这里重置下
+            
+            # position_ids: 在第0步如果padding在左侧，则需要自定义position_ids, >=1步则取last_token
+            if self.use_batch and (self.step==0) and (self.pad_mode in {'pre', 'left'}) :
+                # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
+                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_id, past_key_values_length=-1)
+            elif states.get('position_ids') is not None:
+                states['position_ids'] = states['position_ids'][:, -1:]+1
+
+            # attention_mask: 根据token_ids生成的，因此这里重置下
             if states.get('input_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
                 attention_mask = states['input_attention_mask']
                 states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
                 del states['input_attention_mask']
-            # position_ids也需要修改下
-            if states.get('position_ids') is not None:
-                states['position_ids'] = states['position_ids'][:, -1:]+1
-            # past_key_values和btz维度对不上
+
+            # past_key_values: 和btz维度对不上
             if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != output_ids.shape[0]:
                 btz = output_ids.shape[0]
                 if self.step == 1:  # beam_search在step=1时候btz=束宽
                     for l_i, past_key_value in enumerate(states['past_key_values']):
                         states['past_key_values'][l_i] = (past_key_value[0].repeat(btz, 1, 1, 1), past_key_value[1].repeat(btz, 1, 1, 1))
-                elif hasattr(self, 'flag'):  # 有的部分序列已经完成，仅保留未完成序列
-                    for l_i, past_key_value in enumerate(states['past_key_values']):
-                        states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
-                else:
-                    raise ValueError("decoder output_ids and past_key_values's batch_size not same")
+            
+            # 已经有序列完成
+            if hasattr(self, 'flag') and (self.flag is not None):
+                states['attention_mask'] = states['attention_mask'][self.flag]
+                if (len(states['position_ids']) > 1):
+                    states['position_ids'] = states['position_ids'][self.flag]
+                for l_i, past_key_value in enumerate(states['past_key_values']):
+                    states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
+                
             logits, states = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
-            if self.step == 0:  # 第0步需要注意padding部分
-                return self.__get_last_token_logits(logits, output_ids), states
+            # if self.step == 0:  # 第0步需要注意padding部分
+            #     return self.__get_last_token_logits(logits, output_ids), states
             return logits[:, -1, :], states
 
         # 不使用cache
@@ -435,17 +448,19 @@ class SeqGeneration(AutoRegressiveDecoder):
         # 参数设定
         assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
         self.use_batch = True
-        if self.use_states and (self.pad_mode=='post'):
-            self.use_states = False  # 动态修改闭包中的use_states
-            self.predict.set_use_states(False)
-            print("[WARNING] When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, we set `use_states`=False instead")
-        if self.use_states and (self.pad_mode=='pre'):
-            self.custom_position_ids = self.decoder.custom_position_ids
-            self.decoder.custom_position_ids = 'start_at_padding'
+        if self.use_states and (self.pad_mode in {'post', 'right'}):
+            self.pad_mode = 'pre'
+            print("[WARNING] When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
 
         # 主流程
         inputs = self.pre_process(text_list)
         output_ids = self._generate(inputs, 1, topk, topp, temperature)
+        output_ids = self._generate(inputs, 1, topk, topp, temperature)
+        
+        # 参数恢复
+        if hasattr(self, 'custom_position_ids'):
+            self.decoder.custom_position_ids = self.custom_position_ids
+        output_ids = self._generate(inputs, 1, topk, topp, temperature)        
         
         # 参数恢复
         if hasattr(self, 'custom_position_ids'):

@@ -11,7 +11,7 @@ import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
 from bert4torch.snippets import insert_arguments, delete_arguments, torch_div
-from bert4torch.snippets import take_along_dim, create_position_ids_from_input_ids, DottableDict
+from bert4torch.snippets import take_along_dim, create_position_ids_start_at_padding, DottableDict
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
@@ -527,7 +527,7 @@ class BERT(BERT_BASE):
             position_ids = inputs[index_]
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
-            position_ids = create_position_ids_from_input_ids(token_ids, self.token_pad_ids)
+            position_ids = create_position_ids_start_at_padding(token_ids, self.token_pad_ids)
         else:
             position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
         model_kwargs['position_ids'] = position_ids
