@@ -1744,7 +1744,8 @@ class GLM(LM_Mask, BERT):
     def get_position_ids(self, position_ids, seq_len, context_lens, mask_positions, device, gmask=False):
         '''不使用cache时候的postion_ids
         '''
-        position_ids = position_ids.repeat(len(context_lens), 1)
+        if position_ids.shape[0] == 1:
+            position_ids = position_ids.repeat(len(context_lens), 1)
         if self.position_encoding_2d:
             # 初始版本中这里也有not gmask
             for i, context_length in enumerate(context_lens):

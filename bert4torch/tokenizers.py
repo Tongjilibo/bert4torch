@@ -70,11 +70,11 @@ class TokenizerBase(object):
         pre_tokenize: 外部传入的分词函数，用作对文本进行预分词。如果传入pre_tokenize，则先执行pre_tokenize(text)，然后在它的基础上执行原本的tokenize函数；
         token_translate: 映射字典，主要用在tokenize之后，将某些特殊的token替换为对应的token。
         """
-        self._token_pad = token_pad
-        self._token_unk = token_unk
-        self._token_mask = token_mask
-        self._token_start = token_start
-        self._token_end = token_end
+        self._token_pad = self.pad_token = token_pad
+        self._token_unk = self.unk_token = token_unk
+        self._token_mask = self.mask_token = token_mask
+        self._token_start = self.start_token = token_start
+        self._token_end = self.end_token = token_end
         self.never_split = [i for i in [self._token_unk, self._token_end, self._token_pad, self._token_start, self._token_mask] if isinstance(i, str)]
         if add_special_tokens is not None:
             if isinstance(add_special_tokens, (tuple, list)):
@@ -240,17 +240,19 @@ class Tokenizer(TokenizerBase):
             self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case, never_split=self.never_split)
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self._token_dict, unk_token=self._token_unk, do_tokenize_unk=do_tokenize_unk)
         # 以下写在外面是方便有代码提示
-        self._token_pad_id = None
-        self._token_unk_id = None
-        self._token_mask_id = None
-        self._token_start_id = None
-        self._token_end_id = None
+        self._token_pad_id = self.pad_token_id = None
+        self._token_unk_id = self.unk_token_id = None
+        self._token_mask_id = self.mask_token_id = None
+        self._token_start_id = self.start_token_id = None
+        self._token_end_id = self.end_token_id = None
         for token in ['pad', 'unk', 'mask', 'start', 'end']:
             try:
                 _token_id = token_dict[getattr(self, '_token_%s' % token)]
                 setattr(self, '_token_%s_id' % token, _token_id)
+                setattr(self, '%s_token_id' % token, _token_id)
             except:
                 delattr(self, '_token_%s_id' % token)
+                delattr(self, '%s_token_id' % token)
 
     def _tokenize(self, text, pre_tokenize=True):
         """基本分词函数
@@ -666,18 +668,20 @@ class SpTokenizer(TokenizerBase):
         self.do_lower_case = do_lower_case
 
         # pad和unk肯定存在，改动是为了处理llama中pad_id是-1的情况
-        self._token_pad_id = self.sp_model.pad_id()
-        self._token_unk_id = self.sp_model.unk_id()
-        self._token_mask_id = None
-        self._token_start_id = None
-        self._token_end_id = None
+        self._token_pad_id = self.pad_token_id = self.sp_model.pad_id()
+        self._token_unk_id = self.unk_token_id = self.sp_model.unk_id()
+        self._token_mask_id = self.mask_token_id = None
+        self._token_start_id = self.start_token_id = None
+        self._token_end_id = self.end_token_id = None
         for token in ['mask', 'start', 'end']:
             try:
                 _token = getattr(self, '_token_%s' % token)
                 _token_id = self.sp_model.piece_to_id(_token)
                 setattr(self, '_token_%s_id' % token, _token_id)
+                setattr(self, '%s_token_id' % token, _token_id)
             except:
                 delattr(self, '_token_%s_id' % token)
+                delattr(self, '%s_token_id' % token)
 
     def preprocess_text(self, inputs):
         '''从transformers包的tokenization_xlnet移植过来，主要区别是对标点符号的处理

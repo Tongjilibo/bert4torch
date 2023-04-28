@@ -222,19 +222,19 @@ def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
         for x in inputs:
             x = x[slices]
             for i in range(seq_dims):
-                if mode == 'post':
+                if mode in {'post', 'right'}:
                     pad_width[i] = (0, length[i] - np.shape(x)[i])
-                elif mode == 'pre':
+                elif mode in {'pre', 'left'}:
                     pad_width[i] = (length[i] - np.shape(x)[i], 0)
                 else:
-                    raise ValueError('"mode" argument must be "post" or "pre".')
+                    raise ValueError('"mode" argument must be "post/right" or "pre/left".')
             x = np.pad(x, pad_width, 'constant', constant_values=value)
             outputs.append(x)
 
         return np.array(outputs)
     
     elif isinstance(inputs[0], torch.Tensor):
-        assert mode == 'post', '"mode" argument must be "post" when element is torch.Tensor'
+        assert mode in {'post', 'right'}, '"mode" argument must be "post/right" when element is torch.Tensor'
         if length is not None:
             inputs = [i[:length] for i in inputs]
         return pad_sequence(inputs, padding_value=value, batch_first=True)
