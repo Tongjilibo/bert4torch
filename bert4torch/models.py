@@ -509,11 +509,16 @@ class BERT(BERT_BASE):
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
         # ========================= token_ids =========================
-        token_ids = inputs[0]
-        index_ = 1
+        if model_kwargs.get('token_ids') is not None:
+            token_ids = model_kwargs['token_ids']
+        else:
+            token_ids = inputs[0]
+            index_ = 1
         
         # ========================= segment_ids =========================
-        if self.segment_vocab_size > 0:
+        if model_kwargs.get('segment_ids') is not None:
+            segment_ids = model_kwargs['segment_ids']
+        elif self.segment_vocab_size > 0:
             segment_ids = inputs[index_]
             index_ += 1
         else:
@@ -527,6 +532,7 @@ class BERT(BERT_BASE):
             position_ids = inputs[index_]
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
+            # 从padding位置开始
             position_ids = create_position_ids_start_at_padding(token_ids, self.token_pad_ids)
         else:
             position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
@@ -567,6 +573,8 @@ class BERT(BERT_BASE):
         # ========================= conditional layer_norm =========================
         if self.layer_norm_cond is None:
             conditional_emb = None
+        elif model_kwargs.get('layer_norm_ids') is not None:
+            conditional_emb = self.layer_norm_cond(model_kwargs['layer_norm_ids'])
         else:
             conditional_emb = self.layer_norm_cond(inputs[index_])
             index_ += 1

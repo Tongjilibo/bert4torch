@@ -66,7 +66,6 @@ elif version == 2:
     "num_attention_heads": 12, 
     "num_hidden_layers": 6, 
     "type_vocab_size": 0, 
-    "vocab_size": 51271,
-    ""
+    "vocab_size": 51271
   }
   '''

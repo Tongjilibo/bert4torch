@@ -515,13 +515,13 @@ def parallel_apply(func, iterable, workers, max_queue_size, callback=None, dummy
             callback(d)
 
 
-def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values_length=0):
+def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values_length=0, start_padding_idx=True):
     """生成padding_ids, 从padding_idx+1开始。忽略填充符号
     """
     # The series of casts and type-conversions here are carefully balanced to both work with ONNX export and XLA.
     mask = input_ids.ne(padding_idx).int()
-    incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask
-    return incremental_indices.long() + padding_idx
+    incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
+    return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 
 class DottableDict(dict):
