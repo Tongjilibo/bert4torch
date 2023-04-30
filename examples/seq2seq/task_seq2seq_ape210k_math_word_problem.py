@@ -161,7 +161,7 @@ class AutoSolve(AutoRegressiveDecoder):
 
     def generate(self, text, topk=1):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        output_ids = self.beam_search([token_ids, segment_ids], topk=topk)  # 基于beam search
+        output_ids = self.beam_search([token_ids, segment_ids], topk=topk)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy()).replace(' ', '')
 
 

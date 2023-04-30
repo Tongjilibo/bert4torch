@@ -119,7 +119,7 @@ class AutoTitle(AutoRegressiveDecoder):
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
         # 基于beam search
-        output_ids = self.beam_search(encoder_output, topk=topk)
+        output_ids = self.beam_search(encoder_output, topk=topk)[0]
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 
 

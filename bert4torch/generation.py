@@ -114,6 +114,38 @@ class AutoRegressiveDecoder(object):
             inputs.append(input_new)
         return inputs
 
+    def __beam_search_step(self, step, inputs, output_ids, output_scores, topk, states, temperature):
+        self.step = step
+        scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
+        if step == 0:  # 第1步预测后将输入重复topk次
+            inputs = [i.repeat([topk]+[1]*(len(i.shape)-1)) for i in inputs]
+        scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
+        indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
+        indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
+        indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
+        output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
+        output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分
+        return inputs, output_ids, output_scores, states
+
+    def __beam_search_end(self, inputs, output_ids, output_scores, topk, min_ends):
+        break_tag = False
+        is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
+        end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        flag = ~is_end | (end_counts < min_ends)  # 标记未完成序列
+        self.flag = flag  # 记录未完成序列
+        if output_ids.shape[1] >= self.minlen:  # 最短长度判断
+            best = output_scores.argmax()  # 得分最大的那个
+            if is_end[best] and end_counts[best] >= min_ends:  # 如果已经终止
+                break_tag = True
+            else:  # 否则，只保留未完成部分
+                if not flag.all():  # 如果有已完成的
+                    inputs = [i[flag] for i in inputs]  # 扔掉已完成序列
+                    output_ids = output_ids[flag]  # 扔掉已完成序列
+                    output_scores = output_scores[flag]  # 扔掉已完成序列
+                    end_counts = end_counts[flag]  # 扔掉已完成end计数
+                    topk = flag.sum()  # topk相应变化
+        return inputs, output_ids, output_scores, topk, break_tag
+
     def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1):
         """beam search解码
         
@@ -131,35 +163,32 @@ class AutoRegressiveDecoder(object):
         output_scores = torch.zeros(btz, device=self.device)
 
         for step in range(self.maxlen):
-            self.step = step
-            scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
-            if step == 0:  # 第1步预测后将输入重复topk次
-                inputs = [i.repeat([topk]+[1]*(len(i.shape)-1)) for i in inputs]
-            scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
-            indices = scores.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
-            indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
-            indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
-            output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
-            output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分
-            is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
-            end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
-            if output_ids.shape[1] >= self.minlen:  # 最短长度判断
-                best = output_scores.argmax()  # 得分最大的那个
-                if is_end[best] and end_counts[best] >= min_ends:  # 如果已经终止
-                    return output_ids[best]  # 直接输出
-                else:  # 否则，只保留未完成部分
-                    flag = ~is_end | (end_counts < min_ends)  # 标记未完成序列
-                    self.flag = flag  # 记录未完成序列
-                    if not flag.all():  # 如果有已完成的
-                        inputs = [i[flag] for i in inputs]  # 扔掉已完成序列
-                        output_ids = output_ids[flag]  # 扔掉已完成序列
-                        output_scores = output_scores[flag]  # 扔掉已完成序列
-                        end_counts = end_counts[flag]  # 扔掉已完成end计数
-                        topk = flag.sum()  # topk相应变化
+            inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
+            inputs, output_ids, output_scores, topk, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, topk, min_ends)
+            if break_tag:
+                break 
+            
         # 达到长度直接输出
         self.flag = None
-        return output_ids[output_scores.argmax()]
-    
+        return [output_ids[output_scores.argmax()]]
+
+    def stream_beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1):
+        assert topk is not None, 'Arg `topk` means beam_size anc can not be None'
+        inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
+        btz = inputs[0].shape[0]
+        output_ids = self.first_output_ids.repeat(btz, 1)
+        output_scores = torch.zeros(btz, device=self.device)
+
+        for step in range(self.maxlen):
+            inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
+            yield [output_ids[output_scores.argmax()]]
+            inputs, output_ids, output_scores, topk, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, topk, min_ends)
+            if break_tag:
+                break 
+            
+        # 达到长度直接输出
+        self.flag = None
+
     def __random_sample_step(self, step, n, inputs, output_ids, states, temperature, topk, topp):
         '''为了random_sample和stream_random_sample共用，抽离出来的单步逻辑
         '''
@@ -197,9 +226,9 @@ class AutoRegressiveDecoder(object):
         break_tag = False
         is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
         end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
+        self.flag = (flag == False)  # 记录未完成序列
         if output_ids.shape[1] >= self.minlen:  # 最短长度判断
-            flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
-            self.flag = (flag == False)  # 记录未完成序列
             if flag.any():  # 如果有已完成的
                 for ids in output_ids[flag]:  # 存好已完成序列
                     results.append(ids)
@@ -366,7 +395,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
             # shape和size不一致: step=1时候，beam_search的btz=束宽，random_sample在n>1时候=n
             if self.step == 1:
-                btz = output_ids.shape[0]
+                btz = len(self.flag)
                 if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
                     for l_i, past_key_value in enumerate(states['past_key_values']):
                         states['past_key_values'][l_i] = (past_key_value[0].repeat(btz, 1, 1, 1), past_key_value[1].repeat(btz, 1, 1, 1))
@@ -413,23 +442,23 @@ class SeqGeneration(AutoRegressiveDecoder):
             return self.tokenizer.decode(output_ids[0].cpu().numpy())
         return output_ids
 
-    def _generate(self, inputs, n, topk, topp, temperature):
+    def _generate(self, inputs, n, topk, topp, temperature, min_ends):
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
+            output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends)  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = [self.beam_search(inputs, topk=topk)]  # 基于beam search
+            output_ids = self.beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends)  # 基于beam search
         return output_ids
 
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1):
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1, min_ends=1):
         '''单条样本生成
         '''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
-        output_ids = self._generate(inputs, n, topk, topp, temperature)
+        output_ids = self._generate(inputs, n, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, topk=None, topp=None, temperature=1):
+    def batch_generate(self, text_list, topk=None, topp=None, temperature=1, min_ends=1):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对
         '''
         # 参数设定
@@ -441,17 +470,21 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # 主流程
         inputs = self.pre_process(text_list)
-        output_ids = self._generate(inputs, 1, topk, topp, temperature)
+        output_ids = self._generate(inputs, 1, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text:str, topk=None, topp=None, temperature=1):
+    def stream_generate(self, text:str, topk=None, topp=None, temperature=1, min_ends=1):
         '''单条样本stream输出预测的结果
         '''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
-        for output_ids in  self.stream_random_sample(inputs, topk=topk, topp=topp, temperature=temperature):  # stream随机采样
-            yield self.post_process(output_ids)
+        if self.mode == 'random_sample':
+            for output_ids in  self.stream_random_sample(inputs, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends):  # stream随机采样
+                yield self.post_process(output_ids)
+        elif self.mode == 'beam_search':
+            for output_ids in  self.stream_beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends):  # stream随机采样
+                yield self.post_process(output_ids)
 
 
 class Seq2SeqGeneration(SeqGeneration):
@@ -472,16 +505,16 @@ class Seq2SeqGeneration(SeqGeneration):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         return inputs
             
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1):
+    def generate(self, text, n=1, topk=None, topp=None, temperature=1, min_ends=1):
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output, n, topk, topp, temperature)
+        output_ids = super()._generate(encoder_output, n, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, topk=None, topp=None, temperature=1):
+    def batch_generate(self, text_list, topk=None, topp=None, temperature=1, min_ends=1):
         '''batch样本生成
         '''
         # 参数设定
@@ -490,10 +523,10 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text_list)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output, 1, topk, topp, temperature)
+        output_ids = super()._generate(encoder_output, 1, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text, topk=None, topp=None, temperature=1):
+    def stream_generate(self, text, topk=None, topp=None, temperature=1, min_ends=1):
         '''stream输出t预测的结果
         '''
         assert isinstance(text, str), 'Arg `text` must be str format'
@@ -501,5 +534,5 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature):  # stream随机采样
+        for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends):  # stream随机采样
             yield self.post_process(output_ids)

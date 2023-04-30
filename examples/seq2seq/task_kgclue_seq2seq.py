@@ -254,7 +254,7 @@ class AutoQA(AutoRegressiveDecoder):
 
     def generate(self, text, topk=1):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        output_ids = self.beam_search([token_ids, segment_ids], topk=topk, min_ends=3)  # 基于beam search
+        output_ids = self.beam_search([token_ids, segment_ids], topk=topk, min_ends=3)[0]  # 基于beam search
         end_idxs = [i for i, j in enumerate(output_ids) if j == self.end_id]
         subject_ids = output_ids[:end_idxs[0]]
         predicate_ids = output_ids[end_idxs[0]:end_idxs[1]]

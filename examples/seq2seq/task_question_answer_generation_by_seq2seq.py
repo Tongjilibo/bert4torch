@@ -147,7 +147,7 @@ class QuestionAnswerGeneration(AutoRegressiveDecoder):
         a_ids = self.random_sample([token_ids, segment_ids], 1, topp=topp)[0]  # 基于随机采样
         token_ids += list(a_ids)
         segment_ids += [1] * len(a_ids)
-        q_ids = self.beam_search([token_ids, segment_ids], topk=topk)  # 基于beam search
+        q_ids = self.beam_search([token_ids, segment_ids], topk=topk)[0]  # 基于beam search
         return (tokenizer.decode(q_ids.cpu().numpy()), tokenizer.decode(a_ids.cpu().numpy()))
 
 

@@ -44,7 +44,7 @@ class AutoTitle(AutoRegressiveDecoder):
         token_ids, _ = tokenizer.encode(text, maxlen=256)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
-        output_ids = self.beam_search(encoder_output, topk=topk)  # 基于beam search
+        output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
 

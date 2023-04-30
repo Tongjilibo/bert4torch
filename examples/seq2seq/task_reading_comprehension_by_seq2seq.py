@@ -213,7 +213,7 @@ class ReadingComprehension(AutoRegressiveDecoder):
             p_token_ids = tokenizer.encode(passage, maxlen=max_p_len)[0]
             q_token_ids = tokenizer.encode(question, maxlen=max_q_len + 1)[0]
             token_ids.append(p_token_ids + q_token_ids[1:])
-        output_ids = self.beam_search(token_ids, topk=topk, states=0)  # 基于beam search
+        output_ids = self.beam_search(token_ids, topk=topk, states=0)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
 
