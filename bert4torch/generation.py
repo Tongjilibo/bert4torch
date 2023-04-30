@@ -96,6 +96,7 @@ class AutoRegressiveDecoder(object):
             return [inputs_raw.to(self.device)]
         inputs = []
         for input_ in inputs_raw:
+            # encoder-decoder传入的encoder_hidden_states和encoder_attention_mask
             if isinstance(input_, torch.Tensor):
                 input_new = input_
             elif isinstance(input_, (list, tuple, np.ndarray)):
@@ -146,10 +147,10 @@ class AutoRegressiveDecoder(object):
                     topk = flag.sum()  # topk相应变化
         return inputs, output_ids, output_scores, topk, break_tag
 
-    def beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1):
+    def beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
         """beam search解码
         
-        :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
+        :param inputs: 编码器的输入，包含encoder_hidden_states, encoder_attention_mask
         :param topk: int, 这里的topk即beam size
         :param states:
         :param temperature: 温度参数，默认为1
@@ -157,7 +158,6 @@ class AutoRegressiveDecoder(object):
         :return: 最优解码序列。
         """
         assert topk is not None, 'Arg `topk` means beam_size anc can not be None'
-        inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
@@ -172,9 +172,8 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return [output_ids[output_scores.argmax()]]
 
-    def stream_beam_search(self, inputs_raw, topk, states=None, temperature=1, min_ends=1):
+    def stream_beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
         assert topk is not None, 'Arg `topk` means beam_size anc can not be None'
-        inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
@@ -503,6 +502,7 @@ class Seq2SeqGeneration(SeqGeneration):
         else:
             inputs = [decoder_inputs] + encoder_outputs
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
+        self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
             
     def generate(self, text, n=1, topk=None, topp=None, temperature=1, min_ends=1):
