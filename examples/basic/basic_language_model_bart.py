@@ -52,24 +52,24 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
-# print('==============自定义单条样本================')
-# autotitle = AutoTitle(start_id=102, end_id=tokenizer._token_end_id, maxlen=32, device=device)
-# for text in texts:
-#     print(text, ' -> ', autotitle.generate(text, topk=topk))
+print('==============自定义单条样本================')
+autotitle = AutoTitle(start_id=102, end_id=tokenizer._token_end_id, maxlen=32, device=device)
+for text in texts:
+    print(text, ' -> ', autotitle.generate(text, topk=topk))
 
 
-# print('==============默认单条无cache================')
-# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
-#                               maxlen=32, default_rtype='logits', use_states=False)
-# for text in texts:
-#     print(text, ' -> ', autotitle.generate(text, topk=topk))
+print('==============默认单条无cache================')
+autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
+                              maxlen=32, default_rtype='logits', use_states=False)
+for text in texts:
+    print(text, ' -> ', autotitle.generate(text, topk=topk))
 
 
-# print('==============默认单条cache================')
-# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
-#                               maxlen=32, default_rtype='logits', use_states=True)
-# for text in texts:
-#     print(text, ' -> ', autotitle.generate(text, topk=topk))
+print('==============默认单条cache================')
+autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
+                              maxlen=32, default_rtype='logits', use_states=True)
+for text in texts:
+    print(text, ' -> ', autotitle.generate(text, topk=topk))
 
 
 print('==============默认batch 无cache================')
@@ -80,18 +80,18 @@ for text, result in zip(texts, results):
     print(text, ' -> ', result)
 
 
-# print('==============默认batch cache================')
-# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
-#                               maxlen=32, default_rtype='logits', use_states=True)
-# results = autotitle.batch_generate(texts, topk=topk)
-# for text, result in zip(texts, results):
-#     print(text, ' -> ', result)
+print('==============默认batch cache================')
+autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
+                              maxlen=32, default_rtype='logits', use_states=True)
+results = autotitle.batch_generate(texts, topk=topk)
+for text, result in zip(texts, results):
+    print(text, ' -> ', result)
 
 
-# print('==============默认stream================')
-# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
-#                               maxlen=32, default_rtype='logits', use_states=True)
-# text = texts[0]
-# for output in autotitle.stream_generate(text, topk=topk):
-#     os.system('clear')
-#     print(text, ' -> ', output, flush=True)
+print('==============默认stream================')
+autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode='beam_search',
+                              maxlen=32, default_rtype='logits', use_states=True)
+text = texts[0]
+for output in autotitle.stream_generate(text, topk=topk):
+    os.system('clear')
+    print(text, ' -> ', output, flush=True)
