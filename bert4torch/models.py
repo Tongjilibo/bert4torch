@@ -327,7 +327,7 @@ class BERT_BASE(nn.Module):
         else:
             self.output = outputs[0]
 
-    def quantize(self, bits: int, empty_init=False, **kwargs):
+    def quantize(self, bits: int, empty_init=False, target_modules=None, **kwargs):
         '''量化
         '''
         if bits == 0:
@@ -341,7 +341,7 @@ class BERT_BASE(nn.Module):
 
         self.quantized = True
         self.quantization_bit = bits
-        self = quantize(self, bits, empty_init=empty_init, **kwargs)
+        self = quantize(self, bits, empty_init=empty_init, target_modules=target_modules, **kwargs)
         return self
 
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):

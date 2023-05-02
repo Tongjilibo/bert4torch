@@ -151,14 +151,23 @@ class QuantizedLinear(Linear):
         return output
 
 
-def quantize(model, weight_bit_width, empty_init=False, **kwargs):
+def quantize(model, weight_bit_width, empty_init=False, target_modules=None, **kwargs):
     """Replace fp16 linear with quantized linear
     这里修改了hard code, 可以适配其他模型
+    target_modules: str/list, 指定对某些层做量化
     """
     modules_trans = {}
     for name, module in model.named_modules():
-        if isinstance(module, Linear):
+        # target_modules=None, 表示对所有Linear层替换
+        if (target_modules is None) and isinstance(module, Linear):
             modules_trans[name] = module
+        elif (target_modules is not None) and isinstance(module, Linear):
+            if isinstance(target_modules, str):
+                target_module_found = re.fullmatch(target_modules, name)
+            else:
+                target_module_found = any(name.endswith(target_key) for target_key in target_modules)
+            if target_module_found:
+                modules_trans[name] = module
     
     for name, module in tqdm(modules_trans.items(), desc='Quantize linear layers'):
         module = QuantizedLinear(

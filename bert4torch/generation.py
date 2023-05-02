@@ -481,14 +481,20 @@ class SeqGeneration(AutoRegressiveDecoder):
                 states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
                 del states['input_attention_mask']
 
-            # shape和size不一致: step=1时候，beam_search的btz=束宽，random_sample在n>1时候=n
+            # shape和size不一致: step=1时候，beam_search的btz=束宽
             if self.step == 1:
                 btz = len(self.flag)
                 if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
+                    repeat_size = btz // states['past_key_values'][0][0].shape[0]
                     for l_i, past_key_value in enumerate(states['past_key_values']):
-                        states['past_key_values'][l_i] = (past_key_value[0].repeat(btz, 1, 1, 1), past_key_value[1].repeat(btz, 1, 1, 1))
+                        states['past_key_values'][l_i] = (past_key_value[0].repeat(repeat_size, 1, 1, 1), past_key_value[1].repeat(repeat_size, 1, 1, 1))
+                if (states.get('cross_past_key_values') is not None) and states['cross_past_key_values'][0][0].shape[0] != btz:
+                    repeat_size = btz // states['cross_past_key_values'][0][0].shape[0]
+                    for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
+                        states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat(repeat_size, 1, 1, 1), cross_past_key_value[1].repeat(repeat_size, 1, 1, 1))
                 if (states.get('attention_mask') is not None) and states['attention_mask'].shape[0] != btz:
-                    states['attention_mask'] = states['attention_mask'].repeat(btz, 1)
+                    repeat_size = btz // states['attention_mask'].shape[0]
+                    states['attention_mask'] = states['attention_mask'].repeat(repeat_size, 1)
 
             # 已经有序列完成，仅保留未完成序列
             if hasattr(self, 'flag') and (self.flag is not None):
@@ -497,7 +503,9 @@ class SeqGeneration(AutoRegressiveDecoder):
                     states['position_ids'] = states['position_ids'][self.flag]
                 for l_i, past_key_value in enumerate(states['past_key_values']):
                     states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
-                
+                for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
+                    states['cross_past_key_values'][l_i] = (cross_past_key_value[0][self.flag], cross_past_key_value[1][self.flag])
+
             logits, states = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return logits[:, -1, :], states
