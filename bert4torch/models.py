@@ -74,34 +74,14 @@ class BERT_BASE(nn.Module):
         self.gradient_checkpoint = gradient_checkpoint
         self.quantized = False
 
-    def build(
-        self,
-        attention_caches=None,
-        layer_norm_cond=None,
-        layer_norm_cond_hidden_size=None,
-        layer_norm_cond_hidden_act=None,
-        additional_input_layers=None,
-        **kwargs
-    ):
+    def build(self, attention_caches=None, **kwargs):
         """模型构建函数
 
         :param attention_caches: 为Attention的K,V的缓存序列字典，格式为{Attention层名: [K缓存, V缓存]}；
         :param layer_norm_*: 实现Conditional Layer Normalization时使用，用来实现以“固定长度向量”为条件的条件Bert，暂未使用
         """
-        # additional_input
-        # if additional_input_layers is not None:
-        #     if not isinstance(additional_input_layers, list):
-        #         self.additional_input_layers = [additional_input_layers]
-        #     else:
-        #         self.additional_input_layers = additional_input_layers
-
         # Other
         self.attention_caches = attention_caches or {}
-        # self.layer_norm_conds = [
-        #     layer_norm_cond,
-        #     layer_norm_cond_hidden_size,
-        #     layer_norm_cond_hidden_act or 'linear',
-        # ]
         self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
         self.skip_init = kwargs['skip_init']
 
@@ -450,7 +430,7 @@ class BERT(BERT_BASE):
             custom_attention_mask=False, # 是否自行传入attention_mask
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
             layer_norm_cond=None,  # conditional layer_norm
-            layer_add_embs=None, # addtional_embeddng, 比如加入词性，音调，word粒度的自定义embedding
+            additional_embs=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout=False,
             token_pad_ids=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             **kwargs  # 其余参数
@@ -469,7 +449,7 @@ class BERT(BERT_BASE):
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
         self.layer_norm_cond = layer_norm_cond
-        self.layer_add_embs = layer_add_embs
+        self.additional_embs = additional_embs
         self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
         self.embeddings = BertEmbeddings(**self.get_kw('vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
                                                        'shared_segment_embeddings', 'dropout_rate', 'conditional_size', **kwargs))
@@ -581,17 +561,15 @@ class BERT(BERT_BASE):
 
         # ========================= addtional_embeddng =========================
         # 比如加入词性，音调，word粒度的自定义embedding
-        if isinstance(self.layer_add_embs, nn.Module):  # 单个
-            additional_embs = [self.layer_add_embs(inputs[index_])]
+        if model_kwargs.get('additional_embs') is not None:
+            additional_embs = model_kwargs['additional_embs']
+        elif self.additional_embs is True:
+            additional_embs = inputs[index_]
             index_ += 1
-        elif isinstance(self.layer_add_embs, (tuple, list)):  # 多个
-            additional_embs = []
-            for layer in self.layer_add_embs:
-                assert isinstance(layer, nn.Module), 'Layer_add_embs element should be nn.Module'
-                additional_embs.append(layer(inputs[index_]))
-                index_ += 1
         else:
             additional_embs = None
+        additional_embs = [additional_embs] if isinstance(additional_embs, torch.Tensor) else additional_embs
+        assert (additional_embs is None) or isinstance(additional_embs, (tuple, list))
 
         # 进入embedding层
         hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
@@ -2101,7 +2079,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     :param with_nsp: bool, 是否包含NSP部分, 默认为False
     :param with_mlm: bool, 是否包含MLM部分, 默认为False
     :param output_all_encoded_layers: bool, 是否返回所有hidden_state层, 默认为False
-    :param layer_add_embs: nn.Module, 自定义额外的embedding输入, 如nn.Embedding(2, 768)
+    :param additional_embs: bool, 是否有额外的embedding输入
     :param keep_tokens: list[int], 精简词表, 保留的id的序号如：[0, 100, 101, 102, 106, 107, ...]
     :param token_pad_ids: int, 默认为0, 部分模型padding不是0时在这里指定, 用于attention_mask生成, 如设置成-100
     :param custom_position_ids: bool, 是否自行传入位置id, True表示传入, False表示不传入, 'start_at_padding'表示从padding_idx+1开始, 默认为False

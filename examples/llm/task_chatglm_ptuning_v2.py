@@ -25,6 +25,7 @@ max_source_length = 64
 max_target_length = 64
 lr = 2e-2
 batch_size = 1
+eval_batch_size = 4
 grad_accumulation_steps = 16
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
@@ -67,7 +68,7 @@ def build_prompt(query, history):
         prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
     return prompt
 
-def collate_fn(batch):
+def collate_train_fn(batch):
     batch_token_ids, batch_labels = [], []
     for query, answer, history in batch:
         prompt = build_prompt(query, history)
@@ -92,8 +93,15 @@ def collate_fn(batch):
     batch_labels = torch.tensor(sequence_padding(batch_labels, value=-100), dtype=torch.long, device=device)
     return [batch_token_ids], batch_labels
 
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-dev_dataset = MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json')
+def collate_dev_fn(batch):
+    batch_prompt, batch_labels = [], []
+    for query, labels, history in batch:
+        batch_prompt.append(build_prompt(query, history))
+        batch_labels.append(labels)
+    return batch_prompt, batch_labels
+
+train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 class PrefixEncoder(torch.nn.Module):
     """
@@ -190,7 +198,7 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        score_dict = self.evaluate(dev_dataset.data)
+        score_dict = self.evaluate(dev_dataloader)
         # 保存最优
         if score_dict['bleu-4'] > self.best:
             self.best = score_dict['bleu-4']
@@ -200,11 +208,10 @@ class Evaluator(Callback):
     
     def evaluate(self, data):
         preds, labels = [], []
-        for query, label, history in tqdm(data, desc='Evaluating'):
-            prompt = build_prompt(query, history)
-            pred = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
-            preds.append(pred)
-            labels.append(label)
+        for prompt, label in tqdm(data, desc='Evaluating'):
+            pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
+            preds.extend(pred)
+            labels.extend(label)
 
         score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
         for pred, label in zip(preds, labels):

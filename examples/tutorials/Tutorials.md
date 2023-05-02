@@ -127,7 +127,6 @@ build_transformer_model(
     with_mlm=False,  # 是否包含MLM部分
     return_model_config=False,  # 是否返回模型配置参数
     output_all_encoded_layers=False,  # 是否返回所有hidden_state层
-    layer_add_embs=nn.Embedding(2, 768),  # 自定义额外的embedding输入
 )
 ```
 

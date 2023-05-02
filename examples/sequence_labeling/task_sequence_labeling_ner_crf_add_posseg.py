@@ -107,14 +107,15 @@ valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/ner/china-peopl
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        layer_add_embs = nn.Embedding(len(psg_map)+1, 768)
+        self.psg_emb = nn.Embedding(len(psg_map)+1, 768)
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0, 
-                                            layer_add_embs=layer_add_embs)
+                                            additional_embs=True)
         self.fc = nn.Linear(768, len(categories))
         self.crf = CRF(len(categories))
 
     def forward(self, token_ids, psg_ids):
-        sequence_output = self.bert([token_ids, psg_ids])  # [btz, seq_len, hdsz]
+        psg_emb = self.psg_emb(psg_ids)  # 词性的embedding
+        sequence_output = self.bert([token_ids, psg_emb])  # [btz, seq_len, hdsz]
         emission_score = self.fc(sequence_output)  # [bts, seq_len, tag_size]
         attention_mask = token_ids.gt(0)
         return emission_score, attention_mask
