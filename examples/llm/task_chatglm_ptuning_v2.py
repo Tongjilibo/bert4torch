@@ -34,6 +34,7 @@ prefix = ''
 prompt_column = 'content'
 response_column = 'summary'
 history_column = None
+use_states = True
 
 # 模型配置
 dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
@@ -97,7 +98,7 @@ def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
     for query, labels, history in batch:
         batch_prompt.append(build_prompt(query, history))
-        batch_labels.append(labels)
+        batch_labels.append(labels[:max_target_length])
     return batch_prompt, batch_labels
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
@@ -135,7 +136,8 @@ class PrefixEncoder(torch.nn.Module):
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
+                                               token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False
@@ -145,7 +147,7 @@ class Model(BaseModel):
         self.prefix_encoder = PrefixEncoder(self.config)
         self.dropout = torch.nn.Dropout(0.1)
 
-    def forward(self, token_ids):
+    def get_past_key_values(self, token_ids):
         batch_size = token_ids.shape[0]
         prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(token_ids.device)
         past_key_values = self.prefix_encoder(prefix_tokens).type(torch.float16)
@@ -160,9 +162,30 @@ class Model(BaseModel):
         past_key_values = self.dropout(past_key_values)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         past_key_values = [(v[0], v[1]) for v in past_key_values]
-
+        return past_key_values
+    
+    def forward(self, token_ids):
+        past_key_values = self.get_past_key_values(token_ids)
         logits = self.encoder([token_ids], past_key_values=past_key_values)
         return logits
+    
+    @torch.no_grad()
+    def predict(self, inputs, **inputs_kwargs):
+        self.eval()
+        token_ids = inputs[0]
+        past_key_values = self.get_past_key_values(token_ids)
+        if inputs_kwargs.get('past_key_values', None) is not None:
+            past_key_values_new = []
+            for i, (key, value) in enumerate(inputs_kwargs['past_key_values']):
+                key = torch.cat([past_key_values[i][0], key], dim=2)
+                value = torch.cat([past_key_values[i][1], value], dim=2)
+                past_key_values_new.append((key, value))
+            inputs_kwargs['past_key_values'] = past_key_values_new
+        else:
+            inputs_kwargs['past_key_values'] = past_key_values
+        return self.encoder([token_ids],  **inputs_kwargs)
+    
+
 model = Model().to(device)
 print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
@@ -185,11 +208,11 @@ model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(mod
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
-        return [tokenizer.encode(text)]
+        return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
     def post_process(self, output_ids):
-        return tokenizer.decode(output_ids[0].cpu().numpy())
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=512, default_rtype='logits', use_states=False)
+        return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
+generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], pad_id=tokenizer.pad_token_id, 
+                  mode='random_sample', maxlen=max_target_length, default_rtype='logits', use_states=use_states)
 
 class Evaluator(Callback):
     """评估与保存

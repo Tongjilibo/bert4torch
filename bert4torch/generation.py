@@ -544,8 +544,9 @@ class SeqGeneration(AutoRegressiveDecoder):
             position_ids = None
             if self.pad_mode in {'pre', 'left'}:
                 position_ids = create_position_ids_start_at_padding(next_inputs[0], self.pad_id, past_key_values_length=-1, start_padding_idx=False)
-            
-            logits = self.decoder.predict(next_inputs, position_ids=position_ids)
+                logits = self.decoder.predict(next_inputs, position_ids=position_ids)
+            else:
+                logits = self.decoder.predict(next_inputs)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)
 

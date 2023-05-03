@@ -429,7 +429,7 @@ class BERT(BERT_BASE):
             custom_position_ids=False,  # 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
             custom_attention_mask=False, # 是否自行传入attention_mask
             shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
-            layer_norm_cond=None,  # conditional layer_norm
+            conditional_size=None,  # conditional layer_norm
             additional_embs=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout=False,
             token_pad_ids=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
@@ -448,9 +448,8 @@ class BERT(BERT_BASE):
         self.token_pad_ids = token_pad_ids
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
-        self.layer_norm_cond = layer_norm_cond
         self.additional_embs = additional_embs
-        self.conditional_size = layer_norm_cond.weight.size(1) if layer_norm_cond is not None else None
+        self.conditional_size = conditional_size
         self.embeddings = BertEmbeddings(**self.get_kw('vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
                                                        'shared_segment_embeddings', 'dropout_rate', 'conditional_size', **kwargs))
         layer = BertLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
@@ -551,13 +550,13 @@ class BERT(BERT_BASE):
             attention_mask = attention_mask.to(dtype=torch.float32)
         
         # ========================= conditional layer_norm =========================
-        if self.layer_norm_cond is None:
-            conditional_emb = None
-        elif model_kwargs.get('layer_norm_ids') is not None:
-            conditional_emb = self.layer_norm_cond(model_kwargs['layer_norm_ids'])
-        else:
-            conditional_emb = self.layer_norm_cond(inputs[index_])
+        if model_kwargs.get('conditional_emb') is not None:
+            conditional_emb = model_kwargs['layer_norm_ids']
+        elif self.conditional_size is not None:
+            conditional_emb = inputs[index_]
             index_ += 1
+        else:
+            conditional_emb = None
 
         # ========================= addtional_embeddng =========================
         # 比如加入词性，音调，word粒度的自定义embedding
@@ -2085,7 +2084,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     :param custom_position_ids: bool, 是否自行传入位置id, True表示传入, False表示不传入, 'start_at_padding'表示从padding_idx+1开始, 默认为False
     :param custom_attention_mask: bool, 是否自行传入attention_mask, 默认为False
     :param shared_segment_embeddings: bool, 若True, 则segment跟token共用embedding, 默认为False
-    :param layer_norm_cond: conditional layer_norm, 默认为None
+    :param conditional_size: conditional layer_norm, 默认为None
     :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
     :param compound_tokens: 扩展Embedding, 默认为None
     :param residual_attention_scores: bool, Attention矩阵加残差, 默认为False

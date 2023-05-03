@@ -114,7 +114,7 @@ peft_config = LoraConfig(
         target_modules=['q', 'k', 'v']
     )
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', num_hidden_layers=1,
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
                                 token_pad_ids=tokenizer.pad_token_id, add_trainer=True).get_peft_model(peft_config).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
@@ -136,11 +136,11 @@ model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(mod
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
-        return [tokenizer.encode(text)]
+        return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
     def post_process(self, output_ids):
-        return tokenizer.decode(output_ids[0].cpu().numpy())
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=512, default_rtype='logits', use_states=True)
+        return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
+generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], pad_id=tokenizer.pad_token_id, 
+                  mode='random_sample', maxlen=max_target_length, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存

@@ -77,17 +77,18 @@ train_dataloader = DataLoader(MyDataset([
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        c = nn.Embedding(num_classes, 128)
+        self.c = nn.Embedding(num_classes, 128)
         self.bert = build_transformer_model(config_path,
                                             checkpoint_path,
                                             with_mlm=True,
                                             application='lm',
                                             keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-                                            layer_norm_cond=c,
+                                            conditional_size=128,
                                             ignore_invalid_weights=True)  # 忽略未初始化的权重
 
-    def forward(self, *inputs):
-        _, seq_output = self.bert(inputs)  # [btz, seq_len, vocab_size]
+    def forward(self, token_ids, segment_ids, labels):
+        conditional_emb = self.c(labels)
+        _, seq_output = self.bert([token_ids, segment_ids, conditional_emb])  # [btz, seq_len, vocab_size]
         return seq_output
 
 model = Model().to(device)
