@@ -87,7 +87,7 @@ class AutoRegressiveDecoder(object):
         raise NotImplementedError
 
     def _prepare_raw_inputs(self, inputs_raw) -> list:
-        '''对当前输入进行处理 return: list[tensor]'''
+        '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]'''
         # 传入的Tensor直接[]后返回
         if isinstance(inputs_raw, torch.Tensor):
             self.input_seqlen = torch.ones(inputs_raw.shape[0]).to(self.device) * inputs_raw.shape[1]
@@ -150,7 +150,7 @@ class AutoRegressiveDecoder(object):
         '''beam_search batch条推理计算得分'''
         self.step = step
         scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
-        if step == 0:  # 第1步预测后将输入重复topk次
+        if step == 0:  # 第0步预测后将输入重复topk次
             inputs_new = []
             for input_ in inputs:
                 inputs_ = []
@@ -159,6 +159,11 @@ class AutoRegressiveDecoder(object):
                     inputs_.append(input_i.repeat([topk]+[1]*(len(input_i.shape)-1)))
                 inputs_new.append(torch.cat(inputs_))
             inputs = inputs_new
+            # 对seq_len进行扩充
+            input_seqlen = []
+            for topk, input_seqlen_i in zip(topks, self.input_seqlen):
+                input_seqlen.append(input_seqlen_i.repeat(topk))
+            self.input_seqlen = torch.cat(input_seqlen)
 
         scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
         output_ids_new, output_scores_new = [], []
@@ -237,6 +242,7 @@ class AutoRegressiveDecoder(object):
         :return: 最优解码序列。
         """
         assert topk is not None, 'Arg `topk` means beam_size anc can not be None'
+        inputs = self._prepare_raw_inputs(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
@@ -267,6 +273,7 @@ class AutoRegressiveDecoder(object):
     def stream_beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
         '''beam_search的stream输出模式'''
         assert topk is not None, 'Arg `topk` means beam_size anc can not be None'
+        inputs = self._prepare_raw_inputs(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
@@ -332,7 +339,7 @@ class AutoRegressiveDecoder(object):
 
         return inputs, output_ids, results, break_tag
 
-    def random_sample(self, inputs_raw, n, topk=None, topp=None, states=None, temperature=1, min_ends=1):
+    def random_sample(self, inputs_raw, n, topk=50, topp=1, states=None, temperature=1, min_ends=1):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
@@ -362,7 +369,7 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return results
     
-    def stream_random_sample(self, inputs_raw, topk=None, topp=None, states=None, temperature=1, min_ends=1):
+    def stream_random_sample(self, inputs_raw, topk=50, topp=1, states=None, temperature=1, min_ends=1):
         """随机采样n个结果；stream输出"""
         inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
@@ -482,19 +489,37 @@ class SeqGeneration(AutoRegressiveDecoder):
                 del states['input_attention_mask']
 
             # shape和size不一致: step=1时候，beam_search的btz=束宽
-            if self.step == 1:
+            if (self.mode == 'beam_search') and (self.step == 1):
                 btz = len(self.flag)
+                # if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
+                #     repeat_size = btz // states['past_key_values'][0][0].shape[0]
+                #     for l_i, past_key_value in enumerate(states['past_key_values']):
+                #         states['past_key_values'][l_i] = (past_key_value[0].repeat(repeat_size, 1, 1, 1), past_key_value[1].repeat(repeat_size, 1, 1, 1))
+                # if (states.get('cross_past_key_values') is not None) and states['cross_past_key_values'][0][0].shape[0] != btz:
+                #     repeat_size = btz // states['cross_past_key_values'][0][0].shape[0]
+                #     for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
+                #         states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat(repeat_size, 1, 1, 1), cross_past_key_value[1].repeat(repeat_size, 1, 1, 1))
+                # if (states.get('attention_mask') is not None) and states['attention_mask'].shape[0] != btz:
+                #     repeat_size = btz // states['attention_mask'].shape[0]
+                #     states['attention_mask'] = states['attention_mask'].repeat(repeat_size, 1)
+                # if (states.get('position_ids') is not None) and states['position_ids'].shape[0] != btz:
+                #     repeat_size = btz // states['position_ids'].shape[0]
+                #     states['position_ids'] = states['position_ids'].repeat(repeat_size, 1)
+
                 if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
                     repeat_size = btz // states['past_key_values'][0][0].shape[0]
                     for l_i, past_key_value in enumerate(states['past_key_values']):
-                        states['past_key_values'][l_i] = (past_key_value[0].repeat(repeat_size, 1, 1, 1), past_key_value[1].repeat(repeat_size, 1, 1, 1))
+                        states['past_key_values'][l_i] = (past_key_value[0].repeat_interleave(repeat_size, dim=0), past_key_value[1].repeat_interleave(repeat_size, dim=0))
                 if (states.get('cross_past_key_values') is not None) and states['cross_past_key_values'][0][0].shape[0] != btz:
                     repeat_size = btz // states['cross_past_key_values'][0][0].shape[0]
                     for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
-                        states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat(repeat_size, 1, 1, 1), cross_past_key_value[1].repeat(repeat_size, 1, 1, 1))
+                        states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat_interleave(repeat_size, dim=0), cross_past_key_value[1].repeat_interleave(repeat_size, dim=0))
                 if (states.get('attention_mask') is not None) and states['attention_mask'].shape[0] != btz:
                     repeat_size = btz // states['attention_mask'].shape[0]
-                    states['attention_mask'] = states['attention_mask'].repeat(repeat_size, 1)
+                    states['attention_mask'] = states['attention_mask'].repeat_interleave(repeat_size, dim=0)
+                if (states.get('position_ids') is not None) and states['position_ids'].shape[0] != btz:
+                    repeat_size = btz // states['position_ids'].shape[0]
+                    states['position_ids'] = states['position_ids'].repeat_interleave(repeat_size, dim=0)
 
             # 已经有序列完成，仅保留未完成序列
             if hasattr(self, 'flag') and (self.flag is not None):
@@ -503,8 +528,9 @@ class SeqGeneration(AutoRegressiveDecoder):
                     states['position_ids'] = states['position_ids'][self.flag]
                 for l_i, past_key_value in enumerate(states['past_key_values']):
                     states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
-                for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
-                    states['cross_past_key_values'][l_i] = (cross_past_key_value[0][self.flag], cross_past_key_value[1][self.flag])
+                if 'cross_past_key_values' in states:
+                    for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
+                        states['cross_past_key_values'][l_i] = (cross_past_key_value[0][self.flag], cross_past_key_value[1][self.flag])
 
             logits, states = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
@@ -543,7 +569,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             output_ids = self.beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends)  # 基于beam search
         return output_ids
 
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1, min_ends=1):
+    def generate(self, text, n=1, topk=50, topp=1, temperature=1, min_ends=1):
         '''单条样本生成'''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
@@ -551,7 +577,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         output_ids = self._generate(inputs, n, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, topk=None, topp=None, temperature=1, min_ends=1):
+    def batch_generate(self, text_list, topk=50, topp=1, temperature=1, min_ends=1):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
         # 参数设定
         assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
@@ -565,7 +591,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         output_ids = self._generate(inputs, 1, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text:str, topk=None, topp=None, temperature=1, min_ends=1):
+    def stream_generate(self, text:str, topk=50, topp=1, temperature=1, min_ends=1):
         '''单条样本stream输出预测的结果'''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
@@ -596,7 +622,7 @@ class Seq2SeqGeneration(SeqGeneration):
         self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
             
-    def generate(self, text, n=1, topk=None, topp=None, temperature=1, min_ends=1):
+    def generate(self, text, n=1, topk=50, topp=1, temperature=1, min_ends=1):
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
@@ -605,7 +631,7 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super()._generate(encoder_output, n, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, topk=None, topp=None, temperature=1, min_ends=1):
+    def batch_generate(self, text_list, topk=50, topp=1, temperature=1, min_ends=1):
         '''batch样本生成'''
         # 参数设定
         assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
@@ -616,12 +642,16 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super()._generate(encoder_output, 1, topk, topp, temperature, min_ends)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text, topk=None, topp=None, temperature=1, min_ends=1):
+    def stream_generate(self, text, topk=50, topp=1, temperature=1, min_ends=1):
         '''stream输出t预测的结果'''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends):  # stream随机采样
-            yield self.post_process(output_ids)
+        if self.mode == 'random_sample':
+            for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends):  # stream随机采样
+                yield self.post_process(output_ids)
+        elif self.mode == 'beam_search':
+            for output_ids in  self.stream_beam_search(encoder_output, topk=topk, temperature=temperature, min_ends=min_ends):  # stream随机采样
+                yield self.post_process(output_ids)
