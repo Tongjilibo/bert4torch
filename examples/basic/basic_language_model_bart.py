@@ -30,7 +30,7 @@ config_path = f'{ckpt_dir}/bert4torch_config.json'
 checkpoint_path = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
 dict_path = f'{ckpt_dir}/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-topk = 50
+topk = 5
 mode = 'beam_search'
 maxlen = 20
 tokenizer = Tokenizer(dict_path, do_lower_case=True)

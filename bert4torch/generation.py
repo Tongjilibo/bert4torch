@@ -197,6 +197,8 @@ class AutoRegressiveDecoder(object):
             inputs_new, output_ids_new, output_scores_new, flag_new = [], [], [], []
             topks_new = topks.copy()
             for smp_i, topk in enumerate(topks):
+                if topk == 0:
+                    continue
                 start, end = sum(topks[:smp_i]), sum(topks[:smp_i+1])
                 input_ = [i[start:end] for i in inputs]
                 output_score = output_scores[start:end]
@@ -207,14 +209,14 @@ class AutoRegressiveDecoder(object):
                 end_counts = (output_id == self.end_id).sum(1)  # 统计出现的end标记
                 flag = ~is_end | (end_counts < min_ends)  # 标记未完成序列
                 if is_end[best] and end_counts[best] >= min_ends:  # 如果已经终止
-                    results.append(output_id[output_score.argmax()])
+                    results[smp_i] = output_id[output_score.argmax()]
                     flag = torch.zeros_like(flag)
                 if not flag.all():  # 如果有已完成的
                     input_ = [i[flag] for i in input_]  # 扔掉已完成序列
                     output_id = output_id[flag]  # 扔掉已完成序列
                     output_score = output_score[flag]  # 扔掉已完成序列
                     end_counts = end_counts[flag]  # 扔掉已完成end计数
-                    topks_new[smp_i] = flag.sum()  # topk相应变化
+                    topks_new[smp_i] = flag.sum().item()  # topk相应变化
                 
                 inputs_new.append(input_)
                 output_ids_new.append(output_id)
@@ -224,7 +226,7 @@ class AutoRegressiveDecoder(object):
             inputs = [torch.cat(i) for i in zip(*inputs_new)]
             output_ids = torch.cat(output_ids_new)
             output_scores = torch.cat(output_scores_new)
-            topks = [i for i in topks_new if i>0]
+            topks = topks_new
             self.flag = torch.cat(flag_new)
 
             if len(output_ids) == 0:
@@ -251,6 +253,7 @@ class AutoRegressiveDecoder(object):
         # batch推理
         if btz > 1:
             topk = [topk] * btz
+            results = [None] * btz
 
         for step in range(self.maxlen):
             if btz == 1:
@@ -264,8 +267,16 @@ class AutoRegressiveDecoder(object):
             if break_tag:
                 break 
         # 如果还有未完成序列，直接放入结果
-        if len(output_ids) > 0:
+        if (btz==1) and (len(output_ids)>0):
             results.append(output_ids[output_scores.argmax()])
+        elif (btz>1) and (len(output_ids)>0):
+            for smp_i, result in enumerate(results):
+                if result is None:
+                    start, end = sum(topk[:smp_i]), sum(topk[:smp_i+1])
+                    output_score = output_scores[start:end]
+                    output_id = output_ids[start:end]
+                    results[smp_i] = output_id[output_score.argmax()]
+
         # 达到长度直接输出
         self.flag = None
         return results
@@ -320,7 +331,7 @@ class AutoRegressiveDecoder(object):
         output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
         return inputs, output_ids, states
 
-    def __random_sample_end(self, inputs, output_ids, results, min_ends):
+    def __random_sample_end(self, inputs, output_ids, results, min_ends, smp_indexs=None):
         break_tag = False
         is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
         end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
@@ -328,16 +339,27 @@ class AutoRegressiveDecoder(object):
         self.flag = (flag == False)  # 记录未完成序列
         if output_ids.shape[1] >= self.minlen:  # 最短长度判断
             if flag.any():  # 如果有已完成的
-                for ids in output_ids[flag]:  # 存好已完成序列
-                    results.append(ids)
+                # 非batch
+                if smp_indexs is None:
+                    for ids in output_ids[flag]:  # 存好已完成序列
+                        results.append(ids)
+                else:
+                    for smp_i, ids in zip(smp_indexs[flag], output_ids[flag]):  # 存好已完成序列
+                        results[smp_i] = ids
+
                 flag = (flag == False)  # 标记未完成序列，True表示未完成
                 inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
                 output_ids = output_ids[flag]  # 只保留未完成部分候选集
                 end_counts = end_counts[flag]  # 只保留未完成部分end计数
+                if smp_indexs is not None:
+                    smp_indexs = smp_indexs[flag]
                 if len(output_ids) == 0:
                     break_tag = True
 
-        return inputs, output_ids, results, break_tag
+        if smp_indexs is None:
+            return inputs, output_ids, results, break_tag
+        else:
+            return inputs, output_ids, results, break_tag, smp_indexs
 
     def random_sample(self, inputs_raw, n, topk=50, topp=1, states=None, temperature=1, min_ends=1):
         """随机采样n个结果；
@@ -356,15 +378,28 @@ class AutoRegressiveDecoder(object):
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         results = []
+
+        if btz > 1:
+            smp_indexs = torch.tensor(range(btz)).to(output_ids)
+            results = [None] * btz
+
         for step in range(self.maxlen):
-            inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
-            inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
+            if btz == 1:
+                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+                inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
+            if btz > 1:
+                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+                inputs, output_ids, results, break_tag, smp_indexs = self.__random_sample_end(inputs, output_ids, results, min_ends, smp_indexs)
             if break_tag:
                 break
 
         # 如果还有未完成序列，直接放入结果
-        for ids in output_ids:
-            results.append(ids)
+        if (btz==1) and (len(output_ids)>0):
+            for ids in output_ids:
+                results.append(ids)
+        elif (btz>1) and (len(output_ids)>0):
+            for smp_i, ids in zip(smp_indexs[self.flag], output_ids[self.flag]):  # 存好已完成序列
+                results[smp_i] = ids
         # 返回结果
         self.flag = None
         return results
@@ -491,21 +526,6 @@ class SeqGeneration(AutoRegressiveDecoder):
             # shape和size不一致: step=1时候，beam_search的btz=束宽
             if (self.mode == 'beam_search') and (self.step == 1):
                 btz = len(self.flag)
-                # if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
-                #     repeat_size = btz // states['past_key_values'][0][0].shape[0]
-                #     for l_i, past_key_value in enumerate(states['past_key_values']):
-                #         states['past_key_values'][l_i] = (past_key_value[0].repeat(repeat_size, 1, 1, 1), past_key_value[1].repeat(repeat_size, 1, 1, 1))
-                # if (states.get('cross_past_key_values') is not None) and states['cross_past_key_values'][0][0].shape[0] != btz:
-                #     repeat_size = btz // states['cross_past_key_values'][0][0].shape[0]
-                #     for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
-                #         states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat(repeat_size, 1, 1, 1), cross_past_key_value[1].repeat(repeat_size, 1, 1, 1))
-                # if (states.get('attention_mask') is not None) and states['attention_mask'].shape[0] != btz:
-                #     repeat_size = btz // states['attention_mask'].shape[0]
-                #     states['attention_mask'] = states['attention_mask'].repeat(repeat_size, 1)
-                # if (states.get('position_ids') is not None) and states['position_ids'].shape[0] != btz:
-                #     repeat_size = btz // states['position_ids'].shape[0]
-                #     states['position_ids'] = states['position_ids'].repeat(repeat_size, 1)
-
                 if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
                     repeat_size = btz // states['past_key_values'][0][0].shape[0]
                     for l_i, past_key_value in enumerate(states['past_key_values']):

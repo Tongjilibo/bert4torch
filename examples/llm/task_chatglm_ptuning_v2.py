@@ -21,12 +21,14 @@ import numpy as np
 from tqdm import tqdm
 
 # 基本参数
+mode = 'train'
 max_source_length = 64
 max_target_length = 64
 lr = 2e-2
 batch_size = 1
 eval_batch_size = 4
 grad_accumulation_steps = 16
+steps_per_epoch = None
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 epochs = 4
@@ -34,7 +36,7 @@ prefix = ''
 prompt_column = 'content'
 response_column = 'summary'
 history_column = None
-use_states = True
+use_states = False
 
 # 模型配置
 dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
@@ -136,7 +138,7 @@ class PrefixEncoder(torch.nn.Module):
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', 
                                                token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
@@ -173,15 +175,10 @@ class Model(BaseModel):
     def predict(self, inputs, **inputs_kwargs):
         self.eval()
         token_ids = inputs[0]
-        past_key_values = self.get_past_key_values(token_ids)
-        if inputs_kwargs.get('past_key_values', None) is not None:
-            past_key_values_new = []
-            for i, (key, value) in enumerate(inputs_kwargs['past_key_values']):
-                key = torch.cat([past_key_values[i][0], key], dim=2)
-                value = torch.cat([past_key_values[i][1], value], dim=2)
-                past_key_values_new.append((key, value))
-            inputs_kwargs['past_key_values'] = past_key_values_new
-        else:
+        # use_states=False时候，每次都重新生成past_key_values
+        # use_states=True时候，仅在第0步生成past_key_values
+        if inputs_kwargs.get('past_key_values', None) is None:
+            past_key_values = self.get_past_key_values(token_ids)
             inputs_kwargs['past_key_values'] = past_key_values
         return self.encoder([token_ids],  **inputs_kwargs)
     
@@ -235,6 +232,8 @@ class Evaluator(Callback):
             pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
+            # print(pred)
+            # print(label)
 
         score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
         for pred, label in zip(preds, labels):
@@ -257,12 +256,8 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
 
-    model.fit(
-        train_dataloader,
-        steps_per_epoch=None,
-        epochs=epochs,
-        callbacks=[evaluator]
-    )
-
-else:
-    model.load_weights('./best_model.pt', strict=False)
+    if mode == 'train':
+        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator])
+    else:
+        model.load_weights('./best_model.pt', strict=False)
+        evaluator.evaluate(dev_dataloader)

@@ -28,7 +28,7 @@ checkpoint_path = ckpt_dir + 'bert4torch_pytorch_model.bin'
 dict_path = ckpt_dir + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 topk = 50
-end_id = 50256
+end_id = 50256  # 50256:open-end generation, 511:表示句号
 mode = 'random_sample'
 
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
