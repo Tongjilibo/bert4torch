@@ -231,6 +231,10 @@ class AutoRegressiveDecoder(object):
 
             if len(output_ids) == 0:
                 break_tag = True
+        else:
+            # 不满足结束条件，需要对self.flag进行更新
+            self.flag = torch.ones_like(self.flag, dtype=torch.bool)
+        
         return inputs, output_ids, output_scores, topks, results, break_tag
 
     def beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
@@ -251,25 +255,23 @@ class AutoRegressiveDecoder(object):
         results = []
 
         # batch推理
-        if btz > 1:
+        if self.use_batch:
             topk = [topk] * btz
             results = [None] * btz
 
         for step in range(self.maxlen):
-            if btz == 1:
-                # 单条推理
+            if (not self.use_batch):  # 单条推理
                 inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
                 inputs, output_ids, output_scores, topk, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, topk, results, min_ends)
-            elif btz > 1:
-                # batch推理
+            else:  # batch推理
                 inputs, output_ids, output_scores, states = self.__batch_beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
                 inputs, output_ids, output_scores, topk, results, break_tag = self.__batch_beam_search_end(inputs, output_ids, output_scores, topk, results, min_ends)
             if break_tag:
                 break 
         # 如果还有未完成序列，直接放入结果
-        if (btz==1) and (len(output_ids)>0):
+        if (not self.use_batch) and (len(output_ids)>0):
             results.append(output_ids[output_scores.argmax()])
-        elif (btz>1) and (len(output_ids)>0):
+        elif (self.use_batch) and (len(output_ids)>0):
             for smp_i, result in enumerate(results):
                 if result is None:
                     start, end = sum(topk[:smp_i]), sum(topk[:smp_i+1])
@@ -335,26 +337,27 @@ class AutoRegressiveDecoder(object):
         break_tag = False
         is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
         end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
-        flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
-        self.flag = (flag == False)  # 记录未完成序列
-        if output_ids.shape[1] >= self.minlen:  # 最短长度判断
-            if flag.any():  # 如果有已完成的
-                # 非batch
-                if smp_indexs is None:
-                    for ids in output_ids[flag]:  # 存好已完成序列
-                        results.append(ids)
-                else:
-                    for smp_i, ids in zip(smp_indexs[flag], output_ids[flag]):  # 存好已完成序列
-                        results[smp_i] = ids
+        f_flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
+        self.flag = (f_flag == False)  # 记录未完成序列
+        if (output_ids.shape[1] >= self.minlen) and f_flag.any():  # 最短长度判断, 如果有已完成的
+            if smp_indexs is None:  # single
+                for ids in output_ids[f_flag]:  # 存好已完成序列
+                    results.append(ids)
+            else:  # batch
+                for smp_i, ids in zip(smp_indexs[f_flag], output_ids[f_flag]):  # 存好已完成序列
+                    results[smp_i] = ids
 
-                flag = (flag == False)  # 标记未完成序列，True表示未完成
-                inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
-                output_ids = output_ids[flag]  # 只保留未完成部分候选集
-                end_counts = end_counts[flag]  # 只保留未完成部分end计数
-                if smp_indexs is not None:
-                    smp_indexs = smp_indexs[flag]
-                if len(output_ids) == 0:
-                    break_tag = True
+            flag = (f_flag == False)  # 标记未完成序列，True表示未完成
+            inputs = [i[flag] for i in inputs]  # 只保留未完成部分输入
+            output_ids = output_ids[flag]  # 只保留未完成部分候选集
+            # end_counts = end_counts[flag]  # 只保留未完成部分end计数
+            if smp_indexs is not None:
+                smp_indexs = smp_indexs[flag]
+            if len(output_ids) == 0:
+                break_tag = True
+        else:
+            # 不满足结束条件，需要对self.flag进行更新
+            self.flag = torch.ones_like(self.flag, dtype=torch.bool)
 
         if smp_indexs is None:
             return inputs, output_ids, results, break_tag
@@ -368,9 +371,9 @@ class AutoRegressiveDecoder(object):
         :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
         :param topk: int, 这里的topk是指仅保留topk的值
         :param topp: float, 这里的topp是token的概率阈值设置
-        :param states:
+        :param states: None/dict, 缓存参数
         :param temperature: 温度参数，默认为1
-        :param min_ends:
+        :param min_ends: 最小的end_id的个数
         :return: n个解码序列组成的list。
         """
         inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
@@ -379,25 +382,25 @@ class AutoRegressiveDecoder(object):
         output_ids = self.first_output_ids.repeat(btz, 1)
         results = []
 
-        if btz > 1:
+        if self.use_batch:
             smp_indexs = torch.tensor(range(btz)).to(output_ids)
             results = [None] * btz
 
         for step in range(self.maxlen):
-            if btz == 1:
+            if not self.use_batch:  # single
                 inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
                 inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
-            if btz > 1:
+            else:  # batch
                 inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
                 inputs, output_ids, results, break_tag, smp_indexs = self.__random_sample_end(inputs, output_ids, results, min_ends, smp_indexs)
             if break_tag:
                 break
 
         # 如果还有未完成序列，直接放入结果
-        if (btz==1) and (len(output_ids)>0):
+        if (not self.use_batch) and (len(output_ids)>0):
             for ids in output_ids:
                 results.append(ids)
-        elif (btz>1) and (len(output_ids)>0):
+        elif (self.use_batch) and (len(output_ids)>0):
             for smp_i, ids in zip(smp_indexs[self.flag], output_ids[self.flag]):  # 存好已完成序列
                 results[smp_i] = ids
         # 返回结果
