@@ -210,7 +210,7 @@ class AutoRegressiveDecoder(object):
                 flag = ~is_end | (end_counts < min_ends)  # 标记未完成序列
                 if is_end[best] and end_counts[best] >= min_ends:  # 如果已经终止
                     results[smp_i] = output_id[output_score.argmax()]
-                    flag = torch.zeros_like(flag)
+                    flag = torch.zeros_like(flag, dtype=torch.bool)
                 if not flag.all():  # 如果有已完成的
                     input_ = [i[flag] for i in input_]  # 扔掉已完成序列
                     output_id = output_id[flag]  # 扔掉已完成序列
@@ -269,15 +269,16 @@ class AutoRegressiveDecoder(object):
             if break_tag:
                 break 
         # 如果还有未完成序列，直接放入结果
-        if (not self.use_batch) and (len(output_ids)>0):
-            results.append(output_ids[output_scores.argmax()])
-        elif (self.use_batch) and (len(output_ids)>0):
-            for smp_i, result in enumerate(results):
-                if result is None:
-                    start, end = sum(topk[:smp_i]), sum(topk[:smp_i+1])
-                    output_score = output_scores[start:end]
-                    output_id = output_ids[start:end]
-                    results[smp_i] = output_id[output_score.argmax()]
+        if len(output_ids) > 0:
+            if not self.use_batch:
+                results.append(output_ids[output_scores.argmax()])
+            elif self.use_batch:
+                for smp_i, result in enumerate(results):
+                    if result is None:
+                        start, end = sum(topk[:smp_i]), sum(topk[:smp_i+1])
+                        output_score = output_scores[start:end]
+                        output_id = output_ids[start:end]
+                        results[smp_i] = output_id[output_score.argmax()]
 
         # 达到长度直接输出
         self.flag = None
@@ -338,7 +339,7 @@ class AutoRegressiveDecoder(object):
         is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
         end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
         f_flag = is_end & (end_counts >= min_ends)  # 标记已完成序列
-        self.flag = (f_flag == False)  # 记录未完成序列
+        self.flag = (f_flag == False)  # 记录未完成序列，这里是裁前的，用于use_states时候的裁剪操作
         if (output_ids.shape[1] >= self.minlen) and f_flag.any():  # 最短长度判断, 如果有已完成的
             if smp_indexs is None:  # single
                 for ids in output_ids[f_flag]:  # 存好已完成序列
@@ -397,12 +398,13 @@ class AutoRegressiveDecoder(object):
                 break
 
         # 如果还有未完成序列，直接放入结果
-        if (not self.use_batch) and (len(output_ids)>0):
-            for ids in output_ids:
-                results.append(ids)
-        elif (self.use_batch) and (len(output_ids)>0):
-            for smp_i, ids in zip(smp_indexs[self.flag], output_ids[self.flag]):  # 存好已完成序列
-                results[smp_i] = ids
+        if len(output_ids) > 0:
+            if not self.use_batch:
+                for ids in output_ids:
+                    results.append(ids)
+            elif self.use_batch:
+                for smp_i, ids in zip(smp_indexs, output_ids):  # 存好已完成序列
+                    results[smp_i] = ids
         # 返回结果
         self.flag = None
         return results
