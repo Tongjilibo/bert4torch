@@ -31,7 +31,7 @@ print(predicted_token, logit_prob[predicted_index])
 
 
 # ==========================bert4torch调用==========================
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax', token_pad_ids=1, custom_position_ids='start_at_padding')
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax', pad_token_id=1, custom_position_ids='start_at_padding')
 
 token_ids = tokenizer.encode(input_text)
 segments_ids = [0] * len(token_ids)

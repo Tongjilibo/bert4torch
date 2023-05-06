@@ -53,6 +53,7 @@ for i in range(1, 9):
   "vocab_size": 130528,
   "segment_vocab_size": 0,
   "skip_init": true,
-  "rope_rank": "updown"
+  "rope_rank": "updown",
+  "pad_token_id": 3
 }
 '''

@@ -505,7 +505,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         # 使用cache, 输入只能padding在左侧
         if self.use_states:
-            states = {'return_model_kwargs': True} if states is None else states
+            states = {'use_states': True} if states is None else states
 
             # next_inputs：step=0时候输入全部，>=1时候输入last_token
             next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=self.step==0)
@@ -520,7 +520,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
                 states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_id, past_key_values_length=-1, start_padding_idx=False)
             elif states.get('position_ids') is not None:
-                states['position_ids'] = states['position_ids'][:, -1:]+1
+                states['position_ids'] = states['position_ids'][:, -1:] + 1
 
             # attention_mask: 根据token_ids生成的，因此这里重置下
             if states.get('input_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]

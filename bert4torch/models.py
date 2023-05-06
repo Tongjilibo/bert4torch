@@ -114,7 +114,7 @@ class BERT_BASE(nn.Module):
         model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
         outputs = self.apply_final_layers(**model_kwargs)
-        if model_kwargs.get('return_model_kwargs', False):
+        if model_kwargs.get('use_states', False):
             return outputs, model_kwargs
         return outputs
 
@@ -432,7 +432,7 @@ class BERT(BERT_BASE):
             conditional_size=None,  # conditional layer_norm
             additional_embs=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout=False,
-            token_pad_ids=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
+            pad_token_id=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
@@ -445,7 +445,7 @@ class BERT(BERT_BASE):
         self.custom_attention_mask = custom_attention_mask
         self.shared_segment_embeddings = shared_segment_embeddings
         self.is_dropout = is_dropout
-        self.token_pad_ids = token_pad_ids
+        self.pad_token_id = pad_token_id
         if self.with_nsp and not self.with_pool:
             self.with_pool = True
         self.additional_embs = additional_embs
@@ -512,7 +512,7 @@ class BERT(BERT_BASE):
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
             # 从padding位置开始
-            position_ids = create_position_ids_start_at_padding(token_ids, self.token_pad_ids)
+            position_ids = create_position_ids_start_at_padding(token_ids, self.pad_token_id)
         else:
             position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
         model_kwargs['position_ids'] = position_ids
@@ -526,8 +526,8 @@ class BERT(BERT_BASE):
             attention_mask = inputs[index_].long()
             index_ += 1
         elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
-            attention_mask = (token_ids != self.token_pad_ids).long()  # 默认0为mask_value
-            if self.token_pad_ids < 0:
+            attention_mask = (token_ids != self.pad_token_id).long()  # 默认0为mask_value
+            if self.pad_token_id < 0:
                 token_ids = token_ids * attention_mask
         else:  # 自定义word_embedding，目前仅有VAT中使用
             attention_mask = self.attention_mask_cache
@@ -1112,7 +1112,7 @@ class Encoder(BERT):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
         """
         # 返回model_kwargs方便解析attention_mask
-        outputs, model_kwargs = super().forward(*inputs, return_model_kwargs=True, **model_kwargs)
+        outputs, model_kwargs = super().forward(*inputs, use_states=True, **model_kwargs)
         # return: [encoder_hidden_states, encoder_attention_mask]
         return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
@@ -1719,14 +1719,14 @@ class GLM(LM_Mask, BERT):
                 })
         return mapping
 
-    def get_masks(self, attention_mask, context_lens):
+    def get_masks(self, attention_mask, context_lens, prepad_lens):
         '''调整mask使得在content_lens前是bi_attention
         '''
-        for i, context_len in enumerate(context_lens):
-            attention_mask[i, :, :, :context_len] = 1
+        for i, (prepad_len, context_len) in enumerate(zip(prepad_lens, context_lens)):
+            attention_mask[i, :, :, prepad_len:context_len] = 1
         return attention_mask
         
-    def get_position_ids(self, position_ids, seq_len, context_lens, mask_positions, device, gmask=False):
+    def get_position_ids(self, position_ids, seq_len, context_lens, mask_positions, prepad_lens, gmask=False):
         '''不使用cache时候的postion_ids
         '''
         if position_ids.shape[0] == 1:
@@ -1734,15 +1734,15 @@ class GLM(LM_Mask, BERT):
         if self.position_encoding_2d:
             # 初始版本中这里也有not gmask
             for i, context_length in enumerate(context_lens):
-                position_ids[i, context_length:] = mask_positions[i]
-            block_position_ids = [torch.cat((torch.zeros(context_len, dtype=torch.long, device=device),
-                                            torch.arange(seq_len-context_len, dtype=torch.long, device=device) + 1)) for context_len in context_lens]
+                position_ids[i, context_length:] = mask_positions[i] - prepad_lens[i]
+            block_position_ids = [torch.cat((torch.zeros(context_len, dtype=torch.long).to(position_ids),
+                                            torch.arange(seq_len-context_len, dtype=torch.long).to(position_ids) + 1)) for context_len in context_lens]
             block_position_ids = torch.stack(block_position_ids, dim=0)
             position_ids = torch.stack((position_ids, block_position_ids), dim=1)
         else:
             if not gmask:
                 for i, context_length in enumerate(context_lens):
-                    position_ids[context_length:] = mask_positions[i]
+                    position_ids[context_length:] = mask_positions[i] - prepad_lens[i]
         return position_ids
 
     def prepare_inputs(self, *inputs, **model_kwargs):
@@ -1758,16 +1758,19 @@ class GLM(LM_Mask, BERT):
         context_lens = [seq.index(self.bos_token_id) for seq in seqs]  # bos_token_id是倒数第一位
         seq_len = token_ids.shape[1]
 
-        if model_kwargs.get('return_model_kwargs', False) and model_kwargs.get('past_key_values') is not None:  # 使用cache
+        # 1）generation阶段use_states=True且step>0的时候(用cache)
+        if model_kwargs.get('use_states', False) and model_kwargs.get('past_key_values') is not None:
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
             else:  # [btz, 1]
                 position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
             model_kwargs['position_ids'] = position_ids
-        else:  # 不使用cache
-            model_kwargs['attention_mask'] = self.get_masks(model_kwargs['attention_mask'], context_lens)
-            model_kwargs['position_ids'] = self.get_position_ids(position_ids, seq_len, context_lens, mask_positions, device, gmask=use_gmask)
+        # 1）train阶段；2）generation阶段use_states=False；3）use_states=True且step=0的时候
+        else:
+            prepad_lens = [(ts[:l]==3).sum().item() for l, ts in zip(context_lens, token_ids)]
+            model_kwargs['attention_mask'] = self.get_masks(model_kwargs['attention_mask'], context_lens, prepad_lens)
+            model_kwargs['position_ids'] = self.get_position_ids(position_ids, seq_len, context_lens, mask_positions, prepad_lens, gmask=use_gmask)
         return model_kwargs
 
     def apply_embeddings(self, *inputs, **model_kwargs):
@@ -1937,7 +1940,7 @@ class Transformer_XL(BERT):
         if self.attn_type in {'uni', 0}:  # 兼容transformer_xl的设置: 0
             non_tgt_mask = self.create_mask(word_emb, qlen, klen, mlen)
         elif self.attn_type == 'bi':
-            attention_mask = (inputs[0] != self.token_pad_ids).long().unsqueeze(1).unsqueeze(2)
+            attention_mask = (inputs[0] != self.pad_token_id).long().unsqueeze(1).unsqueeze(2)
             non_tgt_mask = torch.eye(qlen).to(attention_mask)[None, None, :, :]
             non_tgt_mask = ((1 - attention_mask - non_tgt_mask) <= 0).long()
         model_kwargs.update({'hidden_states': word_emb, 'segment_ids': segment_ids, 'pos_emb': pos_emb, 
@@ -2080,7 +2083,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     :param output_all_encoded_layers: bool, 是否返回所有hidden_state层, 默认为False
     :param additional_embs: bool, 是否有额外的embedding输入
     :param keep_tokens: list[int], 精简词表, 保留的id的序号如：[0, 100, 101, 102, 106, 107, ...]
-    :param token_pad_ids: int, 默认为0, 部分模型padding不是0时在这里指定, 用于attention_mask生成, 如设置成-100
+    :param pad_token_id: int, 默认为0, 部分模型padding不是0时在这里指定, 用于attention_mask生成, 如设置成-100
     :param custom_position_ids: bool, 是否自行传入位置id, True表示传入, False表示不传入, 'start_at_padding'表示从padding_idx+1开始, 默认为False
     :param custom_attention_mask: bool, 是否自行传入attention_mask, 默认为False
     :param shared_segment_embeddings: bool, 若True, 则segment跟token共用embedding, 默认为False

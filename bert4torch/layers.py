@@ -453,10 +453,10 @@ class BertEmbeddings(nn.Module):
     """embeddings层
        构造word, position and token_type embeddings.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, token_pad_ids=0, **kwargs):
+    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, pad_token_id=0, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
-        self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=token_pad_ids, device=kwargs['skip_init'])
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=pad_token_id, device=kwargs['skip_init'])
 
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':
@@ -1036,7 +1036,7 @@ class RoPEPositionEncoding(nn.Module):
             self.cos_position, self.sin_position = cos_position.type_as(qw).to(qw.device), sin_position.type_as(qw).to(qw.device)
             self.max_seq_len_cache = seq_len
 
-        # 传入position_ids来获取cos和sin, 主要是在use_cache时候能直接取到对应位置的编码
+        # 传入position_ids来获取cos和sin, 主要是在use_states时候能直接取到对应位置的编码
         if position_ids is not None:
             # position_ids: [btz, seq_len]
             cos = F.embedding(position_ids, self.cos_position)  # [btz, seq_len, hdsz]

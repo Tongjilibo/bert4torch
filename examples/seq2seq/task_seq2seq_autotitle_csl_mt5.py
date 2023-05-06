@@ -25,7 +25,7 @@ max_t_len = 32
 batch_size = 16
 epochs = 50
 steps_per_epoch = None
-token_pad_ids = -100
+pad_token_id = -100
 
 # bert配置
 config_path = 'F:/Projects/pretrain_ckpt/t5/[google_mt5_torch_base]/bert4torch_config.json'
@@ -65,8 +65,8 @@ def collate_fn(batch):
         token_ids, _ = tokenizer.encode(title, maxlen=max_t_len)
         batch_titile_ids.append([0] + token_ids)
 
-    batch_content_ids = torch.tensor(sequence_padding(batch_content_ids, value=token_pad_ids), dtype=torch.long, device=device)
-    batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids, value=token_pad_ids), dtype=torch.long, device=device)
+    batch_content_ids = torch.tensor(sequence_padding(batch_content_ids, value=pad_token_id), dtype=torch.long, device=device)
+    batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids, value=pad_token_id), dtype=torch.long, device=device)
     return [[batch_content_ids], [batch_titile_ids[:, :-1]]], batch_titile_ids[:, 1:].flatten()
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
@@ -80,7 +80,7 @@ model = build_transformer_model(
     model='mt5.1.1',
     segment_vocab_size=0,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-    token_pad_ids=token_pad_ids,  # 也可以指定custom_attention_mask并传入attention_mask来实现
+    pad_token_id=pad_token_id,  # 也可以指定custom_attention_mask并传入attention_mask来实现
     add_trainer=True
 ).to(device)
 
@@ -91,7 +91,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         _, _, y_pred = outputs
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=token_pad_ids), optimizer=optim.Adam(model.parameters(), 1e-4))
+model.compile(loss=CrossEntropyLoss(ignore_index=pad_token_id), optimizer=optim.Adam(model.parameters(), 1e-4))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

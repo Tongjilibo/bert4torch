@@ -55,7 +55,7 @@ model = build_transformer_model(
     with_mlm=True,
     application='unilm',
     add_trainer=True,
-    token_pad_ids=tokenizer._token_pad_id, 
+    pad_token_id=tokenizer._token_pad_id, 
     use_segment_embedding=False,
     custom_position_ids='start_at_padding'
 ).to(device)

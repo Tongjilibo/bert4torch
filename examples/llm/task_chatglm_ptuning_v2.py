@@ -28,7 +28,7 @@ lr = 2e-2
 batch_size = 1
 eval_batch_size = 4
 grad_accumulation_steps = 16
-steps_per_epoch = None
+steps_per_epoch = 100
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 epochs = 4
@@ -36,7 +36,7 @@ prefix = ''
 prompt_column = 'content'
 response_column = 'summary'
 history_column = None
-use_states = False
+use_states = True
 
 # 模型配置
 dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
@@ -138,8 +138,7 @@ class PrefixEncoder(torch.nn.Module):
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', 
-                                               token_pad_ids=tokenizer.pad_token_id).half().quantize(4)
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(4)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False
@@ -182,7 +181,6 @@ class Model(BaseModel):
             inputs_kwargs['past_key_values'] = past_key_values
         return self.encoder([token_ids],  **inputs_kwargs)
     
-
 model = Model().to(device)
 print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
@@ -209,7 +207,7 @@ class Chat(SeqGeneration):
     def post_process(self, output_ids):
         return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
 generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], pad_id=tokenizer.pad_token_id, 
-                  mode='random_sample', maxlen=max_target_length, default_rtype='logits', use_states=use_states)
+                  mode='random_sample', maxlen=512, default_rtype='logits', use_states=use_states)
 
 class Evaluator(Callback):
     """评估与保存
@@ -232,8 +230,6 @@ class Evaluator(Callback):
             pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
-            # print(pred)
-            # print(label)
 
         score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
         for pred, label in zip(preds, labels):

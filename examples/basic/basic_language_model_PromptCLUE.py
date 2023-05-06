@@ -24,7 +24,7 @@ model = build_transformer_model(
     model='mt5.1.1',
     segment_vocab_size=0,
     logit_scale=False,
-    token_pad_ids=-1,  # 为了不和decoder_start_ids=0冲突
+    pad_token_id=-1,  # 为了不和decoder_start_ids=0冲突
 ).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):

@@ -115,7 +115,7 @@ peft_config = LoraConfig(
     )
 
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
-                                token_pad_ids=tokenizer.pad_token_id, add_trainer=True).get_peft_model(peft_config).to(device)
+                                pad_token_id=tokenizer.pad_token_id, add_trainer=True).get_peft_model(peft_config).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

@@ -23,7 +23,7 @@ config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'
 
-token_pad_ids = -100
+pad_token_id = -100
 max_i_len = 512
 max_t_len = 128
 batch_size = 32
@@ -41,7 +41,7 @@ model = build_transformer_model(
     model='mt5.1.1',
     segment_vocab_size=0,
     logit_scale=False,
-    token_pad_ids=token_pad_ids,  # 为了不和decoder_start_ids=0冲突
+    pad_token_id=pad_token_id,  # 为了不和decoder_start_ids=0冲突
     add_trainer=True
 ).to(device)
 
@@ -72,11 +72,11 @@ def collate_fn(batch):
         token_ids, _ = tokenizer.encode(target_text, maxlen=max_t_len)
         batch_target_ids.append([0] + token_ids)
 
-    batch_input_ids = torch.tensor(sequence_padding(batch_input_ids, value=token_pad_ids),
+    batch_input_ids = torch.tensor(sequence_padding(batch_input_ids, value=pad_token_id),
                                    dtype=torch.long,
                                    device=device)
 
-    batch_target_ids = torch.tensor(sequence_padding(batch_target_ids, value=token_pad_ids),
+    batch_target_ids = torch.tensor(sequence_padding(batch_target_ids, value=pad_token_id),
                                     dtype=torch.long,
                                     device=device)
 
@@ -103,7 +103,7 @@ class MyDataset(ListDataset):
 
 
 # compile
-model.compile(loss=CrossEntropyLoss(ignore_index=token_pad_ids),
+model.compile(loss=CrossEntropyLoss(ignore_index=pad_token_id),
               # mixed_precision=True, 开amp loss直接nan
               optimizer=optim.Adam(model.parameters(), lr=2e-15))
 

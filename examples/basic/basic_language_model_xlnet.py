@@ -20,7 +20,7 @@ model = build_transformer_model(
     checkpoint_path=checkpoint_path,
     model='xlnet',
     # with_lm=True
-    token_pad_ids=tokenizer.pad_token_id,
+    pad_token_id=tokenizer.pad_token_id,
 )
 
 print('--------bert4torch last_hidden_state--------\n', model.predict([inputs['input_ids'], inputs['token_type_ids']]))
