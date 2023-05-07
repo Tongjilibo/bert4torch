@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# chatglm的指令微调, 目前评估evaluate有点慢，可以限制只评估部分数据
+# chatglm的指令微调, 基于ptuning_v2
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
