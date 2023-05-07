@@ -16,8 +16,7 @@ texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']
 
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
-encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', #num_hidden_layers=2,
-                                  ).half().quantize(8).to(device)  # 建立模型，加载权重
+encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)  # 建立模型，加载权重
 
 
 class Chat(SeqGeneration):

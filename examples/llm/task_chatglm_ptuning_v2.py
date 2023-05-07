@@ -28,10 +28,10 @@ lr = 2e-2
 batch_size = 1
 eval_batch_size = 4
 grad_accumulation_steps = 16
-steps_per_epoch = 100
+steps_per_epoch = 3000
+epochs = 16
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
-epochs = 4
 prefix = ''
 prompt_column = 'content'
 response_column = 'summary'
@@ -216,7 +216,7 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        score_dict = self.evaluate(dev_dataloader)
+        score_dict = self.evaluate(dev_dataloader, epoch)
         # 保存最优
         if score_dict['bleu-4'] > self.best:
             self.best = score_dict['bleu-4']
@@ -224,12 +224,15 @@ class Evaluator(Callback):
         score_dict['best'] = self.best
         print(score_dict)
     
-    def evaluate(self, data):
+    def evaluate(self, data, epoch='final'):
         preds, labels = [], []
         for prompt, label in tqdm(data, desc='Evaluating'):
             pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
+            with open(f'./preds_{epoch}.txt', 'a+', encoding='utf-8') as f:
+                for pred_i, label_i in zip(pred, label):
+                    f.write(json.dumps({'pred': pred_i, 'label': label_i}, ensure_ascii=False) + '\n')
 
         score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
         for pred, label in zip(preds, labels):
