@@ -99,7 +99,7 @@ def collate_train_fn(batch):
 def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
     for query, labels, history in batch:
-        batch_prompt.append(build_prompt(query, history))
+        batch_prompt.append(prefix + build_prompt(query, history))
         batch_labels.append(labels[:max_target_length])
     return batch_prompt, batch_labels
 
@@ -138,7 +138,7 @@ class PrefixEncoder(torch.nn.Module):
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(4)
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(4, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False
@@ -192,13 +192,16 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         logits: [btz, seq_len, vocab_size]
         labels: token_ids: [btz, seq_len]
         '''
-
-        logits = logits[:, :-1, :]  # 预测序列，错开一位
-        labels = labels[:, 1:]# 目标token_ids
+        raw_dtyps = logits.dtype
+        logits = logits.to(torch.float32)
+        logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
+        labels = labels[:, 1:].contiguous() # 目标token_ids
         
         logits = logits.reshape(-1, logits.shape[-1])
         labels = labels.flatten()
-        return super().forward(logits, labels)
+        loss = super().forward(logits, labels)
+
+        return loss.to(raw_dtyps)
 model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(model.parameters(), lr), grad_accumulation_steps=grad_accumulation_steps)
 
 class Chat(SeqGeneration):
