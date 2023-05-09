@@ -1,5 +1,11 @@
 #! -*- coding: utf-8 -*-
-# chatglm的指令微调, 基于ptuning_v2
+# chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
+# |            solution           |    Rouge-L    |   Rouge-1   |   Rouge-2   |    BLEU   | comment |
+# | ------------ | ---------------| ------------- | ----------- | ----------- | --------- |
+# | hf+chatglm+ptuning_v2官方     |     24.97     |    31.12    |     7.11    |    8.10   |         |
+# | hf+chatglm+ptuning_v2复现     |     24.80     |    30.97    |     6.98    |    7.85   |         |
+# | bert4torch+chatglm+ptuning_v2 |     24.58     |    30.76    |     7.12    |   8.12    |         |
+
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -12,7 +18,9 @@ import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from transformers import AutoTokenizer
 from bert4torch.snippets import ListDataset
+from bert4torch.callbacks import Logger
 from bert4torch.generation import SeqGeneration
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 import json
 import jieba 
 from rouge_chinese import Rouge
@@ -100,7 +108,9 @@ def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
     for query, labels, history in batch:
         batch_prompt.append(prefix + build_prompt(query, history))
-        batch_labels.append(labels[:max_target_length])
+        
+        label_ids = tokenizer(text_target=labels, max_length=max_target_length, truncation=True)['input_ids']
+        batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
@@ -202,7 +212,10 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         loss = super().forward(logits, labels)
 
         return loss.to(raw_dtyps)
-model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(model.parameters(), lr), grad_accumulation_steps=grad_accumulation_steps)
+
+optimizer = optim.AdamW(model.parameters(), lr)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)
+model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
@@ -219,13 +232,15 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        score_dict = self.evaluate(dev_dataloader, epoch)
-        # 保存最优
-        if score_dict['bleu-4'] > self.best:
-            self.best = score_dict['bleu-4']
-            model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存PrefixEncoder权重
-        score_dict['best'] = self.best
-        print(score_dict)
+        model.save_weights(f'./model_{epoch}.pt', trainable_only=True)
+        # # 可以每个epoch都evaluate，但是比较耗时
+        # score_dict = self.evaluate(dev_dataloader, epoch)
+        # # 保存最优
+        # if score_dict['bleu-4'] > self.best:
+        #     self.best = score_dict['bleu-4']
+        #     model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存PrefixEncoder权重
+        # score_dict['best'] = self.best
+        # print(score_dict)
     
     def evaluate(self, data, epoch='final'):
         preds, labels = [], []
@@ -254,12 +269,22 @@ class Evaluator(Callback):
             score_dict[k] = float(np.mean(v))
         return score_dict
 
-
+class LoggerCallback(Logger):
+    def on_batch_end(self, global_step, local_step, logs=None):
+        if (global_step+1) % self.interval == 0:
+            log_str = f'{self.sep}'.join([f'{k}={v:.5f}' for k, v in logs.items() if k not in {'size'}])
+            self.logger.info(f'step={global_step+1}{self.sep}{log_str}{self.sep}lr={self.optimizer.param_groups[0]["lr"]}')
+    
 if __name__ == '__main__':
     evaluator = Evaluator()
+    logger = LoggerCallback('./log.log', interval=100)
 
     if mode == 'train':
-        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator])
+        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
+        score_dict = evaluator.evaluate(dev_dataloader)
+        print(score_dict)
+
     else:
-        model.load_weights('./best_model.pt', strict=False)
-        evaluator.evaluate(dev_dataloader)
+        model.load_weights('./model_15.pt', strict=False)
+        score_dict = evaluator.evaluate(dev_dataloader)
+        print(score_dict)
