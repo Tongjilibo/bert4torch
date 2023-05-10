@@ -8,16 +8,35 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import time
 
 
-dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+choice = 'int4'  # default, int4, int8
+if choice == 'default':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+    bit = 8
+elif choice == 'int4':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int4"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    bit = 4
+elif choice == 'int8':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int8"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    bit = 8
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']
 
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
-encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)  # 建立模型，加载权重
-
+# 建立模型，加载权重
+if choice == 'default':
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(bit).to(device)
+else:
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=None, model='glm').half().quantize(bit, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
+    encoder.load_weights_from_pytorch_checkpoints(checkpoint_path)
+    encoder = encoder.to(device)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):

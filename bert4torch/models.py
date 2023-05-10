@@ -3,7 +3,7 @@
     v0.2.5版本开始，对抗训练模块不在complile中使用，而是用callback方式实现
 '''
 import torch
-import torch.nn as nn
+from torch import nn, Tensor
 import torch.nn.functional as F
 import copy
 import json
@@ -17,6 +17,7 @@ import warnings
 from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
 from tqdm import tqdm
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 class BERT_BASE(nn.Module):
@@ -307,7 +308,7 @@ class BERT_BASE(nn.Module):
         else:
             self.output = outputs[0]
 
-    def quantize(self, bits: int, empty_init=False, target_modules=None, **kwargs):
+    def quantize(self, bits: int, use_quantization_cache=True, empty_init=False, target_modules=None, **kwargs):
         '''量化
         '''
         if bits == 0:
@@ -321,7 +322,7 @@ class BERT_BASE(nn.Module):
 
         self.quantized = True
         self.quantization_bit = bits
-        self = quantize(self, bits, empty_init=empty_init, target_modules=target_modules, **kwargs)
+        self = quantize(self, bits, empty_init=empty_init, use_quantization_cache=use_quantization_cache, target_modules=target_modules, **kwargs)
         return self
 
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):
@@ -359,6 +360,23 @@ class BERT_BASE(nn.Module):
             if param.requires_grad:
                 trainable_params += num_params
         print(f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}")
+    
+    @property
+    def device(self) -> torch.device:
+        """从transformers包迁移过来
+        """
+        try:
+            return next(self.parameters()).device
+        except StopIteration:
+            # For nn.DataParallel compatibility in PyTorch 1.5
+
+            def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
+                tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
+                return tuples
+
+            gen = self._named_members(get_members_fn=find_tensor_attributes)
+            first_tuple = next(gen)
+            return first_tuple[1].device
 
 class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）

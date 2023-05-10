@@ -1,8 +1,9 @@
 ''' 从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
     源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
 '''
-from torch.nn import Linear
+from torch.nn import Linear, Embedding
 from torch.nn.parameter import Parameter
+import torch.nn.functional as F
 import bz2
 import torch
 import base64
@@ -10,6 +11,7 @@ import ctypes
 from typing import List
 import re
 from tqdm import tqdm
+from functools import partial
 import logging
 logger = logging.getLogger(__name__)
 
@@ -118,31 +120,54 @@ def extract_weight_to_half(weight: torch.Tensor, scale_list: torch.Tensor, sourc
         return out
 
 
+class CacheTensor():
+    def __init__(self, *args, **kwargs):
+        self.tensor = torch.empty(*args, **kwargs)
+
+    def to(self, *args, **kwargs):
+        self.tensor = self.tensor.to(*args, **kwargs)
+
+    def data_ptr(self):
+        return self.tensor.data_ptr()
+
+
 class QuantizedLinear(Linear):
-    def __init__(self, weight_bit_width: int, weight_tensor=None, bias_tensor=None, empty_init=False, *args, **kwargs):
+    def __init__(self, weight_bit_width: int, weight_tensor=None, bias_tensor=None, quantized_weight=None,
+                 quantized_weight_scale=None, quantization_cache=None, empty_init=False, *args, **kwargs):
         super(QuantizedLinear, self).__init__(*args, **kwargs)
         self.weight_bit_width = weight_bit_width
+        self.quantization_cache = quantization_cache
 
-        shape = self.weight.shape
-        del self.weight
-
-        if weight_tensor is None or empty_init:
-            self.weight = torch.empty(
-                shape[0], shape[1] * weight_bit_width // 8, dtype=torch.int8, device=kwargs["device"]
-            )
-            self.weight_scale = torch.empty(shape[0], dtype=kwargs["dtype"], device=kwargs["device"])
+        if (quantized_weight is not None) and (quantized_weight_scale is not None):
+            del self.weight
+            self.weight = Parameter(quantized_weight.to(kwargs["device"]), requires_grad=False)
+            self.weight_scale = Parameter(quantized_weight_scale.to(kwargs["device"]), requires_grad=False)
         else:
-            self.weight_scale = (weight_tensor.abs().max(dim=-1).values / ((2 ** (weight_bit_width - 1)) - 1)).half()
-            self.weight = torch.round(weight_tensor / self.weight_scale[:, None]).to(torch.int8)
-            if weight_bit_width == 4:
-                self.weight = compress_int4_weight(self.weight)
+            shape = self.weight.shape
+            del self.weight
 
-        self.weight = Parameter(self.weight.to(kwargs["device"]), requires_grad=False)
-        self.weight_scale = Parameter(self.weight_scale.to(kwargs["device"]), requires_grad=False)
+            if weight_tensor is None or empty_init:
+                self.weight = torch.empty(
+                    shape[0], shape[1] * weight_bit_width // 8, dtype=torch.int8, device=kwargs["device"]
+                )
+                self.weight_scale = torch.empty(shape[0], dtype=kwargs["dtype"], device=kwargs["device"])
+            else:
+                self.weight_scale = (weight_tensor.abs().max(dim=-1).values / ((2 ** (weight_bit_width - 1)) - 1)).to(kwargs["dtype"])
+                self.weight = torch.round(weight_tensor / self.weight_scale[:, None]).to(torch.int8)
+                if weight_bit_width == 4:
+                    self.weight = compress_int4_weight(self.weight)
+
+            self.weight = Parameter(self.weight.to(kwargs["device"]), requires_grad=False)
+            self.weight_scale = Parameter(self.weight_scale.to(kwargs["device"]), requires_grad=False)
+
         if bias_tensor is not None:
             self.bias = Parameter(bias_tensor.to(kwargs["device"]), requires_grad=False)
         else:
             self.bias = None
+
+    def reset_parameters(self):
+        """To accelerate initialization"""
+        pass
 
     def forward(self, input):
         output = W8A16Linear.apply(input, self.weight, self.weight_scale, self.weight_bit_width)
@@ -150,8 +175,54 @@ class QuantizedLinear(Linear):
             output = output + self.bias
         return output
 
+    def _apply(self, fn):
+        self_obj = super()._apply(fn)
+        if self.quantization_cache is not None:
+            self.quantization_cache.to(self_obj.weight.device)
+            self.quantization_cache.to(self_obj.weight_scale.dtype)
+        return self_obj
+    
 
-def quantize(model, weight_bit_width, empty_init=False, target_modules=None, **kwargs):
+class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
+    def __init__(self, weight_bit_width: int, weight_tensor=None, quantized_weight=None, quantized_weight_scale=None,
+                 empty_init=False, *args, **kwargs):
+        super(QuantizedEmbedding, self).__init__(*args, **kwargs)
+        self.weight_bit_width = weight_bit_width
+
+        if (quantized_weight is not None) and (quantized_weight_scale is not None):
+            del self.weight
+            self.weight = Parameter(quantized_weight.to(kwargs["device"]), requires_grad=False)
+            self.weight_scale = Parameter(quantized_weight_scale.to(kwargs["device"]), requires_grad=False)
+        else:
+            shape = self.weight.shape
+            del self.weight
+
+            if weight_tensor is None or empty_init:
+                self.weight = torch.empty(
+                    shape[0], shape[1] * weight_bit_width // 8, dtype=torch.int8, device=kwargs["device"]
+                )
+                self.weight_scale = torch.empty(shape[0], dtype=kwargs["dtype"], device=kwargs["device"])
+            else:
+                self.weight_scale = (weight_tensor.abs().max(dim=-1).values / ((2 ** (weight_bit_width - 1)) - 1)).to(
+                    kwargs["dtype"])
+                self.weight = torch.round(weight_tensor / self.weight_scale[:, None]).to(torch.int8)
+                if weight_bit_width == 4:
+                    self.weight = compress_int4_weight(self.weight)
+
+            self.weight = Parameter(self.weight.to(kwargs["device"]), requires_grad=False)
+            self.weight_scale = Parameter(self.weight_scale.to(kwargs["device"]), requires_grad=False)
+
+    def forward(self, input):
+        original_weight = extract_weight_to_half(weight=self.weight, scale_list=self.weight_scale,
+                                                    source_bit_width=self.weight_bit_width)
+        output = F.embedding(
+            input, original_weight, self.padding_idx, self.max_norm,
+            self.norm_type, self.scale_grad_by_freq, self.sparse
+        )
+        return output
+
+
+def quantize(model, weight_bit_width, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
     """Replace fp16 linear with quantized linear
     这里修改了hard code, 可以适配其他模型
     target_modules: str/list, 指定对某些层做量化
@@ -169,17 +240,32 @@ def quantize(model, weight_bit_width, empty_init=False, target_modules=None, **k
             if target_module_found:
                 modules_trans[name] = module
     
+    # TODO: 暂时只支持cuda
+    current_device = torch.cuda.current_device()
+    dtype = torch.half
+
+    QuantizedLinearWithPara = partial(
+        QuantizedLinear,
+        weight_bit_width=weight_bit_width,
+        bias=True,
+        dtype=dtype,
+        empty_init=empty_init
+    )
+        
+    cache = dict()
     for name, module in tqdm(modules_trans.items(), desc='Quantize linear layers'):
-        module = QuantizedLinear(
-                weight_bit_width=weight_bit_width,
-                weight_tensor=module.weight.to(torch.cuda.current_device()),
+        cache_name = re.sub('\.[0-9]+\.', '.', name)
+        if use_quantization_cache and (cache_name not in cache):
+            n, m = module.weight.size(0), module.weight.size(1)
+            cache[cache_name] = CacheTensor(n, m, dtype=dtype, device=current_device, requires_grad=False)
+
+        module = QuantizedLinearWithPara(
+                weight_tensor=module.weight.to(current_device),
                 bias_tensor=module.bias,
                 in_features=module.in_features,
                 out_features=module.out_features,
-                bias=True,
-                dtype=torch.half,
                 device=module.weight.device,
-                empty_init=empty_init
+                quantization_cache=cache.get(cache_name)
             )
         # 赋值
         name_new = list(name)
