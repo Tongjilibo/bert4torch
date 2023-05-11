@@ -100,3 +100,55 @@ else:
   "pad_token_id": 3
 }
 '''
+
+# int4 config
+'''
+{
+    "hidden_act": "gelu", 
+    "bos_token_id": 130004,
+    "eos_token_id": 130005,
+    "mask_token_id": 130000,
+    "gmask_token_id": 130001,
+    "hidden_size": 4096,
+    "intermediate_size": 16384,
+    "layer_norm_eps": 1e-05,
+    "max_sequence_length": 2048,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 28,
+    "position_encoding_2d": true,
+    "torch_dtype": "float16",
+    "vocab_size": 130528,
+    "segment_vocab_size": 0,
+    "skip_init": true,
+    "rope_rank": "updown",
+    "pad_token_id": 3,
+    "quantization_bit": 4,
+    "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
+}
+'''
+
+# int8 config
+'''
+{
+    "hidden_act": "gelu", 
+  "bos_token_id": 130004,
+  "eos_token_id": 130005,
+  "mask_token_id": 130000,
+  "gmask_token_id": 130001,
+  "hidden_size": 4096,
+  "intermediate_size": 16384,
+  "layer_norm_eps": 1e-05,
+  "max_sequence_length": 2048,
+  "num_attention_heads": 32,
+  "num_hidden_layers": 28,
+  "position_encoding_2d": true,
+  "torch_dtype": "float16",
+  "vocab_size": 130528,
+  "segment_vocab_size": 0,
+  "skip_init": true,
+  "rope_rank": "updown",
+  "pad_token_id": 3,
+  "quantization_bit": 8,
+  "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
+}
+'''

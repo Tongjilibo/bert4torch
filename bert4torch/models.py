@@ -2195,6 +2195,11 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     transformer.build(**configs)
     transformer.apply(transformer.init_model_weights)  # 初始化权重
 
+    # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要甚至恶
+    if configs.get('quantization_bit') is not None:
+        bits = configs.pop('quantization_bit')
+        transformer = transformer.half().quantize(bits=bits, **configs)
+
     # 权重加载
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)

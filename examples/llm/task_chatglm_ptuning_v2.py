@@ -52,17 +52,14 @@ if choice == 'default':
     dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
-    bit = 8
 elif choice == 'int4':
     dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-    bit = 4
 elif choice == 'int8':
     dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int8"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-    bit = 8
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -164,11 +161,10 @@ class Model(BaseModel):
         super().__init__(*args, **kwargs)
         # 建立模型，加载权重
         if choice == 'default':
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(bit).to(device)
+            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(4, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)
         else:
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=None, model='glm').half().quantize(bit, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
-            self.encoder.load_weights_from_pytorch_checkpoints(checkpoint_path)
-            self.encoder = self.encoder.to(device)
+            # 在config中已经写入了量化的配置参数
+            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').to(device)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False
