@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
-# chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当， *表示除该处改动其余均一致
+# chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当，
 # |            solution           |    Rouge-L    |   Rouge-1   |   Rouge-2   |    BLEU   | comment |
 # | ------------------------------| ------------- | ----------- | ----------- | --------- | ------- |
 # | hf+chatglm+ptuning_v2官方      |     24.97     |    31.12    |     7.11    |    8.10   |         |
