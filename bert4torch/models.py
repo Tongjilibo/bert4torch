@@ -10,14 +10,13 @@ import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
-from bert4torch.snippets import insert_arguments, delete_arguments, torch_div
-from bert4torch.snippets import take_along_dim, create_position_ids_start_at_padding, DottableDict
+from bert4torch.snippets import insert_arguments, delete_arguments, print_trainable_parameters, torch_div
+from bert4torch.snippets import take_along_dim, create_position_ids_start_at_padding, DottableDict, get_parameter_device
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
 from torch.utils.checkpoint import checkpoint as grad_checkpoint
 from tqdm import tqdm
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 
 class BERT_BASE(nn.Module):
@@ -345,38 +344,14 @@ class BERT_BASE(nn.Module):
         return self
 
     def print_trainable_parameters(self):
-        """
-        Prints the number of trainable parameters in the model.
-        """
-        trainable_params = 0
-        all_param = 0
-        for _, param in self.named_parameters():
-            num_params = param.numel()
-            # if using DS Zero 3 and the weights are initialized empty
-            if num_params == 0 and hasattr(param, "ds_numel"):
-                num_params = param.ds_numel
-
-            all_param += num_params
-            if param.requires_grad:
-                trainable_params += num_params
-        print(f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}")
+        """打印可训练的参数量"""
+        print_trainable_parameters(self)
     
     @property
     def device(self) -> torch.device:
-        """从transformers包迁移过来
-        """
-        try:
-            return next(self.parameters()).device
-        except StopIteration:
-            # For nn.DataParallel compatibility in PyTorch 1.5
+        """获取model所在的device"""
+        return get_parameter_device(self)
 
-            def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
-                tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
-                return tuples
-
-            gen = self._named_members(get_members_fn=find_tensor_attributes)
-            first_tuple = next(gen)
-            return first_tuple[1].device
 
 class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）
