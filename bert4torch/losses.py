@@ -304,8 +304,7 @@ class TemporalEnsemblingLoss(nn.Module):
             return self.loss_sup(y_pred_sup, y_true_sup)
 
     def same_batch_check(self, y_pred_sup, y_pred_unsup, y_true_sup, bti):
-        '''检测数据的前几个batch必须是一致的, 这里写死是10个
-        '''
+        '''检测数据的前几个batch必须是一致的, 这里写死是10个'''
         if bti >= 10:
             return
         if bti >= len(self.hist_input_y):

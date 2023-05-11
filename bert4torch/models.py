@@ -43,6 +43,8 @@ class BERT_BASE(nn.Module):
             keep_hidden_layers=None, # 保留的hidden_layer层的id
             hierarchical_position=None,  # 是否层次分解位置编码
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
+            output_all_encoded_layers=False, # 是否返回所有layer的hidden_states
+            skip_init=False,  # 是否初始化
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -73,28 +75,17 @@ class BERT_BASE(nn.Module):
         self.hierarchical_position = hierarchical_position
         self.gradient_checkpoint = gradient_checkpoint
         self.quantized = False
-
-    def build(self, attention_caches=None, **kwargs):
-        """模型构建函数
-
-        :param attention_caches: 为Attention的K,V的缓存序列字典，格式为{Attention层名: [K缓存, V缓存]}；
-        :param layer_norm_*: 实现Conditional Layer Normalization时使用，用来实现以“固定长度向量”为条件的条件Bert，暂未使用
-        """
-        # Other
-        self.attention_caches = attention_caches or {}
-        self.output_all_encoded_layers = kwargs.get('output_all_encoded_layers', False)
-        self.skip_init = kwargs['skip_init']
+        self.output_all_encoded_layers = output_all_encoded_layers
+        self.skip_init = 'meta' if skip_init is True else 'cpu'
 
     def get_kw(self, *args, **kwargs):
-        '''把self.属性设置到kwargs中, 方便传参
-        '''
+        '''把self.属性设置到kwargs中, 方便传参'''
         for arg in args:
             kwargs[arg] = getattr(self, arg)
         return kwargs
 
     def args_segmentate(self, inputs, **model_kwargs):
-        '''解析输入，转成list，tuple类型
-        '''
+        '''解析输入，转成list，tuple类型'''
         # 传入[x1,x2]时，*inputs会解析成([x1,x2],)，此时需要取第一个元素
         if (len(inputs)==1) and isinstance(inputs[0], (tuple,list)):
             return inputs[0]
@@ -129,8 +120,7 @@ class BERT_BASE(nn.Module):
         return self.forward(*inputs, **model_kwargs)
 
     def init_model_weights(self, module):
-        """ 初始化权重
-        """
+        """ 初始化权重 """
         if self.skip_init == 'meta':
             if isinstance(module, (nn.Linear, nn.Embedding)):
                 module.to_empty(device='cpu')
@@ -149,16 +139,14 @@ class BERT_BASE(nn.Module):
             module.bias.data.zero_()
 
     def variable_mapping(self):
-        """构建pytorch层与checkpoint的变量名之间的映射表
-        """
+        """构建pytorch层与checkpoint的变量名之间的映射表"""
         return {}
 
     def load_variable(self):
         raise NotImplementedError
 
     def load_embeddings(self, embeddings):
-        """根据keep_tokens和compound_tokens对embedding进行修改
-        """
+        """根据keep_tokens和compound_tokens对embedding进行修改"""
         if self.keep_tokens is not None:
             embeddings = embeddings[self.keep_tokens]
 
@@ -175,8 +163,7 @@ class BERT_BASE(nn.Module):
         return embeddings
 
     def load_pos_embeddings(self, embeddings):
-        """根据hierarchical_position对pos_embedding进行修改
-        """
+        """根据hierarchical_position对pos_embedding进行修改"""
         if self.hierarchical_position is not None:
             alpha = 0.4 if self.hierarchical_position is True else self.hierarchical_position
             embeddings = embeddings - alpha * embeddings[:1]
@@ -191,8 +178,7 @@ class BERT_BASE(nn.Module):
         return embeddings
 
     def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, verbose=1):
-        """根据mapping从checkpoint加载权重
-        """
+        """根据mapping从checkpoint加载权重"""
         # 加载模型文件
         if isinstance(checkpoint, str):
             file_state_dict = torch.load(checkpoint, map_location='cpu')
@@ -239,8 +225,7 @@ class BERT_BASE(nn.Module):
         return missing_keys, needed_keys
 
     def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, verbose=1):
-        """逐个ckpt加载
-        """
+        """逐个ckpt加载"""
         if isinstance(checkpoints, str):
             self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, verbose=verbose)
         elif isinstance(checkpoints, (tuple, list)):
@@ -265,15 +250,13 @@ class BERT_BASE(nn.Module):
         raise NotImplementedError
     
     def apply_on_layer_begin(self, l_i, **model_kwargs):
-        '''新增对layer block输入进行操作的函数
-        '''
+        '''新增对layer block输入进行操作的函数'''
         model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
         model_kwargs['cross_past_key_value'] = model_kwargs.get('cross_past_key_values', [None]*self.num_hidden_layers)[l_i]
         return model_kwargs
     
     def apply_on_layer_end(self, l_i, **model_kwargs):
-        '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用
-        '''
+        '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
         if model_kwargs.get('past_key_value', None) is not None:
             if 'past_key_values' not in model_kwargs:
                 model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
@@ -285,18 +268,15 @@ class BERT_BASE(nn.Module):
         return model_kwargs
 
     def compute_attention_bias(self, inputs=None):
-        """定义每一层的Attention Bias
-        """
+        """定义每一层的Attention Bias"""
         return self.attention_bias
 
     def compute_position_bias(self, inputs=None):
-        """定义每一层的Position Bias（一般相对位置编码用）
-        """
+        """定义每一层的Position Bias（一般相对位置编码用）"""
         return self.position_bias
 
     def set_outputs(self, outputs):
-        """设置output和oututs属性
-        """
+        """设置output和oututs属性"""
         if not isinstance(outputs, list):
             outputs = [outputs]
 
@@ -308,8 +288,7 @@ class BERT_BASE(nn.Module):
             self.output = outputs[0]
 
     def quantize(self, bits: int, use_quantization_cache=True, empty_init=False, target_modules=None, **kwargs):
-        '''量化
-        '''
+        '''量化'''
         if bits == 0:
             return
 
@@ -325,16 +304,14 @@ class BERT_BASE(nn.Module):
         return self
 
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):
-        '''增加adapter层
-        '''
+        '''增加adapter层'''
         from bert4torch.layers import add_adapter
         self = add_adapter(self, adapter_method, bottlenect_size)
         self.print_trainable_parameters()
         return self
         
     def get_peft_model(self, peft_config):
-        '''hf的peft库：https://github.com/huggingface/peft
-        '''
+        '''hf的peft库：https://github.com/huggingface/peft'''
         import peft
         if isinstance(peft_config, peft.LoraConfig):
             self = peft.LoraModel(peft_config, self)
@@ -354,11 +331,9 @@ class BERT_BASE(nn.Module):
 
 
 class LM_Mask(object):
-    """定义下三角Attention Mask（语言模型用）
-    """
+    """定义下三角Attention Mask（语言模型用）"""
     def compute_attention_bias(self, inputs=None):
-        """通过idxs序列的比较来得到对应的mask
-        """
+        """通过idxs序列的比较来得到对应的mask"""
         token_ids = inputs[0]
         seq_len = token_ids.shape[1]
         attention_bias = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.long, device=inputs[0].device), diagonal=0)
@@ -367,11 +342,9 @@ class LM_Mask(object):
 
 
 def extend_with_language_model(InputModel):
-    """添加下三角的Attention Mask（语言模型用）
-    """
+    """添加下三角的Attention Mask（语言模型用）"""
     class LanguageModel(LM_Mask, InputModel):
-        """带下三角Attention Mask的派生模型
-        """
+        """带下三角Attention Mask的派生模型"""
         def __init__(self, *args, **kwargs):
             kwargs['with_mlm'] = kwargs.get('with_mlm') or True
             super(LanguageModel, self).__init__(*args, **kwargs)
@@ -385,8 +358,7 @@ class UniLM_Mask(object):
     UniLM: https://arxiv.org/abs/1905.03197
     """
     def compute_attention_bias(self, inputs=None):
-        """通过idxs序列的比较来得到对应的mask
-        """
+        """通过idxs序列的比较来得到对应的mask"""
         segment_ids = inputs[1]
         attention_bias = torch.cumsum(segment_ids, dim=1)
         attention_bias = (attention_bias.unsqueeze(1)) <= (attention_bias.unsqueeze(2))
@@ -396,8 +368,7 @@ class UniLM_Mask(object):
 
 
 def extend_with_unified_language_model(InputModel):
-    """添加UniLM的Attention Mask（Seq2Seq模型用）
-    """
+    """添加UniLM的Attention Mask（Seq2Seq模型用）"""
     class UnifiedLanguageModel(UniLM_Mask, InputModel):
         """带UniLM的Attention Mask的派生模型
         UniLM: https://arxiv.org/abs/1905.03197
@@ -632,8 +603,7 @@ class BERT(BERT_BASE):
         return outputs if len(outputs) > 1 else outputs[0]
 
     def load_variable(self, state_dict, name, prefix='bert'):
-        """加载单个变量的函数, 这里的名称均为映射前的
-        """
+        """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[name]
         if name in {
             f'{prefix}.embeddings.word_embeddings.weight',
@@ -959,8 +929,7 @@ class ELECTRA(BERT):
 
 
 class ERNIE(BERT):
-    """百度文心 https://github.com/PaddlePaddle/ERNIE
-    """
+    """百度文心 https://github.com/PaddlePaddle/ERNIE"""
     def __init__(self, *args, **kwargs):
         super(ERNIE, self).__init__(*args, **kwargs)
 
@@ -1171,19 +1140,16 @@ class Decoder(LM_Mask, BERT):
 
 
 class Transformer(BERT_BASE):
-    '''encoder-decoder结构
-    '''
+    '''encoder-decoder结构'''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
 
         # encoder
         self.encoder = Encoder(*args, **kwargs)
-        self.encoder.build(**kwargs)
 
         # decoder
         self.decoder = Decoder(*args, add_cross_attention=True, **kwargs)
-        self.decoder.build(**kwargs)
 
         if tie_emb_src_tgt_weight:
             # encoder和decoder的embedding权重共享
@@ -1203,8 +1169,7 @@ class Transformer(BERT_BASE):
 
 
 class BART(Transformer):
-    '''encoder-decoder结构
-    '''
+    '''encoder-decoder结构'''
     def __init__(self, *args, tie_emb_src_tgt_weight=True, **kwargs):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
@@ -1409,8 +1374,7 @@ class T5_Decoder(Decoder):
 
 
 class T5(Transformer):
-    """Google的T5模型（Encoder-Decoder）
-    """
+    """Google的T5模型（Encoder-Decoder）"""
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args,  tie_emb_src_tgt_weight=True, **kwargs):
         super(T5, self).__init__(*args, **kwargs)
@@ -1418,12 +1382,10 @@ class T5(Transformer):
 
         # encoder
         self.encoder = T5_Encoder(*args, **kwargs)
-        self.encoder.build(**kwargs)
 
         # decoder
         kwargs['add_cross_attention'] = True
         self.decoder = T5_Decoder(*args, **kwargs)
-        self.decoder.build(**kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):
         # 加载单个变量的函数
@@ -1509,8 +1471,7 @@ class GPT2(LM_Mask, BERT):
         return mapping
     
     class Gpt2Layer(BertLayer):
-        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
-        '''
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
             x = self.layerNorm1((hidden_states, conditional_emb))
@@ -1615,8 +1576,7 @@ class LLaMA(LM_Mask, BERT):
         return mapping
     
     class TransformerBlock(BertLayer):
-        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
-        '''
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             del self.dropout1
@@ -1636,8 +1596,7 @@ class LLaMA(LM_Mask, BERT):
             return model_kwargs
         
     class FeedForward(nn.Module):
-        '''FeedForward和Bert的不一致，Bert只有两个全连接
-        '''
+        '''FeedForward和Bert的不一致，Bert只有两个全连接'''
         def __init__(self, dim: int, hidden_dim: int, multiple_of: int, **kwargs):
             super().__init__()
             hidden_dim = int(2 * hidden_dim / 3)
@@ -1713,15 +1672,13 @@ class GLM(LM_Mask, BERT):
         return mapping
 
     def get_masks(self, attention_mask, context_lens, prepad_lens):
-        '''调整mask使得在content_lens前是bi_attention
-        '''
+        '''调整mask使得在content_lens前是bi_attention'''
         for i, (prepad_len, context_len) in enumerate(zip(prepad_lens, context_lens)):
             attention_mask[i, :, :, prepad_len:context_len] = 1
         return attention_mask
         
     def get_position_ids(self, position_ids, seq_len, context_lens, mask_positions, prepad_lens, gmask=False):
-        '''不使用cache时候的postion_ids
-        '''
+        '''不使用cache时候的postion_ids'''
         if position_ids.shape[0] == 1:
             position_ids = position_ids.repeat(len(context_lens), 1)
         if self.position_encoding_2d:
@@ -1739,8 +1696,7 @@ class GLM(LM_Mask, BERT):
         return position_ids
 
     def prepare_inputs(self, *inputs, **model_kwargs):
-        '''对attention_mask(参考unilm方式)和position_ids做处理
-        '''
+        '''对attention_mask(参考unilm方式)和position_ids做处理'''
         token_ids = model_kwargs['past_token_ids'] if model_kwargs.get('past_token_ids') is not None else inputs[0]
         mask_token = self.mask_token_id if self.mask_token_id in token_ids else self.gmask_token_id  # 倒数第2位
         use_gmask = False if self.mask_token_id in token_ids else True
@@ -1777,8 +1733,7 @@ class GLM(LM_Mask, BERT):
         return self.final_activation(logit)
     
     class GLMBlock(BertLayer):
-        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add
-        '''
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.num_hidden_layers = kwargs['num_hidden_layers']
@@ -1851,8 +1806,7 @@ class Transformer_XL(BERT):
             self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=True)
 
     def init_mems(self, bsz):
-        '''初始化mems, 用于记忆mlen的各层隐含层状态
-        '''
+        '''初始化mems, 用于记忆mlen的各层隐含层状态'''
         if isinstance(self.mem_len, (int, float)) and (self.mem_len > 0):
             mems = []
             param = next(self.parameters())
@@ -1865,8 +1819,7 @@ class Transformer_XL(BERT):
             return None
 
     def _update_mems(self, hids, mlen, qlen):
-        '''更新mems
-        '''
+        '''更新mems'''
         # does not deal with None
         if self.mems is None:
             return None
@@ -1903,8 +1856,7 @@ class Transformer_XL(BERT):
         return attention_mask
 
     def apply_embeddings(self, *inputs, **model_kwargs):
-        '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入
-        '''
+        '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入'''
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
         self.mems = self.init_mems(inputs[0].size(0))  # 生成mems
@@ -2101,7 +2053,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    configs['skip_init'] = 'meta' if configs.get('skip_init') is True else 'cpu'
     
     models = {
         'bert': BERT,
@@ -2167,7 +2118,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
 
     # 生成网络结构
     transformer = MODEL(**configs)
-    transformer.build(**configs)
     transformer.apply(transformer.init_model_weights)  # 初始化权重
 
     # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要甚至恶

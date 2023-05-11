@@ -10,8 +10,7 @@ except:
     pass
 
 class FGM():
-    '''FGM对抗训练
-    '''
+    '''FGM对抗训练'''
     def __init__(self, model):
         self.model = model
         self.backup = {}
@@ -37,8 +36,7 @@ class FGM():
 
 
 class PGD():
-    '''PGD对抗训练
-    '''
+    '''PGD对抗训练'''
     def __init__(self, model):
         self.model = model
         self.emb_backup = {}
@@ -83,8 +81,7 @@ class PGD():
 
 
 class VAT():
-    '''虚拟对抗训练 https://github.com/namisan/mt-dnn/blob/v0.2/alum/adv_masked_lm.py
-    '''
+    '''虚拟对抗训练 https://github.com/namisan/mt-dnn/blob/v0.2/alum/adv_masked_lm.py'''
     def __init__(self, model, emb_name='word_embeddings', noise_var=1e-5, noise_gamma=1e-6, adv_step_size=1e-3, 
                  adv_alpha=1, norm_type='l2', **kwargs):
         self.model = model
@@ -152,8 +149,7 @@ class VAT():
 
     @staticmethod
     def adv_project(grad, norm_type='inf', eps=1e-6):
-        """L0,L1,L2正则，对于扰动计算
-        """
+        """L0,L1,L2正则，对于扰动计算"""
         if norm_type == 'l2':
             direction = grad / (torch.norm(grad, dim=-1, keepdim=True) + eps)
         elif norm_type == 'l1':

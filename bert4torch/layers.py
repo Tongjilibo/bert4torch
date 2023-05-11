@@ -275,8 +275,7 @@ class MultiHeadAttentionLayer(nn.Module):
         return outputs + (past_key_value,) if self.is_decoder else outputs
 
     def disentangled_attention_bias(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
-        '''deberta_v2使用，和原版区别是query_layer是4维
-        '''
+        '''deberta_v2使用，和原版区别是query_layer是4维'''
         btz, n_head, q_len, d_head = query_layer.size()
         k_len = key_layer.size(-2)
         if relative_pos is None:
@@ -432,8 +431,7 @@ class GatedAttentionUnit(nn.Module):
         return a
 
     class OffsetScale(nn.Module):
-        '''仿射变换
-        '''
+        '''仿射变换'''
         def __init__(self, head_size, heads=1, bias=True):
             super().__init__()
             self.gamma = nn.Parameter(torch.ones(heads, head_size))
@@ -624,8 +622,7 @@ class T5Layer(BertLayer):
         return model_kwargs
 
     class T5PositionWiseFeedForward(PositionWiseFeedForward):
-        '''参考transformer包: https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py
-        '''
+        '''参考transformer包: https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py'''
         def __init__(self, hidden_size, intermediate_size, **kwargs):
             super().__init__(hidden_size, intermediate_size, **kwargs)
             self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=False)
@@ -679,8 +676,7 @@ class XlnetLayer(BertLayer):
         return model_kwargs
 
     class RelPartialLearnableMultiHeadAttn(MultiHeadAttentionLayer):
-        '''Transformer_XL式相对位置编码, 这里修改成了MultiHeadAttentionLayer的batch_first代码格式
-        '''
+        '''Transformer_XL式相对位置编码, 这里修改成了MultiHeadAttentionLayer的batch_first代码格式'''
         def __init__(self, *args, r_w_bias=None, r_r_bias=None, r_s_bias=None, **kwargs):
             super().__init__(*args, **kwargs)
             segment_vocab_size = kwargs.get('segment_vocab_size')
@@ -702,8 +698,7 @@ class XlnetLayer(BertLayer):
 
         @staticmethod
         def rel_shift(x, zero_triu=False):
-            '''transformer_xl使用, 向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]
-            '''
+            '''transformer_xl使用, 向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]'''
             q_len, k_len = x.size(2), x.size(-1)
             zero_pad = torch.zeros((*x.size()[:2], q_len, 1), device=x.device, dtype=x.dtype)
             x_padded = torch.cat([zero_pad, x], dim=-1)
@@ -716,8 +711,7 @@ class XlnetLayer(BertLayer):
 
         @staticmethod
         def rel_shift_bnij(x, klen=-1):
-            ''' xlnet使用
-            '''
+            ''' xlnet使用'''
             x_size = x.shape
             x = x.reshape(x_size[0], x_size[1], x_size[3], x_size[2])
             x = x[:, :, 1:, :]
@@ -1113,8 +1107,7 @@ class CRF(nn.Module):
 
     def decode(self, emissions: torch.Tensor, mask: Optional[torch.ByteTensor] = None,
                nbest: Optional[int] = None, pad_tag: Optional[int] = None) -> List[List[List[int]]]:
-        """Find the most likely tag sequence using Viterbi algorithm.
-        """
+        """Find the most likely tag sequence using Viterbi algorithm."""
         if nbest is None:
             nbest = 1
         if mask is None:
@@ -1434,8 +1427,7 @@ class EfficientGlobalPointer(nn.Module):
 
 
 class TplinkerHandshakingKernel(nn.Module):
-    '''Tplinker的HandshakingKernel实现
-    '''
+    '''Tplinker的HandshakingKernel实现'''
     def __init__(self, hidden_size, shaking_type, inner_enc_type=''):
         super().__init__()
         self.shaking_type = shaking_type
@@ -1611,8 +1603,7 @@ class MixUp(nn.Module):
 
 
 class ConvLayer(nn.Module):
-    '''deberta_v2中使用
-    '''
+    '''deberta_v2中使用'''
     def __init__(self, hidden_size, dropout_rate=0.1, layer_norm_eps=1e-12, conv_kernel_size=3, conv_groups=1, conv_act="tanh", **kwargs):
         super().__init__()
         kernel_size = conv_kernel_size
@@ -1646,8 +1637,7 @@ class ConvLayer(nn.Module):
 
 
 class MultiSampleDropout(nn.Module):
-    """multisample dropout (wut): https://arxiv.org/abs/1905.09788
-    """
+    """multisample dropout (wut): https://arxiv.org/abs/1905.09788"""
     def __init__(self, hidden_size, num_labels, K=5, p=0.5):
         super().__init__()
         self.K = K
@@ -1661,8 +1651,7 @@ class MultiSampleDropout(nn.Module):
 
 
 class BottleneckAdapterLayer(nn.Module):
-    '''BottleneckAdapterLayer
-    '''
+    '''BottleneckAdapterLayer'''
     def __init__(self, adapter_input_size, bottleneck_size, adapter_non_linearity='gelu'):
         super().__init__()
         self.adapter_input_size = adapter_input_size

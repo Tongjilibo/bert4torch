@@ -28,14 +28,12 @@ if not is_py2:
 
 
 def is_string(s):
-    """判断是否是字符串
-    """
+    """判断是否是字符串"""
     return isinstance(s, basestring)
     
 
 def truncate_sequences(maxlen, indices, *sequences):
-    """截断总长度至不超过maxlen
-    """
+    """截断总长度至不超过maxlen"""
     sequences = [s for s in sequences if s]
     if not isinstance(indices, (list, tuple)):
         indices = [indices] * len(sequences)
@@ -136,8 +134,7 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
         return ''.join(text)
 
     def search(pattern, sequence, keep_last=True):
-        """从sequence中寻找子串pattern, 返回符合pattern的id集合
-        """
+        """从sequence中寻找子串pattern, 返回符合pattern的id集合"""
         n = len(pattern)
         pattern_idx_set = set()
         for i in range(len(sequence)):
@@ -191,8 +188,7 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
 
 
 def lowercase_and_normalize(text, never_split=()):
-    """转小写，并进行简单的标准化
-    """
+    """转小写，并进行简单的标准化"""
     if is_py2:
         text = unicode(text)
     
@@ -208,8 +204,7 @@ def lowercase_and_normalize(text, never_split=()):
 
 
 def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
-    """将序列padding到同一长度
-    """
+    """将序列padding到同一长度"""
     if isinstance(inputs[0], (np.ndarray, list)):
         if length is None:
             length = np.max([np.shape(x)[:seq_dims] for x in inputs], axis=0)
@@ -245,8 +240,7 @@ def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
 
 
 def insert_arguments(**arguments):
-    """装饰器，为类方法增加参数（主要用于类的__init__方法）
-    """
+    """装饰器，为类方法增加参数（主要用于类的__init__方法）"""
     def actual_decorator(func):
         def new_func(self, *args, **kwargs):
             for k, v in arguments.items():
@@ -261,8 +255,7 @@ def insert_arguments(**arguments):
 
 
 def delete_arguments(*arguments):
-    """装饰器，为类方法删除参数（主要用于类的__init__方法）
-    """
+    """装饰器，为类方法删除参数（主要用于类的__init__方法）"""
     def actual_decorator(func):
         def new_func(self, *args, **kwargs):
             for k in arguments:
@@ -304,8 +297,7 @@ def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
 
 
 def cal_ts_num(tensor_shape):
-    '''查看某个tensor在gc中的数量
-    '''
+    '''查看某个tensor在gc中的数量'''
     cal_num = 0
     for obj in gc.get_objects():
         try:
@@ -378,14 +370,12 @@ class WebServing(object):
         return new_func
 
     def route(self, path, func, arguments, method='GET'):
-        """添加接口
-        """
+        """添加接口"""
         func = self.wraps(func, arguments, method)
         self.bottle.route(path, method=method)(func)
 
     def start(self):
-        """启动服务
-        """
+        """启动服务"""
         self.bottle.run(host=self.host, port=self.port, server=self.server)
 
 
@@ -460,8 +450,7 @@ def parallel_apply_generator(func, iterable, workers, max_queue_size, dummy=Fals
         seed_queue.put(seed)
 
     def worker_step(in_queue, out_queue):
-        """单步函数包装成循环执行
-        """
+        """单步函数包装成循环执行"""
         if not seed_queue.empty():
             np.random.seed(seed_queue.get())
         while True:
@@ -518,8 +507,7 @@ def parallel_apply(func, iterable, workers, max_queue_size, callback=None, dummy
 
 
 def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values_length=0, start_padding_idx=True):
-    """生成padding_ids, 从padding_idx+1开始。忽略填充符号
-    """
+    """生成padding_ids, 从padding_idx+1开始。忽略填充符号"""
     # The series of casts and type-conversions here are carefully balanced to both work with ONNX export and XLA.
     mask = input_ids.ne(padding_idx).int()
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
@@ -527,8 +515,7 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
 
 
 class DottableDict(dict):
-    '''支持点操作符的字典
-    '''
+    '''支持点操作符的字典'''
     def __init__(self, *args, **kwargs):
         dict.__init__(self, *args, **kwargs)
         self.__dict__ = self
