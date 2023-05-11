@@ -45,32 +45,17 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
   ```text
   2022-10-28 23:16:10 - Start Training
-  2022-10-28 23:16:10 - Epoch: 1/5
+  2022-10-28 23:16:10 - Epoch: 1/2
   5000/5000 [==============================] - 13s 3ms/step - loss: 0.1351 - acc: 0.9601
   Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 798.09it/s] 
   test_acc: 0.98045. best_test_acc: 0.98045
 
-  2022-10-28 23:16:27 - Epoch: 2/5
+  2022-10-28 23:16:27 - Epoch: 2/2
   5000/5000 [==============================] - 13s 3ms/step - loss: 0.0465 - acc: 0.9862
   Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 635.78it/s] 
   test_acc: 0.98280. best_test_acc: 0.98280
 
-  2022-10-28 23:16:44 - Epoch: 3/5
-  5000/5000 [==============================] - 15s 3ms/step - loss: 0.0284 - acc: 0.9915
-  Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 673.60it/s] 
-  test_acc: 0.98365. best_test_acc: 0.98365
-
-  2022-10-28 23:17:03 - Epoch: 4/5
-  5000/5000 [==============================] - 15s 3ms/step - loss: 0.0179 - acc: 0.9948
-  Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 692.34it/s] 
-  test_acc: 0.98265. best_test_acc: 0.98365
-
-  2022-10-28 23:17:21 - Epoch: 5/5
-  5000/5000 [==============================] - 14s 3ms/step - loss: 0.0129 - acc: 0.9958
-  Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 701.77it/s] 
-  test_acc: 0.98585. best_test_acc: 0.98585
-
-  2022-10-28 23:17:37 - Finish Training
+  2022-10-28 23:16:44 - Finish Training
   ```
 
 ## 3. 快速上手
@@ -79,10 +64,11 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials.md)，[教程示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials)，[实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)，[bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
 
-## 4. 版本说明
+## 4. 版本历史
 
-### 4.1 更新历史
+<details><summary><b>点击查看</b></summary>
 
+**版本说明**
 - **v0.2.8(待发布)**：增加chatglm-6b/llama-7b预训练模型, 修改rope为不使用max_position，修复model.half()类型不一致问题，生成式解码新增SeqGeneration和Seq2SeqGeneration, 支持加载多个权重文件, gpt系列默认不加softmax，更新fnlp的bart2.0。增加苏神Tiger的pytorch实现, 集成苏神、uer的roberta-small/Tiny模型以及ChatYuan v2模型, 增加了对attention_key_size的入参支持(skykiseki用户)
 - **v0.2.7.post2**：20230310 增加lion优化器, 修复albert_unshared加载权重, 修复lm系列(gpt, seq2seq)存在的forward参数不对的问题，修复GlobalPointer使用rope的bug
 - **v0.2.7**：20230213 修复random_sample()的bug，适配v0.0.6的torch4keras：增加resume_from_checkpoint和save_to_checkpoint；增加add_trainer方法，重构了Trainer(BaseModel)的实现，增加了AccelerateCallback
@@ -92,7 +78,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **v0.2.3**：20221023 虚拟对抗VAT在多个ouput时支持指定，把Trainer抽象到[torch4keras](https://github.com/Tongjilibo/torch4keras)中，修复DP和DDP出现resume_epoch不存在的bug, tokenizer的never_split去除None, transformer_xl的bug, 增加gradient_checkpoint
 - **v0.2.2**：20220922 修复t5的norm_mode问题，允许hidden_size不整除num_attention_heads，支持多个schedule(如同时ema+warmup)
 - **v0.2.1**：20220905 兼容torch<=1.7.1的torch.div无rounding_mode，增加自定义metrics，支持断点续训，增加默认Logger和Tensorboard日志
-- **v0.2.0**：20220823 兼容torch<1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
+- **v0.2.0**：20220823 兼容torch1.9.0的缺失take_along_dim，修复bart中位置向量514的问题，修复Sptokenizer对符号不转换，打印Epoch开始的时间戳，增加parallel_apply
 - **v0.1.9**：20220808 增加mixup/manifold_mixup/temporal_ensembling策略，修复pgd策略param.grad为空的问题，修改tokenizer支持批量
 - **v0.1.8**：20220717 修复原来CRF训练中loss陡增的问题，修复xlnet的token_type_ids输入显存占用大的问题
 - **v0.1.7**：20220710 增加EarlyStop，CRF中自带转bool类型
@@ -101,8 +87,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **v0.1.4**：20220421 增加了VAT，修复了linux下apply_embedding返回项有问题的情况
 - **v0.1.3**：20220409 初始版本
 
-### 4.2 版本对应关系
-
+**版本对应关系**
 
 | bert4torch版本 | torch4keras版本 |
 | ---------------- | ----------------- |
@@ -115,7 +100,12 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | 0.2.3          | 0.0.2           |
 | <0.2.3         | ——            |
 
-## 5. 更新：
+</details>
+
+
+## 5. 更新历史：
+<details><summary><b>点击查看</b></summary>
+
 - **20230426**：增加vicuna的集成, 增加batch_generate()功能, 把_token_pad_ids重命名为pad_token_ids, tokenizor中重命名部分字段
 - **20230408**：增加苏神Tiger的pytorch实现, 集成苏神、uer的roberta-small/Tiny模型以及ChatYuan v2模型, 增加了对attention_key_size的入参支持，单向decoder模型和encoder decoder模型解码增加cache, 更新fnlp的bart2.0, 增加chatglm-6b预训练模型推理, 集成BELLE_llama模型, 增加量化模块并适配llama，增加skip_init参数加快加载, 增加stream输出/网页demo, 增加ptuning_v2，增加moss模型的int4/int8推理
 - **20230326**：增加llama-7b预训练模型, 修改rope为不使用max_position, 增加prompt_clue和nezha_gpt_dialog的finetune示例(skykiseki用户)，修复model.half()类型不一致问题，生成式解码新增SeqGeneration和Seq2SeqGeneration, 支持加载多个权重文件, gpt系列默认不加softmax
@@ -146,6 +136,8 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **20220329**：增加了CoSENT、R-Drop、UDA等示例
 - **20220322**：添加GPT、GPT2、T5模型
 - **20220312**：初版提交
+
+</details>
 
 ## 6. 预训练权重
 
