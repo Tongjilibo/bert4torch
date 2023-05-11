@@ -44,7 +44,6 @@ class BERT_BASE(nn.Module):
             hierarchical_position=None,  # 是否层次分解位置编码
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
             output_all_encoded_layers=False, # 是否返回所有layer的hidden_states
-            skip_init=False,  # 是否初始化
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -76,7 +75,7 @@ class BERT_BASE(nn.Module):
         self.gradient_checkpoint = gradient_checkpoint
         self.quantized = False
         self.output_all_encoded_layers = output_all_encoded_layers
-        self.skip_init = 'meta' if skip_init is True else 'cpu'
+        self.skip_init = kwargs['skip_init']
 
     def get_kw(self, *args, **kwargs):
         '''把self.属性设置到kwargs中, 方便传参'''
@@ -2053,7 +2052,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    
+    configs['skip_init'] = 'meta' if configs['skip_init'] is True else 'cpu'
+
     models = {
         'bert': BERT,
         'roberta': BERT,  
