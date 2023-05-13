@@ -2052,7 +2052,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    configs['skip_init'] = 'meta' if configs['skip_init'] is True else 'cpu'
+    configs['skip_init'] = 'meta' if configs.get('skip_init') is True else 'cpu'
 
     models = {
         'bert': BERT,
