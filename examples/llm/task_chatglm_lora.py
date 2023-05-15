@@ -12,7 +12,7 @@ import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import ListDataset
 from bert4torch.generation import SeqGeneration
-from bert4torch.callbacks import Callback
+from bert4torch.callbacks import Callback, Logger
 from transformers import AutoTokenizer
 import json
 import jieba 
@@ -24,24 +24,36 @@ from peft import LoraConfig
 
 
 # 基本参数
+mode = 'train'
 max_source_length = 64
 max_target_length = 64
-lr = 2e-2
-batch_size = 1
+lr = 5e-4
+batch_size = 16
 eval_batch_size = 4
-grad_accumulation_steps = 16
+grad_accumulation_steps = 1
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
-epochs = 4
+epochs = 1
+steps_per_epoch = 3000
 prefix = ''
 prompt_column = 'content'
 response_column = 'summary'
 history_column = None
 
 # 模型配置
-dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+choice = 'int4'  # default, int4, int8
+if choice == 'default':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+elif choice == 'int4':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int4"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+elif choice == 'int8':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int8"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
@@ -99,8 +111,10 @@ def collate_train_fn(batch):
 def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
     for query, labels, history in batch:
-        batch_prompt.append(build_prompt(query, history))
-        batch_labels.append(labels)
+        batch_prompt.append(prefix + build_prompt(query, history))
+        
+        label_ids = tokenizer(text_target=labels, max_length=max_target_length, truncation=True)['input_ids']
+        batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
@@ -114,8 +128,15 @@ peft_config = LoraConfig(
         target_modules=['q', 'k', 'v']
     )
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
-                                pad_token_id=tokenizer.pad_token_id, add_trainer=True).get_peft_model(peft_config).to(device)
+# 建立模型，加载权重
+if choice == 'default':
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(4, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
+else:
+    # 在config中已经写入了量化的配置参数
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm')
+
+model = model.get_peft_model(peft_config).to(device)
+print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -140,7 +161,7 @@ class Chat(SeqGeneration):
     def post_process(self, output_ids):
         return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
 generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], pad_id=tokenizer.pad_token_id, 
-                  mode='random_sample', maxlen=max_target_length, default_rtype='logits', use_states=True)
+                  mode='random_sample', maxlen=512, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
@@ -149,20 +170,25 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        score_dict = self.evaluate(dev_dataloader)
-        # 保存最优
-        if score_dict['bleu-4'] > self.best:
-            self.best = score_dict['bleu-4']
-            model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存lora权重
-        score_dict['best'] = self.best
-        print(score_dict)
+        model.save_weights(f'./model_{epoch}.pt', trainable_only=True)
+        # # 可以每个epoch都evaluate，但是比较耗时
+        # score_dict = self.evaluate(dev_dataloader, epoch)
+        # # 保存最优
+        # if score_dict['bleu-4'] > self.best:
+        #     self.best = score_dict['bleu-4']
+        #     model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存lora权重
+        # score_dict['best'] = self.best
+        # print(score_dict)
     
-    def evaluate(self, data):
+    def evaluate(self, data, epoch='final'):
         preds, labels = [], []
         for prompt, label in tqdm(data, desc='Evaluating'):
             pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
+            with open(f'./preds_{epoch}.txt', 'a+', encoding='utf-8') as f:
+                for pred_i, label_i in zip(pred, label):
+                    f.write(json.dumps({'pred': pred_i, 'label': label_i}, ensure_ascii=False) + '\n')
 
         score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
         for pred, label in zip(preds, labels):
@@ -181,16 +207,23 @@ class Evaluator(Callback):
             score_dict[k] = float(np.mean(v))
         return score_dict
 
+class LoggerCallback(Logger):
+    def on_batch_end(self, global_step, local_step, logs=None):
+        if (global_step+1) % self.interval == 0:
+            log_str = f'{self.sep}'.join([f'{k}={v:.5f}' for k, v in logs.items() if k not in {'size'}])
+            self.logger.info(f'step={global_step+1}{self.sep}{log_str}{self.sep}lr={self.optimizer.param_groups[0]["lr"]:.5f}')
+
 
 if __name__ == '__main__':
     evaluator = Evaluator()
+    logger = LoggerCallback('./log.log', interval=100)
 
-    model.fit(
-        train_dataloader,
-        steps_per_epoch=None,
-        epochs=epochs,
-        callbacks=[evaluator]
-    )
+    if mode == 'train':
+        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
+        score_dict = evaluator.evaluate(dev_dataloader)
+        print(score_dict)
 
-else:
-    model.load_weights('./best_model.pt', strict=False)
+    else:
+        model.load_weights('./model_15.pt', strict=False)
+        score_dict = evaluator.evaluate(dev_dataloader)
+        print(score_dict)

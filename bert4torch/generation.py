@@ -426,7 +426,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True, device=None):
         '''
         :param model: 模型
         :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
@@ -438,11 +438,11 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param minlen: int, 最小解码长度
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
         :param use_states: str, 是否使用cache
+        :param device: str, 默认为None，因为可以直接使用传入的model.device
         '''
         
-        # 去除了device入参，因为可以直接使用传入的model.device
         pad_id = pad_id or tokenizer.pad_token_id
-        super().__init__(start_id, end_id, maxlen, minlen, pad_id, pad_mode, next(model.parameters()).device)
+        super().__init__(start_id, end_id, maxlen, minlen, pad_id, pad_mode, device or next(model.parameters()).device)
         self.encoder = None
         self.decoder = model
         self.tokenizer = tokenizer
