@@ -130,10 +130,11 @@ peft_config = LoraConfig(
 
 # 建立模型，加载权重
 if choice == 'default':
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(4, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
+    model = model.quantize(4, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
 else:
     # 在config中已经写入了量化的配置参数
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm')
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True)
 
 model = model.get_peft_model(peft_config).to(device)
 print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
