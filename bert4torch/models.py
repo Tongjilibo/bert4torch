@@ -76,6 +76,7 @@ class BERT_BASE(nn.Module):
         self.quantized = False
         self.output_all_encoded_layers = output_all_encoded_layers
         self.skip_init = kwargs['skip_init']
+        self.add_trainer = kwargs['add_trainer']
 
     def get_kw(self, *args, **kwargs):
         '''把self.属性设置到kwargs中, 方便传参'''
@@ -309,13 +310,19 @@ class BERT_BASE(nn.Module):
         self.print_trainable_parameters()
         return self
         
-    def get_peft_model(self, peft_config):
-        '''hf的peft库：https://github.com/huggingface/peft'''
+    def get_peft_model(self, peft_config, adapter_name="default"):
+        '''hf的peft库：https://github.com/huggingface/peft
+        peft的接口LoraModel接口有变，这里使用v0.0.3
+        '''
         import peft
+        self.peft_config = {adapter_name: peft_config}
         if isinstance(peft_config, peft.LoraConfig):
-            self = peft.LoraModel(peft_config, self)
+            model = peft.LoraModel(self, self.peft_config, adapter_name)
         elif isinstance(peft_config, peft.AdaLoraConfig):
-            self = peft.AdaLoraModel(peft_config, self)
+            model = peft.AdaLoraModel(self, self.peft_config, adapter_name)
+        
+        # 返回的model无法使用torch4keras的trainer
+        self =  add_trainer(model) if self.add_trainer else model
         self.print_trainable_parameters()
         return self
 
@@ -2053,6 +2060,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
     configs['skip_init'] = 'meta' if configs.get('skip_init') is True else 'cpu'
+    configs['add_trainer'] = configs.get('add_trainer', False)
 
     models = {
         'bert': BERT,
@@ -2111,7 +2119,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         MODEL = extend_with_unified_language_model(MODEL)
 
     # 动态继承BaseModel
-    if configs.get('add_trainer', False):
+    if configs['add_trainer']:
         class MyModel(MODEL, BaseModel): 
             pass
         MODEL = MyModel
@@ -2129,5 +2137,5 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)
-    transformer.configs = configs
+    transformer.configs = transformer.config = configs
     return transformer
