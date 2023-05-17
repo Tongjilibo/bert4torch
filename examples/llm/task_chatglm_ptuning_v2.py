@@ -294,15 +294,10 @@ class Evaluator(Callback):
             score_dict[k] = float(np.mean(v))
         return score_dict
 
-class LoggerCallback(Logger):
-    def on_batch_end(self, global_step, local_step, logs=None):
-        if (global_step+1) % self.interval == 0:
-            log_str = f'{self.sep}'.join([f'{k}={v:.5f}' for k, v in logs.items() if k not in {'size'}])
-            self.logger.info(f'step={global_step+1}{self.sep}{log_str}{self.sep}lr={self.optimizer.param_groups[0]["lr"]:.5f}')
-    
+
 if __name__ == '__main__':
     evaluator = Evaluator()
-    logger = LoggerCallback('./log.log', interval=100)
+    logger = Logger('./log.log', interval=100)
 
     if mode == 'train':
         model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])

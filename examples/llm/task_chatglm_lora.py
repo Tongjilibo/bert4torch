@@ -1,6 +1,11 @@
 #! -*- coding: utf-8 -*-
-# chatglm的指令微调, 基于lora, 还在测试中
+# chatglm的指令微调, 基于lora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
+
+# | bert4torch+lora setup  |  显存占用  | Time/epoch(s) | Rouge-L  | Rouge-1 | Rouge-2 | BLEU   | comment |
+# | ---------------------- | -------- | ------------- | -------- | ------- | ------- | ------ | ------- |
+# |    V100-fp16-bs16      |  28G     |     2570      |  24.89   |  31.38  |  7.17   |  8.15  |         |
+
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -13,6 +18,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import ListDataset
 from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 from transformers import AutoTokenizer
 import json
 import jieba 
@@ -41,19 +47,9 @@ response_column = 'summary'
 history_column = None
 
 # 模型配置
-choice = 'int4'  # default, int4, int8
-if choice == 'default':
-    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
-elif choice == 'int4':
-    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int4"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-elif choice == 'int8':
-    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int8"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
+config_path = dir_path + '/bert4torch_config.json'
+checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
@@ -129,13 +125,7 @@ peft_config = LoraConfig(
     )
 
 # 建立模型，加载权重
-if choice == 'default':
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
-    model = model.quantize(4, target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense'])
-else:
-    # 在config中已经写入了量化的配置参数
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True)
-
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
 model = model.get_peft_model(peft_config).to(device)
 print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
@@ -147,14 +137,20 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         logits: [btz, seq_len, vocab_size]
         labels: token_ids: [btz, seq_len]
         '''
-
-        logits = logits[:, :-1, :]  # 预测序列，错开一位
-        labels = labels[:, 1:]# 目标token_ids
+        raw_dtyps = logits.dtype
+        logits = logits.to(torch.float32)
+        logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
+        labels = labels[:, 1:].contiguous() # 目标token_ids
         
         logits = logits.reshape(-1, logits.shape[-1])
         labels = labels.flatten()
-        return super().forward(logits, labels)
-model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optim.Adam(model.parameters(), lr), grad_accumulation_steps=grad_accumulation_steps)
+        loss = super().forward(logits, labels)
+
+        return loss.to(raw_dtyps)
+
+optimizer = optim.AdamW(model.parameters(), lr)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)
+model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
@@ -208,16 +204,10 @@ class Evaluator(Callback):
             score_dict[k] = float(np.mean(v))
         return score_dict
 
-class LoggerCallback(Logger):
-    def on_batch_end(self, global_step, local_step, logs=None):
-        if (global_step+1) % self.interval == 0:
-            log_str = f'{self.sep}'.join([f'{k}={v:.5f}' for k, v in logs.items() if k not in {'size'}])
-            self.logger.info(f'step={global_step+1}{self.sep}{log_str}{self.sep}lr={self.optimizer.param_groups[0]["lr"]:.5f}')
-
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    logger = LoggerCallback('./log.log', interval=100)
+    logger = Logger('./log.log', interval=100)
 
     if mode == 'train':
         model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
@@ -225,6 +215,6 @@ if __name__ == '__main__':
         print(score_dict)
 
     else:
-        model.load_weights('./model_15.pt', strict=False)
+        model.load_weights('./model_0.pt', strict=False)
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
