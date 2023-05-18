@@ -2,9 +2,9 @@
 # chatglm的指令微调, 基于lora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
 
-# | bert4torch+lora setup  |  显存占用  | Time/epoch(s) | Rouge-L  | Rouge-1 | Rouge-2 | BLEU   | comment |
-# | ---------------------- | -------- | ------------- | -------- | ------- | ------- | ------ | ------- |
-# |    V100-fp16-bs16      |  28G     |     2570      |  24.89   |  31.38  |  7.17   |  8.15  |         |
+# |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
+# | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
+# | b4t+lora+V100-fp16-bs16         |  28G      |     2570     |     24.89     |    31.38    |     7.17    |    8.15   |         |
 
 
 from bert4torch.models import build_transformer_model

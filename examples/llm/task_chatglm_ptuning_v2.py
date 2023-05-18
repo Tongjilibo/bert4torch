@@ -1,20 +1,16 @@
 #! -*- coding: utf-8 -*-
 # 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
 # chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
-# |            solution           |    Rouge-L    |   Rouge-1   |   Rouge-2   |    BLEU   | comment |
-# | ------------------------------| ------------- | ----------- | ----------- | --------- | ------- |
-# | hf+chatglm+ptuning_v2官方      |     24.97     |    31.12    |     7.11    |    8.10   |         |
-# | hf+chatglm+ptuning_v2复现      |     24.80     |    30.97    |     6.98    |    7.85   |         |
-# | bert4torch+chatglm+ptuning_v2 |     24.58     |    30.76    |     7.12    |   8.12    |         |
-
-# | bert4torch+ptuning_v2 setup  |  显存占用  | Time/epoch(s) | Rouge-L  | Rouge-1 | Rouge-2 | BLEU   | comment |
-# | ---------------------------- | -------- | ------------- | -------- | ------- | ------- | ------ | ------- |
-# | T4-int8-bs1                  |  10G     |     1470      |  24.87   |  30.83  |  7.14   |  8.05  |         |
-# | A100(pcie 40G)-fp16-bs1      |  15G     |     287       |  25.10   |  31.43  |  7.30   |  8.28  |         |
-# | A100(pcie 40G)-fp16-bs8      |  22G     |     705       |  25.22   |  31.22  |  7.38   |  8.35  |         |
-# | A100(pcie 40G)-fp32-bs1      |  29G     |     760       |  24.83   |  30.95  |  7.18   |  8.08  |         |
-# | A100(pcie 40G)-fp32-bs4      |  32G     |     2600      |  25.12   |  31.55  |  7.21   |  8.02  |         |
-
+# |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
+# | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
+# | hf+pt2 official+v100            |   ——      |      ——      |     24.97     |    31.12    |     7.11    |    8.10   |         |
+# | hf+pt2 reappear+v100            |   ——      |      ——      |     24.80     |    30.97    |     6.98    |    7.85   |         |
+# | b4t+chatglm+ptuning_v2+v100     |   ——      |      ——      |     24.58     |    30.76    |     7.12    |    8.12   |         |
+# | b4t+pt2+T4-int8-bs1             |  10G      |     1470     |     24.87     |    30.83    |     7.14    |    8.05   |         |
+# | b4t+pt2+A100(pcie 40G)-fp16-bs1 |  15G      |     287      |     25.10     |    31.43    |     7.30    |    8.28   |         |
+# | b4t+pt2+A100(pcie 40G)-fp16-bs8 |  22G      |     705      |     25.22     |    31.22    |     7.38    |    8.35   |         |
+# | b4t+pt2+A100(pcie 40G)-fp32-bs1 |  29G      |     760      |     24.83     |    30.95    |     7.18    |    8.08   |         |
+# | b4t+pt2+A100(pcie 40G)-fp32-bs4 |  32G      |     2600     |     25.12     |    31.55    |     7.21    |    8.02   |         |
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
