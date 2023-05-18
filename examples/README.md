@@ -290,7 +290,7 @@
 
 ## 4. 关系提取
 
-- [百度关系提取数据集](http://ai.baidu.com/broad/download?dataset=sked)
+- [百度关系提取数据集-官网](http://ai.baidu.com/broad/download?dataset=sked), [百度云(含dev)](https://pan.baidu.com/s/1aWXDkJkiMegzvwZ1XsuO2Q?pwd=5945)
 
 
 | solution      | f1    | comment                |
