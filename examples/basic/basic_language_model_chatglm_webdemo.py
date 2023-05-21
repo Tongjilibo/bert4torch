@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：chatglm的对话测试, 使用前请先使用转换脚本转一下权重
 # 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
-# 需要安装git上最新版bert4torch: pip install git+https://github.com/Tongjilibo/bert4torch
+
 # 官方项目：https://github.com/THUDM/ChatGLM-6B
 # hf链接：https://huggingface.co/THUDM/chatglm-6b
 # fp16半精度下显存占用14G
