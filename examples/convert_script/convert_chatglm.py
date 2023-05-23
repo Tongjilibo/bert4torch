@@ -22,6 +22,7 @@ def trans(state_dict_tmp):
         # 旧逻辑是删除前20000个token，但是清华官方repo在20230406时候清理了，这里就改为不删减
         # if key in {"lm_head.weight", "transformer.word_embeddings.weight"}:
         #     new_weights[key] = value[20000:]  # 前2万个token都是图像相关的，因此删减掉
+        #     continue
         
         # int4和int8专属
         if re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight_scale", key):
