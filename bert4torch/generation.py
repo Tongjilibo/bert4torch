@@ -4,7 +4,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, colorful
 
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
@@ -611,7 +611,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = True
         if self.use_states and (self.pad_mode in {'post', 'right'}):
             self.pad_mode = 'pre'
-            print("[WARNING] When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
+            print(colorful("[WARNING] When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead"))
 
         # 主流程
         inputs = self.pre_process(text_list)
