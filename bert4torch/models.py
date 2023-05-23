@@ -215,9 +215,9 @@ class BERT_BASE(nn.Module):
         # mismatch keys的处理
         if verbose != 0:
             for key in missing_keys:
-                print(colorful(f'[WARNING] {key} not found in pretrain models'))
+                print(colorful('[WARNING]') + f' {key} not found in pretrain models')
             for key in model_params:
-                print(colorful(f'[WARNING] Parameter {key} not loaded from pretrain models'))
+                print(colorful('[WARNING]') + f' Parameter {key} not loaded from pretrain models')
 
         # 将ckpt的权重load到模型结构中
         self.load_state_dict(state_dict_new, strict=False)
@@ -236,7 +236,7 @@ class BERT_BASE(nn.Module):
             all_missing_set = set(all_missing_keys).difference(set(needed_keys))
             if verbose != 0:
                 for key in all_missing_set:
-                    print(colorful(f'[WARNING] {key} not found in pretrain models'))
+                    print(colorful('[WARNING]') + f' {key} not found in pretrain models')
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
 
