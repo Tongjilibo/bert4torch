@@ -18,11 +18,15 @@ import re
 from typing import Dict, Tuple, Union, Optional
 from torch.nn import Module
 
-choice = 'int4'  # default, int4, int8
+choice = 'v1.1.0'  # default, int4, int8, v1.1.0
 if choice == 'default':
     dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+elif choice == 'v1.1.0':
+    dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-v1_1_0"
+    config_path = dir_path + '/bert4torch_config.json'
+    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]
 elif choice == 'int4':
     dir_path = "F:/Projects/pretrain_ckpt/chatglm/6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
@@ -39,7 +43,7 @@ stop_stream = False
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
-if choice == 'default':
+if choice in {'default', 'v1.1.0'}:
     encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half().quantize(8).to(device)
 else:
     # 在config中已经写入了量化的配置参数

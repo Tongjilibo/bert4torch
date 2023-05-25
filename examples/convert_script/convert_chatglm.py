@@ -6,10 +6,12 @@ int8: https://huggingface.co/THUDM/chatglm-6b-int8
 import torch
 import re
 
-choice = 'int4'  # default, int4, int8
+choice = 'v1.1.0'  # default, int4, int8, v1.1.0
 
 if choice == 'default':
     dir_path = 'F:/Projects/pretrain_ckpt/chatglm/6B/'
+elif choice == 'v1.1.0':
+    dir_path = 'F:/Projects/pretrain_ckpt/chatglm/6B-v1_1_0/'
 elif choice == 'int4':
     dir_path = 'F:/Projects/pretrain_ckpt/chatglm/6B-int4/'
 elif choice == 'int8':
@@ -63,7 +65,7 @@ def trans(state_dict_tmp):
             new_weights[key] = value
     return new_weights
 
-if choice == 'default':
+if choice in {'default', 'v1.1.0'}:
     # 依次读入权重
     for i in range(1, 9):
         file_path = f"pytorch_model-0000{i}-of-00008.bin"
