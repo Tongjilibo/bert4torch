@@ -5,7 +5,7 @@ import argparse
 import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
-from bert4torch.models import build_transformer_model, AccelrateTrainer
+from bert4torch.models import build_transformer_model, AccelerateTrainer
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything, get_pool_emb
@@ -112,7 +112,7 @@ lr_scheduler = get_linear_schedule_with_warmup(
     num_training_steps=(len(train_dataloader) * num_epochs) // gradient_accumulation_steps,
 )
 
-model = AccelrateTrainer(net, **vars(args))  # 使用accelerate
+model = AccelerateTrainer(net, **vars(args))  # 使用accelerate
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

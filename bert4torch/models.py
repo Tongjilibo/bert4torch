@@ -2141,7 +2141,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     return transformer
 
 
-class AccelrateTrainer(Trainer):
+class AccelerateTrainer(Trainer):
     '''accelerate来训练'''
     def __init__(self, module: nn.Module, **configs):
         super().__init__(module)
@@ -2198,7 +2198,8 @@ class DeepSpeedTrainer(Trainer):
         self.deepspeed_engine, self.optimizer, _, self.scheduler = deepspeed.initialize(**kwargs)
         
     def loss_backward(self, loss):
-        return self.deepspeed_engine.backward(loss)
+        self.deepspeed_engine.backward(loss)
+        return loss
     
     def update_params(self):
         self.deepspeed_engine.step()
