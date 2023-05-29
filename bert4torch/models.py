@@ -2139,3 +2139,67 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)
     transformer.configs = transformer.config = configs
     return transformer
+
+
+class AccelrateTrainer(Trainer):
+    '''accelerate来训练'''
+    def __init__(self, module: nn.Module, **configs):
+        super().__init__(module)
+        from accelerate import Accelerator
+        accelerator = Accelerator(**configs)
+        self.model = accelerator.prepare(module)
+        self.accelerator = accelerator
+        self.device = accelerator.device
+        self.verbose = 1 if accelerator.is_local_main_process else 0
+        print(colorful('[WARNING]') + ' AcclerateTrainer may not be compatible with several callbacks, you can use custom callbacks instead.')
+    
+    def compile(self, *args, **kwargs):
+        super().compile(*args, **kwargs)
+        self.optimizer, self.scheduler, self.criterion = self.accelerator.prepare(self.optimizer, self.scheduler, self.criterion)
+
+    def process_inputs(self, *args):
+        super().process_inputs(*args)
+        self.train_dataloader = self.accelerator.prepare(self.train_dataloader)
+        self.train_dataloader_iter = iter(self.train_dataloader)
+
+    def prepare(self, *args, **kwargs):
+        '''调用acclerate的prepare，如在外面评估时候需要对dev_dataloader使用'''
+        return self.accelerator.prepare(*args, **kwargs)
+
+    def wrap_model(self):
+        '''返回nn.Module模块'''
+        unwrap_model = self.accelerator.unwrap_model(self.model)
+        if isinstance(unwrap_model, nn.Module): return unwrap_model
+        return unwrap_model.module if hasattr(unwrap_model, 'module') else unwrap_model
+
+    def loss_backward(self, loss):
+        self.accelerator.backward(loss)
+        return loss
+
+
+class DeepSpeedTrainer(Trainer):
+    '''deepspeed来训练'''
+    def __init__(self, module):
+        super().__init__(module)
+        self.model = module
+
+    def compile(self, *args, config_path, inference=False, **kwargs):
+        super().compile(*args, **kwargs)
+        import deepspeed
+        config = json.load(open(config_path))
+        model_parameters = list(filter(lambda p: p.requires_grad, self.model.parameters()))
+        kwargs = {
+        "model": self.model,
+        "model_parameters": model_parameters,
+        "config_params": config,
+        "optimizer": self.optimizer,
+        "lr_scheduler": self.scheduler,
+        }
+        self.deepspeed_engine, self.optimizer, _, self.scheduler = deepspeed.initialize(**kwargs)
+        
+    def loss_backward(self, loss):
+        return self.deepspeed_engine.backward(loss)
+    
+    def update_params(self):
+        self.deepspeed_engine.step()
+        return super().update_params()
