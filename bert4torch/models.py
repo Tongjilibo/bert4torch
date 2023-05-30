@@ -2183,7 +2183,7 @@ class DeepSpeedTrainer(Trainer):
         super().__init__(module)
         self.model = module
 
-    def compile(self, *args, config_path, inference=False, **kwargs):
+    def compile(self, *args, config_path, inference=False, master_rank=0, **kwargs):
         super().compile(*args, **kwargs)
         import deepspeed
         config = json.load(open(config_path))
@@ -2196,6 +2196,7 @@ class DeepSpeedTrainer(Trainer):
         "lr_scheduler": self.scheduler,
         }
         self.deepspeed_engine, self.optimizer, _, self.scheduler = deepspeed.initialize(**kwargs)
+        self.verbose = 1 if self.deepspeed_engine.local_rank == master_rank else 0
         
     def loss_backward(self, loss):
         self.deepspeed_engine.backward(loss)
@@ -2203,4 +2204,3 @@ class DeepSpeedTrainer(Trainer):
     
     def update_params(self):
         self.deepspeed_engine.step()
-        return super().update_params()
