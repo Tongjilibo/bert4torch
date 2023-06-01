@@ -7,12 +7,10 @@ import numpy as np
 import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from torch import nn, Tensor
 import math
 import gc
 import json
 import random
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from torch4keras.snippets import *
 try:
     # torch4keras0.0.7增加了callbacks，这里为了兼容老的example，在snippets中import了
@@ -524,35 +522,3 @@ class DottableDict(dict):
             self.__dict__ = self
         else:
             self.__dict__ = dict()
-
-
-def print_trainable_parameters(module):
-    """打印可训练的参数量"""
-    trainable_params = 0
-    all_param = 0
-    for _, param in module.named_parameters():
-        num_params = param.numel()
-        # if using DS Zero 3 and the weights are initialized empty
-        if num_params == 0 and hasattr(param, "ds_numel"):
-            num_params = param.ds_numel
-
-        all_param += num_params
-        if param.requires_grad:
-            trainable_params += num_params
-    print(f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}")
-
-
-def get_parameter_device(parameter):
-    '''获取device, 从transformers包迁移过来'''
-    try:
-        return next(parameter.parameters()).device
-    except StopIteration:
-        # For nn.DataParallel compatibility in PyTorch 1.5
-
-        def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
-            tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
-            return tuples
-
-        gen = parameter._named_members(get_members_fn=find_tensor_attributes)
-        first_tuple = next(gen)
-        return first_tuple[1].device
