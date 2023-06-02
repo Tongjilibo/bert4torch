@@ -42,7 +42,7 @@ batch_size = 1
 eval_batch_size = 4
 grad_accumulation_steps = 16
 steps_per_epoch = 3000
-epochs = 16
+epochs = 16  # torch4keras>=0.0.8后需要设置为1，因为改为了1个batch_step包含了grad_accumulation_steps
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 prefix = ''
@@ -235,7 +235,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return loss.to(raw_dtyps)
 
 optimizer = optim.AdamW(model.parameters(), lr)
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)  # torch4keras>=0.0.8后需要设置为steps_per_epoch*epochs就可以
 model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):

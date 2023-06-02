@@ -127,7 +127,7 @@ class Loss(nn.CrossEntropyLoss):
         loss = super().forward(entity_logit.reshape(-1, entity_logit.shape[-1]), labels.flatten())
         return loss
 optimizer = optim.AdamW(model.parameters(), lr=5e-5)
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps=len(train_dataloader)*epochs, last_epoch=-1)
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps=len(train_dataloader)*epochs, last_epoch=-1)  # torch4keras>=0.0.8后需要设置为len(train_dataloader)*epochs//grad_accumulation_steps
 model.compile(loss=Loss(ignore_index=-1), optimizer=optimizer, scheduler=scheduler, clip_grad_norm=1.0, 
                grad_accumulation_steps=grad_accumulation_steps)
 
