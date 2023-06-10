@@ -510,15 +510,3 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     mask = input_ids.ne(padding_idx).int()
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
-
-
-class DottableDict(dict):
-    '''支持点操作符的字典'''
-    def __init__(self, *args, **kwargs):
-        dict.__init__(self, *args, **kwargs)
-        self.__dict__ = self
-    def allowDotting(self, state=True):
-        if state:
-            self.__dict__ = self
-        else:
-            self.__dict__ = dict()

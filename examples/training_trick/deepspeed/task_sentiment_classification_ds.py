@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 
 
 maxlen = 256
-batch_size = 16
 config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
 checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
@@ -54,11 +53,6 @@ def collate_fn(batch):
     batch_labels = torch.tensor(batch_labels, dtype=torch.long)
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
-# 加载数据集
-train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
-
 # 定义bert上的模型结构
 class Model(nn.Module):
     def __init__(self, pool_method='cls') -> None:
@@ -76,6 +70,12 @@ class Model(nn.Module):
         return output
 net = Model()
 model = DeepSpeedTrainer(net, config_path='./deepspeed.json')
+
+# 加载数据集
+batch_size = model.config.train_micro_batch_size_per_gpu
+train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
