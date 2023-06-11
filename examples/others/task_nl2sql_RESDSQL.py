@@ -333,5 +333,5 @@ def decode_sqls(db_path, generator_outputs, batch_db_ids, batch_inputs, tokenize
 if __name__ == '__main__':    
     evaluator = Evaluator(model, optimizer, num_checkpoint_steps, per_epoch_step_nums)
     model.fit(train_dataloader, epochs=epochs, steps_per_epoch=None, callbacks=[evaluator],)    
-    # evaluator._test()
+    evaluator._test()
 
