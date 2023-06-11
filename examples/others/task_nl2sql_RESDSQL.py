@@ -2,13 +2,15 @@
 # The re-implementation of the paper "RESDSQL: Decoupling Schema Linking and Skeleton Parsing for Text-to-SQL" with bert4torch. Used datasets (spider) and backbone models are available in the original code repo.
 # Paper: https://arxiv.org/abs/2104.08384, AAAI 2023
 # Original Code: https://github.com/RUCKBReasoning/RESDSQL/tree/main
-# Reproducing results as follow
-# ---------------------------------------------------
-#    Name              Model        Dev-EM    Dev-EX
-# ---------------------------------------------------
-#  Original code    RESDSQL-Base	 71.7%	   77.9%	
-#      Ours         RESDSQL-Base     70.1%     75.2%
-# ---------------------------------------------------
+
+# Following is our reproducd results, the results are slightly different from the original code repo, we guess this is because our limited GPU resources lead to a smalling batch size than original setting.
+# ----------------------------------------------------------------
+#    Name              Model        Dev-EM    Dev-EX   Batch_size
+# ----------------------------------------------------------------
+#  Original code    RESDSQL-Base	 71.7%	   77.9%	   16
+#      Ours         RESDSQL-Base     70.1%     75.2%       4
+# ----------------------------------------------------------------
+
 
 import os
 import json
@@ -28,10 +30,9 @@ from transformers.optimization import Adafactor
 from bert4torch.snippets import ListDataset, seed_everything
 from bert4torch.callbacks import Callback
 from bert4torch.models import BaseModel
-from utils.spider_metric.evaluator import EvaluateTool
 
 # parameters setting
-batch_size = 16
+batch_size = 4
 gradient_descent_step = 2
 learning_rate = 1e-4
 epochs = 128
@@ -39,12 +40,12 @@ seed = 42
 save_path = "models/text2sql-t5-base/"
 tensorboard_save_path = "tensorboard_log/text2sql"
 model_name_or_path = "models/t5-base"
-use_adafactor = False
-mode = "eval"
+use_adafactor = True
+mode = "train"
 train_filepath = "data/preprocessed_data/resdsql_train_spider.json"
 dev_filepath = "data/preprocessed_data/resdsql_dev.json"
 original_dev_filepath = "data/spider/dev.json"
-db_path = "./data/spider/database"
+db_path = "data/spider/database"
 tables_for_natsql = "NatSQL/NatSQLv1_6/tables_for_natsql.json"
 num_beams = 8
 num_return_sequences = 8
@@ -180,19 +181,8 @@ class Evaluator(Callback):
             text2sql_tokenizer.save_pretrained(save_directory=save_path + "/checkpoint-{}".format(global_step))
 
     def evalulate(self, predict_sqls):
-        if predict_sqls == []:
-            with open(output, "r", encoding='utf-8') as f:
-                for pred in f:
-                    predict_sqls.append(pred.strip())
-
-        # initialize evaluator
-        evaluator = EvaluateTool()
-        evaluator.register_golds(original_dev_filepath, db_path)
-        spider_metric_result = evaluator.evaluate(predict_sqls)
-        print('exact_match score: {}'.format(spider_metric_result["exact_match"]))
-        print('exec score: {}'.format(spider_metric_result["exec"]))
-
-        return spider_metric_result["exact_match"], spider_metric_result["exec"]
+        pass
+        # Since we want to keep the code as clean as possible in one file, we don't provide the evaluate function, please using the official evalution tool "Test-Suite" for evaluation, the tool refers to https://github.com/taoyds/test-suite-sql-eval
 
     def _test(self, checkpoint='checkpoint-39312'):
         # initialize model
@@ -232,9 +222,6 @@ class Evaluator(Callback):
         with open(output, "w", encoding='utf-8') as f:
             for pred in predict_sqls:
                 f.write(pred + "\n")
-
-        self.evalulate(predict_sqls)
-
 
 if use_adafactor:
     print("Let's use Adafactor!")
