@@ -31,7 +31,7 @@ from bert4torch.models import BaseModel
 from utils.spider_metric.evaluator import EvaluateTool
 
 # parameters setting
-batch_size = 4
+batch_size = 16
 gradient_descent_step = 2
 learning_rate = 1e-4
 epochs = 128
