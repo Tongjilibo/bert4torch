@@ -83,10 +83,10 @@ class MultiHeadAttentionLayer(nn.Module):
         self.qk_inner_dim = self.attention_key_size * self.num_attention_heads
         self.v_inner_dim = self.attention_head_size * self.num_attention_heads
 
-        self.q = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias, device=kwargs['skip_init'])
-        self.k = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias, device=kwargs['skip_init'])
-        self.v = nn.Linear(hidden_size, self.v_inner_dim, bias=bias, device=kwargs['skip_init'])
-        self.o = nn.Linear(self.v_inner_dim, hidden_size, bias=bias, device=kwargs['skip_init'])
+        self.q = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias)
+        self.v = nn.Linear(hidden_size, self.v_inner_dim, bias=bias)
+        self.o = nn.Linear(self.v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
@@ -336,8 +336,8 @@ class PositionWiseFeedForward(nn.Module):
 
         self.is_dropout = is_dropout
         self.intermediate_act_fn = get_activation(hidden_act)
-        self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=bias, device=kwargs['skip_init'])
-        self.outputDense = nn.Linear(intermediate_size, hidden_size, bias=bias, device=kwargs['skip_init'])
+        self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=bias)
+        self.outputDense = nn.Linear(intermediate_size, hidden_size, bias=bias)
         if self.is_dropout:
             self.dropout = nn.Dropout(dropout_rate)
 
@@ -454,7 +454,7 @@ class BertEmbeddings(nn.Module):
     def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, pad_token_id=0, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
-        self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=pad_token_id, device=kwargs['skip_init'])
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=pad_token_id)
 
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':
@@ -463,13 +463,13 @@ class BertEmbeddings(nn.Module):
             # 如果使用相对位置编码，则不声明PositionEmbeddings
             pass
         elif max_position > 0:
-            self.position_embeddings = nn.Embedding(max_position, embedding_size, device=kwargs['skip_init'])
+            self.position_embeddings = nn.Embedding(max_position, embedding_size)
         
         # segement编码
         if (segment_vocab_size > 0) and (not shared_segment_embeddings) and kwargs.get('use_segment_embedding', True):
             # use_segment_embedding用于lm, unilm场景，不使用segment_embeddings但是传入segment_ids用于计算mask
             # 一般无需设置，目前仅在guwenbert中使用
-            self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size, device=kwargs['skip_init'])
+            self.segment_embeddings = nn.Embedding(segment_vocab_size, embedding_size)
 
         # emb_scale
         self.emb_scale = kwargs.get('emb_scale', 1)  # transform_xl, xlnet特有
@@ -480,7 +480,7 @@ class BertEmbeddings(nn.Module):
 
         # 如果embedding_size != hidden_size，则再有一个linear(适用于albert矩阵分解)
         if embedding_size != hidden_size:
-            self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size, device=kwargs['skip_init'])
+            self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
 
     def forward(self, token_ids=None, segment_ids=None, position_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None):
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):

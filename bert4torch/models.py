@@ -121,8 +121,8 @@ class BERT_BASE(nn.Module):
 
     def init_model_weights(self, module):
         """ 初始化权重 """
-        if self.skip_init == 'meta':
-            if isinstance(module, (nn.Linear, nn.Embedding)):
+        if self.skip_init is True:
+            if hasattr(module, 'weight') and module.weight.device == torch.device('meta'):
                 module.to_empty(device='cpu')
         elif isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
             # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
@@ -1557,7 +1557,7 @@ class LLaMA(LM_Mask, BERT):
                                                     'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False, device=kwargs['skip_init']) 
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
         for layer in self.encoderLayer:
@@ -1607,9 +1607,9 @@ class LLaMA(LM_Mask, BERT):
             super().__init__()
             hidden_dim = int(2 * hidden_dim / 3)
             hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
-            self.intermediateDense = nn.Linear(dim, hidden_dim, bias=False, device=kwargs['skip_init'])
-            self.outputDense = nn.Linear(hidden_dim, dim, bias=False, device=kwargs['skip_init'])
-            self.intermediateDense2 = nn.Linear(dim, hidden_dim, bias=False, device=kwargs['skip_init'])
+            self.intermediateDense = nn.Linear(dim, hidden_dim, bias=False)
+            self.outputDense = nn.Linear(hidden_dim, dim, bias=False)
+            self.intermediateDense2 = nn.Linear(dim, hidden_dim, bias=False)
 
         def forward(self, x):
             return self.outputDense(F.silu(self.intermediateDense(x)) * self.intermediateDense2(x))
@@ -1635,7 +1635,7 @@ class GLM(LM_Mask, BERT):
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False, device=kwargs['skip_init'])
+        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def load_variable(self, state_dict, name, prefix='transformer'):
@@ -2059,7 +2059,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    configs['skip_init'] = 'meta' if configs.get('skip_init') is True else 'cpu'
+    configs['skip_init'] = configs.get('skip_init', False)
     configs['add_trainer'] = configs.get('add_trainer', False)
 
     models = {
@@ -2125,7 +2125,12 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         MODEL = MyModel
 
     # 生成网络结构
-    transformer = MODEL(**configs)
+    if configs['skip_init']:
+        from accelerate import init_empty_weights, load_checkpoint_and_dispatch
+        with init_empty_weights():
+            transformer = MODEL(**configs)
+    else:
+        transformer = MODEL(**configs)
     transformer.apply(transformer.init_model_weights)  # 初始化权重
 
     # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要甚至恶
