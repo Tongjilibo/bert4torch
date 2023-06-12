@@ -12,6 +12,7 @@ from typing import List
 import re
 from tqdm import tqdm
 from functools import partial
+import inspect
 import logging
 logger = logging.getLogger(__name__)
 
@@ -274,4 +275,44 @@ def quantize(model, weight_bit_width, use_quantization_cache=False, empty_init=F
             name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
             name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
         exec('model.' + ''.join(name_new) + ' = module')
+    return model
+
+def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=[], quantization_config=None, **kwargs):
+    '''transformer的load_in_8bit, 源自transformer源代码'''
+    from transformers.utils.bitsandbytes import replace_8bit_linear, set_module_8bit_tensor_to_device
+    from transformers.utils.quantization_config import BitsAndBytesConfig
+    if quantization_config is None:
+        quantization_config, kwargs = BitsAndBytesConfig.from_dict(
+            config_dict={"load_in_8bit": True}, return_unused_kwargs=True, **kwargs
+        )
+    elif quantization_config is not None:
+        quantization_config_kwargs = {
+            k: v for k, v in kwargs.items() if k in inspect.signature(BitsAndBytesConfig).parameters
+        }
+
+        if len(quantization_config_kwargs) > 0:
+            raise ValueError(
+                "You can't pass `load_in_8bit` or any other `BitsAndBytesConfig` argument as a kwarg when passing "
+                "`quantization_config` argument at the same time."
+            )
+
+    load_in_8bit_skip_modules = quantization_config.llm_int8_skip_modules or []
+    load_in_8bit_threshold = quantization_config.llm_int8_threshold
+
+    logger.info("Detected 8-bit loading: activating 8-bit loading for this model")
+
+    # We keep some modules such as the lm_head in their original dtype for numerical stability reasons
+    modules_to_not_convert = load_in_8bit_skip_modules
+    if not isinstance(modules_to_not_convert, list):
+        modules_to_not_convert = [modules_to_not_convert]
+
+    modules_to_not_convert.extend(keep_in_fp32_modules)
+    modules_to_not_convert.extend(llm_int8_skip_modules)
+
+    state_dict = model.state_dict()
+    model = replace_8bit_linear(model, threshold=load_in_8bit_threshold, modules_to_not_convert=modules_to_not_convert)
+
+    for key, param in model.named_parameters():
+        if param.device == torch.device("meta"):
+            set_module_8bit_tensor_to_device(model, key, 0, value=state_dict[key], fp16_statistics=None)
     return model
