@@ -7,13 +7,13 @@ import platform
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 import os
-from bert4torch.quantization import quantize
+from bert4torch.quantization import quantize_cpm_kernels
 
 ckpt_path = 'F:\\Projects\\pretrain_ckpt\\moss\\moss-moon-003-sft'
 tokenizer = AutoTokenizer.from_pretrained(ckpt_path, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(ckpt_path, trust_remote_code=True).half()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model = quantize(model, 8, empty_init=False).to(device)
+model = quantize_cpm_kernels(model, 8, empty_init=False).to(device)
 
 def clear():
     os.system('cls' if platform.system() == 'Windows' else 'clear')

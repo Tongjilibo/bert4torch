@@ -223,7 +223,7 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
         return output
 
 
-def quantize(model, weight_bit_width, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
+def quantize_cpm_kernels(model, weight_bit_width, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
     """Replace fp16 linear with quantized linear
     这里修改了hard code, 可以适配其他模型
     target_modules: str/list, 指定对某些层做量化
@@ -277,6 +277,7 @@ def quantize(model, weight_bit_width, use_quantization_cache=False, empty_init=F
         exec('model.' + ''.join(name_new) + ' = module')
     return model
 
+
 def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=[], quantization_config=None, **kwargs):
     '''transformer的load_in_8bit, 源自transformer源代码'''
     from transformers.utils.bitsandbytes import replace_8bit_linear, set_module_8bit_tensor_to_device
@@ -315,4 +316,6 @@ def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=
     for key, param in model.named_parameters():
         if param.device == torch.device("meta"):
             set_module_8bit_tensor_to_device(model, key, 0, value=state_dict[key], fp16_statistics=None)
+
+    model.is_loaded_in_8bit = True
     return model

@@ -292,7 +292,7 @@ class BERT_BASE(nn.Module):
         if bits == 0:
             return
 
-        from .quantization import quantize
+        from .quantization import quantize_cpm_kernels
 
         if self.quantized:
             print("Already quantized.")
@@ -300,7 +300,7 @@ class BERT_BASE(nn.Module):
 
         self.quantized = True
         self.quantization_bit = bits
-        self = quantize(self, bits, empty_init=empty_init, use_quantization_cache=use_quantization_cache, target_modules=target_modules, **kwargs)
+        self = quantize_cpm_kernels(self, bits, empty_init=empty_init, use_quantization_cache=use_quantization_cache, target_modules=target_modules, **kwargs)
         return self
 
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):
