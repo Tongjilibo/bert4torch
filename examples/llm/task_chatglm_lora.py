@@ -125,7 +125,7 @@ peft_config = LoraConfig(
     )
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True, num_hidden_layers=2).half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
 load_in_8bit = True
 if load_in_8bit:
     class CastOutputToFloat(nn.Sequential):
