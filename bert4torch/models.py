@@ -322,7 +322,7 @@ class BERT_BASE(nn.Module):
             model = peft.AdaLoraModel(self, self.peft_config, adapter_name)
         
         # 返回的model无法使用torch4keras的trainer
-        self =  add_trainer(model) if self.add_trainer else model
+        self = add_trainer(model) if self.add_trainer else model
         self.print_trainable_parameters()
         return self
 
@@ -2020,7 +2020,14 @@ class XLNET(Transformer_XL):
         return mapping
 
 
-def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', **kwargs):
+def extend_with_base_model(InputModel):
+    """添加torch4keras的BaseModel"""
+    class BertBaseModel(InputModel, BERT_BASE, BaseModel):
+            pass
+    return BertBaseModel
+
+
+def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', add_trainer=False, **kwargs):
     """根据配置文件构建模型，可选加载checkpoint权重
 
     :param config_path: str, 模型的config文件地址
@@ -2060,7 +2067,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
     configs['skip_init'] = configs.get('skip_init', False)
-    configs['add_trainer'] = configs.get('add_trainer', False)
+    configs['add_trainer'] = add_trainer
 
     models = {
         'bert': BERT,
@@ -2107,7 +2114,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
         MODEL = model
     else:
-        raise ValueError('"model" args type should be string or nn.Module')
+        raise ValueError('Args `model` type should be string or BERT_BASE')
 
     # 使用 lm/unilm
     application = application.lower()
@@ -2119,14 +2126,12 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         MODEL = extend_with_unified_language_model(MODEL)
 
     # 动态继承BaseModel
-    if configs['add_trainer']:
-        class MyModel(MODEL, BaseModel): 
-            pass
-        MODEL = MyModel
+    if add_trainer:
+        MODEL = extend_with_base_model(MODEL)
 
     # 生成网络结构
     if configs['skip_init']:
-        from accelerate import init_empty_weights, load_checkpoint_and_dispatch
+        from accelerate import init_empty_weights
         with init_empty_weights():
             transformer = MODEL(**configs)
     else:

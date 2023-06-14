@@ -1,5 +1,4 @@
-''' 从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
-    源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
+''' 量化模块
 '''
 from torch.nn import Linear, Embedding
 from torch.nn.parameter import Parameter
@@ -224,7 +223,10 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
 
 
 def quantize_cpm_kernels(model, weight_bit_width, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
-    """Replace fp16 linear with quantized linear
+    """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
+    源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
+    
+    Replace fp16 linear with quantized linear
     这里修改了hard code, 可以适配其他模型
     target_modules: str/list, 指定对某些层做量化
     """
