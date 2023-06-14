@@ -213,7 +213,7 @@ class Model(BaseModel):
         return self.encoder([token_ids],  **inputs_kwargs)
     
 model = Model().to(device)
-print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+model.print_trainable_parameters()
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

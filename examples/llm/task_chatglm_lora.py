@@ -126,7 +126,7 @@ peft_config = LoraConfig(
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
-load_in_8bit = True
+load_in_8bit = False
 if load_in_8bit:
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
@@ -134,10 +134,8 @@ if load_in_8bit:
     from bert4torch.quantization import quantize_load_in_8bit
     model = quantize_load_in_8bit(model, llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
     model.dense = CastOutputToFloat(model.dense)
-for n, p in model.named_parameters():
-    print(n, p.dtype)
+
 model = model.get_peft_model(peft_config).to(device)
-print(f"Number of trainable parameters = {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

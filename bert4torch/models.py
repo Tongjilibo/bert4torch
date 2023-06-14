@@ -287,20 +287,22 @@ class BERT_BASE(nn.Module):
         else:
             self.output = outputs[0]
 
-    def quantize(self, bits: int, use_quantization_cache=True, empty_init=False, target_modules=None, **kwargs):
+    def quantize(self, quantization_method, **kwargs):
         '''量化'''
-        if bits == 0:
-            return
-
-        from .quantization import quantize_cpm_kernels
-
         if self.quantized:
             print("Already quantized.")
             return self
+        
+        if quantization_method == 'quantize_cpm_kernels':
+            from .quantization import quantize_cpm_kernels
+            self = quantize_cpm_kernels(self, **kwargs)
+        elif quantization_method == 'quantize_load_in_8bit':
+            from .quantization import quantize_load_in_8bit
+            self = quantize_load_in_8bit(self, **kwargs)
+        else:
+            raise ValueError('Please check args `quantize_load_in_8bit`')
 
         self.quantized = True
-        self.quantization_bit = bits
-        self = quantize_cpm_kernels(self, bits, empty_init=empty_init, use_quantization_cache=use_quantization_cache, target_modules=target_modules, **kwargs)
         return self
 
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):
@@ -2023,7 +2025,7 @@ class XLNET(Transformer_XL):
 def extend_with_base_model(InputModel):
     """添加torch4keras的BaseModel"""
     class BertBaseModel(InputModel, BERT_BASE, BaseModel):
-            pass
+        pass
     return BertBaseModel
 
 
@@ -2138,10 +2140,9 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         transformer = MODEL(**configs)
     transformer.apply(transformer.init_model_weights)  # 初始化权重
 
-    # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要甚至恶
-    if configs.get('quantization_bit') is not None:
-        bits = configs.pop('quantization_bit')
-        transformer = transformer.half().quantize(bits=bits, **configs)
+    # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要设置
+    if configs.get('quantization_method') is not None:
+        transformer = transformer.half().quantize(**configs)
 
     # 权重加载
     if checkpoint_path is not None:

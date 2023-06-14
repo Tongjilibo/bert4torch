@@ -222,7 +222,7 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
         return output
 
 
-def quantize_cpm_kernels(model, weight_bit_width, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
+def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
     """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
     源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
     
@@ -249,7 +249,7 @@ def quantize_cpm_kernels(model, weight_bit_width, use_quantization_cache=False, 
 
     QuantizedLinearWithPara = partial(
         QuantizedLinear,
-        weight_bit_width=weight_bit_width,
+        weight_bit_width=quantization_bit,
         bias=True,
         dtype=dtype,
         empty_init=empty_init

@@ -126,6 +126,7 @@ else:
     "rope_rank": "updown",
     "pad_token_id": 3,
     "quantization_bit": 4,
+    "quantization_method": "cpm_kernels",
     "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
 }
 '''
@@ -152,6 +153,7 @@ else:
   "rope_rank": "updown",
   "pad_token_id": 3,
   "quantization_bit": 8,
+  "quantization_method": "cpm_kernels",
   "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
 }
 '''
