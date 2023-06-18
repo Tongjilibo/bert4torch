@@ -126,7 +126,7 @@ peft_config = LoraConfig(
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
-load_in_8bit = False
+load_in_8bit = False  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
 if load_in_8bit:
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
