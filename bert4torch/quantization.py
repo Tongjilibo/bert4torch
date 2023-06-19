@@ -12,8 +12,7 @@ import re
 from tqdm import tqdm
 from functools import partial
 import inspect
-import logging
-logger = logging.getLogger(__name__)
+from bert4torch.snippets import info_level_prefix
 
 try:
     from cpm_kernels.kernels.base import LazyKernelCModule, KernelFunction, round_up
@@ -41,7 +40,7 @@ try:
     )
 except Exception as exception:
     kernels = None
-    logger.warning("Failed to load cpm_kernels:" + str(exception))
+    print(info_level_prefix("Failed to load cpm_kernels:" + str(exception)), 'e')
 
 
 class W8A16Linear(torch.autograd.Function):
@@ -302,7 +301,7 @@ def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=
     load_in_8bit_skip_modules = quantization_config.llm_int8_skip_modules or []
     load_in_8bit_threshold = quantization_config.llm_int8_threshold
 
-    logger.info("Detected 8-bit loading: activating 8-bit loading for this model")
+    print(info_level_prefix("Detected 8-bit loading: activating 8-bit loading for this model"))
 
     # We keep some modules such as the lm_head in their original dtype for numerical stability reasons
     modules_to_not_convert = load_in_8bit_skip_modules
@@ -320,4 +319,9 @@ def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=
             set_module_8bit_tensor_to_device(model, key, 0, value=state_dict[key], fp16_statistics=None)
 
     model.is_loaded_in_8bit = True
+    return model
+
+
+def quantize_load_in_4bit(model, quantization_config=None, **kwargs):
+    '''transformer的load_in_4bit, 源自transformer源代码, 即qlora'''
     return model

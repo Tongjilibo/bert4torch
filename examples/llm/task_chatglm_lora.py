@@ -126,14 +126,16 @@ peft_config = LoraConfig(
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
-load_in_8bit = False  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
-if load_in_8bit:
+load_in_nbit = 8  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
+if load_in_nbit == 8:
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
             return super().forward(x).to(torch.float32)
-    from bert4torch.quantization import quantize_load_in_8bit
-    model = quantize_load_in_8bit(model, llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
+    model = model.quantize(quantization_method='quantize_load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
     model.dense = CastOutputToFloat(model.dense)
+elif load_in_nbit == 4:
+    # TODO
+    pass
 
 model = model.get_peft_model(peft_config).to(device)
 
