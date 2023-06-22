@@ -131,7 +131,7 @@ if load_in_nbit == 8:
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
             return super().forward(x).to(torch.float32)
-    model = model.quantize(quantization_method='quantize_load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
+    model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
     model.dense = CastOutputToFloat(model.dense)
 elif load_in_nbit == 4:
     # TODO

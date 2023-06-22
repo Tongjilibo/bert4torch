@@ -294,15 +294,15 @@ class BERT_BASE(nn.Module):
             return self
         
         # chatglm的量化方式
-        if quantization_method == 'quantize_cpm_kernels':
+        if quantization_method == 'cpm_kernels':
             from .quantization import quantize_cpm_kernels
             self = quantize_cpm_kernels(self, **kwargs)
         # load_in_8bit
-        elif quantization_method == 'quantize_load_in_8bit':
+        elif quantization_method == 'load_in_8bit':
             from .quantization import quantize_load_in_8bit
             self = quantize_load_in_8bit(self, **kwargs)
         # load_in_4bit
-        elif quantization_method == 'quantize_load_in_4bit':
+        elif quantization_method == 'load_in_4bit':
             from .quantization import quantize_load_in_4bit
             self = quantize_load_in_4bit(self, **kwargs)
         else:
