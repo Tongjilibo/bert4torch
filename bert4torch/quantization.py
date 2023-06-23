@@ -279,15 +279,17 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
     return model
 
 
-def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=[], quantization_config=None, **kwargs):
+def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in_fp32_modules=[], llm_int8_skip_modules=[], quantization_config=None, **kwargs):
     '''transformer的load_in_8bit, 源自transformer源代码'''
-    from transformers.utils.bitsandbytes import replace_8bit_linear, set_module_8bit_tensor_to_device
+    from transformers.utils.bitsandbytes import replace_with_bnb_linear, set_module_quantized_tensor_to_device
     from transformers.utils.quantization_config import BitsAndBytesConfig
     if quantization_config is None:
         quantization_config, kwargs = BitsAndBytesConfig.from_dict(
-            config_dict={"load_in_8bit": True}, return_unused_kwargs=True, **kwargs
+            config_dict={"load_in_8bit": load_in_8bit, "load_in_4bit": load_in_4bit}, return_unused_kwargs=True, **kwargs
         )
     elif quantization_config is not None:
+        load_in_8bit = quantization_config.load_in_8bit
+        load_in_4bit = quantization_config.load_in_4bit
         quantization_config_kwargs = {
             k: v for k, v in kwargs.items() if k in inspect.signature(BitsAndBytesConfig).parameters
         }
@@ -312,16 +314,12 @@ def quantize_load_in_8bit(model, keep_in_fp32_modules=[], llm_int8_skip_modules=
     modules_to_not_convert.extend(llm_int8_skip_modules)
 
     state_dict = model.state_dict()
-    model = replace_8bit_linear(model, threshold=load_in_8bit_threshold, modules_to_not_convert=modules_to_not_convert)
+    model = replace_with_bnb_linear(model, threshold=load_in_8bit_threshold, modules_to_not_convert=modules_to_not_convert)
 
     for key, param in model.named_parameters():
         if param.device == torch.device("meta"):
-            set_module_8bit_tensor_to_device(model, key, 0, value=state_dict[key], fp16_statistics=None)
+            set_module_quantized_tensor_to_device(model, key, "cpu", value=state_dict[key], fp16_statistics=None)
 
-    model.is_loaded_in_8bit = True
-    return model
-
-
-def quantize_load_in_4bit(model, quantization_config=None, **kwargs):
-    '''transformer的load_in_4bit, 源自transformer源代码, 即qlora'''
+    model.is_loaded_in_8bit = load_in_8bit
+    model.is_loaded_in_4bit = load_in_4bit
     return model

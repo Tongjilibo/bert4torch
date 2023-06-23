@@ -297,14 +297,12 @@ class BERT_BASE(nn.Module):
         if quantization_method == 'cpm_kernels':
             from .quantization import quantize_cpm_kernels
             self = quantize_cpm_kernels(self, **kwargs)
-        # load_in_8bit
-        elif quantization_method == 'load_in_8bit':
-            from .quantization import quantize_load_in_8bit
-            self = quantize_load_in_8bit(self, **kwargs)
-        # load_in_4bit
-        elif quantization_method == 'load_in_4bit':
-            from .quantization import quantize_load_in_4bit
-            self = quantize_load_in_4bit(self, **kwargs)
+        # load_in_8bit, load_in_4bit
+        elif quantization_method in {'load_in_8bit', 'load_in_4bit'}:
+            from .quantization import quantize_load_in_kbit
+            load_in_8bit = True if quantization_method == 'load_in_8bit' else False
+            load_in_4bit = True if quantization_method == 'load_in_4bit' else False
+            self = quantize_load_in_kbit(self, load_in_8bit=load_in_8bit, load_in_4bit=load_in_4bit, **kwargs)
         else:
             raise ValueError('Please check args `quantization_method`')
 

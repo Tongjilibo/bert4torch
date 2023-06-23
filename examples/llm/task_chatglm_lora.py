@@ -116,16 +116,10 @@ def collate_dev_fn(batch):
 train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
 dev_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
-peft_config = LoraConfig(
-        inference_mode=False,
-        r=8,
-        lora_alpha=32,
-        lora_dropout=0.1,
-        target_modules=['q', 'k', 'v']
-    )
-
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True).half()
+
+# 量化
 load_in_nbit = 8  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
 if load_in_nbit == 8:
     class CastOutputToFloat(nn.Sequential):
@@ -133,10 +127,23 @@ if load_in_nbit == 8:
             return super().forward(x).to(torch.float32)
     model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
     model.dense = CastOutputToFloat(model.dense)
+    
 elif load_in_nbit == 4:
-    # TODO
-    pass
+     from transformers import BitsAndBytesConfig
+     q_config = BitsAndBytesConfig(load_in_4bit=True,
+                                  bnb_4bit_quant_type='nf4',
+                                  bnb_4bit_use_double_quant=True,
+                                  bnb_4bit_compute_dtype='fp16',  # 可选 fp32, fp16, bf16
+                                  )
 
+# lora
+peft_config = LoraConfig(
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1,
+        target_modules=['q', 'k', 'v']
+    )
 model = model.get_peft_model(peft_config).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
