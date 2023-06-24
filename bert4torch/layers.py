@@ -141,7 +141,7 @@ class MultiHeadAttentionLayer(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
     
-    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, position_ids=None, **model_kwargs):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
         # encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
@@ -179,15 +179,15 @@ class MultiHeadAttentionLayer(nn.Module):
             if self.position_encoding_2d:  # chatglm独有逻辑
                 q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
                 k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-                q1 = self.relative_positions_encoding(q1, model_kwargs['position_ids'][:, 0, :])
-                k1 = self.relative_positions_encoding(k1, model_kwargs['position_ids'][:, 0, :])
-                q2 = self.relative_positions_encoding(q2, model_kwargs['position_ids'][:, 1, :])
-                k2 = self.relative_positions_encoding(k2, model_kwargs['position_ids'][:, 1, :])
+                q1 = self.relative_positions_encoding(q1, position_ids[:, 0, :])
+                k1 = self.relative_positions_encoding(k1, position_ids[:, 0, :])
+                q2 = self.relative_positions_encoding(q2, position_ids[:, 1, :])
+                k2 = self.relative_positions_encoding(k2, position_ids[:, 1, :])
                 query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
                 key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
             else:  # 原rotary逻辑
-                query_layer = self.relative_positions_encoding(query_layer, model_kwargs['position_ids'])
-                key_layer = self.relative_positions_encoding(key_layer, model_kwargs['position_ids'])
+                query_layer = self.relative_positions_encoding(query_layer, position_ids)
+                key_layer = self.relative_positions_encoding(key_layer, position_ids)
             if past_key_value is not None:  # 过了rope再concat
                 key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
                 value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
@@ -553,17 +553,17 @@ class BertLayer(nn.Module):
             self.dropout3 = nn.Dropout(dropout_rate)
             self.layerNorm3 = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, position_ids=None, **model_kwargs):
         # self attention
         x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
-        self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)  # self.decoder为true时候，这里的attention_mask是三角的
+        self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
         hidden_states = hidden_states + self.dropout1(self_attn_output[0])
         if self.pre_post_norm == 'post':
             hidden_states = self.layerNorm1((hidden_states, conditional_emb))
         
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
-            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, **model_kwargs)
+            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, position_ids=position_ids)
             hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
             model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
             if self.pre_post_norm == 'post':

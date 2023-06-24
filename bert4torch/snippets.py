@@ -513,9 +513,10 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 
-def grad_checkpoint(layer, use_reentrant=True, **kwargs):
+def grad_checkpoint(layer, use_reentrant=False, **kwargs):
     """调用torch的checkpoint, 默认use_reentrant=True下仅支持位置参数"""
     if use_reentrant is True:
+        # TODO: 此种方式要求输入输入是list类型，目前实现了输入，输出的dict默认没有梯度
         args = []
         __args = inspect.getargspec(type(layer).forward)
         arg_names, arg_defaults = __args[0][1:], __args[-1]
@@ -523,4 +524,4 @@ def grad_checkpoint(layer, use_reentrant=True, **kwargs):
             args.append(kwargs.get(arg_name, arg_defaults[i]))
         return checkpoint(layer, *args)
     else:
-        return checkpoint(layer, use_reentrant=False,**kwargs)
+        return checkpoint(layer, use_reentrant=use_reentrant,**kwargs)
