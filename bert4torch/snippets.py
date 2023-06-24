@@ -7,6 +7,7 @@ import numpy as np
 import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.checkpoint import checkpoint
 import math
 import gc
 import json
@@ -510,3 +511,7 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     mask = input_ids.ne(padding_idx).int()
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
+
+
+def grad_checkpoint(layer, use_reentrant=False, **kwargs):
+    return checkpoint(layer, use_reentrant=use_reentrant, **kwargs)

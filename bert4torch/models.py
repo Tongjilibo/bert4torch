@@ -10,12 +10,11 @@ import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
-from bert4torch.snippets import insert_arguments, delete_arguments, print_trainable_parameters, torch_div, colorful
+from bert4torch.snippets import insert_arguments, delete_arguments, print_trainable_parameters, torch_div, colorful, grad_checkpoint
 from bert4torch.snippets import take_along_dim, create_position_ids_start_at_padding, DottableDict, get_parameter_device
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
-from torch.utils.checkpoint import checkpoint as grad_checkpoint
 from tqdm import tqdm
 
 

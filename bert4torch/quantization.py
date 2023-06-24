@@ -301,9 +301,6 @@ def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in
             )
 
     load_in_8bit_skip_modules = quantization_config.llm_int8_skip_modules or []
-    load_in_8bit_threshold = quantization_config.llm_int8_threshold
-
-    print(info_level_prefix("Detected 8-bit loading: activating 8-bit loading for this model"))
 
     # We keep some modules such as the lm_head in their original dtype for numerical stability reasons
     modules_to_not_convert = load_in_8bit_skip_modules
@@ -314,11 +311,11 @@ def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in
     modules_to_not_convert.extend(llm_int8_skip_modules)
 
     state_dict = model.state_dict()
-    model = replace_with_bnb_linear(model, threshold=load_in_8bit_threshold, modules_to_not_convert=modules_to_not_convert)
+    model = replace_with_bnb_linear(model, modules_to_not_convert=modules_to_not_convert, quantization_config=quantization_config)
 
     for key, param in model.named_parameters():
         if param.device == torch.device("meta"):
-            set_module_quantized_tensor_to_device(model, key, "cpu", value=state_dict[key], fp16_statistics=None)
+            set_module_quantized_tensor_to_device(model, key, 'cpu', value=state_dict[key], fp16_statistics=None)
 
     model.is_loaded_in_8bit = load_in_8bit
     model.is_loaded_in_4bit = load_in_4bit
