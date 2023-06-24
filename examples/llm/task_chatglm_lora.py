@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# chatglm的指令微调, 基于lora
+# chatglm的指令微调, 基于lora/qlora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
 
 # |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
@@ -34,9 +34,9 @@ mode = 'train'
 max_source_length = 64
 max_target_length = 64
 lr = 5e-4
-batch_size = 16
+batch_size = 16  # 根据显存大小调整
 eval_batch_size = 4
-grad_accumulation_steps = 1
+grad_accumulation_steps = 1  # 根据显存大小调整
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 epochs = 1
@@ -117,10 +117,12 @@ train_dataloader = DataLoader(MyDataset('/home/libo/data/corpus/prompt/Advertise
 dev_dataloader = DataLoader(MyDataset('/home/libo/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True, gradient_checkpoint=True).half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True, 
+                                gradient_checkpoint=True,  # 显存不足时使用
+                                ).half()
 
 # 量化
-load_in_nbit = 8  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
+load_in_nbit = 4  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
 if load_in_nbit == 8:
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
@@ -133,7 +135,7 @@ elif load_in_nbit == 4:
      q_config = BitsAndBytesConfig(load_in_4bit=True,
                                   bnb_4bit_quant_type='nf4',
                                   bnb_4bit_use_double_quant=True,
-                                  bnb_4bit_compute_dtype='fp16',  # 可选 fp32, fp16, bf16
+                                  bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
                                   )
 
 # lora
