@@ -408,6 +408,7 @@ class BERT(BERT_BASE):
             additional_embs=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout=False,
             pad_token_id=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
+            tie_emb_prj_weight=False,  # 是否绑定embedding和lm_head的权重
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
@@ -448,7 +449,7 @@ class BERT(BERT_BASE):
             self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.embedding_size, eps=1e-12, conditional_size=self.conditional_size)
             self.mlmDecoder = nn.Linear(self.embedding_size, self.vocab_size, bias=False)
-            if kwargs.get('tie_emb_prj_weight') is True:
+            if tie_emb_prj_weight is True:
                 self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
@@ -1554,7 +1555,7 @@ class LLaMA(LM_Mask, BERT):
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, tie_emb_prj_weight=False, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
@@ -1567,6 +1568,8 @@ class LLaMA(LM_Mask, BERT):
         # 修改feedword
         for layer in self.encoderLayer:
             layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, **kwargs)
+        if tie_emb_prj_weight:
+            self.embeddings.word_embeddings.weight = self.dense.weight
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
@@ -1630,7 +1633,7 @@ class GLM(LM_Mask, BERT):
     4）跳跃连接有权重设计
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, tie_emb_prj_weight=False, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True})
         super().__init__(*args, **kwargs)
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs['bos_token_id'], kwargs['mask_token_id'], kwargs['gmask_token_id']
@@ -1642,6 +1645,8 @@ class GLM(LM_Mask, BERT):
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
+        if tie_emb_prj_weight:
+            self.embeddings.word_embeddings.weight = self.dense.weight
 
     def load_variable(self, state_dict, name, prefix='transformer'):
         """加载单个变量的函数, 这里的名称均为映射前的
