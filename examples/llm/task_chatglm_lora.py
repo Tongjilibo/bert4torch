@@ -1,6 +1,8 @@
 #! -*- coding: utf-8 -*-
 # chatglm的指令微调, 基于lora/qlora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
+# 参考项目：lora: https://github.com/mymusise/ChatGLM-Tuning
+#         qlora: https://github.com/shuxueslpi/chatGLM-6B-QLoRA
 
 # |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
 # | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
@@ -26,7 +28,7 @@ from rouge_chinese import Rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
-from peft import LoraConfig
+from peft import LoraConfig, prepare_model_for_kbit_training
 
 
 # 基本参数
@@ -119,12 +121,14 @@ dev_dataloader = DataLoader(MyDataset('/home/libo/data/corpus/prompt/AdvertiseGe
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True, 
                                 tie_emb_prj_weight=True, # 绑定embedding和dense/lm_head的权重，transformers中有绑定
-                                gradient_checkpoint=True,  # 显存不足时使用
                                 ).half()
 
 # 量化
 load_in_nbit = 4  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
 if load_in_nbit == 8:
+    model.gradient_checkpointing_enable()
+    model.enable_input_require_grads()
+
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
             return super().forward(x).to(torch.float32)
@@ -132,12 +136,15 @@ if load_in_nbit == 8:
     model.dense = CastOutputToFloat(model.dense)
     
 elif load_in_nbit == 4:
-     from transformers import BitsAndBytesConfig
-     q_config = BitsAndBytesConfig(load_in_4bit=True,
-                                  bnb_4bit_quant_type='nf4',
-                                  bnb_4bit_use_double_quant=True,
-                                  bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
-                                  )
+    from transformers import BitsAndBytesConfig
+    q_config = BitsAndBytesConfig(load_in_4bit=True,
+                                bnb_4bit_quant_type='nf4',
+                                bnb_4bit_use_double_quant=True,
+                                bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
+                                llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense']
+                                )
+    model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
 # lora
 peft_config = LoraConfig(

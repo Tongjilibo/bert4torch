@@ -82,6 +82,26 @@ class BERT_BASE(nn.Module):
     def tie_weights(self):
         pass
     
+    def gradient_checkpointing_enable(self):
+        self.gradient_checkpoint=True
+
+    def enable_input_require_grads(self):
+        """transformer移植来
+        Enables the gradients for the input embeddings. This is useful for fine-tuning adapter weights while keeping
+        the model weights fixed.
+        """
+
+        def make_inputs_require_grads(module, input, output):
+            output.requires_grad_(True)
+
+        self._require_grads_hook = self.get_input_embeddings().register_forward_hook(make_inputs_require_grads)
+
+    def disable_input_require_grads(self):
+        """transformer移植来
+        Removes the `_require_grads_hook`.
+        """
+        self._require_grads_hook.remove()
+
     def get_kw(self, *args, **kwargs):
         '''把self.属性设置到kwargs中, 方便传参'''
         for arg in args:
@@ -459,8 +479,13 @@ class BERT(BERT_BASE):
         # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
     def tie_weights(self):
+        """权重的tie"""
         if self.tie_emb_prj_weight is True:
             self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
+    
+    def get_input_embeddings(self):
+        """获取word_embeddings"""
+        return self.embeddings.word_embeddings
     
     def apply_embeddings(self, *inputs, **model_kwargs):
         """BERT的embedding是token、position、segment三者embedding之和

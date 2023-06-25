@@ -183,7 +183,7 @@ class RDropLoss(nn.Module):
         # y_pred是两个tensor
         else:
             y_pred1, y_pred2, y_true = args
-            loss_sup = self.loss_sup(y_pred1, y_true)
+            loss_sup = (self.loss_sup(y_pred1, y_true) + self.loss_sup(y_pred2, y_true)) / 2
 
         loss_rdrop1 = self.loss_rdrop(F.log_softmax(y_pred1, dim=-1), F.softmax(y_pred2, dim=-1))
         loss_rdrop2 = self.loss_rdrop(F.log_softmax(y_pred2, dim=-1), F.softmax(y_pred1, dim=-1))
