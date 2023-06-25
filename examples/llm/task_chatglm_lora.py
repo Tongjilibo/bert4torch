@@ -118,6 +118,7 @@ dev_dataloader = DataLoader(MyDataset('/home/libo/data/corpus/prompt/AdvertiseGe
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm', add_trainer=True, 
+                                tie_emb_prj_weight=True, # 绑定embedding和dense/lm_head的权重，transformers中有绑定
                                 gradient_checkpoint=True,  # 显存不足时使用
                                 ).half()
 

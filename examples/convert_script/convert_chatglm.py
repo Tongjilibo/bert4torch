@@ -100,7 +100,8 @@ else:
   "segment_vocab_size": 0,
   "skip_init": true,
   "rope_rank": "updown",
-  "pad_token_id": 3
+  "pad_token_id": 3,
+  "tie_emb_prj_weight": true
 }
 '''
 
@@ -127,7 +128,8 @@ else:
     "pad_token_id": 3,
     "quantization_bit": 4,
     "quantization_method": "cpm_kernels",
-    "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
+    "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
+    "tie_emb_prj_weight": true
 }
 '''
 
@@ -154,6 +156,7 @@ else:
   "pad_token_id": 3,
   "quantization_bit": 8,
   "quantization_method": "cpm_kernels",
-  "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
+  "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
+  "tie_emb_prj_weight": true
 }
 '''

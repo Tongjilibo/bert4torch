@@ -43,6 +43,7 @@ class BERT_BASE(nn.Module):
             hierarchical_position=None,  # 是否层次分解位置编码
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
             output_all_encoded_layers=False, # 是否返回所有layer的hidden_states
+            tie_emb_prj_weight=False,  # 是否绑定embedding和lm_head的权重
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -76,7 +77,11 @@ class BERT_BASE(nn.Module):
         self.output_all_encoded_layers = output_all_encoded_layers
         self.skip_init = kwargs['skip_init']
         self.add_trainer = kwargs['add_trainer']
+        self.tie_emb_prj_weight = tie_emb_prj_weight
 
+    def tie_weights(self):
+        pass
+    
     def get_kw(self, *args, **kwargs):
         '''把self.属性设置到kwargs中, 方便传参'''
         for arg in args:
@@ -408,7 +413,6 @@ class BERT(BERT_BASE):
             additional_embs=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout=False,
             pad_token_id=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
-            tie_emb_prj_weight=False,  # 是否绑定embedding和lm_head的权重
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
@@ -449,12 +453,15 @@ class BERT(BERT_BASE):
             self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.embedding_size, eps=1e-12, conditional_size=self.conditional_size)
             self.mlmDecoder = nn.Linear(self.embedding_size, self.vocab_size, bias=False)
-            if tie_emb_prj_weight is True:
-                self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
+            self.tie_weights()
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
         # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
+    def tie_weights(self):
+        if self.tie_emb_prj_weight is True:
+            self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
+    
     def apply_embeddings(self, *inputs, **model_kwargs):
         """BERT的embedding是token、position、segment三者embedding之和
 
@@ -1093,7 +1100,7 @@ class Encoder(BERT):
 
 class Decoder(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, with_lm=True, tie_emb_prj_weight=False, logit_scale=True, **kwargs):
+    def __init__(self, *args, with_lm=True, logit_scale=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -1106,12 +1113,15 @@ class Decoder(LM_Mask, BERT):
             self.final_dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
             # decoder底层的embedding和顶层的全连接共享
             # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
-            if tie_emb_prj_weight:
-                self.final_dense.weight = self.embeddings.word_embeddings.weight
+            self.tie_weights()
             if logit_scale:  # T5默认会有logit_scale, bart默认没有，所以bart要传入false
                 self.x_logit_scale = (self.hidden_size ** -0.5)
             else:
                 self.x_logit_scale = 1.
+
+    def tie_weights(self):
+        if self.tie_emb_prj_weight is True:
+            self.final_dense.weight = self.embeddings.word_embeddings.weight
 
     def apply_main_layers(self, **model_kwargs):
         """Dencoder主体是基于Self-Attention、Cross-Attention的模块；
@@ -1555,7 +1565,7 @@ class LLaMA(LM_Mask, BERT):
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, tie_emb_prj_weight=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
@@ -1568,7 +1578,10 @@ class LLaMA(LM_Mask, BERT):
         # 修改feedword
         for layer in self.encoderLayer:
             layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, **kwargs)
-        if tie_emb_prj_weight:
+        self.tie_weights()
+
+    def tie_weights(self):
+        if self.tie_emb_prj_weight:
             self.embeddings.word_embeddings.weight = self.dense.weight
 
     def apply_final_layers(self, **model_kwargs):
@@ -1633,7 +1646,7 @@ class GLM(LM_Mask, BERT):
     4）跳跃连接有权重设计
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, tie_emb_prj_weight=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True})
         super().__init__(*args, **kwargs)
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs['bos_token_id'], kwargs['mask_token_id'], kwargs['gmask_token_id']
@@ -1645,9 +1658,12 @@ class GLM(LM_Mask, BERT):
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
-        if tie_emb_prj_weight:
-            self.embeddings.word_embeddings.weight = self.dense.weight
+        self.tie_weights()
 
+    def tie_weights(self):
+        if self.tie_emb_prj_weight:
+            self.embeddings.word_embeddings.weight = self.dense.weight
+    
     def load_variable(self, state_dict, name, prefix='transformer'):
         """加载单个变量的函数, 这里的名称均为映射前的
         """
@@ -2156,5 +2172,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)
+    transformer.tie_weights()  # 权重tie
     transformer.configs = transformer.config = configs
     return transformer
