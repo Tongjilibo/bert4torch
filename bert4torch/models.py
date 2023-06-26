@@ -5,17 +5,19 @@
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 import copy
 import json
 import re
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity, T5Layer, GatedAttentionUnit, XlnetLayer
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding, ConvLayer
-from bert4torch.snippets import insert_arguments, delete_arguments, print_trainable_parameters, torch_div, colorful, grad_checkpoint
+from bert4torch.snippets import insert_arguments, delete_arguments, print_trainable_parameters, torch_div, colorful
 from bert4torch.snippets import take_along_dim, create_position_ids_start_at_padding, DottableDict, get_parameter_device
 from bert4torch.activations import get_activation
 import warnings
 from torch4keras.model import *
 from tqdm import tqdm
+import inspect
 
 
 class BERT_BASE(nn.Module):
@@ -487,6 +489,22 @@ class BERT(BERT_BASE):
         """获取word_embeddings"""
         return self.embeddings.word_embeddings
     
+    def layer_forward(self, layer, model_kwargs, use_reentrant=False):
+        """transformer block的forward"""
+        if self.gradient_checkpoint and self.training:
+            if use_reentrant is True:
+                # TODO: 此种方式要求输入输入是list类型，目前实现了输入，输出的dict默认没有梯度
+                args = []
+                __args = inspect.getargspec(type(layer).forward)
+                arg_names, arg_defaults = __args[0][1:], __args[-1]
+                for i, arg_name in enumerate(arg_names):
+                    args.append(model_kwargs.get(arg_name, arg_defaults[i]))
+                return checkpoint(layer, *args)
+            else:
+                return checkpoint(layer, use_reentrant=use_reentrant, **model_kwargs)
+        else:
+            return layer(**model_kwargs)
+
     def apply_embeddings(self, *inputs, **model_kwargs):
         """BERT的embedding是token、position、segment三者embedding之和
 
@@ -597,7 +615,7 @@ class BERT(BERT_BASE):
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
-            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
             hidden_states = model_kwargs['hidden_states']
             model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
@@ -723,7 +741,7 @@ class ALBERT(BERT):
         for l_i in range(self.num_hidden_layers):
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
             layer_module = self.encoderLayer[0]
-            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
             hidden_states = model_kwargs['hidden_states']
             model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
@@ -1024,7 +1042,7 @@ class DebertaV2(BERT):
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
-            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
             # 第0层要经过卷积
             if l_i == 0 and self.conv is not None:
@@ -1155,7 +1173,7 @@ class Decoder(LM_Mask, BERT):
         decoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.decoderLayer):
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
-            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
             hidden_states = model_kwargs['hidden_states']
             model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
@@ -1955,7 +1973,7 @@ class Transformer_XL(BERT):
             mems_i = None if self.mems is None else self.mems[l_i]
             model_kwargs['mems_i'] = mems_i
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
-            outputs = grad_checkpoint(layer_module, **model_kwargs) if self.gradient_checkpoint else layer_module(**model_kwargs)
+            outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
             hidden_states = model_kwargs['hidden_states']
             model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)

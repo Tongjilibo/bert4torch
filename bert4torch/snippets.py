@@ -7,7 +7,6 @@ import numpy as np
 import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.checkpoint import checkpoint
 import math
 import gc
 import json
@@ -511,17 +510,3 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     mask = input_ids.ne(padding_idx).int()
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
-
-
-def grad_checkpoint(layer, use_reentrant=False, **kwargs):
-    """调用torch的checkpoint, 默认use_reentrant=True下仅支持位置参数"""
-    if use_reentrant is True:
-        # TODO: 此种方式要求输入输入是list类型，目前实现了输入，输出的dict默认没有梯度
-        args = []
-        __args = inspect.getargspec(type(layer).forward)
-        arg_names, arg_defaults = __args[0][1:], __args[-1]
-        for i, arg_name in enumerate(arg_names):
-            args.append(kwargs.get(arg_name, arg_defaults[i]))
-        return checkpoint(layer, *args)
-    else:
-        return checkpoint(layer, use_reentrant=use_reentrant,**kwargs)
