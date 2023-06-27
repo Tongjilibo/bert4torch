@@ -32,7 +32,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **注意事项**：pip包的发布慢于git上的开发版本，git clone**注意引用路径**，注意权重是否需要转换
 - **测试用例**：`git clone https://github.com/Tongjilibo/bert4torch`，修改example中的预训练模型文件路径和数据路径即可启动脚本
 - **自行训练**：针对自己的数据，修改相应的数据处理代码块
-- **开发环境**：使用`torch==1.10`版本进行开发，如其他版本遇到不适配，欢迎反馈
+- **开发环境**：原使用`torch==1.10`版本进行开发，现已切换到`torch2.0`开发，如其他版本遇到不适配，欢迎反馈
 
 ## 2. 功能
 
