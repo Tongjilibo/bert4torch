@@ -1,13 +1,12 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：llama的7b模型的测试, fp32精度的单卡占用约27g，fp16的显存占用约14g
+"""
+基本测试：llama系列的7b模型的测试, fp32精度的单卡占用约27g，fp16的显存占用约14g
+使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
 
-# 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
-
-# 0. Install lastest bert4torch: `pip install git+https://www.github.com/Tongjilibo/bert4torch.git` or git clone
-# 1. Download weights：[Github](https://github.com/facebookresearch/llama) | [huggingface](https://huggingface.co/decapoda-research/llama-7b-hf) | [torrent](https://pan.baidu.com/s/1yBaYZK5LHIbJyCCbtFLW3A?pwd=phhd)，本人实现是基于第三种
-# 2. Convert weights：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
-# 3. Inference script：https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_llama.py
-# 4. VRAM request in single gpu：fp32 27G, fp16 14g
+[1]. llama模型：https://github.com/facebookresearch/llama
+[2]. chinese_llama: https://github.com/ymcui/Chinese-LLaMA-Alpaca
+[3]. chinese_alpaca: https://github.com/ymcui/Chinese-LLaMA-Alpaca
+"""
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -16,10 +15,14 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 
+# llama:                   G:/pretrain_ckpt/llama/7B
+# chinese_llama_plus_7b：  G:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
+# chinese_alpaca_plus_7b:  G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
 
-config_path = 'G:/pretrain_ckpt/llama/7B/bert4torch_config.json'
-checkpoint_path = 'G:/pretrain_ckpt/llama/7B/bert4torch_pytorch_model.bin'
-spm_path = 'G:/pretrain_ckpt/llama/7B/tokenizer.model'
+dir_path = 'G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+config_path = dir_path + '/bert4torch_config.json'
+checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)

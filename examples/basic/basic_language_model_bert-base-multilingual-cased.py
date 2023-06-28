@@ -8,7 +8,7 @@ from transformers import BertTokenizer, BertForMaskedLM
 import torch
 from torch.nn.functional import softmax
 
-root_model_path = "F:\Projects\pretrain_ckpt\\bert\\bert-base-multilingual-cased"
+root_model_path = "G:\\pretrain_ckpt\\bert\\bert-base-multilingual-cased"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
