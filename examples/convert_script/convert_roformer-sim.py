@@ -6,9 +6,9 @@ import torch
 import tensorflow as tf
 import json
 
-tf_dir = 'F:/Projects/pretrain_ckpt/simbert/[sushen_tf_base]--chinese_roformer-sim-char_L-12_H-768_A-12/'
+tf_dir = 'G:/pretrain_ckpt/simbert/[sushen_tf_base]--chinese_roformer-sim-char_L-12_H-768_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
-torch_path = 'F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--chinese_roformer-sim-char_L-12_H-768_A-12/pytorch_model.bin'
+torch_path = 'G:/pretrain_ckpt/simbert/[sushen_torch_base]--chinese_roformer-sim-char_L-12_H-768_A-12/pytorch_model.bin'
 
 with open(tf_dir + 'bert_config.json', 'r') as f:
     config = json.load(f)

@@ -14,16 +14,16 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 maxlen = 32
 choice = 'simbert_tiny'  # simbert_tiny, simbert_small, simbert_base simbert_v2
 if choice == 'simbert_tiny':
-    args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_tiny]--simbert_chinese_tiny"
+    args_model_path = "G:/pretrain_ckpt/simbert/[sushen_torch_tiny]--simbert_chinese_tiny"
     args_model = 'bert'
 elif choice == 'simbert_small':
-    args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_small]--simbert_chinese_small"
+    args_model_path = "G:/pretrain_ckpt/simbert/[sushen_torch_small]--simbert_chinese_small"
     args_model = 'bert'
 elif choice == 'simbert_base':
-    args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base"
+    args_model_path = "G:/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base"
     args_model = 'bert'
 elif choice == 'simbert_v2':
-    args_model_path = "F:/Projects/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base"
+    args_model_path = "G:/pretrain_ckpt/simbert/[sushen_torch_base]--roformer_chinese_sim_char_base"
     args_model = 'roformer'
 
 # 加载simbert权重或roformer_v2

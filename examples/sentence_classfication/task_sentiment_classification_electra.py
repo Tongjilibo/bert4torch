@@ -18,9 +18,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/vocab.txt'
+config_path = 'G:/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/config.json'
+checkpoint_path = 'G:/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/electra/[hit_torch_base]--chinese-electra-base-discriminator/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -59,9 +59,9 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class Model(BaseModel):

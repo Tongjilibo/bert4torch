@@ -34,9 +34,9 @@ decoder_lr = 2e-5
 
 maxlen = 128
 batch_size = 8
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 seed_everything(42)
@@ -44,7 +44,7 @@ seed_everything(42)
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
 
-with open('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
+with open('G:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
     for l in f:
         l = json.loads(l)
         if l['predicate'] not in predicate2id:
@@ -133,9 +133,9 @@ def collate_fn(batch):
     targets = [{k: torch.tensor(v, dtype=torch.long, device=device) for k, v in t.items()} for t in targets]
     return [batch_token_ids, batch_segment_ids], targets
 
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
+train_dataloader = DataLoader(MyDataset('G:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
                    batch_size=batch_size, shuffle=False, collate_fn=collate_fn) 
-valid_dataset = MyDataset('F:/Projects/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
+valid_dataset = MyDataset('G:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 

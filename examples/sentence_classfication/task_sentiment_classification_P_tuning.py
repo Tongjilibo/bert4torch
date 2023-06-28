@@ -17,9 +17,9 @@ from torchinfo import summary
 
 maxlen = 256
 batch_size = 16
-config_path = 'F:/Projects/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/bert4torch_pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
+checkpoint_path = 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/bert4torch_pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'finetune_all'  # finetune_all finetune_few
 
@@ -32,9 +32,9 @@ def load_data(filename):
     return D
 
 # 加载数据集
-train_data = load_data('F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data')
-valid_data = load_data('F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data')
-test_data = load_data('F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data')
+train_data = load_data('G:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
+valid_data = load_data('G:/data/corpus/sentence_classification/sentiment/sentiment.valid.data')
+test_data = load_data('G:/data/corpus/sentence_classification/sentiment/sentiment.test.data')
 
 # 模拟标注和非标注数据
 train_frac = 0.01  # 标注数据的比例

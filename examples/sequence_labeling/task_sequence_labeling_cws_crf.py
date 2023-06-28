@@ -22,9 +22,9 @@ batch_size = 32
 num_labels = 4
 
 # BERT base
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
@@ -43,7 +43,7 @@ def load_data(filename):
     return D
 
 # 标注数据
-data = load_data('F:/Projects/data/corpus/cws/icwb2-data/training/pku_training.utf8')
+data = load_data('G:/data/corpus/cws/icwb2-data/training/pku_training.utf8')
 
 # 保存一个随机序（供划分valid用）
 if not os.path.exists('./random_order.json'):

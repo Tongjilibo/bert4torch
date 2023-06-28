@@ -18,7 +18,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 maxlen = 128
 batch_size = 16
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+dict_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -55,14 +55,14 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['F:/Projects/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        self.bert = AutoModelForSequenceClassification.from_pretrained("F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12", num_labels=2)
+        self.bert = AutoModelForSequenceClassification.from_pretrained("G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12", num_labels=2)
     
     def forward(self, token_ids, segment_ids):
         output = self.bert(input_ids=token_ids, token_type_ids=segment_ids)

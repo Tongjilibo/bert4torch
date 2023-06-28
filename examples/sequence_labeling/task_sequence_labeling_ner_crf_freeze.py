@@ -24,9 +24,9 @@ categories_id2label = {i: k for i, k in enumerate(categories)}
 categories_label2id = {k: i for i, k in enumerate(categories)}
 
 # BERT base
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
@@ -77,8 +77,8 @@ def collate_fn(batch):
     return batch_token_ids, batch_labels
 
 # 转换数据集
-train_data = load_data('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.train')
-valid_data = load_data('F:/Projects/data/corpus/ner/china-people-daily-ner-corpus/example.dev')
+train_data = load_data('G:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+valid_data = load_data('G:/data/corpus/ner/china-people-daily-ner-corpus/example.dev')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
 

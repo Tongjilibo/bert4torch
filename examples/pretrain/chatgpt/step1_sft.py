@@ -21,7 +21,7 @@ epochs = 10000
 mask_prompt = False  # 是否把prompt部分mask掉
 
 # 模型配置
-root_path = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
+root_path = 'G:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
 config_path = root_path + 'bert4torch_config.json'
 checkpoint_path = root_path + 'bert4torch_pytorch_model.bin'
 dict_path = root_path + 'vocab.txt'

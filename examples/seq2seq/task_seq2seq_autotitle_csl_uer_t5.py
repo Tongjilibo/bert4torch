@@ -24,9 +24,9 @@ epochs = 50
 steps_per_epoch = None
 
 # bert配置
-config_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/bert4torch_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/vocab.txt'
+config_path = 'G:/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/bert4torch_config.json'
+checkpoint_path = 'G:/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/t5/[uer_t5_torch_base]--t5-base-chinese-cluecorpussmall/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
@@ -66,10 +66,10 @@ def collate_fn(batch):
     batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids), dtype=torch.long, device=device)
     return [[batch_content_ids], [batch_titile_ids[:, :-1]]], batch_titile_ids[:, 1:].flatten()
 
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
+train_dataloader = DataLoader(MyDataset('G:/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
-test_dataset = MyDataset('F:/Projects/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
+valid_dataset = MyDataset('G:/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
+test_dataset = MyDataset('G:/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
 
 model = build_transformer_model(
     config_path,

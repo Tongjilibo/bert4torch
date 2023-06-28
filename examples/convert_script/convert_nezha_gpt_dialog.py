@@ -4,7 +4,7 @@
 import torch
 import tensorflow as tf
 
-tf_path = 'F:/Projects/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/model.ckpt'
+tf_path = 'G:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/model.ckpt'
 torch_state_dict = {}
 
 prefix = 'bert'
@@ -52,7 +52,7 @@ for key, value in mapping.items():
 torch_state_dict['cls.predictions.decoder.weight'] = torch_state_dict[f'{prefix}.embeddings.word_embeddings.weight']
 torch_state_dict['cls.predictions.decoder.bias'] = torch_state_dict['cls.predictions.bias']
 
-torch.save(torch_state_dict, 'F:/Projects/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/pytorch_model.bin')
+torch.save(torch_state_dict, 'G:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/pytorch_model.bin')
 
 
 # config文件

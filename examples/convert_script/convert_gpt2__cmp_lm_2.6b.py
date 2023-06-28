@@ -5,7 +5,7 @@
 
 import torch
 
-ckpt_dir = 'F:/Projects/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b'
+ckpt_dir = 'G:/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b'
 ckpt_file = f'{ckpt_dir}/pytorch_model.bin'
 output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
 num_hidden_layers = 32

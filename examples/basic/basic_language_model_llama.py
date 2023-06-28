@@ -17,9 +17,9 @@ import platform
 import os
 
 
-config_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/llama/7B/bert4torch_pytorch_model.bin'
-spm_path = 'F:/Projects/pretrain_ckpt/llama/7B/tokenizer.model'
+config_path = 'G:/pretrain_ckpt/llama/7B/bert4torch_config.json'
+checkpoint_path = 'G:/pretrain_ckpt/llama/7B/bert4torch_pytorch_model.bin'
+spm_path = 'G:/pretrain_ckpt/llama/7B/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)

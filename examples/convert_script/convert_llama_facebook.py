@@ -3,7 +3,7 @@
 
 import torch
 
-ckpt_dir = 'F:/Projects/pretrain_ckpt/llama/7B'
+ckpt_dir = 'G:/pretrain_ckpt/llama/7B'
 ckpt_file = f'{ckpt_dir}/consolidated.00.pth'
 output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
 num_hidden_layers = 32

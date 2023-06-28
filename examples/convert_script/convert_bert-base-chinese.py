@@ -7,7 +7,7 @@
 
 import torch
 
-dir_path = 'F:/Projects/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/'
+dir_path = 'G:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/'
 state_dict = torch.load(dir_path + 'pytorch_model.bin')
 state_dict_new = {}
 for k, v in state_dict.items():

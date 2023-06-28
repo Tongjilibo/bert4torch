@@ -6,7 +6,7 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-root_model_path = "F:/Projects/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base"
+root_model_path = "G:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'

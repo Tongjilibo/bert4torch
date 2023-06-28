@@ -4,7 +4,7 @@
 
 import torch
 
-ckpt_file = 'F:/Projects/pretrain_ckpt/bart/[cloudwalk_torch_base]/pytorch_base_model_2024000.pt'
+ckpt_file = 'G:/pretrain_ckpt/bart/[cloudwalk_torch_base]/pytorch_base_model_2024000.pt'
 torch_weights = torch.load(ckpt_file)
 
 map = {'bart.embeddings.word_embeddings.weight': 'encoder.embed_tokens.weight',
@@ -266,4 +266,4 @@ map = {'bart.embeddings.word_embeddings.weight': 'encoder.embed_tokens.weight',
 model_new = {}
 for key, value in map.items():
     model_new[value] = torch_weights[key]
-torch.save(model_new, 'F:/Projects/pretrain_ckpt/bart/[cloudwalk_torch_base]/bert4torch_pytorch_model.bin')
+torch.save(model_new, 'G:/pretrain_ckpt/bart/[cloudwalk_torch_base]/bert4torch_pytorch_model.bin')

@@ -5,7 +5,7 @@
 
 import torch
 
-ckpt_dir = 'F:/Projects/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall'
+ckpt_dir = 'G:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall'
 ckpt_file = f'{ckpt_dir}/pytorch_model.bin'
 output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
 num_hidden_layers = 12  # 自行修改

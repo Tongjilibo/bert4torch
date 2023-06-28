@@ -21,9 +21,9 @@ maxlen = 64
 batch_size = 12
 
 # bert配置，加载roformer权重
-config_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/vocab.txt'
+config_path = 'G:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/config.json'
+checkpoint_path = 'G:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器

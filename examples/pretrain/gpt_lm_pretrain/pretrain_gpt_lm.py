@@ -20,7 +20,7 @@ batch_size = 8
 epochs = 10000
 
 # 模型配置
-root_path = 'F:/Projects/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/'
+root_path = 'G:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/'
 config_path = root_path + 'bert4torch_config.json'
 checkpoint_path = root_path + 'bert4torch_pytorch_model.bin'
 dict_path = root_path + 'bert4torch_vocab.txt'
@@ -46,7 +46,7 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], batch_token_ids
 
-train_dataloader = DataLoader(ListDataset(glob.glob('F:/Projects/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
+train_dataloader = DataLoader(ListDataset(glob.glob('G:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 encoder = build_transformer_model(

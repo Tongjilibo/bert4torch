@@ -14,9 +14,9 @@ from tensorboardX import SummaryWriter
 
 maxlen = 128
 batch_size = 64
-config_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'F:/Projects/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
@@ -51,9 +51,9 @@ def collate_fn(batch):
     return (batch_token_ids, batch_segment_ids), batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
-test_dataloader = DataLoader(MyDataset('F:/Projects/data/corpus/sentence_embedding/LCQMC/LCQMC.test.data'), batch_size=batch_size, collate_fn=collate_fn)
+train_dataloader = DataLoader(MyDataset('G:/data/corpus/sentence_embedding/LCQMC/LCQMC.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('G:/data/corpus/sentence_embedding/LCQMC/LCQMC.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
+test_dataloader = DataLoader(MyDataset('G:/data/corpus/sentence_embedding/LCQMC/LCQMC.test.data'), batch_size=batch_size, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
 class Model(BaseModel):
