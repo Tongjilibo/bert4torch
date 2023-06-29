@@ -83,7 +83,7 @@ else:
 # config配置
 '''
 {
-  "hidden_act": "gelu", 
+  "hidden_act": "gelu_new", 
   "bos_token_id": 130004,
   "eos_token_id": 130005,
   "mask_token_id": 130000,
@@ -108,7 +108,7 @@ else:
 # int4 config
 '''
 {
-    "hidden_act": "gelu", 
+    "hidden_act": "gelu_new", 
     "bos_token_id": 130004,
     "eos_token_id": 130005,
     "mask_token_id": 130000,
@@ -136,7 +136,7 @@ else:
 # int8 config
 '''
 {
-    "hidden_act": "gelu", 
+  "hidden_act": "gelu_new", 
   "bos_token_id": 130004,
   "eos_token_id": 130005,
   "mask_token_id": 130000,
