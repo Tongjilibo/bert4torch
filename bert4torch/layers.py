@@ -80,11 +80,18 @@ class MultiHeadAttentionLayer(nn.Module):
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
-        self.qk_inner_dim = self.attention_key_size * self.num_attention_heads
+        self.q_inner_dim = self.attention_key_size * self.num_attention_heads
+        self.k_inner_dim = self.q_inner_dim
         self.v_inner_dim = self.attention_head_size * self.num_attention_heads
 
-        self.q = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias)
-        self.k = nn.Linear(hidden_size, self.qk_inner_dim, bias=bias)
+        # multi query attention
+        if kwargs.get('multi_query_group_num') is not None:
+            self.multi_query_group_num = kwargs.get('multi_query_group_num')
+            self.k_inner_dim = self.attention_head_size * self.multi_query_group_num
+            self.v_inner_dim = self.k_inner_dim
+
+        self.q = nn.Linear(hidden_size, self.q_inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, self.k_inner_dim, bias=bias)
         self.v = nn.Linear(hidden_size, self.v_inner_dim, bias=bias)
         self.o = nn.Linear(self.v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
@@ -131,13 +138,24 @@ class MultiHeadAttentionLayer(nn.Module):
                 self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
             self.pos_dropout = nn.Dropout(dropout_rate)
 
-    def transpose_for_qk_scores(self, x):
+    def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
-    
+
+    def transpose_for_k_scores(self, x):
+        if hasattr(self, 'multi_query_group_num'):
+            new_x_shape = x.size()[:-1] + (self.multi_query_group_num, self.attention_key_size)
+        else:
+            new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
+        x = x.view(*new_x_shape)
+        return x.permute(0, 2, 1, 3)
+
     def transpose_for_v_scores(self, x):
-        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        if hasattr(self, 'multi_query_group_num'):
+            new_x_shape = x.size()[:-1] + (self.multi_query_group_num, self.attention_head_size)
+        else:
+            new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
     
@@ -225,28 +243,28 @@ class MultiHeadAttentionLayer(nn.Module):
         # encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
         # past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
 
-        query_layer = self.transpose_for_qk_scores(self.q(hidden_states))
+        query_layer = self.transpose_for_q_scores(self.q(hidden_states))
 
         # 参考hf增加了关于past_key_value的逻辑
         if self.p_bias == 'rotary':
             # rotary有cache情况下，需要先rope后再和past_key_value concat
-            key_layer = self.transpose_for_qk_scores(self.k(hidden_states))
+            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
             value_layer = self.transpose_for_v_scores(self.v(hidden_states))
         elif (encoder_hidden_states is not None) and past_key_value is not None:
             key_layer = past_key_value[0]
             value_layer = past_key_value[1]
             attention_mask = encoder_attention_mask
         elif encoder_hidden_states is not None:
-            key_layer = self.transpose_for_qk_scores(self.k(encoder_hidden_states))
+            key_layer = self.transpose_for_k_scores(self.k(encoder_hidden_states))
             value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
             attention_mask = encoder_attention_mask
         elif past_key_value is not None:
-            key_layer = self.transpose_for_qk_scores(self.k(hidden_states))
+            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
             value_layer = self.transpose_for_v_scores(self.v(hidden_states))
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         else:
-            key_layer = self.transpose_for_qk_scores(self.k(hidden_states))
+            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
             value_layer = self.transpose_for_v_scores(self.v(hidden_states))
         # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
@@ -305,8 +323,8 @@ class MultiHeadAttentionLayer(nn.Module):
 
         rel_embeddings = rel_embeddings[0 : att_span * 2, :].unsqueeze(0)
         if self.share_att_key:
-            pos_query_layer = self.transpose_for_qk_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
-            pos_key_layer = self.transpose_for_qk_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_query_layer = self.transpose_for_q_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_key_layer = self.transpose_for_k_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
         else:
             # 这里逻辑去掉了
             pass
@@ -463,7 +481,8 @@ class BertEmbeddings(nn.Module):
     """embeddings层
        构造word, position and token_type embeddings.
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, pad_token_id=0, **kwargs):
+    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, 
+                 pad_token_id=0, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=pad_token_id)
@@ -565,7 +584,8 @@ class BertLayer(nn.Module):
             self.dropout3 = nn.Dropout(dropout_rate)
             self.layerNorm3 = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, position_ids=None, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, 
+                cross_past_key_value=None, position_ids=None, **model_kwargs):
         # self attention
         x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
@@ -610,7 +630,8 @@ class T5Layer(BertLayer):
             del self.crossAttention.relative_positions_encoding
             del self.crossAttention.relative_positions
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, 
+                cross_past_key_value=None, **model_kwargs):
         # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
         x = self.layerNorm1((hidden_states, conditional_emb))
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
@@ -740,8 +761,8 @@ class XlnetLayer(BertLayer):
             mixed_key_layer = self.k(cat)
             mixed_value_layer = self.v(cat)
 
-            w_head_q = self.transpose_for_qk_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
-            w_head_k = self.transpose_for_qk_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
+            w_head_q = self.transpose_for_q_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
+            w_head_k = self.transpose_for_k_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
             w_head_v = self.transpose_for_v_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
 
             r_head_k = self.r(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
