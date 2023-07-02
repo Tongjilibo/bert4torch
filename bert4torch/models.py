@@ -1625,7 +1625,7 @@ class LLaMA(LM_Mask, BERT):
 
     def tie_weights(self):
         if self.tie_emb_prj_weight:
-            self.embeddings.word_embeddings.weight = self.dense.weight
+            self.dense.weight = self.embeddings.word_embeddings.weight
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
@@ -1705,7 +1705,7 @@ class GLM(LM_Mask, BERT):
 
     def tie_weights(self):
         if self.tie_emb_prj_weight:
-            self.embeddings.word_embeddings.weight = self.dense.weight
+            self.dense.weight = self.embeddings.word_embeddings.weight
     
     def load_variable(self, state_dict, name, prefix='transformer'):
         """加载单个变量的函数, 这里的名称均为映射前的
@@ -1792,7 +1792,7 @@ class GLM(LM_Mask, BERT):
             model_kwargs['position_ids'] = position_ids
         # 1）train阶段；2）generation阶段use_states=False；3）use_states=True且step=0的时候
         else:
-            prepad_lens = [(ts[:l]==3).sum().item() for l, ts in zip(context_lens, token_ids)]
+            prepad_lens = [(ts[:l]==self.pad_token_id).sum().item() for l, ts in zip(context_lens, token_ids)]
             model_kwargs['attention_mask'] = self.get_masks(model_kwargs['attention_mask'], context_lens, prepad_lens)
             model_kwargs['position_ids'] = self.get_position_ids(position_ids, seq_len, context_lens, mask_positions, prepad_lens, gmask=use_gmask)
         return model_kwargs

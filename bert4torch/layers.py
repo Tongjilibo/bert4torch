@@ -108,7 +108,8 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.p_bias == 'rotary':  # roformer, llama, chatglm
             # position_encoding_2d 目前仅在chatglm中使用
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
-            embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
+            self.position_encoding_2d_v2 = kwargs.get('position_encoding_2d_v2', False)
+            embedding_size = self.attention_head_size//2 if self.position_encoding_2d or self.position_encoding_2d_v2 else self.attention_head_size
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, rope_rank=kwargs.get('rope_rank', 'adjacent'))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position'), 
@@ -238,6 +239,31 @@ class MultiHeadAttentionLayer(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
         return context_layer, attention_scores
 
+    def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
+        if self.position_encoding_2d:  # chatglm独有逻辑
+            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
+            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+            q1 = self.relative_positions_encoding(q1, position_ids[:, 0, :])
+            k1 = self.relative_positions_encoding(k1, position_ids[:, 0, :])
+            q2 = self.relative_positions_encoding(q2, position_ids[:, 1, :])
+            k2 = self.relative_positions_encoding(k2, position_ids[:, 1, :])
+            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
+            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
+        elif self.position_encoding_2d_v2:  # chatglm2的独有逻辑
+            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
+            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+            q1 = self.relative_positions_encoding(q1, position_ids)
+            k1 = self.relative_positions_encoding(k1, position_ids)
+            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
+            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
+        else:  # 原rotary逻辑
+            query_layer = self.relative_positions_encoding(query_layer, position_ids)
+            key_layer = self.relative_positions_encoding(key_layer, position_ids)
+        if past_key_value is not None:  # 过了rope再concat
+            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
+            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
+        return query_layer, key_layer, value_layer
+
     def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, position_ids=None, **model_kwargs):
         # hidden_states shape: [batch_size, seq_q, hidden_size]
         # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
@@ -273,21 +299,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
         if self.p_bias == 'rotary':
-            if self.position_encoding_2d:  # chatglm独有逻辑
-                q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
-                k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-                q1 = self.relative_positions_encoding(q1, position_ids[:, 0, :])
-                k1 = self.relative_positions_encoding(k1, position_ids[:, 0, :])
-                q2 = self.relative_positions_encoding(q2, position_ids[:, 1, :])
-                k2 = self.relative_positions_encoding(k2, position_ids[:, 1, :])
-                query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
-                key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
-            else:  # 原rotary逻辑
-                query_layer = self.relative_positions_encoding(query_layer, position_ids)
-                key_layer = self.relative_positions_encoding(key_layer, position_ids)
-            if past_key_value is not None:  # 过了rope再concat
-                key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-                value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
+            query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
 
         if self.is_decoder:
             past_key_value = (key_layer, value_layer)
@@ -1043,7 +1055,7 @@ class RoPEPositionEncoding(nn.Module):
         self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
         # 支持两种方式，一种是奇偶相邻排列，一种是上下排列, 目前只在chatglm中看到updown排列
-        assert rope_rank in {'adjacent', 'updown'}, "rank kwarg only support 'adjacent' and 'updown' "
+        assert rope_rank in {'adjacent', 'updown', 'split'}, "rank kwarg only support 'adjacent' and 'updown' and 'split' "
         self.rope_rank = rope_rank
     
     def initialize(self, max_position):
@@ -1051,7 +1063,7 @@ class RoPEPositionEncoding(nn.Module):
         if self.rope_rank == 'adjacent':
             cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        elif self.rope_rank == 'updown':  # 目前仅chatglm使用
+        elif self.rope_rank in {'updown', 'split'}:  # 目前仅chatglm使用
             cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
         else:
@@ -1062,7 +1074,7 @@ class RoPEPositionEncoding(nn.Module):
         # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
-        if self.rope_rank == 'adjacent':
+        if self.rope_rank in {'adjacent', 'split'}:
             qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
         elif self.rope_rank == 'updown':  # 目前仅chatglm使用
             qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
