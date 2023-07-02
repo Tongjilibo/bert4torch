@@ -5,9 +5,9 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BERT
 
 
-config_path = 'G:/pretrain_ckpt/uie/uie_base_pytorch/config.json'
-checkpoint_path = 'G:/pretrain_ckpt/uie/uie_base_pytorch/pytorch_model.bin'
-dict_path = 'G:/pretrain_ckpt/uie/uie_base_pytorch/vocab.txt'
+config_path = 'E:/pretrain_ckpt/uie/uie_base_pytorch/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/uie/uie_base_pytorch/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/uie/uie_base_pytorch/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)

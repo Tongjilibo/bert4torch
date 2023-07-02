@@ -19,14 +19,14 @@ import torch.nn as nn
 
 maxlen = 256
 batch_size = 8
-config_path = 'G:/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/config.json'
-checkpoint_path = 'G:/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/pytorch_model.bin'
-dict_path = 'G:/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/vocab.txt'
+config_path = 'E:/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/bert/[hit_torch_base]--chinese-bert-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
-with open('G:/data/corpus/relation_extraction/chip2020/53_schemas.json', encoding='utf-8') as f:
+with open('E:/data/corpus/relation_extraction/chip2020/53_schemas.json', encoding='utf-8') as f:
     for l in f:
         l = json.loads(l)
         if l['predicate'] not in predicate2id:
@@ -94,8 +94,8 @@ class MyDataset(ListDataset):
 
 
 # 虚拟对抗添加
-train_dataset = MyDataset('G:/data/corpus/relation_extraction/chip2020/train_data.json')
-valid_dataset = MyDataset('G:/data/corpus/relation_extraction/chip2020/val_data.json')
+train_dataset = MyDataset('E:/data/corpus/relation_extraction/chip2020/train_data.json')
+valid_dataset = MyDataset('E:/data/corpus/relation_extraction/chip2020/val_data.json')
 unsup_dataset = [sen for sen in (train_dataset.data + valid_dataset.data)]
 
 def collate_fn(batch):

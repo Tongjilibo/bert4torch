@@ -7,7 +7,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-pretrained_model = "G:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103"
+pretrained_model = "E:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103"
 
 # ----------------------transformers包----------------------
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model)

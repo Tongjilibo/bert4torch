@@ -16,9 +16,9 @@ import random
 
 maxlen = 256
 batch_size = 16
-config_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
-checkpoint_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+checkpoint_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
@@ -41,9 +41,9 @@ class MyDataset(ListDataset):
                         D.append((t, int(label)))
         return D
 
-train_dataset = MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
-valid_dataset = MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.valid.data'])
-test_dataset = MyDataset(['G:/data/corpus/sentence_classification/sentiment/sentiment.test.data'])
+train_dataset = MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+valid_dataset = MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.valid.data'])
+test_dataset = MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.test.data'])
 
 # 理论上应该收集任务领域类的无监督数据，这里用所有的监督数据来作无监督数据
 unsup_dataset =  [sen for sen, _ in (train_dataset.data + valid_dataset.data + test_dataset.data)]

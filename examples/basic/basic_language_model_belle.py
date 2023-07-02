@@ -15,7 +15,7 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 
-dir_path = 'G:/pretrain_ckpt/llama/belle-llama-7b-2m'
+dir_path = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m'
 config_path = f'{dir_path}/bert4torch_config.json'
 checkpoint_path = f'{dir_path}/bert4torch_pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

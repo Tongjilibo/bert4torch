@@ -12,9 +12,9 @@ rep_str = {
     'value_proj': 'value'
 }
 
-# root_path = 'G:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERTa-v2-97M-Chinese'
-root_path = 'G:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERTa-v2-320M-Chinese'
-# root_path = 'G:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERTa-v2-710M-Chinese'
+# root_path = 'E:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERTa-v2-97M-Chinese'
+root_path = 'E:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERTa-v2-320M-Chinese'
+# root_path = 'E:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERTa-v2-710M-Chinese'
 
 ckpt_file = f'{root_path}/pytorch_model.bin'
 state_dict = torch.load(ckpt_file)

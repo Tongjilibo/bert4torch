@@ -4,9 +4,9 @@
 
 import torch
 
-ckpt_dir = 'G:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base'
+ckpt_dir = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base'
 ckpt_file = f'{ckpt_dir}/pytorch_model.bin'
-output_ckpt_file = 'G:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/bert4torch_pytorch_model.bin'
+output_ckpt_file = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/bert4torch_pytorch_model.bin'
 num_hidden_layers = 12
 
 

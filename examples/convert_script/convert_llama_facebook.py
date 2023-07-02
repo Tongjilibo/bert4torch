@@ -11,34 +11,34 @@
 分为3步，前2步是项目中的，本脚本为第四步
 1）用transformer脚本转换facebook的llama模型；2）用项目中脚本合并lora权重；3）用本脚本转换为bert4torch的适配权重
 python D:/ProgramData/Anaconda3/Lib/site-packages/transformers/models/llama/convert_llama_weights_to_hf.py  
---input_dir G:/pretrain_ckpt/llama  
+--input_dir E:/pretrain_ckpt/llama  
 --model_size 7B  
---output_dir G:/pretrain_ckpt/llama/7B-hf
+--output_dir E:/pretrain_ckpt/llama/7B-hf
 
 python scripts/merge_llama_with_chinese_lora.py 
---base_model G:/pretrain_ckpt/llama/7B-hf  
---lora_model G:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b  
+--base_model E:/pretrain_ckpt/llama/7B-hf  
+--lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b  
 --output_type pth  
---output_dir G:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b 
+--output_dir E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b 
 
 
 [3]. chinese_alpaca_plus_7b: https://github.com/ymcui/Chinese-LLaMA-Alpaca
 转换同上，只是合并lora权重需要合并多个lora权重
 python scripts/merge_llama_with_chinese_lora.py 
---base_model G:/pretrain_ckpt/llama/7B-hf 
---lora_model G:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b,G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_lora_7b  
+--base_model E:/pretrain_ckpt/llama/7B-hf 
+--lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b,E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_lora_7b  
 --output_type pth 
---output_dir G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b 
+--output_dir E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b 
 
 """
 
 import torch
 
-# llama:                   G:/pretrain_ckpt/llama/7B
-# chinese_llama_plus_7b：  G:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
-# chinese_alpaca_plus_7b:  G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
+# llama:                   E:/pretrain_ckpt/llama/7B
+# chinese_llama_plus_7b：  E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
+# chinese_alpaca_plus_7b:  E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
 
-ckpt_dir = 'G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+ckpt_dir = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
 ckpt_file = f'{ckpt_dir}/consolidated.00.pth'
 output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
 num_hidden_layers = 32

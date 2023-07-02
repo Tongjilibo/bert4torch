@@ -3,7 +3,7 @@
 import torch
 
 
-ckpt_file = 'G:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/pytorch_model.bin'
+ckpt_file = 'E:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/pytorch_model.bin'
 torch_state_dict = {}
 # 1表示transpose, 0表示不变
 key_map = {
@@ -43,7 +43,7 @@ for key, value in key_map.items():
 for i in range(18):
     qkv_net = torch_weights[f'transformer.layers.{i}.dec_attn.qkv_net.weight']
     model_new[f'encoderLayer.{i}.multiHeadAttention.q.weight'], model_new[f'encoderLayer.{i}.multiHeadAttention.k.weight'], model_new[f'encoderLayer.{i}.multiHeadAttention.v.weight'] = qkv_net.chunk(3, dim=0)
-torch.save(model_new, 'G:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/bert4torch_pytorch_model.bin')
+torch.save(model_new, 'E:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/bert4torch_pytorch_model.bin')
 
 # config文件
 '''

@@ -21,16 +21,16 @@ from tensorboardX import SummaryWriter
 maxlen = 128
 batch_size = 16
 epochs = 200
-config_path = 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 model_name = 'Chinese_roberta_wwm_ext'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-train_path = 'G:/data/corpus/event_extraction/duee/duee_train.json'
-valid_path = 'G:/data/corpus/event_extraction/duee/duee_dev.json'
-test_path = 'G:/data/corpus/event_extraction/duee/duee_test2.json'
-schema_path = 'G:/data/corpus/event_extraction/duee/duee_event_schema.json'
+train_path = 'E:/data/corpus/event_extraction/duee/duee_train.json'
+valid_path = 'E:/data/corpus/event_extraction/duee/duee_dev.json'
+test_path = 'E:/data/corpus/event_extraction/duee/duee_test2.json'
+schema_path = 'E:/data/corpus/event_extraction/duee/duee_event_schema.json'
 best_model_save_path = './'
 optimizer_name = 'adam'
 best_e_weigths_save_path = os.path.join(best_model_save_path, 'best_model.{}.e.weights.pt'.format(optimizer_name))

@@ -9,15 +9,15 @@ import re
 choice = 'chatglm2'  # default, int4, int8, v1.1.0, chatglm2
 
 if choice == 'default':
-    dir_path = 'G:/pretrain_ckpt/chatglm/6B/'
+    dir_path = 'E:/pretrain_ckpt/chatglm/6B/'
 elif choice == 'v1.1.0':
-    dir_path = 'G:/pretrain_ckpt/chatglm/6B-v1_1_0/'
+    dir_path = 'E:/pretrain_ckpt/chatglm/6B-v1_1_0/'
 elif choice == 'int4':
-    dir_path = 'G:/pretrain_ckpt/chatglm/6B-int4/'
+    dir_path = 'E:/pretrain_ckpt/chatglm/6B-int4/'
 elif choice == 'int8':
-    dir_path = 'G:/pretrain_ckpt/chatglm/6B-int8/'
+    dir_path = 'E:/pretrain_ckpt/chatglm/6B-int8/'
 elif choice == 'chatglm2':
-    dir_path = 'G:/pretrain_ckpt/chatglm2/6B/'
+    dir_path = 'E:/pretrain_ckpt/chatglm2/6B/'
 
 def trans_chatglm(state_dict_tmp):
     '''chatglm权重转换'''

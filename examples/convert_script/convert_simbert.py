@@ -7,19 +7,19 @@ import json
 
 # base
 # 也可以从huggingface下第三方转换的https://huggingface.co/peterchou/simbert-chinese-base
-tf_dir = 'G:/pretrain_ckpt/simbert/[sushen_tf_base]--chinese_simbert_L-12_H-768_A-12/'
+tf_dir = 'E:/pretrain_ckpt/simbert/[sushen_tf_base]--chinese_simbert_L-12_H-768_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
-torch_path = 'G:/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/pytorch_model.bin'
+torch_path = 'E:/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base/pytorch_model.bin'
 
 # small
-tf_dir = 'G:/pretrain_ckpt/simbert/[sushen_tf_small]--chinese_simbert_L-6_H-384_A-12/'
+tf_dir = 'E:/pretrain_ckpt/simbert/[sushen_tf_small]--chinese_simbert_L-6_H-384_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
-torch_path = 'G:/pretrain_ckpt/simbert/[sushen_torch_small]--simbert_chinese_small/pytorch_model.bin'
+torch_path = 'E:/pretrain_ckpt/simbert/[sushen_torch_small]--simbert_chinese_small/pytorch_model.bin'
 
 # tiny
-tf_dir = 'G:/pretrain_ckpt/simbert/[sushen_tf_tiny]--chinese_simbert_L-4_H-312_A-12/'
+tf_dir = 'E:/pretrain_ckpt/simbert/[sushen_tf_tiny]--chinese_simbert_L-4_H-312_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
-torch_path = 'G:/pretrain_ckpt/simbert/[sushen_torch_tiny]--simbert_chinese_tiny/pytorch_model.bin'
+torch_path = 'E:/pretrain_ckpt/simbert/[sushen_torch_tiny]--simbert_chinese_tiny/pytorch_model.bin'
 
 with open(tf_dir + 'bert_config.json', 'r') as f:
     config = json.load(f)

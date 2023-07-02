@@ -3,7 +3,7 @@
 # 项目链接：https://huggingface.co/uer/gpt2-chinese-cluecorpussmall
 # 权重需转换后方可加载，转换脚本https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_gpt2__uer-gpt2-chinese.py
 
-ckpt_dir = 'G:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
+ckpt_dir = 'E:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
 # ckpt_dir = '/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 

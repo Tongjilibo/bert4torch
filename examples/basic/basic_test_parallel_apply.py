@@ -6,7 +6,7 @@ import numpy as np
 from bert4torch.snippets import parallel_apply
 import time
 
-dict_path = 'G:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
+dict_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 categories = {'LOC':2, 'PER':3, 'ORG':4}
 
@@ -109,7 +109,7 @@ def func(inputs):
     
     return tokens_ids, _pieces2word, _dist_inputs, _grid_labels, _grid_mask2d, _entity_text
 
-corpus = load_data('G:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+corpus = load_data('E:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
 
 start = time.time()
 train_samples = parallel_apply(

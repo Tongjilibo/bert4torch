@@ -46,17 +46,17 @@ else:
 
 # bert配置
 model_dir = {
-    'BERT': 'G:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12',
-    'RoBERTa': 'G:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base',
-    'NEZHA': 'G:/pretrain_ckpt/nezha/[huawei_noah_torch_base]--nezha-cn-base',
-    'RoFormer': 'G:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base',
-    'SimBERT': 'G:/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base',
+    'BERT': 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12',
+    'RoBERTa': 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base',
+    'NEZHA': 'E:/pretrain_ckpt/nezha/[huawei_noah_torch_base]--nezha-cn-base',
+    'RoFormer': 'E:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base',
+    'SimBERT': 'E:/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base',
 }[model_type]
 
 config_path = f'{model_dir}/bert_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
-data_path = 'G:/data/corpus/sentence_embedding/'
+data_path = 'E:/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # =============================加载数据集=============================

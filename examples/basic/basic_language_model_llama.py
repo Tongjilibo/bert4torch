@@ -15,11 +15,11 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 
-# llama:                   G:/pretrain_ckpt/llama/7B
-# chinese_llama_plus_7b：  G:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
-# chinese_alpaca_plus_7b:  G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
+# llama:                   E:/pretrain_ckpt/llama/7B
+# chinese_llama_plus_7b：  E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
+# chinese_alpaca_plus_7b:  E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
 
-dir_path = 'G:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'

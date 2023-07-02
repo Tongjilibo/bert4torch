@@ -21,9 +21,9 @@ batch_size = 16
 epochs = 10000
 
 # bert配置
-config_path = 'G:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/config.json'
-checkpoint_path = 'G:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/bert4torch_pytorch_model.bin'
-dict_path = 'G:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/vocab.txt'
+config_path = 'E:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/bert4torch_pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -46,7 +46,7 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids, value=tokenizer._token_pad_id), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(ListDataset(glob.glob('G:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
+train_dataloader = DataLoader(ListDataset(glob.glob('E:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 model = build_transformer_model(

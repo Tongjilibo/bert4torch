@@ -9,7 +9,7 @@ import torch
 import os
 from bert4torch.quantization import quantize_cpm_kernels
 
-ckpt_path = 'G:\\pretrain_ckpt\\moss\\moss-moon-003-sft'
+ckpt_path = 'E:\\pretrain_ckpt\\moss\\moss-moon-003-sft'
 tokenizer = AutoTokenizer.from_pretrained(ckpt_path, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(ckpt_path, trust_remote_code=True).half()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

@@ -7,8 +7,8 @@ import torch
 import jieba
 
 # 加载模型，请更换成自己的路径
-# root_model_path = "G:/pretrain_ckpt/wobert/[sushen-torch]--wobert_chinese_base"
-root_model_path = "G:/pretrain_ckpt/wobert/[sushen-torch]--wobert_chinese_plus_base"
+# root_model_path = "E:/pretrain_ckpt/wobert/[sushen-torch]--wobert_chinese_base"
+root_model_path = "E:/pretrain_ckpt/wobert/[sushen-torch]--wobert_chinese_plus_base"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'

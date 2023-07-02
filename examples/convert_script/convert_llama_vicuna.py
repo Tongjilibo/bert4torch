@@ -4,7 +4,7 @@
 
 import torch
 
-ckpt_dir = 'G:/pretrain_ckpt/llama/llama_vicuna-7b/'
+ckpt_dir = 'E:/pretrain_ckpt/llama/llama_vicuna-7b/'
 output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 num_hidden_layers = 32
 
