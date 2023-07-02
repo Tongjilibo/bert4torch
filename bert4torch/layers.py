@@ -8,10 +8,7 @@ from bert4torch.activations import get_activation
 from typing import List, Optional, Union
 import random
 import warnings
-try:
-    import loralib as lora
-except ImportError:
-    lora = None
+
 
 class LayerNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-12, conditional_size=False, weight=True, bias=True, norm_mode='normal', **kwargs):
@@ -39,7 +36,12 @@ class LayerNorm(nn.Module):
             self.dense2.weight.data.uniform_(0, 0)
 
     def forward(self, inputs):
-        x = inputs[0]
+        if isinstance(inputs, (list,tuple)):
+            x = inputs[0]
+        elif isinstance(inputs, torch.Tensor):
+            x = inputs
+        else:
+            raise ValueError('LayerNorm inputs format error')
 
         if self.norm_mode == 'rmsnorm':
             # t5使用的是RMSnorm
@@ -80,20 +82,20 @@ class MultiHeadAttentionLayer(nn.Module):
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
-        self.q_inner_dim = self.attention_key_size * self.num_attention_heads
-        self.k_inner_dim = self.q_inner_dim
-        self.v_inner_dim = self.attention_head_size * self.num_attention_heads
+        q_inner_dim = self.attention_key_size * self.num_attention_heads
+        k_inner_dim = q_inner_dim
+        v_inner_dim = self.attention_head_size * self.num_attention_heads
 
         # multi query attention
         if kwargs.get('multi_query_group_num') is not None:
             self.multi_query_group_num = kwargs.get('multi_query_group_num')
-            self.k_inner_dim = self.attention_head_size * self.multi_query_group_num
-            self.v_inner_dim = self.k_inner_dim
+            k_inner_dim_tmp = self.attention_head_size * self.multi_query_group_num
+            v_inner_dim_tmp = k_inner_dim_tmp
 
-        self.q = nn.Linear(hidden_size, self.q_inner_dim, bias=bias)
-        self.k = nn.Linear(hidden_size, self.k_inner_dim, bias=bias)
-        self.v = nn.Linear(hidden_size, self.v_inner_dim, bias=bias)
-        self.o = nn.Linear(self.v_inner_dim, hidden_size, bias=bias)
+        self.q = nn.Linear(hidden_size, q_inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else k_inner_dim, bias=bias)
+        self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else v_inner_dim, bias=bias)
+        self.o = nn.Linear(v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
         self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
@@ -232,7 +234,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # 所以在调用view之前，需要contiguous来返回一个contiguous copy；
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
 
-        new_context_layer_shape = context_layer.size()[:-2] + (self.v_inner_dim,)
+        new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
         context_layer = context_layer.view(*new_context_layer_shape)
         return context_layer, attention_scores
 
@@ -290,11 +292,20 @@ class MultiHeadAttentionLayer(nn.Module):
         if self.is_decoder:
             past_key_value = (key_layer, value_layer)
 
+        # multi_query_attention
+        if hasattr(self, 'multi_query_group_num'):
+            key_layer = key_layer.unsqueeze(2)
+            key_layer = key_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+            key_layer = key_layer.contiguous().view(key_layer.shape[:1] + (self.num_attention_heads,) + key_layer.shape[-2:])
+            value_layer = value_layer.unsqueeze(2)
+            value_layer = value_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+            value_layer = value_layer.contiguous().view(value_layer.shape[:1] + (self.num_attention_heads,) + value_layer.shape[-2:])
+
         # 是否使用torch2.0的flash_attention加速
         if int(torch.__version__.split('.')[0]) >= 2:
             context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
             context_layer = context_layer.permute(0, 2, 1, 3)
-            new_context_layer_shape = context_layer.size()[:-2] + (self.v_inner_dim,)
+            new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
             context_layer = context_layer.reshape(*new_context_layer_shape)
             attention_scores = None
         else:
@@ -366,7 +377,7 @@ class PositionWiseFeedForward(nn.Module):
 
         self.is_dropout = is_dropout
         self.intermediate_act_fn = get_activation(hidden_act)
-        self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=bias)
+        self.intermediateDense = nn.Linear(hidden_size, intermediate_size*2 if hidden_act=='swiglu' else intermediate_size, bias=bias)
         self.outputDense = nn.Linear(intermediate_size, hidden_size, bias=bias)
         if self.is_dropout:
             self.dropout = nn.Dropout(dropout_rate)

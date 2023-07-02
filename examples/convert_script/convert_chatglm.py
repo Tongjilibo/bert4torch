@@ -6,7 +6,7 @@ int8: https://huggingface.co/THUDM/chatglm-6b-int8
 import torch
 import re
 
-choice = 'v1.1.0'  # default, int4, int8, v1.1.0
+choice = 'chatglm2'  # default, int4, int8, v1.1.0, chatglm2
 
 if choice == 'default':
     dir_path = 'G:/pretrain_ckpt/chatglm/6B/'
@@ -16,9 +16,11 @@ elif choice == 'int4':
     dir_path = 'G:/pretrain_ckpt/chatglm/6B-int4/'
 elif choice == 'int8':
     dir_path = 'G:/pretrain_ckpt/chatglm/6B-int8/'
+elif choice == 'chatglm2':
+    dir_path = 'G:/pretrain_ckpt/chatglm2/6B/'
 
-def trans(state_dict_tmp):
-    '''权重转换'''
+def trans_chatglm(state_dict_tmp):
+    '''chatglm权重转换'''
     new_weights = {}
     for key, value in state_dict_tmp.items():
         # 旧逻辑是删除前20000个token，但是清华官方repo在20230406时候清理了，这里就改为不删减
@@ -65,6 +67,31 @@ def trans(state_dict_tmp):
             new_weights[key] = value
     return new_weights
 
+def trans_chatglm2(state_dict_tmp):
+    '''chatglm2权重转换'''
+    new_weights = {}
+    for key, value in state_dict_tmp.items():
+        if re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.query_key_value\.weight", key):
+            l = re.findall('[0-9]+', key)[0]
+            q, k, v = torch.split(value, [4096, 256, 256], 0)
+            new_weights[f'transformer.layers.{l}.attention.self.query.weight'] = q
+            new_weights[f'transformer.layers.{l}.attention.self.key.weight'] = k
+            new_weights[f'transformer.layers.{l}.attention.self.value.weight'] = v
+        elif re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.query_key_value\.bias", key):
+            l = re.findall('[0-9]+', key)[0]
+            q, k, v = torch.split(value, [4096, 256, 256], 0)
+            new_weights[f'transformer.layers.{l}.attention.self.query.bias'] = q
+            new_weights[f'transformer.layers.{l}.attention.self.key.bias'] = k
+            new_weights[f'transformer.layers.{l}.attention.self.value.bias'] = v
+        elif re.search("transformer.embedding.word_embeddings.weight", key):
+            new_weights['transformer.word_embeddings.weight'] = value
+        elif re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.dense\.weight", key):
+            new_weights[f'transformer.layers.{l}.attention.dense.weight'] = value
+        else:
+            key = key.replace('.encoder.', '.')
+            new_weights[key] = value
+    return new_weights
+
 if choice in {'default', 'v1.1.0'}:
     # 依次读入权重
     for i in range(1, 9):
@@ -72,12 +99,21 @@ if choice in {'default', 'v1.1.0'}:
         state_dict_tmp = torch.load(dir_path+file_path)
 
         # 保存成多个文件
-        new_weights = trans(state_dict_tmp)
-
+        new_weights = trans_chatglm(state_dict_tmp)
         torch.save(new_weights, dir_path + f'bert4torch_pytorch_model_{i}.bin')
+
+elif choice == 'chatglm2':
+    for i in range(1, 8):
+        file_path = f"pytorch_model-0000{i}-of-00007.bin"
+        state_dict_tmp = torch.load(dir_path+file_path)
+
+        # 保存成多个文件
+        new_weights = trans_chatglm2(state_dict_tmp)
+        torch.save(new_weights, dir_path + f'bert4torch_pytorch_model_{i}.bin')
+
 else:
     state_dict_tmp = torch.load(dir_path+'pytorch_model.bin')
-    new_weights = trans(state_dict_tmp)
+    new_weights = trans_chatglm(state_dict_tmp)
     torch.save(new_weights, dir_path + f'bert4torch_pytorch_model.bin')
 
 # config配置

@@ -73,10 +73,16 @@ def linear_act(x):
     return x
 
 
+def swiglu(x, dim=-1):
+    x = torch.chunk(x, 2, dim=dim)
+    return silu(x[0]) * x[1]
+
+
 ACT2FN = {
     "relu": nn.functional.relu,
     "silu": silu,
     "swish": silu,
+    "swiglu": swiglu,
     "gelu": gelu,
     "tanh": torch.tanh,
     "gelu_new": _gelu_new,

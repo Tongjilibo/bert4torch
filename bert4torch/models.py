@@ -1680,7 +1680,7 @@ class LLaMA(LM_Mask, BERT):
 
 
 class GLM(LM_Mask, BERT):
-    '''GLM: https://github.com/THUDM/GLM
+    '''GLM: https://github.com/THUDM/GLM, ChatGLM-6B: https://github.com/THUDM/ChatGLM-6B
     Unilm设计，可定义为GLM(UniLM_MASK, BERT)但是要求传入segement_ids比较麻烦，这里继承LM_MASK并使用get_masks()重新构造attention_mask
     模型结构特点：
     1）rotary使用的updown+position_encoding_2d
@@ -1692,7 +1692,7 @@ class GLM(LM_Mask, BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True})
         super().__init__(*args, **kwargs)
-        self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs['bos_token_id'], kwargs['mask_token_id'], kwargs['gmask_token_id']
+        self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs.get('bos_token_id'), kwargs.get('mask_token_id'), kwargs.get('gmask_token_id')
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
         del self.embeddings.layerNorm
         layer = self.GLMBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
@@ -1827,6 +1827,66 @@ class GLM(LM_Mask, BERT):
 
             x = self.layerNorm2(hidden_states)
             hidden_states = x *alpha +  self.feedForward(x)
+
+            if self.is_decoder:
+                model_kwargs['past_key_value'] = self_attn_output[-1]
+            model_kwargs['hidden_states'] = hidden_states
+            return model_kwargs
+
+
+class RMSNorm(torch.nn.Module):
+    def __init__(self, normalized_shape, eps=1e-5, device='meta', dtype=torch.float16, **kwargs):
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.empty(normalized_shape, device=device, dtype=dtype))
+        self.eps = eps
+
+    def forward(self, hidden_states: torch.Tensor):
+        input_dtype = hidden_states.dtype
+        variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.eps)
+
+        return (self.weight * hidden_states).to(input_dtype)
+        
+class GLM2(GLM):
+    """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
+    主要修改：1）不使用Unilm式的mask
+             2) flash_attention
+             3) multi_query_attention
+    """
+    def prepare_inputs(self, *inputs, **model_kwargs):
+        '''对attention_mask(参考unilm方式)和position_ids做处理'''
+        token_ids = model_kwargs['past_token_ids'] if model_kwargs.get('past_token_ids') is not None else inputs[0]
+        position_ids = model_kwargs['position_ids']
+
+        # 1）generation阶段use_states=True且step>0的时候(用cache)
+        if model_kwargs.get('use_states', False) and (model_kwargs.get('step') > 0):
+            position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
+            model_kwargs['position_ids'] = position_ids
+        # 1）train阶段；2）generation阶段use_states=False；3）use_states=True且step=0的时候
+        else:
+            pass
+        return model_kwargs
+    
+    class GLMBlock(BertLayer):
+        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.num_hidden_layers = kwargs['num_hidden_layers']
+            hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
+            # self.layerNorm1 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+            # self.layerNorm2 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+            self.layerNorm1 = RMSNorm(hidden_size, eps=eps)
+            self.layerNorm2 = RMSNorm(hidden_size, eps=eps)
+            self.multiHeadAttention.o.register_parameter('bias', None)
+
+        def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
+            # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
+            x = self.layerNorm1(hidden_states)
+            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
+            hidden_states = hidden_states + self.dropout1(self_attn_output[0])
+
+            x = self.layerNorm2(hidden_states)
+            hidden_states = hidden_states + self.dropout2(self.feedForward(x))
 
             if self.is_decoder:
                 model_kwargs['past_key_value'] = self_attn_output[-1]
@@ -2160,6 +2220,9 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         'gpt2_ml': GPT2_ML,
         'llama': LLaMA,
         'glm': GLM,
+        'chatglm': GLM,
+        'glm2': GLM2,
+        'chatglm2': GLM2,
         't5': T5,
         't5_encoder': T5_Encoder,
         't5_decoder': T5_Decoder,
