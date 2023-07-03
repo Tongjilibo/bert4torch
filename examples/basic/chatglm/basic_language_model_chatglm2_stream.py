@@ -37,7 +37,7 @@ stop_stream = False
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
 if choice == 'chatglm2':
-    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2', num_hidden_layers=2).half().to(device)
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2').half().to(device)
     # encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)
 else:
     # 在config中已经写入了量化的配置参数
@@ -48,7 +48,7 @@ class Chat(SeqGeneration):
         return [tokenizer.encode(text)]
     def post_process(self, output_ids):
         return tokenizer.decode(output_ids[0].cpu().numpy())
-generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
+generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['</s>'])[-1], mode='random_sample',
                   maxlen=2048, default_rtype='logits', use_states=True)
 
 def build_prompt(history):

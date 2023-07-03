@@ -279,13 +279,11 @@ class BERT_BASE(nn.Module):
         '''新增对layer block输入进行操作的函数'''
         if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
             model_kwargs['past_key_value'] = None
-            model_kwargs['past_key_values'] = [None] * self.num_hidden_layers
         else:
             model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
 
         if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
             model_kwargs['cross_past_key_value'] = None
-            model_kwargs['cross_past_key_values'] = [None] * self.num_hidden_layers
         else:
             model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
         return model_kwargs
@@ -293,11 +291,11 @@ class BERT_BASE(nn.Module):
     def apply_on_layer_end(self, l_i, **model_kwargs):
         '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
         if model_kwargs.get('past_key_value', None) is not None:
-            if 'past_key_values' not in model_kwargs:
+            if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
                 model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
             model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
         if model_kwargs.get('cross_past_key_value', None) is not None:
-            if 'cross_past_key_values' not in model_kwargs:
+            if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
                 model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
             model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']
         return model_kwargs
@@ -1842,19 +1840,6 @@ class GLM(LM_Mask, BERT):
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs
 
-
-class RMSNorm(torch.nn.Module):
-    def __init__(self, normalized_shape, eps=1e-5, device='meta', dtype=torch.float16, **kwargs):
-        super().__init__()
-        self.weight = torch.nn.Parameter(torch.empty(normalized_shape, device=device, dtype=dtype))
-        self.eps = eps
-
-    def forward(self, hidden_states: torch.Tensor):
-        input_dtype = hidden_states.dtype
-        variance = hidden_states.to(torch.float32).pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.eps)
-
-        return (self.weight * hidden_states).to(input_dtype)
         
 class GLM2(GLM):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
@@ -1862,18 +1847,11 @@ class GLM2(GLM):
              2) flash_attention
              3) multi_query_attention
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-5), norm_mode='rmsnorm', bias=False)
+        
     def prepare_inputs(self, *inputs, **model_kwargs):
-        '''对attention_mask(参考unilm方式)和position_ids做处理'''
-        token_ids = model_kwargs['past_token_ids'] if model_kwargs.get('past_token_ids') is not None else inputs[0]
-        position_ids = model_kwargs['position_ids']
-
-        # 1）generation阶段use_states=True且step>0的时候(用cache)
-        if model_kwargs.get('use_states', False) and (model_kwargs.get('step') > 0):
-            position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
-            model_kwargs['position_ids'] = position_ids
-        # 1）train阶段；2）generation阶段use_states=False；3）use_states=True且step=0的时候
-        else:
-            pass
         return model_kwargs
     
     class GLMBlock(BertLayer):
@@ -1882,10 +1860,8 @@ class GLM2(GLM):
             super().__init__(*args, **kwargs)
             self.num_hidden_layers = kwargs['num_hidden_layers']
             hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-            # self.layerNorm1 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-            # self.layerNorm2 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-            self.layerNorm1 = RMSNorm(hidden_size, eps=eps)
-            self.layerNorm2 = RMSNorm(hidden_size, eps=eps)
+            self.layerNorm1 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+            self.layerNorm2 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
             self.multiHeadAttention.o.register_parameter('bias', None)
 
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):

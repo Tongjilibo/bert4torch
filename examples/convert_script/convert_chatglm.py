@@ -87,6 +87,8 @@ def trans_chatglm2(state_dict_tmp):
             new_weights['transformer.word_embeddings.weight'] = value
         elif re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.dense\.weight", key):
             new_weights[f'transformer.layers.{l}.attention.dense.weight'] = value
+        elif re.search("transformer\.output_layer\.weight", key):
+            new_weights[f'lm_head.weight'] = value
         else:
             key = key.replace('.encoder.', '.')
             new_weights[key] = value
@@ -194,5 +196,28 @@ else:
   "quantization_method": "cpm_kernels",
   "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
   "tie_emb_prj_weight": true
+}
+'''
+
+# chatglm2
+'''
+{
+  "hidden_act": "swiglu", 
+  "hidden_size": 4096,
+  "intermediate_size": 13696,
+  "layer_norm_eps": 1e-05,
+  "max_sequence_length": 32768,
+  "num_attention_heads": 32,
+  "num_hidden_layers": 28,
+  "vocab_size": 65024,
+  "segment_vocab_size": 0,
+  "multi_query_group_num": 2,
+  "skip_init": true,
+  "tie_emb_prj_weight": false,
+  "eos_token_id": 2,
+  "pad_token_id": 2,
+  "rmsnorm": true,
+  "rope_rank": "split",
+  "position_encoding_2d_v2": true
 }
 '''
