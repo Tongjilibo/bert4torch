@@ -277,8 +277,17 @@ class BERT_BASE(nn.Module):
     
     def apply_on_layer_begin(self, l_i, **model_kwargs):
         '''新增对layer block输入进行操作的函数'''
-        model_kwargs['past_key_value'] = model_kwargs.get('past_key_values', [None]*self.num_hidden_layers)[l_i]
-        model_kwargs['cross_past_key_value'] = model_kwargs.get('cross_past_key_values', [None]*self.num_hidden_layers)[l_i]
+        if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
+            model_kwargs['past_key_value'] = None
+            model_kwargs['past_key_values'] = [None] * self.num_hidden_layers
+        else:
+            model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
+
+        if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
+            model_kwargs['cross_past_key_value'] = None
+            model_kwargs['cross_past_key_values'] = [None] * self.num_hidden_layers
+        else:
+            model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
         return model_kwargs
     
     def apply_on_layer_end(self, l_i, **model_kwargs):
@@ -1783,7 +1792,7 @@ class GLM(LM_Mask, BERT):
         seq_len = token_ids.shape[1]
 
         # 1）generation阶段use_states=True且step>0的时候(用cache)
-        if model_kwargs.get('use_states', False) and (model_kwargs.get('step') > 0):
+        if model_kwargs.get('use_states', False) and (model_kwargs.get('past_key_values') is not None):
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
