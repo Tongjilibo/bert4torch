@@ -47,7 +47,7 @@ response_column = 'summary'
 history_column = None
 
 # 模型配置
-dir_path = "/mnt/g/pretrain_ckpt/chatglm2/6B"
+dir_path = "/mnt/e/pretrain_ckpt/chatglm2/6B"
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,8)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -105,8 +105,8 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('/mnt/g/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('/mnt/g/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2', add_trainer=True, 
