@@ -203,11 +203,6 @@ class MultiHeadAttentionLayer(nn.Module):
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
         if attention_mask is not None:
-            # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用
-            if attention_mask.shape[-1] < attention_scores.shape[-1]:
-                size_ = attention_mask.shape[:3] + torch.Size([attention_scores.shape[-1]-attention_mask.shape[-1]])
-                pre_attention_mask = torch.ones(size_).to(attention_mask)
-                attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
             # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
             # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
             attention_mask = (1.0 - attention_mask) * -10000.0  # 所以传入的mask的非padding部分为1, padding部分为0
@@ -312,6 +307,12 @@ class MultiHeadAttentionLayer(nn.Module):
             value_layer = value_layer.unsqueeze(2)
             value_layer = value_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
             value_layer = value_layer.contiguous().view(value_layer.shape[:1] + (self.num_attention_heads,) + value_layer.shape[-2:])
+
+        # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用
+        if attention_mask.shape[-1] < key_layer.shape[-2]:
+            size_ = attention_mask.shape[:3] + torch.Size([key_layer.shape[-2]-attention_mask.shape[-1]])
+            pre_attention_mask = torch.ones(size_).to(attention_mask)
+            attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
         # 是否使用torch2.0的flash_attention加速
         if int(torch.__version__.split('.')[0]) >= 2:

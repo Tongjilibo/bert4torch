@@ -7,16 +7,14 @@
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
-from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
+from bert4torch.generation import SeqGeneration
 import platform
 import os
 import signal
 import re
-from typing import Dict, Tuple, Union, Optional
-from torch.nn import Module
 
-choice = 'chatglm2'  # chatglm2, int4, int8
-if choice == 'chatglm2':
+choice = 'default'  # chatglm2, int4, int8
+if choice == 'default':
     dir_path = "E:/pretrain_ckpt/chatglm2/6B"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,8)]  # 可加载单个，也可以加载多个
@@ -36,7 +34,7 @@ stop_stream = False
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
-if choice == 'chatglm2':
+if choice == 'default':
     encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2').half().to(device)
     # encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)
 else:

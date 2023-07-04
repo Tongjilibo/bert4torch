@@ -1,16 +1,8 @@
 #! -*- coding: utf-8 -*-
 # 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
-# chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
-# |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
+# chatglm2的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
+# |            chatglm2              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
 # | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
-# | hf+pt2 official+v100            |   ——      |      ——      |     24.97     |    31.12    |     7.11    |    8.10   |         |
-# | hf+pt2 reappear+v100            |   ——      |      ——      |     24.80     |    30.97    |     6.98    |    7.85   |         |
-# | b4t+chatglm+ptuning_v2+v100     |   ——      |      ——      |     24.58     |    30.76    |     7.12    |    8.12   |         |
-# | b4t+pt2+T4-int8-bs1             |  10G      |     1470     |     24.87     |    30.83    |     7.14    |    8.05   |         |
-# | b4t+pt2+A100(pcie 40G)-fp16-bs1 |  15G      |     287      |     25.10     |    31.43    |     7.30    |    8.28   |         |
-# | b4t+pt2+A100(pcie 40G)-fp16-bs8 |  22G      |     705      |     25.22     |    31.22    |     7.38    |    8.35   |         |
-# | b4t+pt2+A100(pcie 40G)-fp32-bs1 |  29G      |     760      |     24.83     |    30.95    |     7.18    |    8.08   |         |
-# | b4t+pt2+A100(pcie 40G)-fp32-bs4 |  32G      |     2600     |     25.12     |    31.55    |     7.21    |    8.02   |         |
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -22,7 +14,7 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from transformers import AutoTokenizer
-from bert4torch.snippets import ListDataset
+from bert4torch.snippets import ListDataset, seed_everything
 from bert4torch.callbacks import Logger
 from bert4torch.generation import SeqGeneration
 from bert4torch.optimizers import get_linear_schedule_with_warmup
@@ -42,7 +34,7 @@ batch_size = 1
 eval_batch_size = 4
 grad_accumulation_steps = 16
 steps_per_epoch = 3000
-epochs = 1  # torch4keras<0.0.8后需要设置为16，因为1个batch_step不包含grad_accumulation_steps
+epochs = 1
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 prefix = ''
@@ -51,23 +43,24 @@ response_column = 'summary'
 history_column = None
 use_states = True
 
+seed_everything(42)
+
 # 模型配置
-choice = 'int4'  # default, int4, int8
+choice = 'default'  # chatglm2, int4, int8
 if choice == 'default':
-    dir_path = "E:/pretrain_ckpt/chatglm/6B"
+    dir_path = "E:/pretrain_ckpt/chatglm2/6B"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,8)]  # 可加载单个，也可以加载多个
 elif choice == 'int4':
-    dir_path = "E:/pretrain_ckpt/chatglm/6B-int4"
+    dir_path = "E:/pretrain_ckpt/chatglm2/6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 elif choice == 'int8':
-    dir_path = "E:/pretrain_ckpt/chatglm/6B-int8"
+    dir_path = "E:/pretrain_ckpt/chatglm2/6B-int8"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 
 # 加载数据集
@@ -85,14 +78,13 @@ class MyDataset(ListDataset):
                 D.append((prompt, response, history))
         return D
 
-def build_prompt(query, history):
-    if history_column is None:
-        prompt = query
-    else:
-        prompt = ""
-        for i, (old_query, answer) in enumerate(history):
-            prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, answer)
-        prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
+def build_prompt(query, history=None):
+    if history is None:
+        history = []
+    prompt = ""
+    for i, (old_query, response) in enumerate(history):
+        prompt += "[Round {}]\n\n问：{}\n\n答：{}\n\n".format(i + 1, old_query, response)
+    prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history) + 1, query)
     return prompt
 
 def collate_train_fn(batch):
@@ -100,24 +92,17 @@ def collate_train_fn(batch):
     for query, answer, history in batch:
         prompt = build_prompt(query, history)
         prompt = prefix + prompt
-        a_ids = tokenizer.encode(text=prompt, add_special_tokens=False)
-        b_ids = tokenizer.encode(text=answer, add_special_tokens=False)
+        a_ids = tokenizer.encode(text=prompt, add_special_tokens=True, truncation=True, max_length=max_source_length)
+        b_ids = tokenizer.encode(text=answer, add_special_tokens=False, truncation=True, max_length=max_target_length)
 
-        if len(a_ids) > max_source_length - 1:
-            a_ids = a_ids[:max_source_length - 1]
-
-        if len(b_ids) > max_target_length - 2:
-            b_ids = b_ids[:max_target_length - 2]
-
-        input_ids = tokenizer.build_inputs_with_special_tokens(a_ids, b_ids)
-        context_length = input_ids.index(tokenizer.bos_token_id)
-        mask_position = context_length - 1
-        labels = [-100] * context_length + input_ids[mask_position+1:]
+        context_length = len(a_ids)
+        input_ids = a_ids + b_ids + [tokenizer.eos_token_id]
+        labels = [tokenizer.pad_token_id] * context_length + b_ids + [tokenizer.eos_token_id]
         batch_token_ids.append(input_ids)
         batch_labels.append(labels)
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels, value=-100), dtype=torch.long, device=device)
+    batch_labels = torch.tensor(sequence_padding(batch_labels, value=0), dtype=torch.long, device=device)
     return [batch_token_ids], batch_labels
 
 def collate_dev_fn(batch):
@@ -151,7 +136,7 @@ class PrefixEncoder(torch.nn.Module):
                 torch.nn.Linear(config.hidden_size, config.num_hidden_layers * config.hidden_size * 2)
             )
         else:
-            self.embedding = torch.nn.Embedding(config.pre_seq_len, config.num_hidden_layers * config.hidden_size * 2)
+            self.embedding = torch.nn.Embedding(config.pre_seq_len, config.num_hidden_layers * 256 * 2)
 
     def forward(self, prefix: torch.Tensor):
         if self.prefix_projection:
@@ -166,12 +151,12 @@ class Model(BaseModel):
         super().__init__(*args, **kwargs)
         # 建立模型，加载权重
         if choice == 'default':
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half()
+            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2').half()
             self.encoder = self.encoder.quantize(quantization_method='cpm_kernels', quantization_bit=4, 
                                                  target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)
         else:
             # 在config中已经写入了量化的配置参数
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').to(device)
+            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2').to(device)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False
@@ -189,8 +174,8 @@ class Model(BaseModel):
             batch_size,
             self.config.pre_seq_len,
             self.config.num_hidden_layers * 2,
-            self.config.num_attention_heads,
-            self.config.hidden_size // self.config.num_attention_heads
+            self.config.multi_query_group_num,
+            128
         )
         # b, nh, seq_len, hidden_size
         past_key_values = self.dropout(past_key_values)
@@ -238,14 +223,14 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
 
 optimizer = optim.AdamW(model.parameters(), lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, 0, steps_per_epoch*epochs)  # torch4keras<0.0.8需要设置为(steps_per_epoch*epochs)//grad_accumulation_steps
-model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
+model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
         return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
     def post_process(self, output_ids):
         return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], pad_id=tokenizer.pad_token_id, 
+generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['</s>'])[-1], pad_id=tokenizer.pad_token_id, 
                   mode='random_sample', maxlen=512, default_rtype='logits', use_states=use_states)
 
 class Evaluator(Callback):
@@ -255,15 +240,7 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        model.save_weights(f'./model_{epoch}.pt', trainable_only=True)
-        # # 可以每个epoch都evaluate，但是比较耗时
-        # score_dict = self.evaluate(dev_dataloader, epoch)
-        # # 保存最优
-        # if score_dict['bleu-4'] > self.best:
-        #     self.best = score_dict['bleu-4']
-        #     model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存PrefixEncoder权重
-        # score_dict['best'] = self.best
-        # print(score_dict)
+        model.save_weights(f'./model.pt', trainable_only=True)
     
     def evaluate(self, data, epoch='final'):
         preds, labels = [], []
@@ -303,6 +280,6 @@ if __name__ == '__main__':
         print(score_dict)
 
     else:
-        model.load_weights('./model_15.pt', strict=False)
+        model.load_weights('./model.pt', strict=False)
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
