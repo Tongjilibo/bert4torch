@@ -90,6 +90,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 | bert4torch版本 | torch4keras版本 |
 | ---------------- | ----------------- |
+| 0.2.9          | 0.0.8           |
 | 0.2.8          | 0.0.7.post3     |
 | 0.2.7.post2    | 0.0.6           |
 | 0.2.7          | 0.0.6           |

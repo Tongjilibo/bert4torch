@@ -55,10 +55,10 @@ elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/chatglm2/6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-elif choice == 'int8':
-    dir_path = "E:/pretrain_ckpt/chatglm2/6B-int8"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+# elif choice == 'int8':
+#     dir_path = "E:/pretrain_ckpt/chatglm2/6B-int8"
+#     config_path = dir_path + '/bert4torch_config.json'
+#     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)

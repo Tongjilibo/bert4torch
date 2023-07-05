@@ -247,6 +247,8 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.position_encoding_2d_v2:  # chatglm2的独有逻辑
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+            q1 = torch.cat([q1[..., ::2], q1[..., 1::2]], dim=-1)
+            k1 = torch.cat([k1[..., ::2], k1[..., 1::2]], dim=-1)
             q1 = self.relative_positions_encoding(q1, position_ids)
             k1 = self.relative_positions_encoding(k1, position_ids)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
@@ -1056,7 +1058,7 @@ class RoPEPositionEncoding(nn.Module):
         self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
         # 支持两种方式，一种是奇偶相邻排列，一种是上下排列, 目前只在chatglm中看到updown排列
-        assert rope_rank in {'adjacent', 'updown', 'split'}, "rank kwarg only support 'adjacent' and 'updown' and 'split' "
+        assert rope_rank in {'adjacent', 'updown'}, "rank kwarg only support 'adjacent' and 'updown' "
         self.rope_rank = rope_rank
     
     def initialize(self, max_position):
@@ -1064,11 +1066,11 @@ class RoPEPositionEncoding(nn.Module):
         if self.rope_rank == 'adjacent':
             cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        elif self.rope_rank in {'updown', 'split'}:  # 目前仅chatglm使用
+        elif self.rope_rank == 'updown':  # 目前仅chatglm使用
             cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
         else:
-            raise ValueError('Args `rope_rank` only support `adjacent` and `adjacent` mode')
+            raise ValueError('Args `rope_rank` only support `adjacent` and `updown` mode')
         return cos_position, sin_position
     
     def forward(self, qw, position_ids=None, seq_dim=-2):
@@ -1077,9 +1079,6 @@ class RoPEPositionEncoding(nn.Module):
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
         if self.rope_rank == 'adjacent':
             qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
-        elif self.rope_rank == 'split':
-            qw2 = torch.cat([-qw[..., 1::2], qw[..., ::2]], dim=-1)
-            qw = torch.cat([qw[..., ::2], qw[..., 1::2]], dim=-1)
         elif self.rope_rank == 'updown':  # 目前仅chatglm使用
             qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
         

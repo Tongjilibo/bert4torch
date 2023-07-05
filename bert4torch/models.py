@@ -1863,6 +1863,8 @@ class GLM2(GLM):
             self.layerNorm1 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
             self.layerNorm2 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
             self.multiHeadAttention.o.register_parameter('bias', None)
+            self.feedForward.intermediateDense.register_parameter('bias', None)
+            self.feedForward.outputDense.register_parameter('bias', None)
 
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
