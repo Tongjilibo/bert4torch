@@ -1,13 +1,8 @@
 import torch
 import torch.nn.functional as F
-import torch.nn as nn
 from torch4keras.snippets import *
-from bert4torch.layers import BottleneckAdapterLayer
-try:
-    # torch4keras0.0.7增加了callbacks
-    from torch4keras.callbacks import *
-except:
-    pass
+from torch4keras.callbacks import *
+
 
 class FGM():
     '''FGM对抗训练'''

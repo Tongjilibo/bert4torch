@@ -12,12 +12,7 @@ import gc
 import json
 import random
 from torch4keras.snippets import *
-try:
-    # torch4keras0.0.7增加了callbacks，这里为了兼容老的example，在snippets中import了
-    # 建议使用方式: from bert4torch.callbacks import *
-    from torch4keras.callbacks import *
-except:
-    pass
+from torch4keras.callbacks import *
 
 is_py2 = six.PY2
 
