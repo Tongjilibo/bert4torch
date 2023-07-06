@@ -8,15 +8,15 @@ from bert4torch.activations import get_activation
 
 class MultiHeadAttentionLayer(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 output_attentions=False, bias=True, layer_id=None, **kwargs):
+                 output_attentions=False, bias=True, flash_attention=False, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
-        self.layer_id = layer_id  # 第几层
         self.is_decoder = kwargs.get('is_decoder', False)
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = bias
+        self.flash_attention = flash_attention
 
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
@@ -257,7 +257,7 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
         # 是否使用torch2.0的flash_attention加速
-        if int(torch.__version__.split('.')[0]) >= 2:
+        if self.flash_attention and (int(torch.__version__.split('.')[0]) >= 2):
             context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
             context_layer = context_layer.permute(0, 2, 1, 3)
             new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)

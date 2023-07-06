@@ -250,7 +250,8 @@ elif choice == 'chatglm2-int4':
   "pad_token_id": 2,
   "rmsnorm": true,
   "rope_rank": "updown",
-  "position_encoding_2d_v2": true
+  "position_encoding_2d_v2": true,
+  "flash_attention": true
 }
 '''
 
@@ -274,6 +275,7 @@ elif choice == 'chatglm2-int4':
   "rmsnorm": true,
   "rope_rank": "updown",
   "position_encoding_2d_v2": true,
+  "flash_attention": true,
   "quantization_bit": 4,
   "quantization_method": "cpm_kernels",
   "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]

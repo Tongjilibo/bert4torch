@@ -40,7 +40,7 @@ try:
     )
 except Exception as exception:
     kernels = None
-    print(info_level_prefix("Failed to load cpm_kernels:" + str(exception)), 'e')
+    print(info_level_prefix(" Failed to load cpm_kernels:" + str(exception)), 'e')
 
 
 class W8A16Linear(torch.autograd.Function):
