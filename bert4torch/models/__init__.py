@@ -1,4 +1,3 @@
-from torch4keras.model import *
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *

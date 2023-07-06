@@ -189,7 +189,6 @@ class GLM2(GLM):
             self.feedForward.outputDense.register_parameter('bias', None)
 
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
-            # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.layerNorm1(hidden_states)
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = hidden_states + self.dropout1(self_attn_output[0])
