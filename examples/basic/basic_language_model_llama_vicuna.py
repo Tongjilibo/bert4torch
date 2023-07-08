@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：vicuna的7b模型的测试
-# 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_vicuna.py
+# 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_hf.py
 
 import torch
 from bert4torch.models import build_transformer_model

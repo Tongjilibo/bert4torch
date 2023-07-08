@@ -6,6 +6,9 @@
 [1]. llama模型：https://github.com/facebookresearch/llama
 [2]. chinese_llama: https://github.com/ymcui/Chinese-LLaMA-Alpaca
 [3]. chinese_alpaca: https://github.com/ymcui/Chinese-LLaMA-Alpaca
+[4]. Ziya-LLaMA-13B_v1.1: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1
+[5]. Ziya-LLaMA-13B_v1: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1
+[6]. Ziya-LLaMA-13B_pretrain: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrain-v1
 """
 
 import torch
@@ -18,8 +21,9 @@ import os
 # llama:                   E:/pretrain_ckpt/llama/7B
 # chinese_llama_plus_7b：  E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
 # chinese_alpaca_plus_7b:  E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
+# Ziya-LLaMA-13B_v1.1:     E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1
 
-dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
