@@ -65,7 +65,7 @@ class LLaMA(LM_Mask, BERT):
             hidden_states = hidden_states + self_attn_output[0]
 
             x = self.layerNorm2((hidden_states, conditional_emb))
-            hidden_states = hidden_states +  self.feedForward(x)
+            hidden_states = hidden_states + self.feedForward(x)
             if self.is_decoder:
                 model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states

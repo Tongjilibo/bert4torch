@@ -15,6 +15,7 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
 from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
+from transformers import AutoTokenizer
 import platform
 import os
 
@@ -23,16 +24,22 @@ import os
 # chinese_alpaca_plus_7b:  E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
 # Ziya-LLaMA-13B_v1.1:     E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1
 
-dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1'
+dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
+# 可使用bert4torch的tokenizer
+use_hf_tokenize = False
+if use_hf_tokenize:
+    tokenizer = AutoTokenizer.from_pretrained(dir_path)
+else:
+    tokenizer = SpTokenizer(dir_path+'/tokenizer.model', token_start='<s>', token_end=None, keep_accents=True, remove_space=False)
+print('Loading tokenizer done...')
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half()
-model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)
+# model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
 # 第一种方式
 class ArticleCompletion(AutoRegressiveDecoder):
@@ -62,7 +69,7 @@ article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mo
 
 if __name__ == '__main__':
     os_name = platform.system()
-    print("Welcome to use llama-7b model，type `clear` to clear history，type `stop` to stop program")
+    print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
         if query == "stop":
@@ -70,8 +77,8 @@ if __name__ == '__main__':
         if query == "clear":
             command = 'cls' if os_name == 'Windows' else 'clear'
             os.system(command)
-            print("Welcome to use llama-7b model，type `clear` to clear history，type `stop` to stop program")
+            print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
         response = article_completion.generate(query)
         torch.cuda.empty_cache()  # 清理显存
-        print(f"\nllama-7b：{response}")
+        print(f"\nllama：{response}")
