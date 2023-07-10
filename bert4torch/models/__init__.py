@@ -148,6 +148,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
 
     # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要设置
     if configs.get('quantization_method') is not None:
+        if skip_init:  # 把meta权重to_empty(device='cpu')
+            transformer.apply(transformer.init_meta_weights)
         transformer = transformer.half().quantize(**configs)
 
     # 恢复默认权重类型

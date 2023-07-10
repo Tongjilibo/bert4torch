@@ -571,7 +571,15 @@ def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dty
     """设置默认权重类型"""
     if not isinstance(model_name, str):
         model_name = 'model'
-        
+    mapping = {
+        'float16': torch.float16,
+        'float32': torch.float32,
+        'float64': torch.float64,
+        'bfloat16': torch.bfloat16
+        }
+    if isinstance(dtype, str):
+        dtype = mapping[dtype]
+
     if not dtype.is_floating_point:
         raise ValueError(f"Can't instantiate {model_name} under dtype={dtype} since it is not a floating point dtype")
     print(info_level_prefix(f"Instantiating {model_name} under default dtype {dtype}.", 'i'))

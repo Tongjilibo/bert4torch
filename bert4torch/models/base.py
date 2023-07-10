@@ -153,6 +153,12 @@ class BERT_BASE(nn.Module):
         if isinstance(module, nn.Linear) and (module.bias is not None) and (module.bias.requires_grad):
             module.bias.data.zero_()
 
+    def init_meta_weights(self, module):
+        '''meta weights初始化, 主要是在量化里面用到
+        '''
+        if hasattr(module, 'weight') and module.weight.device == torch.device('meta'):
+            module.to_empty(device='cpu')
+
     def variable_mapping(self):
         """构建pytorch层与checkpoint的变量名之间的映射表"""
         return {}
