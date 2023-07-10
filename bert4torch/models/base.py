@@ -5,11 +5,12 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import print_trainable_parameters, torch_div, colorful
+from bert4torch.snippets import load_state_dict_into_meta_model, torch_div, colorful
 from bert4torch.snippets import take_along_dim, get_parameter_device
 import warnings
 from torch4keras.model import *
 from tqdm import tqdm
+import gc
 
 
 class BERT_BASE(nn.Module):
@@ -69,7 +70,6 @@ class BERT_BASE(nn.Module):
         self.gradient_checkpoint = gradient_checkpoint
         self.quantized = False
         self.output_all_encoded_layers = output_all_encoded_layers
-        self.skip_init = kwargs['skip_init']
         self.add_trainer = kwargs['add_trainer']
         self.tie_emb_prj_weight = tie_emb_prj_weight
 
@@ -139,10 +139,7 @@ class BERT_BASE(nn.Module):
 
     def init_model_weights(self, module):
         """ 初始化权重 """
-        if self.skip_init is True:
-            if hasattr(module, 'weight') and module.weight.device == torch.device('meta'):
-                module.to_empty(device='cpu')
-        elif isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
+        if isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
             # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
             # 此种初始化对于加载预训练模型后进行finetune没有任何影响，
             # cf https://github.com/pytorch/pytorch/pull/5617
@@ -195,7 +192,7 @@ class BERT_BASE(nn.Module):
 
         return embeddings
 
-    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, verbose=1):
+    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, verbose=1):
         """根据mapping从checkpoint加载权重"""
         # 加载模型文件
         if isinstance(checkpoint, str):
@@ -229,27 +226,34 @@ class BERT_BASE(nn.Module):
                 model_params.remove(new_key)
             needed_keys.append(old_key)
         del file_state_dict
-
+        gc.collect()
+        
         # mismatch keys的处理
         if verbose != 0:
-            for key in missing_keys:
-                print(colorful('[WARNING]') + f' {key} not found in pretrain models')
-            for key in model_params:
-                print(colorful('[WARNING]') + f' Parameter {key} not loaded from pretrain models')
+            for key in missing_keys:  # model中有，但是ckpt中不存在
+                print(colorful('[WARNING]') + f' `{key}` not found in pretrained checkpoints')
+            for key in model_params:  # ckpt中存在，但是model中不存在
+                print(colorful('[WARNING]') + f' Parameter {key} not initialized from pretrained checkpoints')
 
         # 将ckpt的权重load到模型结构中
-        self.load_state_dict(state_dict_new, strict=False)
+        if not skip_init:
+            self.load_state_dict(state_dict_new, strict=False)
+        else:
+            # meta方式加载
+            load_state_dict_into_meta_model(self, state_dict_new)
+            
         del state_dict_new
+        gc.collect()
         return missing_keys, needed_keys
 
-    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, verbose=1):
+    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, verbose=1):
         """逐个ckpt加载"""
         if isinstance(checkpoints, str):
-            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, verbose=verbose)
+            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, verbose=verbose)
         elif isinstance(checkpoints, (tuple, list)):
             all_missing_keys = []
             for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
-                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, verbose=0)
+                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, verbose=0)
                 all_missing_keys.extend(missing_keys)
             all_missing_set = set(all_missing_keys).difference(set(needed_keys))
             if verbose != 0:

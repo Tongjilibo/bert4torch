@@ -505,3 +505,76 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     mask = input_ids.ne(padding_idx).int()
     incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
+
+
+def set_module_tensor_to_device(module: nn.Module, tensor_name: str, device: Union[int, str, torch.device], value: Optional[torch.Tensor]=None):
+    """
+    A helper function to set a given tensor (parameter of buffer) of a module on a specific device (note that doing
+    `param.to(device)` creates a new tensor not linked to the parameter, which is why we need this function).
+
+    Args:
+        module (`torch.nn.Module`): The module in which the tensor we want to move lives.
+        param_name (`str`): The full name of the parameter/buffer.
+        device (`int`, `str` or `torch.device`): The device on which to set the tensor.
+        value (`torch.Tensor`, *optional*): The value of the tensor (useful when going from the meta device to any
+            other device).
+    """
+    # Recurse if needed
+    if "." in tensor_name:
+        splits = tensor_name.split(".")
+        for split in splits[:-1]:
+            new_module = getattr(module, split)
+            if new_module is None:
+                raise ValueError(f"{module} has no attribute {split}.")
+            module = new_module
+        tensor_name = splits[-1]
+
+    if tensor_name not in module._parameters and tensor_name not in module._buffers:
+        raise ValueError(f"{module} does not have a parameter or a buffer named {tensor_name}.")
+    is_buffer = tensor_name in module._buffers
+    old_value = getattr(module, tensor_name)
+
+    if old_value.device == torch.device("meta") and device not in ["meta", torch.device("meta")] and value is None:
+        raise ValueError(f"{tensor_name} is on the meta device, we need a `value` to put in on {device}.")
+
+    with torch.no_grad():
+        if value is None:
+            new_value = old_value.to(device)
+        elif isinstance(value, torch.Tensor):
+            new_value = value.to(device)
+        else:
+            new_value = torch.tensor(value, device=device)
+
+        if is_buffer:
+            module._buffers[tensor_name] = new_value
+        elif value is not None or torch.device(device) != module._parameters[tensor_name].device:
+            param_cls = type(module._parameters[tensor_name])
+            kwargs = module._parameters[tensor_name].__dict__
+            new_value = param_cls(new_value, requires_grad=old_value.requires_grad, **kwargs).to(device)
+            module._parameters[tensor_name] = new_value
+
+
+def load_state_dict_into_meta_model(model: nn.Module, state_dict):
+    '''将device='meta'的参数用预训练权重赋值'''
+    for param_name, param in model.named_parameters():
+        # 权重文件中有
+        if param_name in state_dict.keys():
+            set_module_tensor_to_device(model, param_name, 'cpu', state_dict[param_name])
+        # 权重文件中没有
+        elif param.device == torch.device('meta'):
+            # 这里采用全0初始化
+            value = torch.zeros(*param.size(), dtype=param.dtype)
+            set_module_tensor_to_device(model, param_name, 'cpu', value)
+
+
+def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dtype:
+    """设置默认权重类型"""
+    if not isinstance(model_name, str):
+        model_name = 'model'
+        
+    if not dtype.is_floating_point:
+        raise ValueError(f"Can't instantiate {model_name} under dtype={dtype} since it is not a floating point dtype")
+    print(info_level_prefix(f"Instantiating {model_name} under default dtype {dtype}.", 'i'))
+    dtype_orig = torch.get_default_dtype()
+    torch.set_default_dtype(dtype)
+    return dtype_orig

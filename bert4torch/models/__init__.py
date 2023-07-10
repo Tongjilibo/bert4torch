@@ -1,3 +1,4 @@
+from torch4keras.model import *
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -16,6 +17,7 @@ from bert4torch.models.transformer import *
 from bert4torch.models.transformer_xl import *
 from bert4torch.models.uie import *
 from bert4torch.models.xlnet import *
+from bert4torch.snippets import *
 
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', add_trainer=False, **kwargs):
@@ -37,14 +39,20 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     :param custom_attention_mask: bool, 是否自行传入attention_mask, 默认为False
     :param shared_segment_embeddings: bool, 若True, 则segment跟token共用embedding, 默认为False
     :param conditional_size: conditional layer_norm, 默认为None
-    :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
     :param compound_tokens: 扩展Embedding, 默认为None
     :param residual_attention_scores: bool, Attention矩阵加残差, 默认为False
     :param ignore_invalid_weights: bool, 允许跳过不存在的权重, 默认为False
     :param keep_hidden_layers: 保留的hidden_layer层的id, 默认为None表示全部使用
     :param hierarchical_position: 是否层次分解位置编码, 默认为None表示不使用
     :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
-    :param skip_init: bool, 是否初始化
+    :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
+
+    > 大模型参数
+    :param skip_init: bool, 是否初始化，默认为False
+    :param low_cpu_mem_usage: bool, 是否初始化，默认为False, 同skip_init，仅需要设置一个即可
+    :param torch_dtype: 指定权重的dtype
+    :param flash_attention: bool, 是否使用flash_attention，即torch2的scaled_dot_product_attention(), 默认为False
+
     :return: A pytorch model instance
     """
     configs = DottableDict()
@@ -57,7 +65,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    configs['skip_init'] = configs.get('skip_init', False)
+    skip_init = configs.get('skip_init', False) or configs.get('low_cpu_mem_usage', False)
+    torch_dtype = configs.get('torch_dtype', None)
     configs['add_trainer'] = add_trainer
 
     models = {
@@ -119,27 +128,38 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
     elif application == 'unilm':
         MODEL = extend_with_unified_language_model(MODEL)
 
-    # 动态继承BaseModel
+    # 动态继承BaseModel，直接加载预训练模型训练时使用
     if add_trainer:
         MODEL = extend_with_base_model(MODEL)
 
+    # 指定默认权重类型
+    dtype_orig = None
+    if torch_dtype is not None:
+        dtype_orig = set_default_torch_dtype(torch_dtype, model)
+
     # 生成网络结构
-    if configs['skip_init']:
+    if skip_init:
         from accelerate import init_empty_weights
         with init_empty_weights():
             transformer = MODEL(**configs)
     else:
         transformer = MODEL(**configs)
-    transformer.apply(transformer.init_model_weights)  # 初始化权重
+        transformer.apply(transformer.init_model_weights)  # 初始化权重
 
     # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要设置
     if configs.get('quantization_method') is not None:
         transformer = transformer.half().quantize(**configs)
 
+    # 恢复默认权重类型
+    if dtype_orig is not None:
+        torch.set_default_dtype(dtype_orig)
+
     # 权重加载
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
-        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, verbose=verbose)
-    transformer.tie_weights()  # 权重tie
+        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, verbose=verbose)
+    
+    # 权重tie，若skip_init则模型结构中的tie_weights会失效，这里重新tie_weights一下
+    transformer.tie_weights()
     transformer.configs = transformer.config = configs
     return transformer
