@@ -264,7 +264,7 @@ class BERT_BASE(nn.Module):
             all_missing_set = set(all_missing_keys).difference(set(needed_keys))
             if verbose != 0:
                 for key in all_missing_set:
-                    print(colorful('[WARNING]') + f' {key} not found in pretrain models')
+                    print(colorful('[WARNING]') + f' {key} not found in pretrained checkpoints')
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
 

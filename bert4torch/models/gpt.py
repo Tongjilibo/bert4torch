@@ -60,7 +60,7 @@ class GPT2(LM_Mask, BERT):
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(self.LayerNormFinal([hidden_state]))
+        logit = self.dense(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):
@@ -77,11 +77,11 @@ class GPT2(LM_Mask, BERT):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
-            x = self.layerNorm1((hidden_states, conditional_emb))
+            x = self.layerNorm1(hidden_states, conditional_emb)
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
             hidden_states = hidden_states + self.dropout1(self_attn_output[0])
 
-            x = self.layerNorm2((hidden_states, conditional_emb))
+            x = self.layerNorm2(hidden_states, conditional_emb)
             ffn_output = self.feedForward(x)
             hidden_states = hidden_states + self.dropout2(ffn_output)
 
@@ -127,13 +127,13 @@ class GPT2_ML(LM_Mask, BERT):
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             self_attn_output = self.multiHeadAttention(hidden_states, attention_mask, past_key_value=past_key_value)
             hidden_states = hidden_states + self.dropout1(self_attn_output[0])
-            x = self.layerNorm1((hidden_states, conditional_emb))
+            x = self.layerNorm1(hidden_states, conditional_emb)
 
             ffn_output = self.feedForward(x)
             # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+layerNorm1的hidden_states, 即这里的x
             # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加layerNorm1
             hidden_states = hidden_states + self.dropout2(ffn_output)
-            hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+            hidden_states = self.layerNorm2(hidden_states, conditional_emb)
             if self.is_decoder:
                 model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states

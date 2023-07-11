@@ -171,10 +171,10 @@ class TplinkerHandshakingKernel(nn.Module):
                 shaking_hiddens = torch.cat([repeat_hiddens, visible_hiddens, inner_context], dim = -1)
                 shaking_hiddens = torch.tanh(self.combine_fc(shaking_hiddens))
             elif self.shaking_type == "cln":
-                shaking_hiddens = self.tp_cln([visible_hiddens, repeat_hiddens])
+                shaking_hiddens = self.tp_cln(visible_hiddens, repeat_hiddens)
             elif self.shaking_type == "cln_plus":
                 inner_context = self.enc_inner_hiddens(visible_hiddens, self.inner_enc_type)
-                shaking_hiddens = self.tp_cln([visible_hiddens, repeat_hiddens])
+                shaking_hiddens = self.tp_cln(visible_hiddens, repeat_hiddens)
                 shaking_hiddens = self.inner_context_cln([shaking_hiddens, inner_context])
 
             shaking_hiddens_list.append(shaking_hiddens)

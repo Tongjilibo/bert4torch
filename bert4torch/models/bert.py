@@ -246,7 +246,7 @@ class BERT(BERT_BASE):
         if self.with_mlm:
             mlm_hidden_state = self.mlmDense(sequence_output)
             mlm_hidden_state = self.transform_act_fn(mlm_hidden_state)
-            mlm_hidden_state = self.mlmLayerNorm((mlm_hidden_state, conditional_emb))
+            mlm_hidden_state = self.mlmLayerNorm(mlm_hidden_state, conditional_emb)
             mlm_scores = self.mlmDecoder(mlm_hidden_state)
             mlm_activation = get_activation('linear' if self.with_mlm is True else self.with_mlm)
             mlm_scores = mlm_activation(mlm_scores)

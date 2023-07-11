@@ -8,6 +8,8 @@ class LayerNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-12, conditional_size=False, weight=True, bias=True, norm_mode='normal', **kwargs):
         """layernorm 层，这里自行实现，目的是为了兼容 conditianal layernorm，使得可以做条件文本生成、条件分类等任务
            条件layernorm来自于苏剑林的想法，详情：https://spaces.ac.cn/archives/7124
+
+           :param norm_mode: str, `normal`, `rmsnorm`
         """
         super(LayerNorm, self).__init__()
         
@@ -29,31 +31,27 @@ class LayerNorm(nn.Module):
             self.dense2 = nn.Linear(conditional_size, hidden_size, bias=False)
             self.dense2.weight.data.uniform_(0, 0)
 
-    def forward(self, inputs):
-        if isinstance(inputs, (list,tuple)):
-            x = inputs[0]
-        elif isinstance(inputs, torch.Tensor):
-            x = inputs
-        else:
-            raise ValueError('LayerNorm inputs format error')
+    def forward(self, hidden_states, cond=None):
+        if isinstance(hidden_states, (list, tuple)):  # 兼容以前的久逻辑，后期测试后可删除
+            cond = hidden_states[1] if self.conditional_size else None
+            hidden_states = hidden_states[0]
 
         if self.norm_mode == 'rmsnorm':
             # t5使用的是RMSnorm
-            variance = x.float().pow(2).mean(-1, keepdim=True)
-            o = (x.float() * torch.rsqrt(variance + self.eps)).type_as(x)
+            variance = hidden_states.float().pow(2).mean(-1, keepdim=True)
+            o = (hidden_states.float() * torch.rsqrt(variance + self.eps)).type_as(hidden_states)
         else:
-            u = x.mean(-1, keepdim=True)
-            s = (x - u).pow(2).mean(-1, keepdim=True)
-            o = (x - u) / torch.sqrt(s + self.eps)
+            u = hidden_states.mean(-1, keepdim=True)
+            s = (hidden_states - u).pow(2).mean(-1, keepdim=True)
+            o = (hidden_states - u) / torch.sqrt(s + self.eps)
 
         if not hasattr(self, 'weight'):
             self.weight = 1
         if not hasattr(self, 'bias'):
             self.bias = 0
 
-        if self.conditional_size:
-            cond = inputs[1]
-            for _ in range(len(x.shape) - len(cond.shape)):
+        if self.conditional_size and (cond is not None):
+            for _ in range(len(hidden_states.shape) - len(cond.shape)):
                 cond = cond.unsqueeze(dim=1)
             return (self.weight + self.dense1(cond)) * o + (self.bias + self.dense2(cond))
         else:
@@ -128,7 +126,7 @@ class BertEmbeddings(nn.Module):
             embeddings = embeddings * self.emb_scale  # transform_xl, xlnet特有
 
         if hasattr(self, 'layerNorm'):
-            embeddings = self.layerNorm((embeddings, conditional_emb))
+            embeddings = self.layerNorm(embeddings, conditional_emb)
         
         if attention_mask is not None:
             embeddings *= attention_mask[:, 0, 0, :, None]

@@ -16,7 +16,7 @@ class BertLayer(nn.Module):
         3. config.intermediate_size的大小不仅是第一层linear的输出尺寸，也是第二层linear的输入尺寸
     """
     def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, 
-                 is_dropout=False, conditional_size=False, pre_post_norm='post', **kwargs):
+                 is_dropout=False, conditional_size=False, pre_layernorm=False, apply_residual_post_layernorm=False, **kwargs):
         super(BertLayer, self).__init__()
         self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
         self.dropout1 = nn.Dropout(dropout_rate)
@@ -25,7 +25,8 @@ class BertLayer(nn.Module):
         self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
         self.dropout2 = nn.Dropout(dropout_rate)
         self.layerNorm2 = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
-        self.pre_post_norm = pre_post_norm
+        self.pre_layernorm = pre_layernorm  # True表示pre, False表示post
+        self.apply_residual_post_layernorm = apply_residual_post_layernorm
         self.is_decoder = kwargs.get('is_decoder', False)
         self.add_cross_attention = kwargs.get('add_cross_attention', False)
         if self.add_cross_attention and self.is_decoder:
@@ -35,27 +36,28 @@ class BertLayer(nn.Module):
 
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, 
                 cross_past_key_value=None, position_ids=None, **model_kwargs):
-        # self attention
-        x = self.layerNorm1((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
+        # ============== self attention ==============
+        x = self.layerNorm1(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
-        hidden_states = hidden_states + self.dropout1(self_attn_output[0])
-        if self.pre_post_norm == 'post':
-            hidden_states = self.layerNorm1((hidden_states, conditional_emb))
+        residual = x if self.apply_residual_post_layernorm else hidden_states
+        hidden_states = residual + self.dropout1(self_attn_output[0])
+        hidden_states = self.layerNorm1(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
         
-        # cross attention
+        # ============== cross attention ==============
         if self.is_decoder and encoder_hidden_states is not None:
-            cross_attn_output = self.crossAttention(hidden_states, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, position_ids=position_ids)
-            hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
+            x = self.layerNorm3(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
+            cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, position_ids=position_ids)
+            residual = x if self.apply_residual_post_layernorm else hidden_states
+            hidden_states = residual + self.dropout3(cross_attn_output[0])
             model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
-            if self.pre_post_norm == 'post':
-                hidden_states = self.layerNorm3((hidden_states, conditional_emb))
+            hidden_states = self.layerNorm3(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
 
-        # feedforward
-        x = self.layerNorm2((hidden_states, conditional_emb)) if self.pre_post_norm == 'pre' else hidden_states
+        # ============== feedforward ==============
+        x = self.layerNorm2(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
         feedforward_output = self.feedForward(x)
-        hidden_states = hidden_states + self.dropout2(feedforward_output)
-        if self.pre_post_norm == 'post':
-            hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+        residual = x if self.apply_residual_post_layernorm else hidden_states
+        hidden_states = residual + + self.dropout2(feedforward_output)
+        hidden_states = self.layerNorm2(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
         
         if self.is_decoder:
             model_kwargs['past_key_value'] = self_attn_output[-1]
@@ -82,19 +84,19 @@ class T5Layer(BertLayer):
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, 
                 cross_past_key_value=None, **model_kwargs):
         # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
-        x = self.layerNorm1((hidden_states, conditional_emb))
+        x = self.layerNorm1(hidden_states, conditional_emb)
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
         hidden_states = hidden_states + self.dropout1(self_attn_output[0])
 
         # cross attention
         if self.is_decoder and encoder_hidden_states is not None:
-            x = self.layerNorm3((hidden_states, conditional_emb))
+            x = self.layerNorm3(hidden_states, conditional_emb)
             cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value)
             hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
             model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
 
         # feed forward
-        x = self.layerNorm2((hidden_states, conditional_emb))
+        x = self.layerNorm2(hidden_states, conditional_emb)
         ffn_output = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(ffn_output)
 
@@ -132,7 +134,7 @@ class XlnetLayer(BertLayer):
     '''
     def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, **kwargs):
         super().__init__(hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, **kwargs)
-        self.pre_lnorm = kwargs.get('pre_lnorm')
+        self.pre_layernorm = kwargs.get('pre_layernorm')
         # multiattn层无bias
         self.multiHeadAttention = self.RelPartialLearnableMultiHeadAttn(hidden_size, num_attention_heads, attention_probs_dropout_prob, bias=False, **kwargs)
 
@@ -141,19 +143,19 @@ class XlnetLayer(BertLayer):
         hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
         
         # Attn
-        if self.pre_lnorm:
-            hidden_states_cat = self.layerNorm1((hidden_states_cat, conditional_emb))
+        if self.pre_layernorm:
+            hidden_states_cat = self.layerNorm1(hidden_states_cat, conditional_emb)
         self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask, segment_ids)
         hidden_states = hidden_states + self.dropout1(self_attn_output[0])
-        if not self.pre_lnorm:  # post_lnorm
-            hidden_states = self.layerNorm1((hidden_states, conditional_emb))
+        if not self.pre_layernorm:  # post_layernorm
+            hidden_states = self.layerNorm1(hidden_states, conditional_emb)
 
         # FFN
-        x = self.layerNorm2((hidden_states, conditional_emb)) if self.pre_lnorm else hidden_states
+        x = self.layerNorm2(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states
         self_attn_output2 = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(self_attn_output2)
-        if not self.pre_lnorm:  # post_lnorm
-            hidden_states = self.layerNorm2((hidden_states, conditional_emb))
+        if not self.pre_layernorm:  # post_layernorm
+            hidden_states = self.layerNorm2(hidden_states, conditional_emb)
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
 

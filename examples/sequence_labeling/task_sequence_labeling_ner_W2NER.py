@@ -321,7 +321,7 @@ class Model(BaseModel):
         word_reps, _ = pad_packed_sequence(packed_outs, batch_first=True, total_length=sent_length.max())
 
         # 条件LayerNorm
-        cln = self.cln([word_reps.unsqueeze(2), word_reps])
+        cln = self.cln(word_reps.unsqueeze(2), word_reps)
 
         # concat
         dis_emb = self.dis_embs(dist_inputs)

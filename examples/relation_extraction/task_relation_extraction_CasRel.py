@@ -157,7 +157,7 @@ class Model(BaseModel):
         subject_ids = inputs[2]
         # 理论上应该用LayerNorm前的，但是这样只能返回各个block顶层输出，这里和keras实现不一致
         subject = self.extract_subject([seq_output, subject_ids])
-        output = self.condLayerNorm([seq_output, subject])
+        output = self.condLayerNorm(seq_output, subject)
         output = (torch.sigmoid(self.linear2(output)))**4
         object_preds = output.reshape(*output.shape[:2], len(predicate2id), 2)
 
@@ -175,7 +175,7 @@ class Model(BaseModel):
         with torch.no_grad():
             seq_output, subject_ids = inputs
             subject = self.extract_subject([seq_output, subject_ids])
-            output = self.condLayerNorm([seq_output, subject])
+            output = self.condLayerNorm(seq_output, subject)
             output = (torch.sigmoid(self.linear2(output)))**4
             object_preds = output.reshape(*output.shape[:2], len(predicate2id), 2)
         return object_preds

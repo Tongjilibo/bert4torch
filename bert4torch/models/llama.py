@@ -35,7 +35,7 @@ class LLaMA(LM_Mask, BERT):
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(self.LayerNormFinal([hidden_state]))
+        logit = self.dense(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):
@@ -60,11 +60,11 @@ class LLaMA(LM_Mask, BERT):
 
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
-            x = self.layerNorm1((hidden_states, conditional_emb))
+            x = self.layerNorm1(hidden_states, conditional_emb)
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = hidden_states + self_attn_output[0]
 
-            x = self.layerNorm2((hidden_states, conditional_emb))
+            x = self.layerNorm2(hidden_states, conditional_emb)
             hidden_states = hidden_states + self.feedForward(x)
             if self.is_decoder:
                 model_kwargs['past_key_value'] = self_attn_output[-1]

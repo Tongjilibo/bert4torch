@@ -611,7 +611,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = True
         if self.use_states and (self.pad_mode in {'post', 'right'}):
             self.pad_mode = 'pre'
-            print(info_level_prefix(" When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead", 1))
+            print(info_level_prefix("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead", 1))
 
         # 主流程
         inputs = self.pre_process(text_list)

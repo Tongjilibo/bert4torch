@@ -79,7 +79,7 @@ torch.save(model_new, 'E:/pretrain_ckpt/transformer_xl/[english_hugging_face_tor
   "model_type": "transfo-xl",
   "num_attention_heads": 16,
   "num_hidden_layers": 18,
-  "pre_lnorm": false,
+  "pre_layernorm": false,
   "proj_init_std": 0.01,
   "same_length": true,
   "sample_softmax": -1, 

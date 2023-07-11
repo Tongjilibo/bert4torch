@@ -30,6 +30,6 @@ class GAU_alpha(RoFormerV2):
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             gau_hidden_states = self.gau(hidden_states, attention_mask)
             hidden_states = hidden_states + self.dropout1(gau_hidden_states)
-            hidden_states = self.layerNorm1((hidden_states, conditional_emb))
+            hidden_states = self.layerNorm1(hidden_states, conditional_emb)
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs
