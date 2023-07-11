@@ -3,9 +3,9 @@
 # chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
 # |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
 # | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
-# | hf+pt2 official+v100            |   ——      |      ——      |     24.97     |    31.12    |     7.11    |    8.10   |         |
-# | hf+pt2 reappear+v100            |   ——      |      ——      |     24.80     |    30.97    |     6.98    |    7.85   |         |
-# | b4t+chatglm+ptuning_v2+v100     |   ——      |      ——      |     24.58     |    30.76    |     7.12    |    8.12   |         |
+# | hf+pt2 official+v100-int4-bs1   |   ——      |      ——      |     24.97     |    31.12    |     7.11    |    8.10   |         |
+# | hf+pt2 reappear+v100-int4-bs1   |   ——      |      ——      |     24.80     |    30.97    |     6.98    |    7.85   |         |
+# | b4t+pt2+v100+int4+bs1           |   ——      |      ——      |     24.58     |    30.76    |     7.12    |    8.12   |         |
 # | b4t+pt2+T4-int8-bs1             |  10G      |     1470     |     24.87     |    30.83    |     7.14    |    8.05   |         |
 # | b4t+pt2+A100(pcie 40G)-fp16-bs1 |  15G      |     287      |     25.10     |    31.43    |     7.30    |    8.28   |         |
 # | b4t+pt2+A100(pcie 40G)-fp16-bs8 |  22G      |     705      |     25.22     |    31.22    |     7.38    |    8.35   |         |
@@ -255,7 +255,7 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        model.save_weights(f'./model_{epoch}.pt', trainable_only=True)
+        model.save_weights(f'./model.pt', trainable_only=True)
         # # 可以每个epoch都evaluate，但是比较耗时
         # score_dict = self.evaluate(dev_dataloader, epoch)
         # # 保存最优
@@ -303,6 +303,6 @@ if __name__ == '__main__':
         print(score_dict)
 
     else:
-        model.load_weights('./model_15.pt', strict=False)
+        model.load_weights('./model.pt', strict=False)
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)

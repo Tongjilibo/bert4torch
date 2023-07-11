@@ -194,7 +194,7 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        model.save_weights(f'./model_{epoch}.pt', trainable_only=True)
+        model.save_weights(f'./model.pt', trainable_only=True)
         # # 可以每个epoch都evaluate，但是比较耗时
         # score_dict = self.evaluate(dev_dataloader, epoch)
         # # 保存最优
@@ -242,6 +242,6 @@ if __name__ == '__main__':
         print(score_dict)
 
     else:
-        model.load_weights('./model_0.pt', strict=False)
+        model.load_weights('./model.pt', strict=False)
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
