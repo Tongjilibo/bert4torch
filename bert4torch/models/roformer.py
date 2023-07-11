@@ -8,7 +8,7 @@ class RoFormer(BERT):
     链接：https://kexue.fm/archives/8265
     """
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary'})
+        kwargs.update({'p_bias': 'rotary'})  # 指定在attention阶段使用rotary编码
         super(RoFormer, self).__init__(*args, **kwargs)
     
     def load_variable(self, state_dict, name, prefix='roformer'):
