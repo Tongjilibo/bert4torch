@@ -18,7 +18,7 @@
     python scripts/merge_llama_with_chinese_lora.py 
     --base_model E:/pretrain_ckpt/llama/7B-hf  
     --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b  
-    --output_type pth  
+    --output_type pth
     --output_dir E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b 
 3）用本脚本转换为bert4torch的适配权重
 

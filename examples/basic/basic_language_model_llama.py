@@ -19,12 +19,21 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-# llama:                   E:/pretrain_ckpt/llama/7B
-# chinese_llama_plus_7b：  E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
-# chinese_alpaca_plus_7b:  E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
-# Ziya-LLaMA-13B_v1.1:     E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1
+choice = 'chinese_alpaca_plus_7b'
 
-dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+if choice == 'llama-7b':
+    dir_path = 'E:/pretrain_ckpt/llama/7B'
+    topk, topp, temperature, repetition_penalty = 50, 1, 1, 1.0
+elif choice == 'chinese_llama_plus_7b':
+    dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+    topk, topp, temperature, repetition_penalty = 40, 0.9, 0.2, 1.3
+elif choice == 'chinese_alpaca_plus_7b':
+    dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+    topk, topp, temperature, repetition_penalty = 40, 0.9, 0.2, 1.3
+elif choice == 'Ziya-LLaMA-13B_v1.1':
+    dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1'
+    topk, topp, temperature, repetition_penalty = 50, 1, 1, 1.0
+
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
@@ -79,6 +88,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query)
+        response = article_completion.generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=repetition_penalty)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")

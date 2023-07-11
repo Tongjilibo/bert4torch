@@ -6,6 +6,15 @@ import numpy as np
 from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, info_level_prefix
 
 
+def repetition_penalty_func(input_ids: torch.LongTensor, scores: torch.FloatTensor, penalty: float) -> torch.FloatTensor:
+    score = torch.gather(scores, 1, input_ids)
+
+    # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
+    score = torch.where(score < 0, score * penalty, score / penalty)
+
+    scores.scatter_(1, input_ids, score)
+    return scores
+
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
     包含beam search和random sample两种策略
@@ -41,7 +50,7 @@ class AutoRegressiveDecoder(object):
             3. 设置温度参数，并做相应处理。
         """
         def actual_decorator(predict):
-            def new_predict(self, inputs, output_ids, states, temperature=1, rtype=default_rtype):
+            def new_predict(self, inputs, output_ids, states, temperature=1, rtype=default_rtype, repetition_penalty=1.0):
                 assert rtype in ['probas', 'logits']
                 prediction = predict(self, inputs, output_ids, states)
 
@@ -49,6 +58,11 @@ class AutoRegressiveDecoder(object):
                     assert len(prediction) == 2, 'Should return 2 output when set use_states=True'
                 else:
                     prediction = (prediction, None)
+
+                # repetition_penalty
+                if repetition_penalty != 1.0:
+                    past_token_ids = inputs[0] if states is None else states['past_token_ids']
+                    prediction = (repetition_penalty_func(past_token_ids, prediction[0], repetition_penalty), prediction[1])
 
                 if default_rtype == 'logits':
                     prediction = (nn.Softmax(dim=-1)(prediction[0] / temperature), prediction[1])
@@ -100,7 +114,7 @@ class AutoRegressiveDecoder(object):
             elif isinstance(input_, (list, tuple, np.ndarray)):
                 # 单条样本为[1,2,3]格式，需转为[[1,2,3]]
                 input_ = input_ if self.use_batch else [input_]
-                input_new = torch.tensor(sequence_padding(input_, value=self.pad_id, mode=self.pad_mode), device=self.device)
+                input_new = torch.tensor(sequence_padding(input_, value=self.pad_id, mode=self.pad_mode), dtype=torch.long, device=self.device)
 
                 # padding在右边则input_seqlen是真实的长度，左边则统一为最大程度
                 if self.pad_mode in {'post', 'right'}:
@@ -113,10 +127,10 @@ class AutoRegressiveDecoder(object):
             inputs.append(input_new)
         return inputs
 
-    def __beam_search_step(self, step, inputs, output_ids, output_scores, topk, states, temperature):
+    def __beam_search_step(self, step, inputs, output_ids, output_scores, topk, states, temperature, repetition_penalty):
         '''beam_search单条推理计算得分'''
         self.step = step
-        scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
+        scores, states = self.predict(inputs, output_ids, states, temperature, 'logits', repetition_penalty)  # 计算当前得分
         if step == 0:  # 第1步预测后将输入重复topk次
             inputs = [i.repeat([topk]+[1]*(len(i.shape)-1)) for i in inputs]
         scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
@@ -146,10 +160,10 @@ class AutoRegressiveDecoder(object):
                 topk = flag.sum()  # topk相应变化
         return inputs, output_ids, output_scores, topk, results, break_tag
 
-    def __batch_beam_search_step(self, step, inputs, output_ids, output_scores, topks, states, temperature):
+    def __batch_beam_search_step(self, step, inputs, output_ids, output_scores, topks, states, temperature, repetition_penalty):
         '''beam_search batch条推理计算得分'''
         self.step = step
-        scores, states = self.predict(inputs, output_ids, states, temperature, 'logits')  # 计算当前得分
+        scores, states = self.predict(inputs, output_ids, states, temperature, 'logits', repetition_penalty)  # 计算当前得分
         if step == 0:  # 第0步预测后将输入重复topk次
             inputs_new = []
             for input_ in inputs:
@@ -237,7 +251,7 @@ class AutoRegressiveDecoder(object):
         
         return inputs, output_ids, output_scores, topks, results, break_tag
 
-    def beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
+    def beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1, repetition_penalty=1.0):
         """beam search解码
         
         :param inputs: 编码器的输入，包含encoder_hidden_states, encoder_attention_mask
@@ -261,10 +275,10 @@ class AutoRegressiveDecoder(object):
 
         for step in range(self.maxlen):
             if (not self.use_batch):  # 单条推理
-                inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
+                inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature, repetition_penalty)
                 inputs, output_ids, output_scores, topk, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, topk, results, min_ends)
             else:  # batch推理
-                inputs, output_ids, output_scores, states = self.__batch_beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
+                inputs, output_ids, output_scores, states = self.__batch_beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature, repetition_penalty)
                 inputs, output_ids, output_scores, topk, results, break_tag = self.__batch_beam_search_end(inputs, output_ids, output_scores, topk, results, min_ends)
             if break_tag:
                 break 
@@ -284,7 +298,7 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return results
 
-    def stream_beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1):
+    def stream_beam_search(self, inputs, topk, states=None, temperature=1, min_ends=1, repetition_penalty=1.0):
         '''beam_search的stream输出模式'''
         assert topk is not None, 'Arg `topk` means beam_size anc can not be None'
         inputs = self._prepare_raw_inputs(inputs)
@@ -293,7 +307,7 @@ class AutoRegressiveDecoder(object):
         output_scores = torch.zeros(btz, device=self.device)
         results = []
         for step in range(self.maxlen):
-            inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature)
+            inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, topk, states, temperature, repetition_penalty)
             yield [output_ids[output_scores.argmax()]]
             inputs, output_ids, output_scores, topk, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, topk, results, min_ends)
             if break_tag:
@@ -302,10 +316,10 @@ class AutoRegressiveDecoder(object):
         # 达到长度直接输出
         self.flag = None
 
-    def __random_sample_step(self, step, n, inputs, output_ids, states, temperature, topk, topp):
+    def __random_sample_step(self, step, n, inputs, output_ids, states, temperature, topk, topp, repetition_penalty):
         '''为了random_sample和stream_random_sample共用，抽离出来的单步逻辑'''
         self.step = step
-        probas, states = self.predict(inputs, output_ids, states, temperature, 'probas')  # 计算当前概率
+        probas, states = self.predict(inputs, output_ids, states, temperature, 'probas', repetition_penalty)  # 计算当前概率
         probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
         if step == 0:  # 第1步预测后将结果重复n次
             probas = probas.repeat([n]+[1]*(len(probas.shape)-1))
@@ -365,7 +379,7 @@ class AutoRegressiveDecoder(object):
         else:
             return inputs, output_ids, results, break_tag, smp_indexs
 
-    def random_sample(self, inputs_raw, n, topk=50, topp=1, states=None, temperature=1, min_ends=1):
+    def random_sample(self, inputs_raw, n, topk=50, topp=1, states=None, temperature=1, min_ends=1, repetition_penalty=1.0):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
@@ -389,10 +403,10 @@ class AutoRegressiveDecoder(object):
 
         for step in range(self.maxlen):
             if not self.use_batch:  # single
-                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp, repetition_penalty)
                 inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
             else:  # batch
-                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp)
+                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp, repetition_penalty)
                 inputs, output_ids, results, break_tag, smp_indexs = self.__random_sample_end(inputs, output_ids, results, min_ends, smp_indexs)
             if break_tag:
                 break
@@ -409,13 +423,13 @@ class AutoRegressiveDecoder(object):
         self.flag = None
         return results
     
-    def stream_random_sample(self, inputs_raw, topk=50, topp=1, states=None, temperature=1, min_ends=1):
+    def stream_random_sample(self, inputs_raw, topk=50, topp=1, states=None, temperature=1, min_ends=1, repetition_penalty=1.0):
         """随机采样n个结果；stream输出"""
         inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
-            inputs, output_ids, states = self.__random_sample_step(step, 1, inputs, output_ids, states, temperature, topk, topp)
+            inputs, output_ids, states = self.__random_sample_step(step, 1, inputs, output_ids, states, temperature, topk, topp, repetition_penalty)
             yield output_ids
             inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
             if break_tag:
@@ -589,22 +603,22 @@ class SeqGeneration(AutoRegressiveDecoder):
             return self.tokenizer.decode(output_ids[0].cpu().numpy())
         return output_ids
 
-    def _generate(self, inputs, n, topk, topp, temperature, min_ends):
+    def _generate(self, inputs, n, topk, topp, temperature, min_ends, repetition_penalty):
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends)  # 基于随机采样
+            output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty)  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends)  # 基于beam search
+            output_ids = self.beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty)  # 基于beam search
         return output_ids
 
-    def generate(self, text, n=1, topk=50, topp=1, temperature=1, min_ends=1):
+    def generate(self, text, n=1, topk=50, topp=1, temperature=1, min_ends=1, repetition_penalty=1.0):
         '''单条样本生成'''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
-        output_ids = self._generate(inputs, n, topk, topp, temperature, min_ends)
+        output_ids = self._generate(inputs, n, topk, topp, temperature, min_ends, repetition_penalty)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, topk=50, topp=1, temperature=1, min_ends=1):
+    def batch_generate(self, text_list, topk=50, topp=1, temperature=1, min_ends=1, repetition_penalty=1.0):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
         # 参数设定
         assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
@@ -615,19 +629,19 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # 主流程
         inputs = self.pre_process(text_list)
-        output_ids = self._generate(inputs, 1, topk, topp, temperature, min_ends)
+        output_ids = self._generate(inputs, 1, topk, topp, temperature, min_ends, repetition_penalty)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text:str, topk=50, topp=1, temperature=1, min_ends=1):
+    def stream_generate(self, text:str, topk=50, topp=1, temperature=1, min_ends=1, repetition_penalty=1.0):
         '''单条样本stream输出预测的结果'''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
-            for output_ids in  self.stream_random_sample(inputs, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends):  # stream随机采样
+            for output_ids in  self.stream_random_sample(inputs, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in  self.stream_beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends):  # stream随机采样
+            for output_ids in  self.stream_beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty):  # stream随机采样
                 yield self.post_process(output_ids)
 
 
@@ -649,16 +663,16 @@ class Seq2SeqGeneration(SeqGeneration):
         self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
             
-    def generate(self, text, n=1, topk=50, topp=1, temperature=1, min_ends=1):
+    def generate(self, text, n=1, topk=50, topp=1, temperature=1, min_ends=1, repetition_penalty=1.0):
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output, n, topk, topp, temperature, min_ends)
+        output_ids = super()._generate(encoder_output, n, topk, topp, temperature, min_ends, repetition_penalty)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, topk=50, topp=1, temperature=1, min_ends=1):
+    def batch_generate(self, text_list, topk=50, topp=1, temperature=1, min_ends=1, repetition_penalty=1.0):
         '''batch样本生成'''
         # 参数设定
         assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
@@ -666,10 +680,10 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text_list)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output, 1, topk, topp, temperature, min_ends)
+        output_ids = super()._generate(encoder_output, 1, topk, topp, temperature, min_ends, repetition_penalty)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text, topk=50, topp=1, temperature=1, min_ends=1):
+    def stream_generate(self, text, topk=50, topp=1, temperature=1, min_ends=1, repetition_penalty=1.0):
         '''stream输出t预测的结果'''
         assert isinstance(text, str), 'Arg `text` must be str format'
         self.use_batch = False
@@ -677,8 +691,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
-            for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends):  # stream随机采样
+            for output_ids in  self.stream_random_sample(encoder_output, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in  self.stream_beam_search(encoder_output, topk=topk, temperature=temperature, min_ends=min_ends):  # stream随机采样
+            for output_ids in  self.stream_beam_search(encoder_output, topk=topk, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty):  # stream随机采样
                 yield self.post_process(output_ids)
