@@ -128,7 +128,7 @@ class ChatBot(AutoRegressiveDecoder):
             ids = tokenizer.encode(text)[0][1:]
             token_ids.extend(ids)
             segment_ids.extend([i % 2] * len(ids))
-        results = self.random_sample([token_ids, segment_ids], 1, topk)
+        results = self.random_sample([token_ids, segment_ids], n=1, topk=topk)
         return tokenizer.decode(results[0].cpu().numpy())
 
 

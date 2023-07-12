@@ -171,7 +171,7 @@ elif choice == 'chatglm2-int4':
   "segment_vocab_size": 0,
   "skip_init": true,
   "rope_rank": "updown",
-  "tie_emb_prj_weight": true
+  "tie_emb_prj_weight": false
 }
 '''
 
@@ -199,7 +199,7 @@ elif choice == 'chatglm2-int4':
     "quantization_bit": 4,
     "quantization_method": "cpm_kernels",
     "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
-    "tie_emb_prj_weight": true
+    "tie_emb_prj_weight": false
 }
 '''
 
@@ -227,7 +227,7 @@ elif choice == 'chatglm2-int4':
   "quantization_bit": 8,
   "quantization_method": "cpm_kernels",
   "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
-  "tie_emb_prj_weight": true
+  "tie_emb_prj_weight": false
 }
 '''
 

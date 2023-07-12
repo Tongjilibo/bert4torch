@@ -40,7 +40,7 @@ class AutoTitle(AutoRegressiveDecoder):
         token_ids, _ = tokenizer.encode(text, maxlen=768)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
-        output_ids = self.random_sample(encoder_output, n, topp=topp, temperature=temperature)  # 基于随机采样
+        output_ids = self.random_sample(encoder_output, n=n, topp=topp, temperature=temperature)  # 基于随机采样
         out_text = tokenizer.decode([int(i.cpu().numpy()) for i in output_ids[0]])
         return out_text.replace("_", "\n")
 

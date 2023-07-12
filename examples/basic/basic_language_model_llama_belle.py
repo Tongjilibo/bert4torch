@@ -44,7 +44,7 @@ model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to
 #             token_ids = tokenizer(text, return_tensors="pt").input_ids.to(device)
 #         else:
 #             token_ids = tokenizer.encode(text)[0]
-#         results = self.random_sample([token_ids], n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
+#         results = self.random_sample([token_ids], n=n, topk=topk, topp=topp, temperature=temperature)  # 基于随机采样
 #         return [tokenizer.decode(ids.cpu().numpy()) for ids in results][0]
 # generation = ArticleCompletion(start_id=None, end_id=2, maxlen=512, device=device)
 

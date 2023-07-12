@@ -125,7 +125,7 @@ class StoryCompletion(AutoRegressiveDecoder):
 
     def generate(self, text, n=1, topp=0.95):
         token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids[:-1]], n, topp=topp)  # 基于随机采样
+        results = self.random_sample([token_ids[:-1]], n=n, topp=topp)  # 基于随机采样
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 story_completion = StoryCompletion(start_id=None, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)

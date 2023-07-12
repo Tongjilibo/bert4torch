@@ -50,7 +50,7 @@ else:
 
 #     def generate(self, text, n=1, topk=50, topp=0.7, temperature=0.95):
 #         token_ids = tokenizer.encode(text)
-#         results = self.random_sample([token_ids], n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
+#         results = self.random_sample([token_ids], n=n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
 #         return tokenizer.decode(results[0].cpu().numpy())
 # generation = Chat(start_id=None, end_id=tokenizer.encode(['<eop>'])[0], maxlen=2048, device=device)
 

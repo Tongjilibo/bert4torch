@@ -46,7 +46,7 @@ class ArticleCompletion(AutoRegressiveDecoder):
 
     def generate(self, text, n=1, topp=0.7, topk=50, add_input=True):
         token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n, topp=topp, topk=topk)  # 基于随机采样
+        results = self.random_sample([token_ids], n=n, topp=topp, topk=topk)  # 基于随机采样
         add_input = text if add_input else ''
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 article_completion = ArticleCompletion(start_id=None, end_id=end_id, maxlen=100, device=device)

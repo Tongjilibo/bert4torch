@@ -45,7 +45,7 @@ class ChatBot(AutoRegressiveDecoder):
             token_ids.extend(ids)
             segment_ids.extend([speakers[i % 2]] * len(ids))
             segment_ids[-1] = speakers[(i + 1) % 2]
-        results = self.random_sample([token_ids, segment_ids], n, topk)  # 基于随机采样
+        results = self.random_sample([token_ids, segment_ids], n=n, topk=topk)  # 基于随机采样
         return tokenizer.decode(results[0].cpu().numpy())
 
 

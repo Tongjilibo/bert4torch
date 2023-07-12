@@ -54,7 +54,7 @@ class TextExpansion(AutoRegressiveDecoder):
         可以考虑将解码方式换为beam search。
         """
         token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n, topp=topp, temperature=temperature)  # 基于随机采样
+        results = self.random_sample([token_ids], n=n, topp=topp, temperature=temperature)  # 基于随机采样
         results = [token_ids + [int(i) for i in ids.cpu().numpy()] for ids in results]
         texts = [tokenizer.decode(ids) for ids in results]
         return [self.post_replace(text) for text in texts]

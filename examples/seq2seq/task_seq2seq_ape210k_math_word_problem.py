@@ -187,7 +187,7 @@ class Evaluator(Callback):
         total, right = 0.0, 0.0
         for question, equation, answer in tqdm(data, desc='Evaluate'):
             total += 1
-            pred_equation = autosolve.generate(question, topk)
+            pred_equation = autosolve.generate(question=n, topk=topk)
             try:
                 right += int(is_equal(eval(pred_equation), eval(answer)))
             except:

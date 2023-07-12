@@ -171,7 +171,7 @@ class SynonymsGenerator(AutoRegressiveDecoder):
 
     def generate(self, text, n=1, topk=5):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        output_ids = self.random_sample([token_ids, segment_ids], n, topk)  # 基于随机采样
+        output_ids = self.random_sample([token_ids, segment_ids], n=n, topk=topk)  # 基于随机采样
         return [tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
 
 
