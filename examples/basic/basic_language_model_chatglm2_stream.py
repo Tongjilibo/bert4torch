@@ -46,7 +46,7 @@ class Chat(SeqGeneration):
         return [tokenizer.encode(text)]
     def post_process(self, output_ids):
         return tokenizer.decode(output_ids[0].cpu().numpy())
-generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['</s>'])[-1], mode='random_sample',
+generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
                   maxlen=2048, default_rtype='logits', use_states=True)
 
 def build_prompt(history):

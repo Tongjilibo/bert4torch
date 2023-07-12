@@ -30,11 +30,11 @@ class AutoRegressiveDecoder(object):
         self.end_id = end_id
         self.maxlen = maxlen
         self.minlen = minlen
-        self.models = {}
-        self.device = device
-        self.use_batch = False
         self.pad_id = pad_id   # pad_token_id兼容bert4torch和hf的，如错误则需要显式传入pad_id:int
         self.pad_mode = pad_mode
+        self.device = device
+
+        self.use_batch = False
         if start_id is None:
             self.first_output_ids = torch.empty((1, 0), dtype=int, device=device)
         else:
@@ -316,7 +316,7 @@ class AutoRegressiveDecoder(object):
         # 达到长度直接输出
         self.flag = None
 
-    def __random_sample_step(self, step, n, inputs, output_ids, states, temperature, topk, topp, repetition_penalty):
+    def __random_sample_step(self, step, inputs, output_ids, states, n, temperature, topk, topp, repetition_penalty):
         '''为了random_sample和stream_random_sample共用，抽离出来的单步逻辑'''
         self.step = step
         probas, states = self.predict(inputs, output_ids, states, temperature, 'probas', repetition_penalty)  # 计算当前概率
@@ -403,10 +403,10 @@ class AutoRegressiveDecoder(object):
 
         for step in range(self.maxlen):
             if not self.use_batch:  # single
-                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp, repetition_penalty)
+                inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states, n, temperature, topk, topp, repetition_penalty)
                 inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
             else:  # batch
-                inputs, output_ids, states = self.__random_sample_step(step, n, inputs, output_ids, states, temperature, topk, topp, repetition_penalty)
+                inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states, n, temperature, topk, topp, repetition_penalty)
                 inputs, output_ids, results, break_tag, smp_indexs = self.__random_sample_end(inputs, output_ids, results, min_ends, smp_indexs)
             if break_tag:
                 break
@@ -429,7 +429,7 @@ class AutoRegressiveDecoder(object):
         output_ids = self.first_output_ids
         results = []
         for step in range(self.maxlen):
-            inputs, output_ids, states = self.__random_sample_step(step, 1, inputs, output_ids, states, temperature, topk, topp, repetition_penalty)
+            inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states, 1, temperature, topk, topp, repetition_penalty)
             yield output_ids
             inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results, min_ends)
             if break_tag:
@@ -605,7 +605,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     def _generate(self, inputs, n, topk, topp, temperature, min_ends, repetition_penalty):
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, n, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty)  # 基于随机采样
+            output_ids = self.random_sample(inputs, n=n, topk=topk, topp=topp, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty)  # 基于随机采样
         elif self.mode == 'beam_search':
             output_ids = self.beam_search(inputs, topk=topk, temperature=temperature, min_ends=min_ends, repetition_penalty=repetition_penalty)  # 基于beam search
         return output_ids

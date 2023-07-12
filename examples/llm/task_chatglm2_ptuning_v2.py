@@ -102,7 +102,7 @@ def collate_train_fn(batch):
         batch_labels.append(labels)
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels, value=0), dtype=torch.long, device=device)
+    batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
     return [batch_token_ids], batch_labels
 
 def collate_dev_fn(batch):
@@ -223,14 +223,14 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
 
 optimizer = optim.AdamW(model.parameters(), lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, 0, steps_per_epoch*epochs)  # torch4keras<0.0.8需要设置为(steps_per_epoch*epochs)//grad_accumulation_steps
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
+model.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):
         return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
     def post_process(self, output_ids):
         return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['</s>'])[-1], pad_id=tokenizer.pad_token_id, 
+generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
                   mode='random_sample', maxlen=512, default_rtype='logits', use_states=use_states)
 
 class Evaluator(Callback):
