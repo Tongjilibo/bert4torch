@@ -8,10 +8,8 @@ from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, cre
 
 def repetition_penalty_func(input_ids: torch.LongTensor, scores: torch.FloatTensor, penalty: float) -> torch.FloatTensor:
     score = torch.gather(scores, 1, input_ids)
-
     # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
     score = torch.where(score < 0, score * penalty, score / penalty)
-
     scores.scatter_(1, input_ids, score)
     return scores
 
@@ -174,7 +172,7 @@ class AutoRegressiveDecoder(object):
                 output_scores = output_scores[flag]  # 扔掉已完成序列
                 end_counts = end_counts[flag]  # 扔掉已完成end计数
                 self.topk = flag.sum()  # topk相应变化
-        return inputs, output_ids, output_scores, self.topk, results, break_tag
+        return inputs, output_ids, output_scores, results, break_tag
 
     def __batch_beam_search_step(self, step, inputs, output_ids, output_scores, states):
         '''beam_search batch条推理计算得分'''
@@ -265,7 +263,7 @@ class AutoRegressiveDecoder(object):
             # 不满足结束条件，需要对self.flag进行更新
             self.flag = torch.ones_like(self.flag, dtype=torch.bool)
         
-        return inputs, output_ids, output_scores, self.topk, results, break_tag
+        return inputs, output_ids, output_scores, results, break_tag
 
     def beam_search(self, inputs, states=None, **generation_config):
         """beam search解码
@@ -293,10 +291,10 @@ class AutoRegressiveDecoder(object):
         for step in range(self.maxlen):
             if (not self.use_batch):  # 单条推理
                 inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
-                inputs, output_ids, output_scores, self.topk, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
+                inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
             else:  # batch推理
                 inputs, output_ids, output_scores, states = self.__batch_beam_search_step(step, inputs, output_ids, output_scores, states)
-                inputs, output_ids, output_scores, self.topk, results, break_tag = self.__batch_beam_search_end(inputs, output_ids, output_scores, results)
+                inputs, output_ids, output_scores, results, break_tag = self.__batch_beam_search_end(inputs, output_ids, output_scores, results)
             if break_tag:
                 break 
         # 如果还有未完成序列，直接放入结果
@@ -327,7 +325,7 @@ class AutoRegressiveDecoder(object):
         for step in range(self.maxlen):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
             yield [output_ids[output_scores.argmax()]]
-            inputs, output_ids, output_scores, self.topk, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
+            inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
             if break_tag:
                 break 
             
