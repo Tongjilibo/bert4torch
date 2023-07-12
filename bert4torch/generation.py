@@ -459,7 +459,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=0, pad_mode='post', mode='random_sample', default_rtype='logits', 
                  use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
         '''
         :param model: 模型
@@ -474,8 +474,11 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param use_states: str, 是否使用cache
         :param device: str, 默认为None，因为可以直接使用传入的model.device
         '''
+        if (tokenizer.pad_token_id is not None) and tokenizer.pad_token_id != pad_id:
+            pad_id = tokenizer.pad_token_id
+            print(info_level_prefix(f'Arg `pad_id` has been reset to tokenizer.pad_token_id={tokenizer.pad_token_id}', 'w'))
         
-        pad_id = pad_id or tokenizer.pad_token_id
+        assert pad_id is not None, 'Args `pad_id` can not be None'
         super().__init__(start_id, end_id, maxlen, minlen, pad_id, pad_mode, device or next(model.parameters()).device, 
                          n, topk, topp, temperature, repetition_penalty, min_ends)
         self.encoder = None
@@ -487,6 +490,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.predict.set_use_states(use_states)  # 动态修改闭包中的use_states
         self.use_states = use_states
         self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
+        self.include_input = False  # 输出是否包含输入
     
     def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
@@ -613,15 +617,16 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     def pre_process(self, text):
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''
+        self.input_text = text if self.include_input else ''
         inputs = self.tokenizer.encode(text, maxlen=self.maxlen)
         return inputs if self.use_segment_ids else [inputs[0]]
     
     def post_process(self, output_ids):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
         if len(output_ids) > 1:
-            return [self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
+            return [self.input_text + self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
         elif len(output_ids) == 1:
-            return self.tokenizer.decode(output_ids[0].cpu().numpy())
+            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy())
         return output_ids
 
     def _generate(self, inputs):
