@@ -112,7 +112,7 @@ class GLM(LM_Mask, BERT):
         seq_len = token_ids.shape[1]
 
         # 1）generation阶段use_states=True且step>0的时候(用cache)
-        if model_kwargs.get('use_states', False) and (model_kwargs.get('past_key_values') is not None):
+        if (not self.training) and model_kwargs.get('use_states', False) and (model_kwargs.get('step', -1) > 0):
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
