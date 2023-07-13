@@ -3,6 +3,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import inspect
 from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, info_level_prefix
 
 
@@ -459,7 +460,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=0, pad_mode='post', mode='random_sample', default_rtype='logits', 
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenize_params=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
                  use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
         '''
         :param model: 模型
@@ -468,22 +469,31 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param end_id: int, 结束解码的token_id
         :param pad_id: int, pad_id，在batch解码时候使用
         :param pad_mode: str, padding在前面还是后面，pre或者post
+        :param tokenize_params: dict, tokenize的参数
         :param maxlen: int, 最大解码长度
         :param minlen: int, 最小解码长度
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
         :param use_states: str, 是否使用cache
         :param device: str, 默认为None，因为可以直接使用传入的model.device
         '''
-        if (tokenizer.pad_token_id is not None) and tokenizer.pad_token_id != pad_id:
+        if pad_id is not None:  # 用户自行设置了
+            pass
+        elif tokenizer.pad_token_id is not None:
             pad_id = tokenizer.pad_token_id
-            print(info_level_prefix(f'Arg `pad_id` has been reset to tokenizer.pad_token_id={tokenizer.pad_token_id}', 'w'))
-        
-        assert pad_id is not None, 'Args `pad_id` can not be None'
+        else:
+            pad_id = 0
+            print(info_level_prefix(f'Arg `pad_id` has been set to default value 0'))
+
         super().__init__(start_id, end_id, maxlen, minlen, pad_id, pad_mode, device or next(model.parameters()).device, 
                          n, topk, topp, temperature, repetition_penalty, min_ends)
         self.encoder = None
         self.decoder = model
         self.tokenizer = tokenizer
+        tokenize_params = tokenize_params or dict()
+        tokenize_params.update({'maxlen': maxlen})
+        self.encode_params = self.clear_tokenize_params(tokenize_params, self.tokenizer.encode)
+        self.decode_params = self.clear_tokenize_params(tokenize_params, self.tokenizer.decode)
+
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
         self.predict.set_default_rtype(default_rtype)  # 动态修改闭包中的default_rtype
@@ -615,18 +625,24 @@ class SeqGeneration(AutoRegressiveDecoder):
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)
 
+    @staticmethod
+    def clear_tokenize_params(params, func):
+        '''获取在tokenize_params中的参数'''
+        arg_names = inspect.getargspec(func)[0]
+        return {k:v for k, v in params.items() if k in arg_names}
+
     def pre_process(self, text):
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
-        inputs = self.tokenizer.encode(text, maxlen=self.maxlen)
+        inputs = self.tokenizer.encode(text, **self.encode_params)
         return inputs if self.use_segment_ids else [inputs[0]]
     
     def post_process(self, output_ids):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
         if len(output_ids) > 1:
-            return [self.input_text + self.tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
+            return [self.input_text + self.tokenizer.decode(ids.cpu().numpy(), **self.decode_params) for ids in output_ids]
         elif len(output_ids) == 1:
-            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy())
+            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.decode_params)
         return output_ids
 
     def _generate(self, inputs):
