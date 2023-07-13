@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
+from typing import Any
 import unicodedata
 from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize
@@ -162,6 +163,9 @@ class TokenizerBase(object):
                 encode_output.append(offset)
         return encode_output
 
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        return self.encode(*args, **kwds)
+        
     def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False):
         '''可以处理多条或者单条
         '''

@@ -5,6 +5,7 @@ import torch.nn as nn
 import numpy as np
 import inspect
 from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, info_level_prefix
+from bert4torch.tokenizers import TokenizerBase
 
 
 def repetition_penalty_func(input_ids: torch.LongTensor, scores: torch.FloatTensor, penalty: float) -> torch.FloatTensor:
@@ -460,7 +461,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenize_params=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenize_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
                  use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
         '''
         :param model: 模型
@@ -469,7 +470,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param end_id: int, 结束解码的token_id
         :param pad_id: int, pad_id，在batch解码时候使用
         :param pad_mode: str, padding在前面还是后面，pre或者post
-        :param tokenize_params: dict, tokenize的参数
+        :param tokenize_config: dict, tokenize的参数
         :param maxlen: int, 最大解码长度
         :param minlen: int, 最小解码长度
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
@@ -488,11 +489,14 @@ class SeqGeneration(AutoRegressiveDecoder):
                          n, topk, topp, temperature, repetition_penalty, min_ends)
         self.encoder = None
         self.decoder = model
+
+        # tokenizer参数
         self.tokenizer = tokenizer
-        tokenize_params = tokenize_params or dict()
-        tokenize_params.update({'maxlen': maxlen})
-        self.encode_params = self.clear_tokenize_params(tokenize_params, self.tokenizer.encode)
-        self.decode_params = self.clear_tokenize_params(tokenize_params, self.tokenizer.decode)
+        self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
+        tokenize_config = tokenize_config or dict()
+        tokenize_config.update({'maxlen': maxlen})
+        self.encode_config = self.clear_tokenize_config(tokenize_config, self.tokenizer.encode)
+        self.decode_config = self.clear_tokenize_config(tokenize_config, self.tokenizer.decode)
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
@@ -626,23 +630,35 @@ class SeqGeneration(AutoRegressiveDecoder):
             return self.__get_last_token_logits(logits, output_ids)
 
     @staticmethod
-    def clear_tokenize_params(params, func):
+    def clear_tokenize_config(config, func):
         '''获取在tokenize_params中的参数'''
-        arg_names = inspect.getargspec(func)[0]
-        return {k:v for k, v in params.items() if k in arg_names}
+        arg_names = [k for k in inspect.signature(func).parameters]
+        return {k:v for k, v in config.items() if k in arg_names}
 
     def pre_process(self, text):
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
-        inputs = self.tokenizer.encode(text, **self.encode_params)
-        return inputs if self.use_segment_ids else [inputs[0]]
+        if self.tokenizer_type == 'b4t':
+            # bert4torch的tokenizer
+            inputs = self.tokenizer.encode(text, **self.encode_config)
+            return inputs if self.use_segment_ids else [inputs[0]]
+        else:
+            # hf的tokenize
+            return [self.tokenizer(text, **self.encode_config)['input_ids']]
     
     def post_process(self, output_ids):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
         if len(output_ids) > 1:
-            return [self.input_text + self.tokenizer.decode(ids.cpu().numpy(), **self.decode_params) for ids in output_ids]
+            outputs = [self.tokenizer.decode(ids.cpu().numpy(), **self.decode_config) for ids in output_ids]
+            if isinstance(self.input_text, str):
+                # 输入是str，则在前面直接添加
+                return [self.input_text + item for item in outputs]
+            elif isinstance(self.input_text, (tuple, list)) and (len(self.input_text) == len(outputs)):
+                # 输入是list且和outputs同维度
+                return [self.input_text[i] + item for i, item in enumerate(outputs)]
+            return outputs
         elif len(output_ids) == 1:
-            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.decode_params)
+            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.decode_config)
         return output_ids
 
     def _generate(self, inputs):

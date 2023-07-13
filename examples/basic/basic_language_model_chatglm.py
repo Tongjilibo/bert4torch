@@ -52,16 +52,11 @@ else:
 #         token_ids = tokenizer.encode(text)
 #         results = self.random_sample([token_ids], n=n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
 #         return tokenizer.decode(results[0].cpu().numpy())
-# generation = Chat(start_id=None, end_id=tokenizer.encode(['<eop>'])[0], maxlen=2048, device=device)
+# generation = Chat(start_id=None, end_id=tokenizer.eos_token_id, maxlen=2048, device=device)
 
 # 第二种方式：调用封装好的接口，可使用cache
-class Chat(SeqGeneration):
-    def pre_process(self, text):
-        return [tokenizer.encode(text)]
-    def post_process(self, output_ids):
-        return tokenizer.decode(output_ids[0].cpu().numpy())
-generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=2048, default_rtype='logits', use_states=True)
+generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
+                           maxlen=2048, default_rtype='logits', use_states=True)
 
 def process_response(response):
     response = response.strip()

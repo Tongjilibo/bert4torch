@@ -40,6 +40,7 @@ if choice in {'default', 'v1.1.0'}:
 else:
     # 在config中已经写入了量化的配置参数
     model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').to(device)
+model.eval()
 
 # 加载示例Context
 contexts = json.load(open('E:/Github/bert4torch/examples/datasets/nbce_contexts.json', encoding='utf-8'))

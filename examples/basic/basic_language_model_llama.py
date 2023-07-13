@@ -64,25 +64,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
-# 可使用bert4torch的tokenizer
-use_hf_tokenize = False
-if use_hf_tokenize:
-    tokenizer = AutoTokenizer.from_pretrained(dir_path)
-
-    class Chat(SeqGeneration):
-        def pre_process(self, text):
-            self.input_text = text if include_input else ''
-            return [tokenizer.encode(text)]
-        def post_process(self, output_ids):
-            return self.input_text + tokenizer.decode(output_ids[0].cpu().numpy())
-
-    article_completion = Chat(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
-                            maxlen=256, default_rtype='logits', use_states=True)
-else:
-    tokenizer = SpTokenizer(dir_path+'/tokenizer.model', token_start='<s>', token_end=None, keep_accents=True, remove_space=False)
-    article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
-                                       maxlen=256, default_rtype='logits', use_states=True)
-
+tokenizer = AutoTokenizer.from_pretrained(dir_path)
+article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
+                                   maxlen=256, default_rtype='logits', use_states=True)
 print('Loading tokenizer done...')
 
 
@@ -100,6 +84,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=repetition_penalty)        
+        response = article_completion.generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=repetition_penalty, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")

@@ -41,13 +41,8 @@ else:
     # 在config中已经写入了量化的配置参数
     encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').to(device)
 
-class Chat(SeqGeneration):
-    def pre_process(self, text):
-        return [tokenizer.encode(text)]
-    def post_process(self, output_ids):
-        return tokenizer.decode(output_ids[0].cpu().numpy())
-generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                  maxlen=2048, default_rtype='logits', use_states=True)
+generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
+                           maxlen=2048, default_rtype='logits', use_states=True)
 
 def chat(query, history=[], topk=50, topp=0.7, temperature=0.95, maxlen=2048):
     generation.maxlen = maxlen

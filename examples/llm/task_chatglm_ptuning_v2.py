@@ -245,7 +245,7 @@ class Chat(SeqGeneration):
         return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
     def post_process(self, output_ids):
         return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], pad_id=tokenizer.pad_token_id, 
+generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
                   mode='random_sample', maxlen=512, default_rtype='logits', use_states=use_states)
 
 class Evaluator(Callback):

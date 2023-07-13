@@ -44,8 +44,8 @@ def load_model_on_gpus(model, num_gpus: int = 2, device_map: Optional[Dict[str, 
 
 # 多卡部署
 encoder = load_model_on_gpus(encoder, num_gpus=2)
-generation = Chat(encoder, tokenizer, start_id=None, end_id=tokenizer.encode(['<eop>'])[0], mode='random_sample',
-                maxlen=2048, default_rtype='logits', use_states=True)
+generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
+                           maxlen=2048, default_rtype='logits', use_states=True)
 
 if __name__ == '__main__':
     main()
