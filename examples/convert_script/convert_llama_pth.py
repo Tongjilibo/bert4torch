@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-"""本脚本支持多个llama系列模型转换
+"""本脚本支持多个llama系列模型转换，原格式为pth
 
 [1]. llama模型：https://github.com/facebookresearch/llama
 权重下载：[Github](https://github.com/facebookresearch/llama)

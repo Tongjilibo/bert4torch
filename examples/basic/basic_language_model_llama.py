@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：llama系列模型的测试, 7b的fp32精度的单卡占用约27g，fp16的显存占用约14g
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_facebook.py
+使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_pth.py
 
 [1]. llama模型：https://github.com/facebookresearch/llama
 [2]. chinese_llama: https://github.com/ymcui/Chinese-LLaMA-Alpaca
@@ -13,16 +13,16 @@
 
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import SpTokenizer
 from bert4torch.generation import SeqGeneration
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, LlamaTokenizer
 import platform
 import os
 
-choice = 'chinese_alpaca_plus_7b'
+choice = 'Ziya-LLaMA-13B_v1.1'
 with_prompt = True
 include_input = not with_prompt
 generate_prompt = lambda instruction: instruction
+tokenizer_config = {'skip_special_tokens': True}
 
 if choice == 'llama-7b':
     # 原生llama
@@ -61,13 +61,14 @@ checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# tokenizer = AutoTokenizer.from_pretrained(dir_path)  # 很慢，看到一些issue说AutoTokenizer默认返回的tokenizer是fast类型的
+tokenizer = LlamaTokenizer.from_pretrained(dir_path)
+
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path)
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
+article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample', tokenizer_config=tokenizer_config,
                                    maxlen=256, default_rtype='logits', use_states=True)
-print('Loading tokenizer done...')
 
 
 if __name__ == '__main__':

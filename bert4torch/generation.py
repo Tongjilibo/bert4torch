@@ -461,7 +461,7 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenize_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
                  use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
         '''
         :param model: 模型
@@ -470,7 +470,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param end_id: int, 结束解码的token_id
         :param pad_id: int, pad_id，在batch解码时候使用
         :param pad_mode: str, padding在前面还是后面，pre或者post
-        :param tokenize_config: dict, tokenize的参数
+        :param tokenizer_config: dict, tokenize的参数
         :param maxlen: int, 最大解码长度
         :param minlen: int, 最小解码长度
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
@@ -493,10 +493,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         # tokenizer参数
         self.tokenizer = tokenizer
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
-        tokenize_config = tokenize_config or dict()
-        tokenize_config.update({'maxlen': maxlen})
-        self.encode_config = self.clear_tokenize_config(tokenize_config, self.tokenizer.encode)
-        self.decode_config = self.clear_tokenize_config(tokenize_config, self.tokenizer.decode)
+        tokenizer_config = tokenizer_config or dict()
+        tokenizer_config.update({'maxlen': maxlen})
+        self.encode_config = self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode)
+        self.decode_config = self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode)
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
@@ -630,7 +630,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             return self.__get_last_token_logits(logits, output_ids)
 
     @staticmethod
-    def clear_tokenize_config(config, func):
+    def clear_tokenizer_config(config, func):
         '''获取在tokenize_params中的参数'''
         arg_names = [k for k in inspect.signature(func).parameters]
         return {k:v for k, v in config.items() if k in arg_names}
