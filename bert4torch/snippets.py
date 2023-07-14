@@ -264,31 +264,6 @@ def delete_arguments(*arguments):
     return actual_decorator
 
 
-def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
-    ''' sinusoid编码
-        
-        :param n_position: int, 位置长度
-        :param d_hid: int, 位置编码长度
-        :param padding_idx: padding的token_ids
-        :return: [seq_len, d_hid]
-    '''
-    position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(10000.0) / d_hid))
-    embeddings_table = torch.zeros(n_position, d_hid)
-    embeddings_table[:, 0::2] = torch.sin(position * div_term)
-    embeddings_table[:, 1::2] = torch.cos(position * div_term)
-    return embeddings_table
-
-    # 第二种实现
-    position_ids = torch.arange(0, n_position).unsqueeze(1)
-    position_ids = position_ids.expand(-1, d_hid)
-    indices = torch.arange(0, d_hid)
-    position_ids = position_ids * torch.pow(10000, -2 * torch.true_divide(torch.floor_divide(indices, 2), d_hid))
-    position_ids[:, ::2] = torch.sin(position_ids[:, ::2])
-    position_ids[:, 1::2] = torch.cos(position_ids[:, 1::2])
-    return position_ids
-
-
 def cal_ts_num(tensor_shape):
     '''查看某个tensor在gc中的数量'''
     cal_num = 0

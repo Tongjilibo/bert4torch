@@ -2,7 +2,44 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from bert4torch.snippets import get_sinusoid_encoding_table
+
+
+def get_sinusoid_encoding_table(n_position, d_hid, base=10000.0, padding_idx=None):
+    ''' sinusoid编码
+        
+        :param n_position: int, 位置长度
+        :param d_hid: int, 位置编码长度
+        :param padding_idx: padding的token_ids
+        :return: [seq_len, d_hid]
+    '''
+    position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
+    div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
+    embeddings_table = torch.zeros(n_position, d_hid)
+    embeddings_table[:, 0::2] = torch.sin(position * div_term)
+    embeddings_table[:, 1::2] = torch.cos(position * div_term)
+    return embeddings_table
+
+    # 第二种实现
+    position_ids = torch.arange(0, n_position).unsqueeze(1)
+    position_ids = position_ids.expand(-1, d_hid)
+    indices = torch.arange(0, d_hid)
+    position_ids = position_ids * torch.pow(10000, -2 * torch.true_divide(torch.floor_divide(indices, 2), d_hid))
+    position_ids[:, ::2] = torch.sin(position_ids[:, ::2])
+    position_ids[:, 1::2] = torch.cos(position_ids[:, 1::2])
+    return position_ids
+
+
+def get_ntk_sinusoid_encoding_table(n_position, d_hid, base=10000, alpha=8, **kwargs):
+    ''' sinusoid编码, ntk方式
+        
+        :param n_position: int, 位置长度
+        :param d_hid: int, 位置编码长度
+        :param padding_idx: padding的token_ids
+        :return: [seq_len, d_hid]
+    '''
+    base = base * alpha ** (d_hid / (d_hid-2))
+    embeddings_table = get_sinusoid_encoding_table(n_position, d_hid, base)
+    return embeddings_table
 
 
 class RelativePositionsEncodingDebertaV2(nn.Module):
@@ -135,21 +172,36 @@ class SinusoidalPositionEncoding(nn.Module):
 
 class RoPEPositionEncoding(nn.Module):
     """旋转式位置编码: https://kexue.fm/archives/8265
+
+    :param embedding_size: embedding的大小
+    :param rope_rank: 排序的方式，目前支持'adjacent', 'updown'两种
+    :param rotary_ntk_config: 是否使用ntk外推，True表示默认参数，可传入dict来指定alpha和base
     """
-    def __init__(self, embedding_size, rope_rank='adjacent', **kwargs):
+    def __init__(self, embedding_size, rope_rank='adjacent', rotary_ntk_config=None, **kwargs):
         super(RoPEPositionEncoding, self).__init__()
         self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
         # 支持两种方式，一种是奇偶相邻排列，一种是上下排列, 目前只在chatglm中看到updown排列
         assert rope_rank in {'adjacent', 'updown'}, "rank kwarg only support 'adjacent' and 'updown' "
         self.rope_rank = rope_rank
+        self.rotary_ntk_config = rotary_ntk_config  # 是否使用ntk外推
     
     def initialize(self, max_position):
-        position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size)  # [seq_len, hdsz]
+        if self.rotary_ntk_config is None:
+            # 原始的不使用ntk方式
+            position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size)  # [seq_len, hdsz]
+        else:
+            # 使用ntk外推的方式
+            if not isinstance(self.rotary_ntk_config, dict):
+                self.rotary_ntk_config = {}
+            position_embeddings = get_ntk_sinusoid_encoding_table(max_position, self.embedding_size, **self.rotary_ntk_config)  # [seq_len, hdsz]
+
         if self.rope_rank == 'adjacent':
+            # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
             cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
         elif self.rope_rank == 'updown':  # 目前仅chatglm使用
+            # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
             cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
         else:

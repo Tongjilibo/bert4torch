@@ -111,7 +111,8 @@ class GLM(LM_Mask, BERT):
         context_lens = [seq.index(self.bos_token_id) for seq in seqs]  # bos_token_id是倒数第一位
         seq_len = token_ids.shape[1]
 
-        # 1）generation阶段use_states=True且step>0的时候(用cache), 这里用inputs[0].shape[1] == 1来判断是不是last_token
+        # 1）generation阶段use_states=True且step>0的时候(用cache)
+        # 这里用inputs[0].shape[1] == 1来判断是不是last_token, chatglm过tokenize出来最后会以[mask_token_id, bos_token_id]结尾，长度>1
         if model_kwargs.get('use_states', False) and (inputs[0].shape[1] == 1) and (model_kwargs.get('past_key_values') is not None):
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in

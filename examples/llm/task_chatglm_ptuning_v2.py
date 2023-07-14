@@ -12,8 +12,7 @@
 # | b4t+pt2+A100(pcie 40G)-fp32-bs1 |  29G      |     760      |     24.83     |    30.95    |     7.18    |    8.08   |         |
 # | b4t+pt2+A100(pcie 40G)-fp32-bs4 |  32G      |     2600     |     25.12     |    31.55    |     7.21    |    8.02   |         |
 
-from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import sequence_padding
 from bert4torch.callbacks import Callback
 import torch.nn as nn
 import torch
