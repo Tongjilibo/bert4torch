@@ -253,3 +253,10 @@ class XlnetPositionsEncoding(nn.Module):
         sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=-1)
         return pos_emb
+
+
+class ALiBiPositionsEncoding(nn.Module):
+    '''ALiBi: Attention with Linear Biases
+       https://github.com/ofirpress/attention_with_linear_biases
+    '''
+    pass
