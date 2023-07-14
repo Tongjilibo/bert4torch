@@ -1,14 +1,7 @@
 #! -*- coding: utf-8 -*-
 """
-基本测试：llama系列模型的测试, 7b的fp32精度的单卡占用约27g，fp16的显存占用约14g
+基本测试：原生llama模型的测试 https://github.com/facebookresearch/llama
 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_llama_pth.py
-
-[1]. llama模型：https://github.com/facebookresearch/llama
-[2]. chinese_llama: https://github.com/ymcui/Chinese-LLaMA-Alpaca
-[3]. chinese_alpaca: https://github.com/ymcui/Chinese-LLaMA-Alpaca
-[4]. Ziya-LLaMA-13B_v1.1: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1
-[5]. Ziya-LLaMA-13B_v1: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1
-[6]. Ziya-LLaMA-13B_pretrain: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrain-v1
 """
 
 import torch
@@ -18,17 +11,14 @@ from transformers import AutoTokenizer, LlamaTokenizer
 import platform
 import os
 
-with_prompt = True
-include_input = not with_prompt
-dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1'
+# 原生llama
+dir_path = 'E:/pretrain_ckpt/llama/7B'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# tokenizer = AutoTokenizer.from_pretrained(dir_path)  # 很慢，看到一些issue说AutoTokenizer默认返回的tokenizer是fast类型的
-tokenizer = LlamaTokenizer.from_pretrained(dir_path)
-
+tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
@@ -36,16 +26,12 @@ tokenizer_config = {'skip_special_tokens': True}
 article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample', tokenizer_config=tokenizer_config,
                                    maxlen=256, default_rtype='logits', use_states=True)
 
-def generate_prompt(query):
-    return f"<human>:{query.strip()}\n<bot>:"
 
 if __name__ == '__main__':
     os_name = platform.system()
     print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
-        if with_prompt:
-            query = generate_prompt(query)
         if query == "stop":
             break
         if query == "clear":
@@ -53,6 +39,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query, topk=50, topp=1, temperature=0.8, repetition_penalty=1.0, include_input=include_input)      
+        response = article_completion.generate(query, include_input=True)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")

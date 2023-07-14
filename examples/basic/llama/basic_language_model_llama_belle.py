@@ -23,7 +23,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 可使用bert4torch的tokenizer
 use_hf_tokenize = False
 if use_hf_tokenize:
-    tokenizer = AutoTokenizer.from_pretrained(dir_path)
+    tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
 else:
     tokenizer = SpTokenizer(dir_path+'/tokenizer.model', token_start='<s>', token_end=None, keep_accents=True, remove_space=False)
 print('Loading tokenizer done...')

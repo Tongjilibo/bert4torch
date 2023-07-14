@@ -18,7 +18,6 @@ from bert4torch.models.transformer import *
 from bert4torch.models.transformer_xl import *
 from bert4torch.models.uie import *
 from bert4torch.models.xlnet import *
-from bert4torch.models.baichuan import *
 
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', add_trainer=False, **kwargs):
@@ -95,7 +94,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         'chatglm': GLM,
         'glm2': GLM2,
         'chatglm2': GLM2,
-        'baichuan': Baichuan,
         't5': T5,
         't5_encoder': T5_Encoder,
         't5_decoder': T5_Decoder,

@@ -7,23 +7,21 @@
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.generation import SeqGeneration
-from transformers import AutoTokenizer, LlamaTokenizer
+from transformers import AutoTokenizer
 import platform
 import os
 
 with_prompt = True
 include_input = not with_prompt
 
-dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
-# dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+# dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# tokenizer = AutoTokenizer.from_pretrained(dir_path)  # 很慢，看到一些issue说AutoTokenizer默认返回的tokenizer是fast类型的
-tokenizer = LlamaTokenizer.from_pretrained(dir_path)
-
+tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half().to(device)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
