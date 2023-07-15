@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：belle-llama-7b模型的基本测试
+# 基本测试：belle-llama-7b模型的单论对话测试
 # 源项目链接：https://github.com/LianjiaTech/BELLE
 # LLaMA模型不允许发布调优后的完整模型权重，但是可以发布原始的模型的diff。因此需要先用脚本合并llama官方权重bell_llama的模型diff
 # 模型说明： https://github.com/LianjiaTech/BELLE/tree/main/models

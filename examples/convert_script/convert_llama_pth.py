@@ -2,34 +2,34 @@
 """本脚本支持多个llama系列模型转换，原格式为pth
 
 [1]. llama模型：https://github.com/facebookresearch/llama
-权重下载：[Github](https://github.com/facebookresearch/llama)
-[huggingface](https://huggingface.co/decapoda-research/llama-7b-hf)
-[torrent](https://pan.baidu.com/s/1yBaYZK5LHIbJyCCbtFLW3A?pwd=phhd)
+    权重下载：[Github](https://github.com/facebookresearch/llama)
+    [huggingface](https://huggingface.co/decapoda-research/llama-7b-hf)
+    [torrent](https://pan.baidu.com/s/1yBaYZK5LHIbJyCCbtFLW3A?pwd=phhd)
 
 
 [2]. chinese_llama_plus_7b: https://github.com/ymcui/Chinese-LLaMA-Alpaca
-分为3步，前2步是项目中的，本脚本为第四步
-1）用transformer脚本转换facebook的llama模型；
-    python D:/ProgramData/Anaconda3/Lib/site-packages/transformers/models/llama/convert_llama_weights_to_hf.py  
-    --input_dir E:/pretrain_ckpt/llama  
-    --model_size 7B  
-    --output_dir E:/pretrain_ckpt/llama/7B-hf
-2）用项目中脚本合并lora权重；
-    python scripts/merge_llama_with_chinese_lora.py 
-    --base_model E:/pretrain_ckpt/llama/7B-hf  
-    --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b  
-    --output_type pth
-    --output_dir E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b 
-3）用本脚本转换为bert4torch的适配权重
+    分为3步，前2步是项目中的，本脚本为第四步
+    1）用transformer脚本转换facebook的llama模型；
+        python D:/ProgramData/Anaconda3/Lib/site-packages/transformers/models/llama/convert_llama_weights_to_hf.py  
+        --input_dir E:/pretrain_ckpt/llama  
+        --model_size 7B  
+        --output_dir E:/pretrain_ckpt/llama/7B-hf
+    2）用项目中脚本合并lora权重；
+        python scripts/merge_llama_with_chinese_lora.py 
+        --base_model E:/pretrain_ckpt/llama/7B-hf  
+        --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b  
+        --output_type pth
+        --output_dir E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b 
+    3）用本脚本转换为bert4torch的适配权重
 
 
 [3]. chinese_alpaca_plus_7b: https://github.com/ymcui/Chinese-LLaMA-Alpaca
-转换同上，只是合并lora权重需要合并多个lora权重
-    python scripts/merge_llama_with_chinese_lora.py 
-    --base_model E:/pretrain_ckpt/llama/7B-hf 
-    --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b,E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_lora_7b  
-    --output_type pth 
-    --output_dir E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b 
+    转换同上，只是合并lora权重需要合并多个lora权重
+        python scripts/merge_llama_with_chinese_lora.py 
+        --base_model E:/pretrain_ckpt/llama/7B-hf 
+        --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b,E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_lora_7b  
+        --output_type pth 
+        --output_dir E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b 
 
 """
 
@@ -96,7 +96,6 @@ if __name__ == '__main__':
 {
 	"hidden_size": 4096,
     "intermediate_size": 11008, 
-	"multiple_of": 256,
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
 	"norm_eps": 1e-06,
@@ -112,7 +111,6 @@ if __name__ == '__main__':
 {
 	"hidden_size": 4096,
     "intermediate_size": 11008, 
-	"multiple_of": 256,
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
 	"norm_eps": 1e-06,
@@ -128,7 +126,6 @@ if __name__ == '__main__':
 {
 	"hidden_size": 4096,
     "intermediate_size": 11008, 
-	"multiple_of": 256,
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
 	"norm_eps": 1e-06,

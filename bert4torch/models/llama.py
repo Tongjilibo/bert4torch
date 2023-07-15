@@ -26,7 +26,7 @@ class LLaMA(LM_Mask, BERT):
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
         for layer in self.encoderLayer:
-            layer.feedForward = self.FeedForward(self.hidden_size, self.hidden_size*4, **kwargs)
+            layer.feedForward = self.FeedForward(self.hidden_size, **kwargs)
         self.tie_weights()
 
     def tie_weights(self):
@@ -73,13 +73,12 @@ class LLaMA(LM_Mask, BERT):
         
     class FeedForward(nn.Module):
         '''FeedForward和Bert的不一致，Bert只有两个全连接'''
-        def __init__(self, dim: int, hidden_dim: int, multiple_of: int, **kwargs):
+        def __init__(self, dim: int, intermediate_size: int, hidden_act='silu', **kwargs):
             super().__init__()
-            hidden_dim = int(2 * hidden_dim / 3)
-            hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
-            self.intermediateDense = nn.Linear(dim, hidden_dim, bias=False)
-            self.outputDense = nn.Linear(hidden_dim, dim, bias=False)
-            self.intermediateDense2 = nn.Linear(dim, hidden_dim, bias=False)
+            self.intermediateDense = nn.Linear(dim, intermediate_size, bias=False)
+            self.outputDense = nn.Linear(intermediate_size, dim, bias=False)
+            self.intermediateDense2 = nn.Linear(dim, intermediate_size, bias=False)
+            self.intermediate_act_fn = get_activation(hidden_act)
 
         def forward(self, x):
-            return self.outputDense(F.silu(self.intermediateDense(x)) * self.intermediateDense2(x))
+            return self.outputDense(self.intermediate_act_fn(self.intermediateDense(x)) * self.intermediateDense2(x))
