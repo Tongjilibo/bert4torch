@@ -14,8 +14,8 @@ class LLaMA(LM_Mask, BERT):
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
+    def __init__(self, *args, p_bias='rotary', **kwargs):
+        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.TransformerBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 

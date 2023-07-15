@@ -71,7 +71,7 @@ class BertEmbeddings(nn.Module):
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':
             self.position_embeddings = SinusoidalPositionEncoding(max_position, embedding_size)
-        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'other_relative', 'deberta_v2'}:
+        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'other_relative', 'deberta_v2', 'alibi'}:
             # 如果使用相对位置编码，则不声明PositionEmbeddings
             pass
         elif max_position > 0:

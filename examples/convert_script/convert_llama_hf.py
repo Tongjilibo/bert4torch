@@ -22,12 +22,14 @@
     3）转换为bert4torch的适配权重
 
 [6]. baichuan：https://github.com/baichuan-inc/Baichuan-7B
+[7]. baichuan：https://github.com/baichuan-inc/Baichuan-13B
+[8]. baichuan：https://github.com/baichuan-inc/Baichuan-13B-Chat
     其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
 '''
 import torch
 import os
 
-choice = 'baichuan-7b'
+choice = 'Baichuan-13B-Chat'
 
 if choice == 'belle':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'
@@ -45,6 +47,12 @@ elif choice == 'baichuan-7b':
     ckpt_dir = 'E:/pretrain_ckpt/llama/Baichuan-7B/'
     ckpt_file = ckpt_dir + 'pytorch_model.bin'
     num_hidden_layers = 32
+    hidden_size = 4096
+elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama/{choice}/'
+    ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
+    num_hidden_layers = 40
+    hidden_size = 5120
 
 output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 
@@ -67,10 +75,9 @@ for i in range(num_hidden_layers):
     prefix_i = f'{prefix}.encoder.layer.%d.' % i
 
     # k,q,v,o
-    if choice == 'baichuan-7b':
+    if 'Baichuan' in choice:
         W_pack = state_dict['model.layers.{0}.self_attn.W_pack.weight'.format(i)]
-
-        tensor_list = torch.split(W_pack, [4096,4096,4096], 0)
+        tensor_list = torch.split(W_pack, [hidden_size, hidden_size, hidden_size], 0)
         new_state_dict[prefix_i + f'attention.self.query.weight'] = tensor_list[0]
         new_state_dict[prefix_i + f'attention.self.key.weight'] = tensor_list[1]
         new_state_dict[prefix_i + f'attention.self.value.weight'] = tensor_list[2]
@@ -155,5 +162,23 @@ torch.save(new_state_dict, output_ckpt_file)
 
 # baichuan-7b
 '''
-
+{
+  "bos_token_id": 1,
+  "eos_token_id": 2,
+  "hidden_act": "silu",
+  "hidden_size": 4096,
+  "initializer_range": 0.02,
+  "intermediate_size": 11008,
+  "max_position_embeddings": 4096,
+  "num_attention_heads": 32,
+  "num_hidden_layers": 32,
+  "pad_token_id": 0,
+  "layer_norm_eps": 1e-06,
+  "tie_word_embeddings": false,
+  "torch_dtype": "float32",
+  "vocab_size": 64000,
+  "segment_vocab_size": 0,
+  "rope_rank": "updown",
+  "skip_init": true
+}
 '''

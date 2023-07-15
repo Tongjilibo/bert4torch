@@ -2,13 +2,15 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from bert4torch.layers.position_encoding import RelativePositionsEncoding, RelativePositionsEncodingDebertaV2, RelativePositionsEncodingT5, RoPEPositionEncoding
+from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
 
 
 class MultiHeadAttentionLayer(nn.Module):
+    '''多头注意力
+    '''
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 output_attentions=False, bias=True, flash_attention=False, **kwargs):
+                 output_attentions=False, bias=True, p_bias=None, flash_attention=False, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
@@ -16,15 +18,17 @@ class MultiHeadAttentionLayer(nn.Module):
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = bias
+        self.p_bias = p_bias
         self.flash_attention = flash_attention
 
+        max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
-        q_inner_dim = self.attention_key_size * self.num_attention_heads
+        q_inner_dim = self.attention_key_size * num_attention_heads
         k_inner_dim = q_inner_dim
-        v_inner_dim = self.attention_head_size * self.num_attention_heads
+        v_inner_dim = self.attention_head_size * num_attention_heads
 
         # multi query attention
         if kwargs.get('multi_query_group_num') is not None:
@@ -38,11 +42,8 @@ class MultiHeadAttentionLayer(nn.Module):
         self.o = nn.Linear(v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
-        self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
-
         if self.p_bias == 'typical_relative':  # nezha
-            self.relative_positions_encoding = RelativePositionsEncoding(qlen=kwargs.get('max_position'),
-                                                                         klen=kwargs.get('max_position'),
+            self.relative_positions_encoding = RelativePositionsEncoding(qlen=max_position, klen=max_position,
                                                                          embedding_size=self.attention_head_size,
                                                                          max_relative_position=kwargs.get('max_relative_position'))
         elif self.p_bias == 'rotary':  # roformer, llama, chatglm
@@ -52,12 +53,10 @@ class MultiHeadAttentionLayer(nn.Module):
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d or self.position_encoding_2d_v2 else self.attention_head_size
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, rope_rank=kwargs.get('rope_rank', 'adjacent'))
         elif self.p_bias == 't5_relative':  # t5
-            self.relative_positions = RelativePositionsEncodingT5(qlen=kwargs.get('max_position'), 
-                                                                  klen=kwargs.get('max_position'), 
+            self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
                                                                   is_decoder=kwargs.get('is_decoder'))
-            self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
-
+            self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), num_attention_heads)
         elif self.p_bias == 'deberta_v2':  # deberta_v2
             # 配置文件
             self.share_att_key = kwargs.get("share_att_key", False)
@@ -71,15 +70,16 @@ class MultiHeadAttentionLayer(nn.Module):
 
             # position_embedding
             self.pos_att_type = kwargs.get('pos_att_type', [])
-            self.relative_positions = RelativePositionsEncodingDebertaV2(qlen=kwargs.get('max_position'), 
-                                                                         klen=kwargs.get('max_position'), 
+            self.relative_positions = RelativePositionsEncodingDebertaV2(qlen=max_position, klen=max_position, 
                                                                          position_buckets=kwargs.get('position_buckets'),
-                                                                         max_position=kwargs.get('max_position'))
-            self.relative_positions_encoding = nn.Embedding(kwargs.get('max_position'), self.hidden_size)
+                                                                         max_position=max_position)
+            self.relative_positions_encoding = nn.Embedding(max_position, self.hidden_size)
             self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
             if "layer_norm" in self.norm_rel_ebd:
                 self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
             self.pos_dropout = nn.Dropout(dropout_rate)
+        elif self.p_bias == 'alibi':
+            self.relative_positions_encoding = ALiBiPositionsEncoding(max_position, num_attention_heads)
 
     def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
@@ -256,6 +256,9 @@ class MultiHeadAttentionLayer(nn.Module):
             pre_attention_mask = torch.ones(size_).to(attention_mask)
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
+        if self.p_bias == 'alibi':
+            attention_mask = self.relative_positions_encoding(query_layer, position_ids)
+
         # 是否使用torch2.0的flash_attention加速
         if self.flash_attention and (int(torch.__version__.split('.')[0]) >= 2):
             context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
@@ -322,7 +325,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
 
 class GatedAttentionUnit(nn.Module):
-    '''门控注意力单元，
+    '''门控注意力单元
     链接：https://arxiv.org/abs/2202.10447
     介绍：https://kexue.fm/archives/8934
     说明：没有加入加性相对位置编码
@@ -343,7 +346,7 @@ class GatedAttentionUnit(nn.Module):
         self.offsetscale = self.OffsetScale(attention_key_size, heads=2, bias=bias)
         self.o_dense = nn.Linear(self.intermediate_size, hidden_size, bias=bias)
         
-        self.a_bias, self.p_bias = kwargs.get('a_bias'), kwargs.get('p_bias')
+        self.p_bias = kwargs.get('p_bias')
         if self.p_bias == 'rotary':  # RoPE
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size)
 
@@ -411,5 +414,3 @@ class GatedAttentionUnit(nn.Module):
             if self.bias:
                  out = out + self.beta
             return out.unbind(dim = -2)
-
-

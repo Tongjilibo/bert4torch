@@ -668,19 +668,17 @@ class SeqGeneration(AutoRegressiveDecoder):
             output_ids = self.beam_search(inputs)  # 基于beam search
         return output_ids
 
-    def generate(self, text, **generation_config):
+    def generate(self, text:str, **generation_config):
         '''单条样本生成'''
-        assert isinstance(text, str), 'Arg `text` must be str format'
         self.set_generation_config(generation_config)
         self.use_batch = False
         inputs = self.pre_process(text)
         output_ids = self._generate(inputs)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, **generation_config):
+    def batch_generate(self, text_list:list, **generation_config):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
         # 参数设定
-        assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
         generation_config['n'] = 1
         self.set_generation_config(generation_config)
         self.use_batch = True
@@ -695,7 +693,6 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     def stream_generate(self, text:str, **generation_config):
         '''单条样本stream输出预测的结果'''
-        assert isinstance(text, str), 'Arg `text` must be str format'
         self.set_generation_config(generation_config)
         self.use_batch = False
         inputs = self.pre_process(text)
@@ -725,8 +722,7 @@ class Seq2SeqGeneration(SeqGeneration):
         self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
             
-    def generate(self, text, **generation_config):
-        assert isinstance(text, str), 'Arg `text` must be str format'
+    def generate(self, text:str, **generation_config):
         self.set_generation_config(generation_config)
         self.use_batch = False
         inputs = self.pre_process(text)
@@ -735,10 +731,9 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super()._generate(encoder_output)
         return self.post_process(output_ids)
 
-    def batch_generate(self, text_list, **generation_config):
+    def batch_generate(self, text_list:list, **generation_config):
         '''batch样本生成'''
         # 参数设定
-        assert isinstance(text_list, (list,tuple)), 'Arg `text_list` must be list/tuple format'
         generation_config['n'] = 1
         self.set_generation_config(generation_config)
         self.use_batch = True
@@ -748,9 +743,8 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super()._generate(encoder_output)
         return self.post_process(output_ids)
 
-    def stream_generate(self, text, **generation_config):
+    def stream_generate(self, text:str, **generation_config):
         '''stream输出t预测的结果'''
-        assert isinstance(text, str), 'Arg `text` must be str format'
         self.set_generation_config(generation_config)
 
         self.use_batch = False

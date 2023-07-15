@@ -200,7 +200,7 @@ class RoPEPositionEncoding(nn.Module):
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
             cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        elif self.rope_rank == 'updown':  # 目前仅chatglm使用
+        elif self.rope_rank == 'updown':  # 目前chatglm和llama系列有部分使用
             # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
             cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
@@ -259,4 +259,48 @@ class ALiBiPositionsEncoding(nn.Module):
     '''ALiBi: Attention with Linear Biases
        https://github.com/ofirpress/attention_with_linear_biases
     '''
-    pass
+    def __init__(self, max_position, n_head, **kwargs) -> None:
+        super().__init__()
+        self.max_position = max_position
+        self.n_head = n_head
+        self.max_cache_pos = -1
+    
+    def _get_interleave(self, n):
+        def _get_interleave_power_of_2(n):
+            start = (2 ** (-2 ** -(math.log2(n) - 3)))
+            ratio = start
+            return [start * ratio ** i for i in range(n)]
+
+        if math.log2(n).is_integer():
+            return _get_interleave_power_of_2(n)
+        else:
+            closest_power_of_2 = 2 ** math.floor(math.log2(n))
+            return _get_interleave_power_of_2(closest_power_of_2) + \
+                self._get_interleave(2 * closest_power_of_2)[0::2][:n - closest_power_of_2]
+
+    def _fill_with_neg_inf(self, t):
+        """FP16-compatible function that fills a tensor with -inf."""
+        return t.float().fill_(float("-inf")).type_as(t)
+
+    def _gen_alibi_mask(self):
+        slopes = torch.Tensor(self._get_interleave(self.n_head))
+        alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(self.max_position).unsqueeze(0).unsqueeze(0).expand(self.n_head, -1, -1)
+        alibi = alibi.view(self.n_head, 1, self.max_position)
+        alibi_mask = torch.triu(self._fill_with_neg_inf(torch.zeros([self.max_position, self.max_position])), 1)
+        alibi_mask = alibi_mask.unsqueeze(0) + alibi
+        return alibi_mask
+    
+    def forward(self, hidden_states, position_ids=None):
+        '''
+        hidden_states: [btz, seq_len, hdsz]
+        '''
+        seq_length_with_past = hidden_states.shape[1]
+        if seq_length_with_past > self.max_cache_pos:
+            self.max_cache_pos = seq_length_with_past
+            self.future_mask = self._gen_alibi_mask().to(hidden_states)
+        
+        if position_ids is not None:
+            mask = F.embedding(position_ids, self.future_mask)
+        else:
+            mask = self.future_mask[:self.n_head, :seq_length_with_past, :seq_length_with_past] 
+        return mask
