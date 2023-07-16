@@ -182,3 +182,27 @@ torch.save(new_state_dict, output_ckpt_file)
   "skip_init": true
 }
 '''
+
+# baichuan-13b和baichuan-13b-chat
+'''
+{
+  "bos_token_id": 1,
+  "eos_token_id": 2,
+  "hidden_act": "silu",
+  "hidden_size": 5120,
+  "initializer_range": 0.02,
+  "intermediate_size": 13696,
+  "model_max_length": 4096,
+  "num_attention_heads": 40,
+  "num_hidden_layers": 40,
+  "pad_token_id": 0,
+  "layer_norm_eps": 1e-06,
+  "tie_word_embeddings": false,
+  "torch_dtype": "bfloat16",
+  "vocab_size": 64000,
+  "segment_vocab_size": 0,
+  "rope_rank": "updown",
+  "p_bias": "alibi",
+  "skip_init": true
+}
+'''

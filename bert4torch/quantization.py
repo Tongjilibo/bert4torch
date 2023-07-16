@@ -12,7 +12,7 @@ import re
 from tqdm import tqdm
 from functools import partial
 import inspect
-from bert4torch.snippets import info_level_prefix
+from bert4torch.snippets import log_error
 
 try:
     from cpm_kernels.kernels.base import LazyKernelCModule, KernelFunction, round_up
@@ -40,7 +40,7 @@ try:
     )
 except Exception as exception:
     kernels = None
-    print(info_level_prefix("Failed to load cpm_kernels:" + str(exception)), 'e')
+    log_error("Failed to load cpm_kernels:" + str(exception))
 
 
 class W8A16Linear(torch.autograd.Function):

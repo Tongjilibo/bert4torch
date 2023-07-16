@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import inspect
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, info_level_prefix
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn
 from bert4torch.tokenizers import TokenizerBase
 
 
@@ -483,7 +483,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             pad_id = tokenizer.pad_token_id
         else:
             pad_id = 0
-            print(info_level_prefix(f'Arg `pad_id` has been set to default value 0'))
+            log_info(f'Arg `pad_id` has been set to default value 0')
 
         super().__init__(start_id, end_id, maxlen, minlen, pad_id, pad_mode, device or next(model.parameters()).device, 
                          n, topk, topp, temperature, repetition_penalty, min_ends)
@@ -505,6 +505,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_states = use_states
         self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
         self.include_input = False  # 输出是否包含输入
+        self.input_text = ''
     
     def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
@@ -684,7 +685,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = True
         if self.use_states and (self.pad_mode in {'post', 'right'}):
             self.pad_mode = 'pre'
-            print(info_level_prefix("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead", 1))
+            log_info("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
 
         # 主流程
         inputs = self.pre_process(text_list)

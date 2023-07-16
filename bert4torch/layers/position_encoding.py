@@ -34,7 +34,7 @@ def get_ntk_sinusoid_encoding_table(n_position, d_hid, base=10000, alpha=8, **kw
         
         :param n_position: int, 位置长度
         :param d_hid: int, 位置编码长度
-        :param padding_idx: padding的token_ids
+        :param alpha: int, 要扩展的倍数
         :return: [seq_len, d_hid]
     '''
     base = base * alpha ** (d_hid / (d_hid-2))
@@ -259,9 +259,8 @@ class ALiBiPositionsEncoding(nn.Module):
     '''ALiBi: Attention with Linear Biases
        https://github.com/ofirpress/attention_with_linear_biases
     '''
-    def __init__(self, max_position, n_head, **kwargs) -> None:
+    def __init__(self, n_head, **kwargs) -> None:
         super().__init__()
-        self.max_position = max_position
         self.n_head = n_head
         self.max_cache_pos = -1
     
@@ -282,25 +281,25 @@ class ALiBiPositionsEncoding(nn.Module):
         """FP16-compatible function that fills a tensor with -inf."""
         return t.float().fill_(float("-inf")).type_as(t)
 
-    def _gen_alibi_mask(self):
+    def _gen_alibi_mask(self, seq_len):
         slopes = torch.Tensor(self._get_interleave(self.n_head))
-        alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(self.max_position).unsqueeze(0).unsqueeze(0).expand(self.n_head, -1, -1)
-        alibi = alibi.view(self.n_head, 1, self.max_position)
-        alibi_mask = torch.triu(self._fill_with_neg_inf(torch.zeros([self.max_position, self.max_position])), 1)
+        alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(seq_len).unsqueeze(0).unsqueeze(0).expand(self.n_head, -1, -1)
+        alibi = alibi.view(self.n_head, 1, seq_len)
+        alibi_mask = torch.triu(self._fill_with_neg_inf(torch.zeros([seq_len, seq_len])), 1)
         alibi_mask = alibi_mask.unsqueeze(0) + alibi
         return alibi_mask
     
-    def forward(self, hidden_states, position_ids=None):
+    def forward(self, query_layer):
         '''
-        hidden_states: [btz, seq_len, hdsz]
+        query_layer: [btz, n_head, q_len, hdsz]
+        attention_mask: [btz, 1, q_len, k_len]
         '''
-        seq_length_with_past = hidden_states.shape[1]
+        seq_length_with_past = query_layer.shape[2]
         if seq_length_with_past > self.max_cache_pos:
             self.max_cache_pos = seq_length_with_past
-            self.future_mask = self._gen_alibi_mask().to(hidden_states)
+            self.future_mask = self._gen_alibi_mask(seq_length_with_past).to(query_layer)
         
-        if position_ids is not None:
-            mask = F.embedding(position_ids, self.future_mask)
-        else:
-            mask = self.future_mask[:self.n_head, :seq_length_with_past, :seq_length_with_past] 
-        return mask
+        mask = self.future_mask[:self.n_head, :seq_length_with_past, :seq_length_with_past] 
+        if mask.size(-2) == 1:
+            mask = mask[:, -1:, :]
+        return mask.unsqueeze(0)

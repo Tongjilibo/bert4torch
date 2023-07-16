@@ -5,7 +5,7 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import load_state_dict_into_meta_model, torch_div, colorful
+from bert4torch.snippets import load_state_dict_into_meta_model, torch_div, log_warn
 from bert4torch.snippets import take_along_dim, get_parameter_device
 import warnings
 from torch4keras.model import *
@@ -237,9 +237,9 @@ class BERT_BASE(nn.Module):
         # mismatch keys的处理
         if verbose != 0:
             for key in missing_keys:  # model中有，但是ckpt中不存在
-                print(colorful('[WARNING]') + f' `{key}` not found in pretrained checkpoints')
+                log_warn(f'`{key}` not found in pretrained checkpoints')
             for key in model_params:  # ckpt中存在，但是model中不存在
-                print(colorful('[WARNING]') + f' Parameter {key} not initialized from pretrained checkpoints')
+                log_warn(f'Parameter {key} not initialized from pretrained checkpoints')
 
         # 将ckpt的权重load到模型结构中
         if not skip_init:
@@ -264,7 +264,7 @@ class BERT_BASE(nn.Module):
             all_missing_set = set(all_missing_keys).difference(set(needed_keys))
             if verbose != 0:
                 for key in all_missing_set:
-                    print(colorful('[WARNING]') + f' {key} not found in pretrained checkpoints')
+                    log_warn(f'{key} not found in pretrained checkpoints')
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
 

@@ -89,6 +89,7 @@ if __name__ == '__main__':
             break
         if query == "clear":
             command = 'cls' if os_name == 'Windows' else 'clear'
+            history = []
             os.system(command)
             print("Welcome to use baichuan model，type `clear` to clear history，type `stop` to stop program")
             continue
