@@ -149,7 +149,7 @@ class MultiHeadAttentionLayer(nn.Module):
             key_position_scores_r_t = self.relative_positions_encoding(query_layer)
             attention_scores = attention_scores + key_position_scores_r_t
             attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
-            attention_mask = None
+            # attention_mask = None  # baichuan的实现是不使用attention_mask，个人认为有点问题
 
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
