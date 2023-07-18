@@ -18,6 +18,7 @@ from bert4torch.models.transformer import *
 from bert4torch.models.transformer_xl import *
 from bert4torch.models.uie import *
 from bert4torch.models.xlnet import *
+from bert4torch.models.bloom import *
 
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model='bert', application='encoder', add_trainer=False, **kwargs):
@@ -108,6 +109,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model='bert'
         'mt5.1.1_decoder': T5_Decoder,
         'transformer_xl': Transformer_XL,
         'xlnet': XLNET,
+        'bloom': Bloom
     }
 
     if isinstance(model, str):  # string表示使用自带的模型
