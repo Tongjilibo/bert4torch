@@ -2,11 +2,9 @@ from typing import Mapping
 from bert4torch.models.base import LM_Mask
 from bert4torch.models.bert import BERT
 from bert4torch.snippets import delete_arguments
-from bert4torch.layers import LayerNorm, BertLayer, BlockIdentity
+from bert4torch.layers import LayerNorm
 from bert4torch.activations import get_activation
 from torch import nn
-import torch.nn.functional as F
-import copy
 
 
 class Bloom(LM_Mask, BERT):

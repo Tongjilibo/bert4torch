@@ -38,7 +38,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half()
-# model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
+model = model.quantize(quantization_method='cpm_kernels', quantization_bit=4)
 model = model.to(device)
 
 tokenizer_config = {'skip_special_tokens': True}
@@ -80,27 +80,40 @@ def build_input_ids(messages: List[dict], model_max_length=4096, max_new_tokens=
     total_input.append(assistant_token_id)
     return total_input
 
+def build_prompt(history, response):
+    prompt = "Welcome to use baichuan model，type `clear` to clear history，type `stop` to stop program"
+    for hist in history:
+        if hist['role'] == 'user':
+            prompt += f"\n\n用户：{hist['content']}"
+        elif hist['role'] == 'assistant':
+            prompt += f"\n\nBaichuan：{hist['content']}"
+    prompt += f"\n\nBaichuan：{response}"
+    return prompt
+
 if __name__ == '__main__':
     history = []
     os_name = platform.system()
+    clear_command = 'cls' if os_name == 'Windows' else 'clear'
     print("Welcome to use baichuan model，type `clear` to clear history，type `stop` to stop program")
     while True:
-        query = input("\nUser：")
+        query = input("\n用户：")
         if query == "stop":
             break
         if query == "clear":
-            command = 'cls' if os_name == 'Windows' else 'clear'
             history = []
-            os.system(command)
+            os.system(clear_command)
             print("Welcome to use baichuan model，type `clear` to clear history，type `stop` to stop program")
             continue
         
         if with_prompt:
             history.append({"role": "user", "content": query})
             query = build_input_ids(history)
-        response = article_completion.generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=1.1, include_input=include_input)      
+
+        for response in article_completion.stream_generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=1.1, include_input=include_input):
+            os.system(clear_command)
+            print(build_prompt(history, response), flush=True)
+
         torch.cuda.empty_cache()  # 清理显存
-        print(f"\nbaichuan：{response}")
         
         if with_prompt:
             history.append({"role": "assistant", "content": response})

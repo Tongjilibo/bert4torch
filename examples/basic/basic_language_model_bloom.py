@@ -2,6 +2,8 @@
 """
 基本测试：bloom模型的测试
 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bloom.py
+
+bloom-560m: https://huggingface.co/bigscience/bloom-560m
 """
 
 import torch

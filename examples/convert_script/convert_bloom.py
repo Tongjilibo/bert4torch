@@ -63,7 +63,7 @@ for i in range(num_hidden_layers):
 torch.save(new_state_dict, output_ckpt_file)
 
 
-# config配置
+# bloom-560m
 '''
 {
   "apply_residual_connection_post_layernorm": false,

@@ -146,7 +146,7 @@ class MultiHeadAttentionLayer(nn.Module):
         
         if self.p_bias == 'alibi':
             # ==================== alibi相对位置编码 ====================
-            key_position_scores_r_t = self.relative_positions_encoding(query_layer)
+            key_position_scores_r_t = self.relative_positions_encoding(key_layer)
             attention_scores = attention_scores + key_position_scores_r_t
             attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
             # attention_mask = None  # baichuan的实现是不使用attention_mask，个人认为有点问题

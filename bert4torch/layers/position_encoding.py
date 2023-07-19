@@ -277,29 +277,20 @@ class ALiBiPositionsEncoding(nn.Module):
             return _get_interleave_power_of_2(closest_power_of_2) + \
                 self._get_interleave(2 * closest_power_of_2)[0::2][:n - closest_power_of_2]
 
-    def _fill_with_neg_inf(self, t):
-        """FP16-compatible function that fills a tensor with -inf."""
-        return t.float().fill_(float("-inf")).type_as(t)
-
     def _gen_alibi_mask(self, seq_len):
         slopes = torch.Tensor(self._get_interleave(self.n_head))
         alibi = slopes.unsqueeze(1).unsqueeze(1) * torch.arange(seq_len).unsqueeze(0).unsqueeze(0).expand(self.n_head, -1, -1)
         alibi = alibi.view(self.n_head, 1, seq_len)
-        alibi_mask = torch.triu(self._fill_with_neg_inf(torch.zeros([seq_len, seq_len])), 1)
-        alibi_mask = alibi_mask.unsqueeze(0) + alibi
-        return alibi_mask
+        return alibi
     
-    def forward(self, query_layer):
+    def forward(self, key_layer):
         '''
-        query_layer: [btz, n_head, q_len, hdsz]
-        attention_mask: [btz, 1, q_len, k_len]
+        key_layer: [btz, n_head, q_len, hdsz]
         '''
-        seq_length_with_past = query_layer.shape[2]
+        seq_length_with_past = key_layer.shape[2]
         if seq_length_with_past > self.max_cache_pos:
             self.max_cache_pos = seq_length_with_past
-            self.future_mask = self._gen_alibi_mask(seq_length_with_past).to(query_layer)
+            self.future_mask = self._gen_alibi_mask(seq_length_with_past).to(key_layer)
         
         mask = self.future_mask[:self.n_head, :seq_length_with_past, :seq_length_with_past] 
-        if mask.size(-2) == 1:
-            mask = mask[:, -1:, :]
         return mask.unsqueeze(0)
