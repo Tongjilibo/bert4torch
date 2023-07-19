@@ -17,21 +17,28 @@ new_state_dict[f'{prefix}.embeddings.LayerNorm.bias'] = state_dict['word_embeddi
 
 new_state_dict[f'{prefix}.LayerNormFinal.weight'] = state_dict['ln_f.weight']
 new_state_dict[f'{prefix}.LayerNormFinal.bias'] = state_dict['ln_f.bias']
-# new_state_dict[f'{prefix}.dense.weight'] = state_dict['lm_head.weight']
+new_state_dict[f'{prefix}.dense.weight'] = state_dict['word_embeddings.weight']
 
 for i in range(num_hidden_layers):
     prefix_i = f'{prefix}.encoder.layer.%d.' % i
 
     # k,q,v,o
-    hidden_size = int(state_dict[f'h.{i}.self_attention.query_key_value.weight'].size(0) / 3)
-    tensor_list = torch.split(state_dict[f'h.{i}.self_attention.query_key_value.weight'], [hidden_size, hidden_size, hidden_size], 0)
-    new_state_dict[prefix_i + f'attention.self.query.weight'] = tensor_list[0]
-    new_state_dict[prefix_i + f'attention.self.key.weight'] = tensor_list[1]
-    new_state_dict[prefix_i + f'attention.self.value.weight'] = tensor_list[2]
-    tensor_list = torch.split(state_dict[f'h.{i}.self_attention.query_key_value.bias'], [hidden_size, hidden_size, hidden_size], 0)
-    new_state_dict[prefix_i + f'attention.self.query.bias'] = tensor_list[0]
-    new_state_dict[prefix_i + f'attention.self.key.bias'] = tensor_list[1]
-    new_state_dict[prefix_i + f'attention.self.value.bias'] = tensor_list[2]
+    qkv = state_dict[f'h.{i}.self_attention.query_key_value.weight']
+    hidden_size = int(qkv.size(0) / 3)
+    tensor_list = torch.split(qkv, 64, 0)
+    q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+    q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+    new_state_dict[prefix_i + f'attention.self.query.weight'] = q
+    new_state_dict[prefix_i + f'attention.self.key.weight'] = k
+    new_state_dict[prefix_i + f'attention.self.value.weight'] = v
+
+    qkv = state_dict[f'h.{i}.self_attention.query_key_value.bias']
+    tensor_list = torch.split(qkv, 64, 0)
+    q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+    q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+    new_state_dict[prefix_i + f'attention.self.query.bias'] = q
+    new_state_dict[prefix_i + f'attention.self.key.bias'] = k
+    new_state_dict[prefix_i + f'attention.self.value.bias'] = v
 
     new_state_dict[prefix_i + 'attention.output.dense.weight'] = state_dict[f'h.{i}.self_attention.dense.weight']
     new_state_dict[prefix_i + 'attention.output.dense.bias'] = state_dict[f'h.{i}.self_attention.dense.bias']
@@ -51,7 +58,7 @@ for i in range(num_hidden_layers):
 
     # layernorm2
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict[f'h.{i}.post_attention_layernorm.weight'.format(i)]
-    new_state_dict[prefix_i + 'output.LayerNorm.bias'] = state_dict[f'h.{i}.post_attention_layernorm.weight'.format(i)]
+    new_state_dict[prefix_i + 'output.LayerNorm.bias'] = state_dict[f'h.{i}.post_attention_layernorm.bias'.format(i)]
 
 torch.save(new_state_dict, output_ckpt_file)
 
@@ -81,7 +88,8 @@ torch.save(new_state_dict, output_ckpt_file)
   "skip_bias_add_qkv": false,
   "vocab_size": 250880,
   "segment_vocab_size": 0,
-  "pre_layernorm": true
+  "pre_layernorm": true,
+  "tie_emb_prj_weight": true
 }
 '''
 

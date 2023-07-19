@@ -560,7 +560,6 @@ class SeqGeneration(AutoRegressiveDecoder):
         # 使用cache, 输入只能padding在左侧
         if self.use_states:
             states = {'use_states': True} if states is None else states
-            states['step'] = self.step
 
             # next_inputs：step=0时候输入全部，>=1时候输入last_token
             next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=self.step==0)
