@@ -29,7 +29,7 @@
 import torch
 import os
 
-choice = 'Baichuan-13B-Chat'
+choice = 'llama2-7b'
 
 if choice == 'belle':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'
@@ -53,6 +53,10 @@ elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
     num_hidden_layers = 40
     hidden_size = 5120
+elif choice == 'llama2-7b':
+    ckpt_dir = 'E:/pretrain_ckpt/llama2/llame-2-7b-fp16/'
+    ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
+    num_hidden_layers = 32
 
 output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 
