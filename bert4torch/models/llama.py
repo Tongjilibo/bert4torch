@@ -22,7 +22,7 @@ class LLaMA(LM_Mask, BERT):
                                                     'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
         for layer in self.encoderLayer:
@@ -31,11 +31,11 @@ class LLaMA(LM_Mask, BERT):
 
     def tie_weights(self):
         if self.tie_emb_prj_weight:
-            self.dense.weight = self.embeddings.word_embeddings.weight
+            self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(self.LayerNormFinal(hidden_state))
+        logit = self.lm_head(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):

@@ -98,7 +98,7 @@ class T5_Decoder(Decoder):
         mapping = {f'{prefix}embeddings.word_embeddings.weight': 'decoder.embed_tokens.weight',
                    f'{prefix}decoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
                    f'{prefix}final_layer_norm.weight': 'decoder.final_layer_norm.weight',
-                   f'{prefix}final_dense.weight': 'lm_head.weight'}
+                   f'{prefix}lm_head.weight': 'lm_head.weight'}
 
         for i in range(self.num_hidden_layers):
             mapping.update({

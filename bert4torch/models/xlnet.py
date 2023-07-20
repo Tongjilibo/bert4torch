@@ -45,7 +45,7 @@ class XLNET(Transformer_XL):
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
         if self.with_lm:
-            return [hidden_state, self.dense(hidden_state)]
+            return [hidden_state, self.lm_head(hidden_state)]
         else:
             return hidden_state
 

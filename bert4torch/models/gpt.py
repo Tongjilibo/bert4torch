@@ -19,13 +19,13 @@ class GPT(LM_Mask, BERT):
         """
         super(GPT, self).__init__(*args, is_decoder=True, **kwargs)
         del self.embeddings.layerNorm
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-        self.dense.weight = self.embeddings.word_embeddings.weight
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.lm_head.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(hidden_state)
+        logit = self.lm_head(hidden_state)
         return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):
@@ -54,13 +54,13 @@ class GPT2(LM_Mask, BERT):
                                                               'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=kwargs.get('bias', True))
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
-        self.dense.weight = self.embeddings.word_embeddings.weight
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
+        self.lm_head.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(self.LayerNormFinal(hidden_state))
+        logit = self.lm_head(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):
@@ -103,13 +103,13 @@ class GPT2_ML(LM_Mask, BERT):
         layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
                                  is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-        self.dense.weight = self.embeddings.word_embeddings.weight
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.lm_head.weight = self.embeddings.word_embeddings.weight
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(hidden_state)
+        logit = self.lm_head(hidden_state)
         return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):

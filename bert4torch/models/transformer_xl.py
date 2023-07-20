@@ -50,7 +50,7 @@ class Transformer_XL(BERT):
 
         # 映射
         if self.with_lm:
-            self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=True)
+            self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=True)
 
     def init_mems(self, bsz):
         '''初始化mems, 用于记忆mlen的各层隐含层状态'''

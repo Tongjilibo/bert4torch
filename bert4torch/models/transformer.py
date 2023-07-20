@@ -34,7 +34,7 @@ class Decoder(LM_Mask, BERT):
 
         # 从hidden_states映射到logit
         if self.with_lm:
-            self.final_dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+            self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
             # decoder底层的embedding和顶层的全连接共享
             # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
             self.tie_weights()
@@ -45,7 +45,7 @@ class Decoder(LM_Mask, BERT):
 
     def tie_weights(self):
         if self.tie_emb_prj_weight is True:
-            self.final_dense.weight = self.embeddings.word_embeddings.weight
+            self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def apply_main_layers(self, **model_kwargs):
         """Dencoder主体是基于Self-Attention、Cross-Attention的模块；
@@ -71,7 +71,7 @@ class Decoder(LM_Mask, BERT):
         hidden_states = model_kwargs['decoded_layers'][-1]  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
         outputs.append(hidden_states)
         if self.with_lm:
-            logits = self.final_dense(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
+            logits = self.lm_head(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
             activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
             logits = activation(logits)
             outputs.append(logits)

@@ -28,13 +28,13 @@ class GLM(LM_Mask, BERT):
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         self.tie_weights()
 
     def tie_weights(self):
         if self.tie_emb_prj_weight:
-            self.dense.weight = self.embeddings.word_embeddings.weight
+            self.lm_head.weight = self.embeddings.word_embeddings.weight
     
     def load_variable(self, state_dict, name, prefix='transformer'):
         """加载单个变量的函数, 这里的名称均为映射前的
@@ -50,7 +50,7 @@ class GLM(LM_Mask, BERT):
         mapping = {
             'LayerNormFinal.weight': "transformer.final_layernorm.weight",
             'LayerNormFinal.bias': "transformer.final_layernorm.bias",
-            'dense.weight': "lm_head.weight",
+            'lm_head.weight': "lm_head.weight",
             'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
 
         for i in range(self.num_hidden_layers):
@@ -134,7 +134,7 @@ class GLM(LM_Mask, BERT):
     
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(self.LayerNormFinal(hidden_state))
+        logit = self.lm_head(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
     
     class GLMBlock(BertLayer):

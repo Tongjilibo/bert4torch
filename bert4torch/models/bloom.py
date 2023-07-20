@@ -16,22 +16,22 @@ class Bloom(LM_Mask, BERT):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True})
         super().__init__(*args, **kwargs)
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), conditional_size=self.conditional_size, bias=True)
-        self.dense = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
         self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         self.tie_weights()
 
     def tie_weights(self):
         if self.tie_emb_prj_weight:
-            self.dense.weight = self.embeddings.word_embeddings.weight
+            self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def variable_mapping(self, prefix='bloom'):
         mapping = super().variable_mapping(prefix)
         mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
                         'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias',
-                        'dense.weight': f'{prefix}.dense.weight'})
+                        'lm_head.weight': f'{prefix}.dense.weight'})
         return mapping
 
     def apply_final_layers(self, **model_kwargs):
         hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.dense(self.LayerNormFinal(hidden_state))
+        logit = self.lm_head(self.LayerNormFinal(hidden_state))
         return self.final_activation(logit)
