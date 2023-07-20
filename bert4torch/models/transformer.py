@@ -1,6 +1,6 @@
 from bert4torch.models.bert import BERT
 from bert4torch.models.base import LM_Mask, BERT_BASE
-from bert4torch.snippets import delete_arguments
+from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
 from torch import nn
 import torch
@@ -24,17 +24,19 @@ class Encoder(BERT):
 
 class Decoder(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, with_lm=True, logit_scale=True, **kwargs):
+    @insert_arguments(with_lm=True)
+    def __init__(self, *args, logit_scale=True, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
-        self.with_lm = with_lm
 
         # 从hidden_states映射到logit
         if self.with_lm:
             self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+            self.final_activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
+
             # decoder底层的embedding和顶层的全连接共享
             # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
             self.tie_weights()
@@ -72,8 +74,7 @@ class Decoder(LM_Mask, BERT):
         outputs.append(hidden_states)
         if self.with_lm:
             logits = self.lm_head(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
-            activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
-            logits = activation(logits)
+            logits = self.final_activation(logits)
             outputs.append(logits)
         return outputs
 

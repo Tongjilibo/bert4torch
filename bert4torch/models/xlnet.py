@@ -65,8 +65,8 @@ class XLNET(Transformer_XL):
     def variable_mapping(self, prefix='transformer'):
         mapping = {
             'embeddings.weight': f'{prefix}.word_embedding.weight',
-            'dense.weight': 'lm_loss.weight',
-            'dense.bias': 'lm_loss.bias',
+            'lm_head.weight': 'lm_loss.weight',
+            'lm_head.bias': 'lm_loss.bias',
         }
         for i in range(self.num_hidden_layers):
             prefix_i = f'{prefix}.layer.%d.' % i
