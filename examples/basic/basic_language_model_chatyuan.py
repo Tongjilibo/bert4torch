@@ -32,7 +32,8 @@ class AutoTitle(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
-        return encoder.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+        res = encoder.decoder.predict([output_ids] + inputs)
+        return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
     def generate(self, text, n=1, topp=1, temperature=0.7):
         text = text.replace("\n", "\\n").replace("\t", "\\t")

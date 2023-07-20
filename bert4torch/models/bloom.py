@@ -1,37 +1,17 @@
-from typing import Mapping
-from bert4torch.models.base import LM_Mask
-from bert4torch.models.bert import BERT
+from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import LayerNorm
-from bert4torch.activations import get_activation
 from torch import nn
 
 
-class Bloom(LM_Mask, BERT):
+class Bloom(Decoder):
     '''Bloom: https://arxiv.org/abs/2211.05100
     主要区别就是alibi编码，其他和bert结构一致
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, p_bias='alibi', **kwargs):
-        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True})
+        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
-        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), conditional_size=self.conditional_size, bias=True)
-        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
-        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
-        self.tie_weights()
-
-    def tie_weights(self):
-        if self.tie_emb_prj_weight:
-            self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def variable_mapping(self, prefix='bloom'):
-        mapping = super().variable_mapping(prefix)
-        mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
-                        'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias',
-                        'lm_head.weight': f'{prefix}.dense.weight'})
-        return mapping
-
-    def apply_final_layers(self, **model_kwargs):
-        hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.lm_head(self.LayerNormFinal(hidden_state))
-        return self.final_activation(logit)
+        return super().variable_mapping(prefix)

@@ -39,7 +39,8 @@ class AutoTitle(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids = inputs[0] 
-        return model.predict([[token_ids], [output_ids]])[-1][:, -1, :]  # 保留最后一位
+        res = model.predict([[token_ids], [output_ids]])
+        return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
     def generate(self, text, topk=1, topp=0.95):
         token_ids, _ = tokenizer.encode(text, maxlen=256)

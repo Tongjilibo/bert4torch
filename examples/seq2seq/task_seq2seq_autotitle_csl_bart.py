@@ -77,7 +77,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, outputs, y_true):
-        _, _, y_pred = outputs
+        y_pred = outputs[-1]
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1.5e-5))
@@ -87,7 +87,8 @@ class AutoTitle(AutoRegressiveDecoder):
     """
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
-        return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]  # 保留最后一位
+        res = model.decoder.predict([output_ids] + inputs)
+        return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
     def generate(self, text, topk=1):
         token_ids, _ = tokenizer.encode(text, maxlen=max_c_len)

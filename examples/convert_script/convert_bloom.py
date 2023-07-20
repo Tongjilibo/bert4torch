@@ -17,7 +17,7 @@ new_state_dict[f'{prefix}.embeddings.LayerNorm.bias'] = state_dict['word_embeddi
 
 new_state_dict[f'{prefix}.LayerNormFinal.weight'] = state_dict['ln_f.weight']
 new_state_dict[f'{prefix}.LayerNormFinal.bias'] = state_dict['ln_f.bias']
-new_state_dict[f'{prefix}.dense.weight'] = state_dict['word_embeddings.weight']
+new_state_dict[f'{prefix}.lm_head.weight'] = state_dict['word_embeddings.weight']
 
 for i in range(num_hidden_layers):
     prefix_i = f'{prefix}.encoder.layer.%d.' % i

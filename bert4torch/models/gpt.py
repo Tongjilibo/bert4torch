@@ -1,5 +1,6 @@
 from bert4torch.models.base import LM_Mask
 from bert4torch.models.bert import BERT
+from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
 from bert4torch.activations import get_activation
 from bert4torch.layers import LayerNorm, BertLayer, BlockIdentity
@@ -7,34 +8,24 @@ from torch import nn
 import copy
 
 
-class GPT(LM_Mask, BERT):
+class GPT(Decoder):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
-    Todo: 理论上gpt系列应该从Decoder继承，自动实现is_decoder=True，且使用decoderLayer
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         """GPT的embedding是token、position、segment三者embedding之和，跟BERT的主要区别是三者相加之后没有加LayerNormalization层。
            使用LM_Mask实现预训练ckpt中的bias参数，最后的全连接层由于和embedding层权重一致，因此直接从word_embedding取
         """
-        super(GPT, self).__init__(*args, is_decoder=True, **kwargs)
+        super(GPT, self).__init__(*args, tie_emb_prj_weight=True, **kwargs)
         del self.embeddings.layerNorm
-        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
-        self.lm_head.weight = self.embeddings.word_embeddings.weight
-        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
-
-    def apply_final_layers(self, **model_kwargs):
-        hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.lm_head(hidden_state)
-        return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):
         return super(GPT, self).load_variable(state_dict, name, prefix='gpt')
 
     def variable_mapping(self):
         # 映射到GPT权重格式
-        mapping =  super(GPT, self).variable_mapping(prefix='gpt')
-        return mapping
+        return super(GPT, self).variable_mapping(prefix='gpt')
 
 
 class GPT2(LM_Mask, BERT):

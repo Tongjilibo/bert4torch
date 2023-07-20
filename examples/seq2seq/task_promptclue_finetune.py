@@ -112,7 +112,8 @@ model.compile(loss=CrossEntropyLoss(ignore_index=pad_token_id),
 class AutoTitle(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
-        return model.decoder.predict([output_ids] + inputs)[-1][:, -1, :]
+        res = model.decoder.predict([output_ids] + inputs)
+        return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
     def generate(self, text, topk=1):
         token_ids, _ = tokenizer.encode(text, maxlen=max_i_len)

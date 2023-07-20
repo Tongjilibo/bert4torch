@@ -45,7 +45,7 @@ class LLaMA(LM_Mask, BERT):
         # 映射到权重格式
         mapping = super(LLaMA, self).variable_mapping(prefix=prefix)
         mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
-                        'lm_head.weight': f'{prefix}.dense.weight'})
+                        'lm_head.weight': f'{prefix}.lm_head.weight'})
         for i in range(self.num_hidden_layers):
             prefix_i = f'{prefix}.encoder.layer.%d.' % i
             mapping.update({f'encoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})

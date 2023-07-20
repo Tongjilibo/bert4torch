@@ -2,6 +2,7 @@ from bert4torch.models.bert import BERT
 from bert4torch.models.base import LM_Mask, BERT_BASE
 from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
+from bert4torch.layers import LayerNorm
 from torch import nn
 import torch
 
@@ -25,12 +26,13 @@ class Encoder(BERT):
 class Decoder(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
-    def __init__(self, *args, logit_scale=True, **kwargs):
+    def __init__(self, *args, logit_scale=True, final_layernorm=False, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
+        self.final_layernorm = final_layernorm
 
         # 从hidden_states映射到logit
         if self.with_lm:
@@ -44,6 +46,9 @@ class Decoder(LM_Mask, BERT):
                 self.x_logit_scale = (self.hidden_size ** -0.5)
             else:
                 self.x_logit_scale = 1.
+        
+        if self.final_layernorm:
+            self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), conditional_size=self.conditional_size, bias=True)
 
     def tie_weights(self):
         if self.tie_emb_prj_weight is True:
@@ -69,20 +74,28 @@ class Decoder(LM_Mask, BERT):
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
-        outputs = []
         hidden_states = model_kwargs['decoded_layers'][-1]  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
-        outputs.append(hidden_states)
+
+        if self.final_layernorm:
+            hidden_states = self.LayerNormFinal(hidden_states)
+        
         if self.with_lm:
             logits = self.lm_head(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
             logits = self.final_activation(logits)
-            outputs.append(logits)
-        return outputs
+            return logits
+        return hidden_states
 
     def variable_mapping(self, prefix='bert'):
         raw_mapping = super().variable_mapping(prefix)
         mapping = {}
         for k, v in raw_mapping.items():
             mapping[k.replace('encoderLayer', 'decoderLayer')] = v
+        
+        if self.final_layernorm:
+            mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
+                            'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias'})
+        if self.with_lm:
+            mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
 
 
@@ -112,5 +125,8 @@ class Transformer(BERT_BASE):
 
         # decoder
         decoder_outputs = self.decoder(decoder_input + [encoder_hidden_states, encoder_attention_mask])
-        return [encoder_hidden_states] + decoder_outputs  # 输出encoder_hidden_state和decoder_hidden_state，以应对一些多任务情况
+        
+        # 输出encoder_hidden_state和decoder_hidden_state，以应对一些多任务情况
+        # with_lm=True时候，decoder_outputs为logits, False时候为decoder_hidden_state
+        return [encoder_hidden_states] + [decoder_outputs]
 

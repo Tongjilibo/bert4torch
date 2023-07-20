@@ -29,7 +29,7 @@
 import torch
 import os
 
-choice = 'llama2-7b'
+choice = 'belle'
 
 if choice == 'belle':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'
@@ -73,7 +73,8 @@ elif isinstance(ckpt_file, list):
 
 new_state_dict[f'{prefix}.embeddings.word_embeddings.weight'] = state_dict['model.embed_tokens.weight']
 new_state_dict[f'{prefix}.LayerNormFinal.weight'] = state_dict['model.norm.weight']
-new_state_dict[f'{prefix}.lm_head.weight'] = state_dict['lm_head.weight']
+new_state_dict[f'{prefix}.lm_head.weight'] = state_dict['lm_head.weight']  # 在v3.0.0之后（不含），这里的dense改为了lm_head, 如果使用v3.0.0（含）之前的，需要改为dense
+# new_state_dict[f'{prefix}.dense.weight'] = state_dict['lm_head.weight']
 
 for i in range(num_hidden_layers):
     prefix_i = f'{prefix}.encoder.layer.%d.' % i
