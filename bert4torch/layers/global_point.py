@@ -8,6 +8,10 @@ class GlobalPointer(nn.Module):
     """全局指针模块
     将序列的每个(start, end)作为整体来进行判断
     参考：https://kexue.fm/archives/8373
+
+    :param hidden_size: 即模型最顶层输出的hidden_size
+    :param heads heads: 在实体识别和关系提取中，分别代表着实体个数和关系个数
+    :param head_size: 即每个heads的神经元个数，点积时候使用，相当于attention
     """
     def __init__(self, hidden_size, heads, head_size, RoPE=True, use_bias=True, tril_mask=True):
         super().__init__()
