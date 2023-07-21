@@ -1,42 +1,28 @@
-from bert4torch.models.base import LM_Mask
-from bert4torch.models.bert import BERT
+from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import LayerNorm, BertLayer, BlockIdentity
 from bert4torch.activations import get_activation
 from torch import nn
-import torch.nn.functional as F
 import copy
 
 
-class LLaMA(LM_Mask, BERT):
+class LLaMA(Decoder):
     '''LLaMA
     链接: https://github.com/facebookresearch/llama
     改动：模型结构和gpt2类似，去掉bias，简化Norm, feedForward不同
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, p_bias='rotary', **kwargs):
-        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True})
+        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         layer = self.TransformerBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
                                                     'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+        self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, norm_mode=kwargs['norm_mode'], bias=kwargs['bias'])
-        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False) 
-        self.final_activation = get_activation(kwargs.get('final_activation', 'linear'))
         # 修改feedword
-        for layer in self.encoderLayer:
+        for layer in self.decoderLayer:
             layer.feedForward = self.FeedForward(self.hidden_size, **kwargs)
-        self.tie_weights()
-
-    def tie_weights(self):
-        if self.tie_emb_prj_weight:
-            self.lm_head.weight = self.embeddings.word_embeddings.weight
-
-    def apply_final_layers(self, **model_kwargs):
-        hidden_state = super().apply_final_layers(**model_kwargs)
-        logit = self.lm_head(self.LayerNormFinal(hidden_state))
-        return self.final_activation(logit)
 
     def load_variable(self, state_dict, name):
         return super(LLaMA, self).load_variable(state_dict, name, prefix='llama')
@@ -44,11 +30,9 @@ class LLaMA(LM_Mask, BERT):
     def variable_mapping(self, prefix='llama'):
         # 映射到权重格式
         mapping = super(LLaMA, self).variable_mapping(prefix=prefix)
-        mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
-                        'lm_head.weight': f'{prefix}.lm_head.weight'})
         for i in range(self.num_hidden_layers):
             prefix_i = f'{prefix}.encoder.layer.%d.' % i
-            mapping.update({f'encoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})
+            mapping.update({f'decoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})
         return mapping
     
     class TransformerBlock(BertLayer):

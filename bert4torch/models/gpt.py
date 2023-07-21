@@ -1,9 +1,6 @@
-from bert4torch.models.base import LM_Mask
-from bert4torch.models.bert import BERT
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
-from bert4torch.activations import get_activation
-from bert4torch.layers import LayerNorm, BertLayer, BlockIdentity
+from bert4torch.layers import BertLayer, BlockIdentity
 from torch import nn
 import copy
 
