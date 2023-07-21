@@ -56,7 +56,7 @@ class BertLayer(nn.Module):
         x = self.layerNorm2(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
         feedforward_output = self.feedForward(x)
         residual = x if self.apply_residual_post_layernorm else hidden_states
-        hidden_states = residual + + self.dropout2(feedforward_output)
+        hidden_states = residual + self.dropout2(feedforward_output)
         hidden_states = self.layerNorm2(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
         
         if self.is_decoder:

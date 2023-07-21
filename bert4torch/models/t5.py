@@ -138,6 +138,7 @@ class T5(Transformer):
 
         # decoder
         kwargs['add_cross_attention'] = True
+        kwargs['logit_scale'] = kwargs.get('logit_scale', True)
         self.decoder = T5_Decoder(*args, **kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):

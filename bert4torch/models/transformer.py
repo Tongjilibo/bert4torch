@@ -26,7 +26,7 @@ class Encoder(BERT):
 class Decoder(LM_Mask, BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
-    def __init__(self, *args, logit_scale=True, final_layernorm=False, **kwargs):
+    def __init__(self, *args, logit_scale=False, final_layernorm=False, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -42,10 +42,8 @@ class Decoder(LM_Mask, BERT):
             # decoder底层的embedding和顶层的全连接共享
             # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
             self.tie_weights()
-            if logit_scale:  # T5默认会有logit_scale, bart默认没有，所以bart要传入false
-                self.x_logit_scale = (self.hidden_size ** -0.5)
-            else:
-                self.x_logit_scale = 1.
+            if logit_scale:  # T5默认会有logit_scale, bart默认没有
+                self.logit_scale = (self.hidden_size ** -0.5)
         
         if self.final_layernorm:
             self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), conditional_size=self.conditional_size, bias=True)
@@ -74,13 +72,14 @@ class Decoder(LM_Mask, BERT):
         return model_kwargs
     
     def apply_final_layers(self, **model_kwargs):
-        hidden_states = model_kwargs['decoded_layers'][-1]  # outputs为decoder顶层的hidden_states [btz, seq_len, hdsz]
+        hidden_states = model_kwargs['decoded_layers'][-1]  # decoder顶层的hidden_states [btz, seq_len, hdsz]
 
         if self.final_layernorm:
             hidden_states = self.LayerNormFinal(hidden_states)
         
         if self.with_lm:
-            logits = self.lm_head(hidden_states) * self.x_logit_scale  # outputs为[btz, seq_len, vocab_size]的logits
+            logits = self.lm_head(hidden_states)  # [btz, seq_len, vocab_size]
+            logits = logits * self.logit_scale if hasattr(self, 'logit_scale') else logits
             logits = self.final_activation(logits)
             return logits
         return hidden_states
@@ -94,7 +93,7 @@ class Decoder(LM_Mask, BERT):
         if self.final_layernorm:
             mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
                             'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias'})
-        if self.with_lm:
+        if self.with_lm and (not self.tie_emb_prj_weight):  # 当且仅当未绑定权重的时候
             mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
 
