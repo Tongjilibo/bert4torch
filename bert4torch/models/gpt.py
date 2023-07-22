@@ -8,11 +8,11 @@ import copy
 class GPT(Decoder):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
+    1. 有segment, embedding是token、position、segment三者embedding之和
+    2. embedding没有加LayerNormalization层
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        """GPT的embedding是token、position、segment三者embedding之和，跟BERT的主要区别是三者相加之后embedding没有加LayerNormalization层。
-        """
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
@@ -28,13 +28,13 @@ class GPT(Decoder):
 class GPT2(Decoder):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm
+    1. 没有segment输入
+    2. embedding之后没有LayerNormalization层
+    3. 使用pre_layernorm, bert的layernorm是在attn/ffc之后，OpenAi-gpt2是在之前。
+    4. 有final_layernorm
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        """GPT2的embedding是token、position两者embedding之和。
-           1、跟BERT的主要区别是两者相加之后的embedding没有加LayerNormalization层。
-           2、用的是pre_layernorm, bert的layernorm是在attn/ffc之后，OpenAi-gpt2是在之前。
-        """
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         kwargs['pre_layernorm'] = kwargs.get('pre_layernorm', True)
         kwargs['final_layernorm'] = kwargs.get('final_layernorm', True)
@@ -53,7 +53,8 @@ class GPT2_ML(Decoder):
     """构建GPT2_ML模型；
     链接: https://github.com/imcaspar/gpt2-ml；
     注意：GPT2_ML虽然号称GPT2，但是它的结构其实更接近GPT，它自称GPT2的原因大概是因为它开源的版本参数量达到了GPT2的15亿参数。
-    看完ckpt中的key，和GPT的区别是embedding后也有layernorm，和bert的区别是第二个跳跃链接的输入是在layernorm前，bert是在之后
+    1. embedding后也有layernorm
+    2. 第二个跳跃链接的输入是在layernorm前，bert是在之后
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):

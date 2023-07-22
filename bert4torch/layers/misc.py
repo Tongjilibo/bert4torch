@@ -72,7 +72,14 @@ class BlockIdentity(nn.Module):
         super(BlockIdentity, self).__init__()
 
     def forward(self, *args, **kwargs):
-        return kwargs
+        if (len(args) > 0) and (len(kwargs) > 0):
+            return args, kwargs
+        elif len(args) > 0:
+            return args[0] if len(args) == 1 else args
+        elif len(kwargs) > 0:
+            return kwargs
+        else:
+            return None
 
 
 class BERT_WHITENING():
@@ -365,16 +372,23 @@ def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
         param.requires_grad = False
     if adapter_method == 'bottleneck':
         # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
+        
+        try:
+            layers = model.encoderLayer
+        except:
+            layers = model.decoderLayer
+        
+        # TODO: 这里需要测试一下前面layers赋值是否真的对原始的layers修改了
         for layer_id in range(model.num_hidden_layers):
-            transformer_layer = model.encoderLayer[layer_id].multiHeadAttention.o
+            transformer_layer = layers[layer_id].multiHeadAttention.o
             out_featuers = transformer_layer.out_features
             adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
-            model.encoderLayer[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
+            layers[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
 
-            transformer_layer = model.encoderLayer[layer_id].feedForward
+            transformer_layer = layers[layer_id].feedForward
             out_featuers = transformer_layer.outputDense.out_features
             adapter2 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
-            model.encoderLayer[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
+            layers[layer_id].feedForward = nn.Sequential(transformer_layer, adapter2)
     # 待新增其余类型adapter
     else:
         pass

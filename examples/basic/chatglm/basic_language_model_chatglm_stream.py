@@ -10,13 +10,12 @@
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
-from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
+from bert4torch.generation import SeqGeneration
 import platform
 import os
 import signal
 import re
-from typing import Dict, Tuple, Union, Optional
-from torch.nn import Module
+
 
 choice = 'v1.1.0'  # default, int4, int8, v1.1.0
 if choice == 'default':

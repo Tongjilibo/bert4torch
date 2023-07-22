@@ -46,7 +46,9 @@ class Decoder(LM_Mask, BERT):
                 self.logit_scale = (self.hidden_size ** -0.5)
         
         if self.final_layernorm:
-            self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), conditional_size=self.conditional_size, bias=True)
+            self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), 
+                                            conditional_size=self.conditional_size, norm_mode=kwargs.get('norm_mode', 'normal'),
+                                            weight=kwargs.get('weight', True), bias=kwargs.get('bias', True))
 
     def tie_weights(self):
         if self.tie_emb_prj_weight is True:
@@ -84,6 +86,16 @@ class Decoder(LM_Mask, BERT):
             return logits
         return hidden_states
 
+    def load_variable(self, state_dict, name, prefix='bert'):
+        """加载单个变量的函数, 这里的名称均为映射前的"""
+        variable = state_dict[name]
+        if name in {f'{prefix}.embeddings.word_embeddings.weight', 'lm_head.weight'}:
+            return self.load_embeddings(variable)
+        elif name == f'{prefix}.embeddings.position_embeddings.weight':
+            return self.load_pos_embeddings(variable)
+        else:
+            return variable
+        
     def variable_mapping(self, prefix='bert'):
         raw_mapping = super().variable_mapping(prefix)
         mapping = {}

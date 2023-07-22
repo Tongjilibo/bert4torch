@@ -8,7 +8,8 @@ chatglm2-int4: https://huggingface.co/THUDM/chatglm2-6b-int4
 import torch
 import re
 
-choice = 'chatglm2-int4'  # default, int4, int8, v1.1.0, chatglm2, chatglm2-int4
+choice = 'default'  # default, int4, int8, v1.1.0, chatglm2, chatglm2-int4
+layer_prefix = 'decoderLayer'  # v0.3.0(含)之前使用 encoderLayer ，之后使用 decoderLayer
 
 if choice == 'default':
     dir_path = 'E:/pretrain_ckpt/chatglm/6B/'
@@ -39,18 +40,18 @@ def trans_chatglm(state_dict_tmp):
             tensor_list = torch.split(value, 128, 0)
             q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
             q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.q.weight_scale'] = q
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.k.weight_scale'] = k
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.v.weight_scale'] = v
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.q.weight_scale'] = q
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.k.weight_scale'] = k
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.v.weight_scale'] = v
         elif re.search("transformer\.layers\.[0-9]+\.attention\.dense\.weight_scale", key):
             l = re.findall('[0-9]+', key)[0]
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.o.weight_scale'] = value
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.o.weight_scale'] = value
         elif re.search("transformer\.layers\.[0-9]+\.mlp\.dense_h_to_4h\.weight_scale", key):
             l = re.findall('[0-9]+', key)[0]
-            new_weights[f'encoderLayer.{l}.feedForward.intermediateDense.weight_scale'] = value
+            new_weights[f'{layer_prefix}.{l}.feedForward.intermediateDense.weight_scale'] = value
         elif re.search("transformer\.layers\.[0-9]+\.mlp\.dense_4h_to_h\.weight_scale", key):
             l = re.findall('[0-9]+', key)[0]
-            new_weights[f'encoderLayer.{l}.feedForward.outputDense.weight_scale'] = value
+            new_weights[f'{layer_prefix}.{l}.feedForward.outputDense.weight_scale'] = value
 
         elif re.search("transformer\.layers\.[0-9]+\.attention\.query_key_value\.weight", key):
             l = re.findall('[0-9]+', key)[0]
@@ -79,18 +80,18 @@ def trans_chatglm2(state_dict_tmp):
         # int4和int8专属
         if re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.query_key_value\.weight_scale", key):
             q, k, v = torch.split(value, [4096, 256, 256], 0)
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.q.weight_scale'] = q
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.k.weight_scale'] = k
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.v.weight_scale'] = v
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.q.weight_scale'] = q
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.k.weight_scale'] = k
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.v.weight_scale'] = v
         elif re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.dense\.weight_scale", key):
             l = re.findall('[0-9]+', key)[0]
-            new_weights[f'encoderLayer.{l}.multiHeadAttention.o.weight_scale'] = value
+            new_weights[f'{layer_prefix}.{l}.multiHeadAttention.o.weight_scale'] = value
         elif re.search("transformer\.encoder\.layers\.[0-9]+\.mlp\.dense_h_to_4h\.weight_scale", key):
             l = re.findall('[0-9]+', key)[0]
-            new_weights[f'encoderLayer.{l}.feedForward.intermediateDense.weight_scale'] = value
+            new_weights[f'{layer_prefix}.{l}.feedForward.intermediateDense.weight_scale'] = value
         elif re.search("transformer\.encoder\.layers\.[0-9]+\.mlp\.dense_4h_to_h\.weight_scale", key):
             l = re.findall('[0-9]+', key)[0]
-            new_weights[f'encoderLayer.{l}.feedForward.outputDense.weight_scale'] = value
+            new_weights[f'{layer_prefix}.{l}.feedForward.outputDense.weight_scale'] = value
 
         elif re.search("transformer\.encoder\.layers\.[0-9]+\.self_attention\.query_key_value\.weight", key):
             l = re.findall('[0-9]+', key)[0]
