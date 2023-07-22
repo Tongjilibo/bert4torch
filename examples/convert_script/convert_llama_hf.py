@@ -25,11 +25,13 @@
 [7]. baichuan：https://github.com/baichuan-inc/Baichuan-13B
 [8]. baichuan：https://github.com/baichuan-inc/Baichuan-13B-Chat
     其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
+
+[9]. llama2-7b: https://github.com/facebookresearch/llama
 '''
 import torch
 import os
 
-choice = 'belle'
+choice = 'llama2-7b'
 
 if choice == 'belle':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'

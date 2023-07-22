@@ -165,7 +165,7 @@ class Model(BaseModel):
         pass
 ```
 
-- [自定义训练过程](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/tutorials_custom_fit_progress.py)
+- [自定义训练过程](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_custom_fit_progress.py)
 ```python
 '''
 自定义fit过程，适用于自带fit()不满足需求时
@@ -206,7 +206,7 @@ state_dict = torch.load(save_path, map_location='cpu')  # 加载优化器，断�
 optimizer.load_state_dict(state_dict)
 ```
 
-- [加载transformers模型进行训练](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/tutorials_load_transformers_model.py)
+- [加载transformers模型进行训练](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_load_transformers_model.py)
 ```python
 from transformers import AutoModelForSequenceClassification
 class Model(BaseModel):

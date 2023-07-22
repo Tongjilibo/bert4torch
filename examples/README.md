@@ -16,9 +16,9 @@
 - [basic_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roformer.py)：测试roformer的MLM模型效果。
 - [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_CDial_GPT.py)：测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
 - [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_ml.py)：测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
-- [basic_language_model_uer_gpt2_chinese.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_uer_gpt2_chinese.py)：测试[uer-gpt2-chinese](https://huggingface.co/uer/gpt2-chinese-cluecorpussmall)的的生成效果。
+- [basic_language_model_gpt2_chinese_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_chinese_uer.py)：测试[uer-gpt2-chinese](https://huggingface.co/uer/gpt2-chinese-cluecorpussmall)的的生成效果。
 - [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_cpm_lm.py)：测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
-- [basic_language_model_uer_t5.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_uer_t5.py)：测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)和[uer-t5-base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)的生成效果。
+- [basic_language_model_t5_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5_uer.py)：测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)和[uer-t5-base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)的生成效果。
 - [basic_language_model_t5_pegasus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5_pegasus.py)：测试[t5_pegasus](https://github.com/ZhuiyiTechnology/t5-pegasus)的生成效果。
 - [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 - [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
@@ -32,6 +32,7 @@
 - [basic_language_model_PromptCLUE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_PromptCLUE.py): 测试[PromptCLUE](https://github.com/clue-ai/PromptCLUE)模型。
 - [basic_language_model_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_albert.py): 测试[albert_chinese](https://github.com/brightmart/albert_zh)模型。
 - [basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
+- [basic_language_model_llama2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama2.py): 测试[llama2](https://github.com/facebookresearch/llama)模型。
 - [basic_language_model_llama_vicuna.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_vicuna.py): 测试[vicuna](https://huggingface.co/AlekseyKorshuk/vicuna-7b)模型。
 - [basic_language_model_llama_belle.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_belle.py): 测试[belle](https://huggingface.co/BelleGroup/BELLE-LLAMA-7B-2M)模型。
 - [basic_language_model_llama_chinese_llama_alpaca.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_chinese_llama_alpaca.py): 测试[chinese_llama_alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)模型。
@@ -175,10 +176,10 @@
 
 ## 教程
 
-- [Tutorials](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/Tutorials)：教程说明文档。
-- [tutorials_custom_fit_progress.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/tutorials_custom_fit_progress.py)：教程，自定义训练过程fit函数（集成了训练进度条展示），可用于满足如半精度，梯度裁剪等高阶需求。
-- [tutorials_load_transformers_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/tutorials_load_transformers_model.py)：教程，加载transformer包中模型，可以使用bert4torch中继承的对抗训练等trick。
-- [tutorials_small_tips.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/tutorials/tutorials_small_tips.py)：教程，常见的一些tips集合。
+- [Tutorials](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/Tutorials)：教程说明文档。
+- [tutorials_custom_fit_progress.py](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_custom_fit_progress.py)：教程，自定义训练过程fit函数（集成了训练进度条展示），可用于满足如半精度，梯度裁剪等高阶需求。
+- [tutorials_load_transformers_model.py](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_load_transformers_model.py)：教程，加载transformer包中模型，可以使用bert4torch中继承的对抗训练等trick。
+- [tutorials_small_tips.py](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_small_tips.py)：教程，常见的一些tips集合。
 
 # 二、数据集
 
