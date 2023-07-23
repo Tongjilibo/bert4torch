@@ -9,7 +9,6 @@
 [2] llama_vicuna模型：https://huggingface.co/AlekseyKorshuk/vicuna-7b
     模型说明： https://github.com/lm-sys/FastChat
 
-
 [3]. Ziya-LLaMA-13B_v1.1: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1
 [4]. Ziya-LLaMA-13B_v1: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1
 [5]. Ziya-LLaMA-13B_pretrain: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrain-v1
@@ -26,7 +25,10 @@
 [8]. baichuan：https://github.com/baichuan-inc/Baichuan-13B-Chat
     其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
 
-[9]. llama2-7b: https://github.com/facebookresearch/llama
+[9]. Llama2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
+[10]. Llama2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
+[11]. Llama2-7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+[12]. Llama2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 '''
 import torch
 import os
@@ -55,8 +57,12 @@ elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
     num_hidden_layers = 40
     hidden_size = 5120
-elif choice == 'llama2-7b':
-    ckpt_dir = 'E:/pretrain_ckpt/llama2/llame-2-7b-fp16/'
+elif choice in {'llama2-7b', 'llama2-7b-chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama2/{choice}/'
+    ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
+    num_hidden_layers = 32
+elif choice in {'llama2-13b', 'llama2-13b-chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama2/{choice}/'
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
     num_hidden_layers = 32
 
@@ -75,8 +81,8 @@ elif isinstance(ckpt_file, list):
 
 new_state_dict[f'{prefix}.embeddings.word_embeddings.weight'] = state_dict['model.embed_tokens.weight']
 new_state_dict[f'{prefix}.LayerNormFinal.weight'] = state_dict['model.norm.weight']
-new_state_dict[f'{prefix}.lm_head.weight'] = state_dict['lm_head.weight']  # 在v3.0.0之后（不含），这里的dense改为了lm_head, 如果使用v3.0.0（含）之前的，需要改为dense
-# new_state_dict[f'{prefix}.dense.weight'] = state_dict['lm_head.weight']
+# new_state_dict[f'{prefix}.lm_head.weight'] = state_dict['lm_head.weight']  # 在v3.0.0之后（不含），这里的dense改为了lm_head, 如果使用v3.0.0（含）之前的，需要改为dense
+new_state_dict[f'{prefix}.dense.weight'] = state_dict['lm_head.weight']
 
 for i in range(num_hidden_layers):
     prefix_i = f'{prefix}.encoder.layer.%d.' % i
@@ -119,7 +125,7 @@ torch.save(new_state_dict, output_ckpt_file)
     "intermediate_size": 11008, 
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
-	"norm_eps": 1e-06,
+	"layer_norm_eps": 1e-06,
 	"hidden_act": "silu",
 	"vocab_size": 32000,
 	"segment_vocab_size": 0,
@@ -135,7 +141,7 @@ torch.save(new_state_dict, output_ckpt_file)
 "intermediate_size": 11008, 
 "num_attention_heads": 32,
 "num_hidden_layers": 32,
-"norm_eps": 1e-06,
+"layer_norm_eps": 1e-06,
 "hidden_act": "silu",
 "vocab_size": 32001,
 "segment_vocab_size": 0,
@@ -211,5 +217,22 @@ torch.save(new_state_dict, output_ckpt_file)
   "rope_rank": "updown",
   "p_bias": "alibi",
   "skip_init": true
+}
+'''
+
+# llama2-7b
+'''
+{
+	"hidden_size": 4096,
+    "intermediate_size": 11008, 
+	"num_attention_heads": 32,
+	"num_hidden_layers": 32,
+	"norm_eps": 1e-06,
+	"hidden_act": "silu",
+	"vocab_size": 32000,
+	"segment_vocab_size": 0,
+	"skip_init": true,
+	"layer_norm_eps": 1e-5,
+	"rope_rank": "updown"
 }
 '''

@@ -12,7 +12,7 @@ import platform
 import os
 
 # 原生llama
-dir_path = 'E:/pretrain_ckpt/llama2/llame-2-7b-fp16'
+dir_path = 'E:/pretrain_ckpt/llama2/llama2-7b'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
@@ -23,7 +23,7 @@ model = build_transformer_model(config_path=config_path, checkpoint_path=checkpo
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-tokenizer_config = {'skip_special_tokens': True}
+tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
 article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample', tokenizer_config=tokenizer_config,
                                    maxlen=256, default_rtype='logits', use_states=True)
 
@@ -40,6 +40,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query, include_input=True)      
+        response = article_completion.generate(query, topp=0.95, temperature=0.3, repetition_penalty=1.3, include_input=True)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")

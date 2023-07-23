@@ -11,11 +11,14 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-with_prompt = True
-include_input = not with_prompt
 
 # dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+# with_prompt = False
+
 dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+with_prompt = True
+
+include_input = not with_prompt
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
@@ -45,8 +48,6 @@ if __name__ == '__main__':
     print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
-        if with_prompt:
-            query = generate_prompt(query)
         if query == "stop":
             break
         if query == "clear":
@@ -54,6 +55,8 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
+        if with_prompt:
+            query = generate_prompt(query)
         response = article_completion.generate(query, topk=40, topp=0.9, temperature=0.2, repetition_penalty=1.3, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")

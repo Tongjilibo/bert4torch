@@ -58,7 +58,8 @@ def convert():
     new_weights[f'{prefix}.LayerNormFinal.weight'] = torch_weights['norm.weight']
     
     # output 
-    new_weights[f'{prefix}.dense.weight'] = torch_weights['output.weight']
+    # new_weights[f'{prefix}.dense.weight'] = torch_weights['output.weight']
+    new_weights[f'{prefix}.lm_head.weight'] = torch_weights['output.weight']
 
     for i in range(num_hidden_layers):
         prefix_i = f'{prefix}.encoder.layer.%d.' % i
@@ -98,7 +99,7 @@ if __name__ == '__main__':
     "intermediate_size": 11008, 
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
-	"norm_eps": 1e-06,
+	"layer_norm_eps": 1e-06,
 	"hidden_act": "silu",
 	"vocab_size": 32000,
 	"segment_vocab_size": 0,
@@ -113,7 +114,7 @@ if __name__ == '__main__':
     "intermediate_size": 11008, 
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
-	"norm_eps": 1e-06,
+	"layer_norm_eps": 1e-06,
 	"hidden_act": "silu",
 	"vocab_size": 49953,
 	"segment_vocab_size": 0,
@@ -128,7 +129,7 @@ if __name__ == '__main__':
     "intermediate_size": 11008, 
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
-	"norm_eps": 1e-06,
+	"layer_norm_eps": 1e-06,
 	"hidden_act": "silu",
 	"vocab_size": 49954,
 	"segment_vocab_size": 0,
