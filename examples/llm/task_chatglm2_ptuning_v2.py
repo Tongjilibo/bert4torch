@@ -3,6 +3,7 @@
 # chatglm2的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
 # |            chatglm2              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
 # | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
+# | b4t+pt2+v100+int4+bs1           |   7G      |      ——      |     24.36     |    29.97    |     6.66    |    7.89   |         |
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
