@@ -47,9 +47,9 @@ response_column = 'summary'
 history_column = None
 
 # 模型配置
-dir_path = "/mnt/e/pretrain_ckpt/chatglm2/6B"
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,8)]  # 可加载单个，也可以加载多个
+dir_path = "E:\\pretrain_ckpt\\chatglm2\\6B"
+config_path = dir_path + '\\bert4torch_config.json'
+checkpoint_path = [dir_path + f'\\bert4torch_pytorch_model_{i}.bin' for i in range(1,8)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
@@ -105,8 +105,8 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2', add_trainer=True, 
@@ -114,7 +114,7 @@ model = build_transformer_model(config_path=config_path, checkpoint_path=checkpo
                                 ).half()
 
 # 量化
-load_in_nbit = 4  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
+load_in_nbit = None  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
 if load_in_nbit == 8:
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
@@ -122,8 +122,9 @@ if load_in_nbit == 8:
     class CastOutputToFloat(nn.Sequential):
         def forward(self, x):
             return super().forward(x).to(torch.float32)
-    model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense'])
-    model.dense = CastOutputToFloat(model.dense)
+    model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']) # v3.0.0（含）之前lm_head换成dense
+    # model.dense = CastOutputToFloat(model.dense)  # v3.0.0（含）之前使用
+    model.lm_head = CastOutputToFloat(model.lm_head)
     
 elif load_in_nbit == 4:
     from transformers import BitsAndBytesConfig
@@ -131,7 +132,7 @@ elif load_in_nbit == 4:
                                 bnb_4bit_quant_type='nf4',
                                 bnb_4bit_use_double_quant=True,
                                 bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
-                                llm_int8_skip_modules=['model.embeddings.word_embeddings', 'dense']
+                                llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']  # v3.0.0（含）之前lm_head换成dense
                                 )
     model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)

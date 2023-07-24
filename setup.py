@@ -7,13 +7,13 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setup(
     name='bert4torch',
-    version='v0.3.1.dev',
+    version='v0.3.1',
     description='an elegant bert4torch',
     long_description=long_description,
     long_description_content_type="text/markdown",
     license='MIT Licence',
     url='https://github.com/Tongjilibo/bert4torch',
     author='Tongjilibo',
-    install_requires=['torch>1.6', 'torch4keras==0.0.9'],
+    install_requires=['torch>1.6', 'torch4keras==0.1.0'],
     packages=find_packages()
 )
