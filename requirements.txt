@@ -1,1 +1,1 @@
-torch4keras==0.1.0
+torch4keras==0.1.0.post2
