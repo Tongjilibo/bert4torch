@@ -25,15 +25,15 @@
 [8]. baichuan：https://github.com/baichuan-inc/Baichuan-13B-Chat
     其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
 
-[9]. Llama2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
-[10]. Llama2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
-[11]. Llama2-7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
-[12]. Llama2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
+[9]. Llama-2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
+[10]. Llama-2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
+[11]. Llama-2-7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+[12]. Llama-2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 '''
 import torch
 import os
 
-choice = 'Baichuan-7B'
+choice = 'llama-2-13b-chat'
 
 if choice == 'belle':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'
@@ -57,14 +57,14 @@ elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
     num_hidden_layers = 40
     hidden_size = 5120
-elif choice in {'llama2-7b', 'llama2-7b-chat'}:
-    ckpt_dir = f'E:/pretrain_ckpt/llama2/{choice}/'
+elif choice in {'llama-2-7b', 'llama-2-7b-chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama-2/{choice}/'
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
     num_hidden_layers = 32
-elif choice in {'llama2-13b', 'llama2-13b-chat'}:
-    ckpt_dir = f'E:/pretrain_ckpt/llama2/{choice}/'
+elif choice in {'llama-2-13b', 'llama-2-13b-chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama-2/{choice}/'
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
-    num_hidden_layers = 32
+    num_hidden_layers = 40
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
@@ -222,14 +222,13 @@ torch.save(new_state_dict, output_ckpt_file)
 }
 '''
 
-# llama2-7b
+# llama-2-7b、llama-2-7b-chat
 '''
 {
 	"hidden_size": 4096,
     "intermediate_size": 11008, 
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
-	"norm_eps": 1e-06,
 	"hidden_act": "silu",
 	"vocab_size": 32000,
 	"segment_vocab_size": 0,
@@ -238,3 +237,5 @@ torch.save(new_state_dict, output_ckpt_file)
 	"rope_rank": "updown"
 }
 '''
+
+# llama-2-13b、llama-2-13b-chat

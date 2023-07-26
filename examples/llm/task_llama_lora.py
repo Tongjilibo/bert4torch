@@ -47,13 +47,13 @@ response_column = 'summary'
 history_column = None
 
 # 模型配置
-dir_path = 'E:/pretrain_ckpt/llama2/llama2-7b'
+dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -70,9 +70,15 @@ class MyDataset(ListDataset):
                 D.append((prompt, response, history))
         return D
 
-def build_prompt(query, history=None):
-    # TODO
-    return
+def build_prompt(query, history=[]):
+    if history_column is None:
+        prompt = query
+    else:
+        prompt = ""
+        for i, (old_query, answer) in enumerate(history):
+            prompt += "<s>Human: {}\n</s><s>Assistant: {}".format(old_query, answer)
+        prompt += "<s>Human: {}\n</s><s>Assistant: ".format(query)
+    return prompt
 
 def collate_train_fn(batch):
     batch_token_ids, batch_labels = [], []
