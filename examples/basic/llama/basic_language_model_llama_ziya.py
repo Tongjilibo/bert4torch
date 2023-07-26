@@ -25,7 +25,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half()
-# model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
+model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
 tokenizer_config = {'skip_special_tokens': True}
@@ -37,7 +37,7 @@ def generate_prompt(query):
 
 if __name__ == '__main__':
     os_name = platform.system()
-    print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
+    print("Welcome to use ziya model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
         if with_prompt:
@@ -47,8 +47,8 @@ if __name__ == '__main__':
         if query == "clear":
             command = 'cls' if os_name == 'Windows' else 'clear'
             os.system(command)
-            print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
+            print("Welcome to use ziya model，type `clear` to clear history，type `stop` to stop program")
             continue
         response = article_completion.generate(query, topk=50, topp=1, temperature=0.8, repetition_penalty=1.0, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
-        print(f"\nllama：{response}")
+        print(f"\nZiya：{response}")

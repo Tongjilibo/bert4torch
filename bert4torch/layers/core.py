@@ -117,8 +117,8 @@ class BertEmbeddings(nn.Module):
                 embeddings += emb
 
         if hasattr(self, 'position_embeddings') and (position_ids is not None):
-            assert position_ids.shape[0] in {1, token_ids.shape[0]}, '`position_ids` shape={position_ids.shape} mismatch `token_ids` shape={token_ids.shape}'
-            position_ids = position_ids.repeat(token_ids.shape[0] // position_ids.shape[0], 1)
+            if position_ids.shape[0] == 1:
+                position_ids = position_ids.repeat(token_ids.shape[0], 1)
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
 

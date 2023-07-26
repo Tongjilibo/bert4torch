@@ -29,6 +29,9 @@ elif choice == '13B-Chat':
     with_prompt = True
     maxlen = 4096
     topk, topp, temperature, repetition_penalty = 5, 0.85, 0.3, 1.1
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
+
 include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
