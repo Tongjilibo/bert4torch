@@ -27,15 +27,16 @@
 
 [9]. Llama-2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
 [10]. Llama-2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
-[11]. Llama-2-7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+[11]. Llama-2-c7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
 [12]. Llama-2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 '''
 import torch
 import os
+import json
 
 choice = 'llama-2-13b-chat'
 
-if choice == 'belle':
+if choice == 'belle-llama':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'
     ckpt_file = ckpt_dir + 'pytorch_model.bin'
     num_hidden_layers = 32
@@ -120,122 +121,132 @@ for i in range(num_hidden_layers):
 torch.save(new_state_dict, output_ckpt_file)
 
 # =================config文件=====================
-# llama_belle
-'''
-{
-	"hidden_size": 4096,
+if choice == 'belle-llama':
+    config = \
+    {
+        "hidden_size": 4096,
+        "intermediate_size": 11008, 
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "layer_norm_eps": 1e-06,
+        "hidden_act": "silu",
+        "vocab_size": 32000,
+        "segment_vocab_size": 0,
+        "skip_init": True,
+        "rope_rank": "updown"
+    }
+elif choice == 'vicuna':
+    config = \
+    {
+    "hidden_size": 4096,
     "intermediate_size": 11008, 
-	"num_attention_heads": 32,
-	"num_hidden_layers": 32,
-	"layer_norm_eps": 1e-06,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 32,
+    "layer_norm_eps": 1e-06,
+    "hidden_act": "silu",
+    "vocab_size": 32001,
+    "segment_vocab_size": 0,
+    "skip_init": True,
+    "rope_rank": "updown"
+    }
+elif choice == 'Ziya-LLaMA-13B_v1.1':
+    config = \
+    {
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "hidden_act": "silu",
+    "hidden_size": 5120,
+    "initializer_range": 0.02,
+    "intermediate_size": 13824,
+    "max_position_embeddings": 2048,
+    "num_attention_heads": 40,
+    "num_hidden_layers": 40,
+    "pad_token_id": 0,
+    "layer_norm_eps": 1e-06,
+    "tie_word_embeddings": False,
+    "use_cache": True,
+    "vocab_size": 39424,
+    "segment_vocab_size": 0,
+    "skip_init": True,
+    "rope_rank": "updown"
+    }
+elif choice == 'Baichuan-7B':
+    config = \
+    {
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "hidden_act": "silu",
+    "hidden_size": 4096,
+    "initializer_range": 0.02,
+    "intermediate_size": 11008,
+    "max_position_embeddings": 4096,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 32,
+    "pad_token_id": 0,
+    "layer_norm_eps": 1e-06,
+    "tie_word_embeddings": False,
+    "torch_dtype": "float32",
+    "vocab_size": 64000,
+    "segment_vocab_size": 0,
+    "rope_rank": "updown",
+    "skip_init": True
+    }
+elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
+    config = \
+    {
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "hidden_act": "silu",
+    "hidden_size": 5120,
+    "initializer_range": 0.02,
+    "intermediate_size": 13696,
+    "model_max_length": 4096,
+    "num_attention_heads": 40,
+    "num_hidden_layers": 40,
+    "pad_token_id": 0,
+    "layer_norm_eps": 1e-06,
+    "tie_word_embeddings": False,
+    "torch_dtype": "bfloat16",
+    "vocab_size": 64000,
+    "segment_vocab_size": 0,
+    "rope_rank": "updown",
+    "p_bias": "alibi",
+    "skip_init": True
+    }
+elif choice in {'llama-2-7b', 'llama-2-7b-chat'}:
+    config = \
+    {
+        "hidden_size": 4096,
+        "intermediate_size": 11008, 
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "hidden_act": "silu",
+        "vocab_size": 32000,
+        "segment_vocab_size": 0,
+        "skip_init": True,
+        "layer_norm_eps": 1e-5,
+        "rope_rank": "updown"
+    }
+elif choice in {'llama-2-13b', 'llama-2-13b-chat'}:
+    config = \
+    {
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "pad_token_id": 0,
+	"hidden_size": 5120,
+    "intermediate_size": 13824, 
+	"num_attention_heads": 40,
+	"num_hidden_layers": 40,
+	"initializer_range": 0.02,
 	"hidden_act": "silu",
 	"vocab_size": 32000,
 	"segment_vocab_size": 0,
-    "skip_init": true,
-	"rope_rank": "updown"
-}
-'''
-
-# vicuna
-'''
-{
-"hidden_size": 4096,
-"intermediate_size": 11008, 
-"num_attention_heads": 32,
-"num_hidden_layers": 32,
-"layer_norm_eps": 1e-06,
-"hidden_act": "silu",
-"vocab_size": 32001,
-"segment_vocab_size": 0,
-"skip_init": true,
-"rope_rank": "updown"
-}
-'''
-
-# ziya
-'''
-{
-  "bos_token_id": 1,
-  "eos_token_id": 2,
-  "hidden_act": "silu",
-  "hidden_size": 5120,
-  "initializer_range": 0.02,
-  "intermediate_size": 13824,
-  "max_position_embeddings": 2048,
-  "num_attention_heads": 40,
-  "num_hidden_layers": 40,
-  "pad_token_id": 0,
-  "layer_norm_eps": 1e-06,
-  "tie_word_embeddings": false,
-  "use_cache": true,
-  "vocab_size": 39424,
-  "segment_vocab_size": 0,
-  "skip_init": true,
-  "rope_rank": "updown"
-}
-'''
-
-# baichuan-7b
-'''
-{
-  "bos_token_id": 1,
-  "eos_token_id": 2,
-  "hidden_act": "silu",
-  "hidden_size": 4096,
-  "initializer_range": 0.02,
-  "intermediate_size": 11008,
-  "max_position_embeddings": 4096,
-  "num_attention_heads": 32,
-  "num_hidden_layers": 32,
-  "pad_token_id": 0,
-  "layer_norm_eps": 1e-06,
-  "tie_word_embeddings": false,
-  "torch_dtype": "float32",
-  "vocab_size": 64000,
-  "segment_vocab_size": 0,
-  "rope_rank": "updown",
-  "skip_init": true
-}
-'''
-
-# baichuan-13b和baichuan-13b-chat
-'''
-{
-  "bos_token_id": 1,
-  "eos_token_id": 2,
-  "hidden_act": "silu",
-  "hidden_size": 5120,
-  "initializer_range": 0.02,
-  "intermediate_size": 13696,
-  "model_max_length": 4096,
-  "num_attention_heads": 40,
-  "num_hidden_layers": 40,
-  "pad_token_id": 0,
-  "layer_norm_eps": 1e-06,
-  "tie_word_embeddings": false,
-  "torch_dtype": "bfloat16",
-  "vocab_size": 64000,
-  "segment_vocab_size": 0,
-  "rope_rank": "updown",
-  "p_bias": "alibi",
-  "skip_init": true
-}
-'''
-
-# llama-2-7b、llama-2-7b-chat
-'''
-{
-	"hidden_size": 4096,
-    "intermediate_size": 11008, 
-	"num_attention_heads": 32,
-	"num_hidden_layers": 32,
-	"hidden_act": "silu",
-	"vocab_size": 32000,
-	"segment_vocab_size": 0,
-	"skip_init": true,
+	"skip_init": True,
 	"layer_norm_eps": 1e-5,
-	"rope_rank": "updown"
-}
-'''
+	"rope_rank": "updown",
+    "tie_word_embeddings": False,
+	"torch_dtype": "float16"
+    }
 
-# llama-2-13b、llama-2-13b-chat
+with open(ckpt_dir+'/bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))

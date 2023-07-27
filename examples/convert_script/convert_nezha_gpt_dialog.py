@@ -3,8 +3,10 @@
 
 import torch
 import tensorflow as tf
+import json
 
-tf_path = 'E:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/model.ckpt'
+ckpt_dir = 'E:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/'
+tf_path = ckpt_dir + 'model.ckpt'
 torch_state_dict = {}
 
 prefix = 'bert'
@@ -52,11 +54,9 @@ for key, value in mapping.items():
 torch_state_dict['cls.predictions.decoder.weight'] = torch_state_dict[f'{prefix}.embeddings.word_embeddings.weight']
 torch_state_dict['cls.predictions.decoder.bias'] = torch_state_dict['cls.predictions.bias']
 
-torch.save(torch_state_dict, 'E:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/pytorch_model.bin')
+torch.save(torch_state_dict, ckpt_dir + 'pytorch_model.bin')
 
-
-# config文件
-'''
+config = \
 {
   "attention_probs_dropout_prob": 0.1,
   "hidden_act": "gelu",
@@ -70,6 +70,8 @@ torch.save(torch_state_dict, 'E:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt
   "num_hidden_layers": 12,
   "type_vocab_size": 2,
   "vocab_size": 14195,
-  "use_relative_position": true
+  "use_relative_position": True
 }
-'''
+
+with open(ckpt_dir+'/bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))

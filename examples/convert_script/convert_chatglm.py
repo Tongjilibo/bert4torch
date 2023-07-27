@@ -7,6 +7,8 @@ chatglm2-int4: https://huggingface.co/THUDM/chatglm2-6b-int4
 '''
 import torch
 import re
+import json
+
 
 choice = 'default'  # default, int4, int8, v1.1.0, chatglm2, chatglm2-int4
 layer_prefix = 'decoderLayer'  # v0.3.0(含)之前使用 encoderLayer ，之后使用 decoderLayer
@@ -23,7 +25,9 @@ elif choice == 'chatglm2':
     dir_path = 'E:/pretrain_ckpt/chatglm2/6B/'
 elif choice == 'chatglm2-int4':
     dir_path = 'E:/pretrain_ckpt/chatglm2/6B-int4/'
-
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
+    
 
 def trans_chatglm(state_dict_tmp):
     '''chatglm权重转换'''
@@ -152,33 +156,9 @@ elif choice == 'chatglm2-int4':
 
 
 # config配置
-'''
-{
-  "hidden_act": "gelu_new", 
-  "bos_token_id": 130004,
-  "eos_token_id": 130005,
-  "mask_token_id": 130000,
-  "gmask_token_id": 130001,
-  "pad_token_id": 3,
-  "hidden_size": 4096,
-  "intermediate_size": 16384,
-  "layer_norm_eps": 1e-05,
-  "max_sequence_length": 2048,
-  "num_attention_heads": 32,
-  "num_hidden_layers": 28,
-  "position_encoding_2d": true,
-  "torch_dtype": "float16",
-  "vocab_size": 130528,
-  "segment_vocab_size": 0,
-  "skip_init": true,
-  "rope_rank": "updown",
-  "tie_emb_prj_weight": false
-}
-'''
-
-# int4 config
-'''
-{
+if choice in {'default', 'v1.1.0'}:
+    config = \
+    {
     "hidden_act": "gelu_new", 
     "bos_token_id": 130004,
     "eos_token_id": 130005,
@@ -191,94 +171,121 @@ elif choice == 'chatglm2-int4':
     "max_sequence_length": 2048,
     "num_attention_heads": 32,
     "num_hidden_layers": 28,
-    "position_encoding_2d": true,
+    "position_encoding_2d": True,
     "torch_dtype": "float16",
     "vocab_size": 130528,
     "segment_vocab_size": 0,
-    "skip_init": true,
+    "skip_init": True,
     "rope_rank": "updown",
-    "quantization_bit": 4,
-    "quantization_method": "cpm_kernels",
-    "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
-    "tie_emb_prj_weight": false
-}
-'''
+    "tie_emb_prj_weight": False
+    }
+
+# int4 config
+elif choice == 'int4':
+    config = \
+    {
+        "hidden_act": "gelu_new", 
+        "bos_token_id": 130004,
+        "eos_token_id": 130005,
+        "mask_token_id": 130000,
+        "gmask_token_id": 130001,
+        "pad_token_id": 3,
+        "hidden_size": 4096,
+        "intermediate_size": 16384,
+        "layer_norm_eps": 1e-05,
+        "max_sequence_length": 2048,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 28,
+        "position_encoding_2d": True,
+        "torch_dtype": "float16",
+        "vocab_size": 130528,
+        "segment_vocab_size": 0,
+        "skip_init": True,
+        "rope_rank": "updown",
+        "quantization_bit": 4,
+        "quantization_method": "cpm_kernels",
+        "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
+        "tie_emb_prj_weight": False
+    }
 
 # int8 config
-'''
-{
-  "hidden_act": "gelu_new", 
-  "bos_token_id": 130004,
-  "eos_token_id": 130005,
-  "mask_token_id": 130000,
-  "gmask_token_id": 130001,
-  "pad_token_id": 3,
-  "hidden_size": 4096,
-  "intermediate_size": 16384,
-  "layer_norm_eps": 1e-05,
-  "max_sequence_length": 2048,
-  "num_attention_heads": 32,
-  "num_hidden_layers": 28,
-  "position_encoding_2d": true,
-  "torch_dtype": "float16",
-  "vocab_size": 130528,
-  "segment_vocab_size": 0,
-  "skip_init": true,
-  "rope_rank": "updown",
-  "quantization_bit": 8,
-  "quantization_method": "cpm_kernels",
-  "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
-  "tie_emb_prj_weight": false
-}
-'''
+elif choice == 'int8':
+    config = \
+    {
+    "hidden_act": "gelu_new", 
+    "bos_token_id": 130004,
+    "eos_token_id": 130005,
+    "mask_token_id": 130000,
+    "gmask_token_id": 130001,
+    "pad_token_id": 3,
+    "hidden_size": 4096,
+    "intermediate_size": 16384,
+    "layer_norm_eps": 1e-05,
+    "max_sequence_length": 2048,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 28,
+    "position_encoding_2d": True,
+    "torch_dtype": "float16",
+    "vocab_size": 130528,
+    "segment_vocab_size": 0,
+    "skip_init": True,
+    "rope_rank": "updown",
+    "quantization_bit": 8,
+    "quantization_method": "cpm_kernels",
+    "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"],
+    "tie_emb_prj_weight": False
+    }
 
 # chatglm2
-'''
-{
-  "hidden_act": "swiglu", 
-  "hidden_size": 4096,
-  "intermediate_size": 13696,
-  "layer_norm_eps": 1e-05,
-  "max_sequence_length": 32768,
-  "num_attention_heads": 32,
-  "num_hidden_layers": 28,
-  "vocab_size": 65024,
-  "segment_vocab_size": 0,
-  "multi_query_group_num": 2,
-  "skip_init": true,
-  "tie_emb_prj_weight": false,
-  "eos_token_id": 2,
-  "pad_token_id": 0,
-  "rmsnorm": true,
-  "rope_rank": "updown",
-  "position_encoding_2d_v2": true,
-  "flash_attention": true
-}
-'''
+elif choice == 'chatglm2':
+    config = \
+    {
+    "hidden_act": "swiglu", 
+    "hidden_size": 4096,
+    "intermediate_size": 13696,
+    "layer_norm_eps": 1e-05,
+    "max_sequence_length": 32768,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 28,
+    "vocab_size": 65024,
+    "segment_vocab_size": 0,
+    "multi_query_group_num": 2,
+    "skip_init": True,
+    "tie_emb_prj_weight": False,
+    "eos_token_id": 2,
+    "pad_token_id": 0,
+    "rmsnorm": True,
+    "rope_rank": "updown",
+    "position_encoding_2d_v2": True,
+    "flash_attention": True
+    }
 
 # chatglm2-int4
-'''
-{
-  "hidden_act": "swiglu", 
-  "hidden_size": 4096,
-  "intermediate_size": 13696,
-  "layer_norm_eps": 1e-05,
-  "max_sequence_length": 32768,
-  "num_attention_heads": 32,
-  "num_hidden_layers": 28,
-  "vocab_size": 65024,
-  "segment_vocab_size": 0,
-  "multi_query_group_num": 2,
-  "skip_init": true,
-  "tie_emb_prj_weight": false,
-  "eos_token_id": 2,
-  "pad_token_id": 0,
-  "rmsnorm": true,
-  "rope_rank": "updown",
-  "position_encoding_2d_v2": true,
-  "flash_attention": true,
-  "quantization_bit": 4,
-  "quantization_method": "cpm_kernels",
-  "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
-}
-'''
+elif choice == 'chatglm2-int4':
+    config = \
+    {
+    "hidden_act": "swiglu", 
+    "hidden_size": 4096,
+    "intermediate_size": 13696,
+    "layer_norm_eps": 1e-05,
+    "max_sequence_length": 32768,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 28,
+    "vocab_size": 65024,
+    "segment_vocab_size": 0,
+    "multi_query_group_num": 2,
+    "skip_init": True,
+    "tie_emb_prj_weight": False,
+    "eos_token_id": 2,
+    "pad_token_id": 0,
+    "rmsnorm": True,
+    "rope_rank": "updown",
+    "position_encoding_2d_v2": True,
+    "flash_attention": True,
+    "quantization_bit": 4,
+    "quantization_method": "cpm_kernels",
+    "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
+    }
+
+with open(dir_path+'bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))

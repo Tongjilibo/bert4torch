@@ -2,6 +2,7 @@
 bloom-560m:  https://huggingface.co/bigscience/bloom-560m
 '''
 import torch
+import json
 
 ckpt_dir = 'E:/pretrain_ckpt/bloom/bloom-560m/'
 ckpt_file = ckpt_dir + 'pytorch_model.bin'
@@ -64,12 +65,12 @@ torch.save(new_state_dict, output_ckpt_file)
 
 
 # bloom-560m
-'''
+config = \
 {
-  "apply_residual_connection_post_layernorm": false,
+  "apply_residual_connection_post_layernorm": False,
   "attention_dropout": 0.0,
-  "attention_softmax_in_fp32": true,
-  "bias_dropout_fusion": true,
+  "attention_softmax_in_fp32": True,
+  "bias_dropout_fusion": True,
   "bos_token_id": 1,
   "eos_token_id": 2,
   "pad_token_id": 3,
@@ -84,13 +85,12 @@ torch.save(new_state_dict, output_ckpt_file)
   "num_attention_heads": 16,
   "offset_alibi": 100,
   "pretraining_tp": 1,
-  "skip_bias_add": true,
-  "skip_bias_add_qkv": false,
+  "skip_bias_add": True,
+  "skip_bias_add_qkv": False,
   "vocab_size": 250880,
   "segment_vocab_size": 0,
-  "pre_layernorm": true,
-  "tie_emb_prj_weight": true
+  "pre_layernorm": True,
+  "tie_emb_prj_weight": True
 }
-'''
-
-
+with open(ckpt_dir+'bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))

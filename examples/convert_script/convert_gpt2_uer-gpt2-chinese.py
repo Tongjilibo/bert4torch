@@ -4,6 +4,7 @@
 # 最后经过本脚本转成bert4torch适用的权重
 
 import torch
+import json
 
 ckpt_dir = 'E:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall'
 ckpt_file = f'{ckpt_dir}/pytorch_model.bin'
@@ -91,18 +92,18 @@ def convert():
 if __name__ == '__main__':
     convert()
 
-# config文件
-'''
-{
-  "vocab_size": 21128,
-  "hidden_size": 768,
-  "attention_probs_dropout_prob": 0.1,
-  "hidden_dropout_prob": 0.1,
-  "hidden_act": "gelu",
-  "initializer_range": 0.014142135623731,
-  "intermediate_size": 3072,
-  "max_position_embeddings": 1024,
-  "num_attention_heads": 12,
-  "num_hidden_layers": 12
-}
-'''
+    config = \
+    {
+    "vocab_size": 21128,
+    "hidden_size": 768,
+    "attention_probs_dropout_prob": 0.1,
+    "hidden_dropout_prob": 0.1,
+    "hidden_act": "gelu",
+    "initializer_range": 0.014142135623731,
+    "intermediate_size": 3072,
+    "max_position_embeddings": 1024,
+    "num_attention_heads": 12,
+    "num_hidden_layers": 12
+    }
+    with open(ckpt_dir+'/bert4torch_config.json', 'w') as f:
+        f.write(json.dumps(config, indent=4))

@@ -2,6 +2,7 @@
 # 这里直接映射到GAU_alpha的结构上了，因此不需要mapping
 import torch
 import tensorflow as tf
+import json
 
 tf_path = 'E:/pretrain_ckpt/gau/[sushen-tf]--chinese_GAU-alpha-char_L-24_H-768/bert_model.ckpt'
 torch_state_dict = {}
@@ -26,11 +27,12 @@ for i in range(24):
     ts = torch.stack([torch.from_numpy(ts1), torch.from_numpy(ts2)], dim=0)
     torch_state_dict[f'encoderLayer.{i}.gau.offsetscale.gamma'] = ts
 
-torch.save(torch_state_dict, 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/pytorch_model.bin')
+dir_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/'
+torch.save(torch_state_dict, dir_path + 'pytorch_model.bin')
 
 
 # config文件
-'''
+config = \
 {
   "hidden_act": "swish",
   "hidden_size": 768,
@@ -43,4 +45,6 @@ torch.save(torch_state_dict, 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-a
   "type_vocab_size": 2,
   "vocab_size": 12000
 }
-'''
+
+with open(dir_path+'bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))

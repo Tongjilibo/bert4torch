@@ -34,12 +34,18 @@
 """
 
 import torch
+import json
 
-# llama:                   E:/pretrain_ckpt/llama/7B
-# chinese_llama_plus_7b：  E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b
-# chinese_alpaca_plus_7b:  E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b
-
-ckpt_dir = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+choice = 'llama'
+if choice == 'llame':
+    ckpt_dir = 'E:/pretrain_ckpt/llama/7B'
+elif choice == 'chinese_llama_plus_7b':
+    ckpt_dir = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+elif choice == 'chinese_alpaca_plus_7b':
+    ckpt_dir = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
+    
 ckpt_file = f'{ckpt_dir}/consolidated.00.pth'
 output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
 num_hidden_layers = 32
@@ -92,47 +98,45 @@ def convert():
 if __name__ == '__main__':
     convert()
 
-# llama的config文件
-'''
-{
-	"hidden_size": 4096,
-    "intermediate_size": 11008, 
-	"num_attention_heads": 32,
-	"num_hidden_layers": 32,
-	"layer_norm_eps": 1e-06,
-	"hidden_act": "silu",
-	"vocab_size": 32000,
-	"segment_vocab_size": 0,
-    "skip_init": true
-}
-'''
+    if choice == 'llame':
+        config = \
+            {
+            "hidden_size": 4096,
+            "intermediate_size": 11008, 
+            "num_attention_heads": 32,
+            "num_hidden_layers": 32,
+            "layer_norm_eps": 1e-06,
+            "hidden_act": "silu",
+            "vocab_size": 32000,
+            "segment_vocab_size": 0,
+            "skip_init": True
+            }
+    elif choice == 'chinese_llama_plus_7b':
+        config = \
+        {
+            "hidden_size": 4096,
+            "intermediate_size": 11008, 
+            "num_attention_heads": 32,
+            "num_hidden_layers": 32,
+            "layer_norm_eps": 1e-06,
+            "hidden_act": "silu",
+            "vocab_size": 49953,
+            "segment_vocab_size": 0,
+            "skip_init": True
+        }
+    elif choice == 'chinese_alpaca_plus_7b':
+        config = \
+            {
+            "hidden_size": 4096,
+            "intermediate_size": 11008, 
+            "num_attention_heads": 32,
+            "num_hidden_layers": 32,
+            "layer_norm_eps": 1e-06,
+            "hidden_act": "silu",
+            "vocab_size": 49954,
+            "segment_vocab_size": 0,
+            "skip_init": True
+        }
 
-# chinese_llama_plus_7b的config文件
-'''
-{
-	"hidden_size": 4096,
-    "intermediate_size": 11008, 
-	"num_attention_heads": 32,
-	"num_hidden_layers": 32,
-	"layer_norm_eps": 1e-06,
-	"hidden_act": "silu",
-	"vocab_size": 49953,
-	"segment_vocab_size": 0,
-    "skip_init": true
-}
-'''
-
-# chinese_alpaca_plus_7b
-'''
-{
-	"hidden_size": 4096,
-    "intermediate_size": 11008, 
-	"num_attention_heads": 32,
-	"num_hidden_layers": 32,
-	"layer_norm_eps": 1e-06,
-	"hidden_act": "silu",
-	"vocab_size": 49954,
-	"segment_vocab_size": 0,
-    "skip_init": true
-}
-'''
+    with open(ckpt_dir+'/bert4torch_config.json', 'w') as f:
+        f.write(json.dumps(config, indent=4))

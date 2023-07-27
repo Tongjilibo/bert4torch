@@ -5,7 +5,6 @@
 # 选择v1还是v2
 # ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/"  # v1.0
 ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base_v2.0]/"  # v2.0
-# ckpt_dir = "/Users/lb/Documents/pretrain_ckpt/bart/[FudanNLP_torch_base_v2.0]/"  # v2.0
 texts = ["北京是[MASK]的首都", "今天的天气是[MASK]，可以正常出海"]
 
 # ==============================transformers=====================================

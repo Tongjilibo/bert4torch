@@ -1,9 +1,10 @@
 # 权重链接：https://huggingface.co/transfo-xl-wt103
 # 该项目是英文的：只用于bert4torch中transformer_xl的调试模型结构，并未实际用于finetune
 import torch
+import json
 
-
-ckpt_file = 'E:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/pytorch_model.bin'
+ckpt_dir = 'E:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/'
+ckpt_file = ckpt_dir + 'pytorch_model.bin'
 torch_state_dict = {}
 # 1表示transpose, 0表示不变
 key_map = {
@@ -46,58 +47,60 @@ for i in range(18):
 torch.save(model_new, 'E:/pretrain_ckpt/transformer_xl/[english_hugging_face_torch]--transfo-xl-wt103/bert4torch_pytorch_model.bin')
 
 # config文件
-'''
-{
-  "adaptive": true,
-  "architectures": [
-    "TransfoXLLMHeadModel"
-  ],
-  "attn_type": 0,
-  "clamp_len": 1000,
-  "cutoffs": [
-    20000,
-    40000,
-    200000
-  ],
-  "d_embed": 1024,
-  "d_head": 64,
-  "intermediate_size": 4096,
-  "hidden_size": 1024,
-  "div_val": 4,
-  "is_dropout": true,
-  "adaptive_embedding": true,
-  "attention_probs_dropout_prob": 0.0,
-  "hidden_dropout_prob": 0.1,
-  "hidden_act": "relu", 
-  "eos_token_id": 0,
-  "ext_len": 0,
-  "init": "normal",
-  "init_range": 0.01,
-  "init_std": 0.02,
-  "layer_norm_epsilon": 1e-05,
-  "mem_len": 1600,
-  "model_type": "transfo-xl",
-  "num_attention_heads": 16,
-  "num_hidden_layers": 18,
-  "pre_layernorm": false,
-  "proj_init_std": 0.01,
-  "same_length": true,
-  "sample_softmax": -1, 
-  "task_specific_params": {
-    "text-generation": {
-      "do_sample": true,
-      "max_length": 250
-    }
-  },
-  "tgt_len": 128,
-  "tie_projs": [
-    false,
-    true,
-    true,
-    true
-  ],
-  "tie_weight": true,
-  "untie_r": true,
-  "vocab_size": 267735
-}
-'''
+config = \
+  {
+    "adaptive": True,
+    "architectures": [
+      "TransfoXLLMHeadModel"
+    ],
+    "attn_type": 0,
+    "clamp_len": 1000,
+    "cutoffs": [
+      20000,
+      40000,
+      200000
+    ],
+    "d_embed": 1024,
+    "d_head": 64,
+    "intermediate_size": 4096,
+    "hidden_size": 1024,
+    "div_val": 4,
+    "is_dropout": True,
+    "adaptive_embedding": True,
+    "attention_probs_dropout_prob": 0.0,
+    "hidden_dropout_prob": 0.1,
+    "hidden_act": "relu", 
+    "eos_token_id": 0,
+    "ext_len": 0,
+    "init": "normal",
+    "init_range": 0.01,
+    "init_std": 0.02,
+    "layer_norm_epsilon": 1e-05,
+    "mem_len": 1600,
+    "model_type": "transfo-xl",
+    "num_attention_heads": 16,
+    "num_hidden_layers": 18,
+    "pre_layernorm": False,
+    "proj_init_std": 0.01,
+    "same_length": True,
+    "sample_softmax": -1, 
+    "task_specific_params": {
+      "text-generation": {
+        "do_sample": True,
+        "max_length": 250
+      }
+    },
+    "tgt_len": 128,
+    "tie_projs": [
+      False,
+      True,
+      True,
+      True
+    ],
+    "tie_weight": True,
+    "untie_r": True,
+    "vocab_size": 267735
+  }
+
+with open(ckpt_dir+'/bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))
