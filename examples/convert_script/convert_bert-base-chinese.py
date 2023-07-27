@@ -6,6 +6,7 @@
 # 转换命令https://huggingface.co/docs/transformers/converting_tensorflow_models
 
 import torch
+import json
 
 dir_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/'
 state_dict = torch.load(dir_path + 'pytorch_model.bin')
@@ -23,7 +24,7 @@ state_dict_new['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bia
 torch.save(state_dict_new, dir_path + 'bert4torch_pytorch_model.bin')
 
 # config配置
-'''
+config = \
 {
   "architectures": [
     "BertForMaskedLM"
@@ -49,5 +50,5 @@ torch.save(state_dict_new, dir_path + 'bert4torch_pytorch_model.bin')
   "type_vocab_size": 2,
   "vocab_size": 21128
 }
-
-'''
+with open(dir_path+'bert4torch_config.json', 'w') as f:
+    f.write(json.dumps(config, indent=4))
