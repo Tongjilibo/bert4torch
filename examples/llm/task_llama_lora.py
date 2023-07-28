@@ -70,21 +70,26 @@ class MyDataset(ListDataset):
                 D.append((prompt, response, history))
         return D
 
-def build_prompt(query, history=[]):
+def build_prompt(query, answer=None, history=[]):
     if history_column is None:
         prompt = query
     else:
         prompt = ""
-        for i, (old_query, answer) in enumerate(history):
-            prompt += "<s>Human: {}\n</s><s>Assistant: {}".format(old_query, answer)
+        for i, (old_query, old_answer) in enumerate(history):
+            prompt += "<s>Human: {}\n</s><s>Assistant: {}\n</s>".format(old_query, old_answer)
         prompt += "<s>Human: {}\n</s><s>Assistant: ".format(query)
+    
+    if answer is not None:
+        prompt += answer + "\n</s>"
     return prompt
 
 def collate_train_fn(batch):
     batch_token_ids, batch_labels = [], []
     for query, answer, history in batch:
-        prompt = build_prompt(query, history)
-        # TODO
+        prompt = build_prompt(query, answer, history)
+        token_ids = tokenizer(text_target=prompt, max_length=max_source_length, truncation=True)['input_ids']
+        batch_token_ids.append(token_ids)
+        batch_labels.append(token_ids)
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
     batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
@@ -93,7 +98,7 @@ def collate_train_fn(batch):
 def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
     for query, labels, history in batch:
-        batch_prompt.append(prefix + build_prompt(query, history))
+        batch_prompt.append(prefix + build_prompt(query, None, history))
         
         label_ids = tokenizer(text_target=labels, max_length=max_target_length, truncation=True)['input_ids']
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
@@ -115,7 +120,6 @@ if load_in_nbit == 8:
         def forward(self, x):
             return super().forward(x).to(torch.float32)
     model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']) # v3.0.0（含）之前lm_head换成dense
-    # model.dense = CastOutputToFloat(model.dense)  # v3.0.0（含）之前使用
     model.lm_head = CastOutputToFloat(model.lm_head)
     
 elif load_in_nbit == 4:

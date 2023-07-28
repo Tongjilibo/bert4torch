@@ -57,7 +57,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
   ```
 
 |          功能                | bert4torch |  transformers | 备注 |
-|-----------------------------|------------|:--------------|--------|
+|-----------------------------|------------|----------------|--------|
 |训练进度条                     | ✅         |      ✅        |进度条打印loss和定义的metrics|
 |分布式训练dp/ddp               | ✅         |      ✅        |torch自带dp/ddp|
 |各类callbacks                 | ✅         |      ✅        |日志/tensorboard/earlystop/wandb等|
