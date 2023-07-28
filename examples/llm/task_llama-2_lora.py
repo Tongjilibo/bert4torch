@@ -1,11 +1,8 @@
 #! -*- coding: utf-8 -*-
 # llama系列的指令微调, 基于lora/qlora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
-# 参考项目：lora: https://github.com/mymusise/ChatGLM-Tuning
-#         qlora: https://github.com/shuxueslpi/chatGLM-6B-QLoRA
+# 这里使用的数据集为 https://github.com/FlagAlpha/Llama2-Chinese/tree/main/data
 
-# |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
-# | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -26,34 +23,31 @@ from rouge_chinese import Rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
+import pandas as pd
 from peft import LoraConfig, prepare_model_for_kbit_training  # 需要pip install git+https://github.com/huggingface/peft.git
 
 
 # 基本参数
-mode = 'train'
-max_source_length = 64
-max_target_length = 64
+mode = 'eval'
+max_source_length = 256
+max_target_length = 256
 lr = 5e-4
-batch_size = 16  # 根据显存大小调整
+batch_size = 1
 eval_batch_size = 4
-grad_accumulation_steps = 1  # 根据显存大小调整
+grad_accumulation_steps = 10
 max_seq_length = max_source_length + max_target_length
-ignore_pad_token_for_loss = True
 epochs = 1
-steps_per_epoch = 3000
 prefix = ''
-prompt_column = 'content'
-response_column = 'summary'
-history_column = None
 
 # 模型配置
-dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b'
+dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
+tokenizer.pad_token_id = 0
 
 # 加载数据集
 class MyDataset(ListDataset):
@@ -61,39 +55,34 @@ class MyDataset(ListDataset):
     def load_data(filename):
         """加载数据，并尽量分为不超过maxlen的句子
         """
+        df = pd.read_csv(filename)
+        df = df['text'].str.replace('<s>Human: ', '').str.replace('\n</s>', '').str.split('<s>Assistant: ')
+
         D = []
-        with open(filename, encoding='utf-8') as f:
-            for l in f:
-                l = json.loads(l)
-                prompt, response = l[prompt_column], l[response_column]
-                history = l.get('history_column', None)
-                D.append((prompt, response, history))
+        for i in range(len(df)):
+            prompt, response = df[i][0], df[i][1]
+            D.append((prompt, response, []))
         return D
 
 def build_prompt(query, answer=None, history=[]):
-    if history_column is None:
-        prompt = query
-    else:
-        prompt = ""
-        for i, (old_query, old_answer) in enumerate(history):
-            prompt += "<s>Human: {}\n</s><s>Assistant: {}\n</s>".format(old_query, old_answer)
-        prompt += "<s>Human: {}\n</s><s>Assistant: ".format(query)
+    prompt = ""
+    for old_query, old_answer in history:
+        prompt += "<s>Human: {}\n</s><s>Assistant: {}\n</s>".format(old_query, old_answer)
+    prompt += "<s>Human: {}\n</s><s>Assistant: ".format(query)
     
     if answer is not None:
         prompt += answer + "\n</s>"
     return prompt
 
 def collate_train_fn(batch):
-    batch_token_ids, batch_labels = [], []
+    batch_token_ids = []
     for query, answer, history in batch:
-        prompt = build_prompt(query, answer, history)
+        prompt = prefix + build_prompt(query, answer, history)
         token_ids = tokenizer(text_target=prompt, max_length=max_source_length, truncation=True)['input_ids']
         batch_token_ids.append(token_ids)
-        batch_labels.append(token_ids)
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    return [batch_token_ids], batch_labels
+    return [batch_token_ids], batch_token_ids
 
 def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
@@ -104,14 +93,14 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama', add_trainer=True).half()
 
 # 量化
-load_in_nbit = None  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
+load_in_nbit = None
 if load_in_nbit == 8:
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
@@ -163,16 +152,12 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return loss.to(raw_dtyps)
 
 optimizer = optim.AdamW(model.parameters(), lr)
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, (len(train_dataloader)*epochs)//(grad_accumulation_steps*batch_size))
 model.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
-class Chat(SeqGeneration):
-    def pre_process(self, text):
-        return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
-    def post_process(self, output_ids):
-        return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
-                  mode='random_sample', maxlen=512, default_rtype='logits', use_states=True)
+tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+                           maxlen=max_seq_length, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
@@ -213,10 +198,10 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    logger = Logger('./log.log', interval=100)
+    logger = Logger('./log.log', interval=10)
 
     if mode == 'train':
-        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
+        model.fit(train_dataloader, steps_per_epoch=None, epochs=epochs, callbacks=[evaluator, logger])
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
 

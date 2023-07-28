@@ -59,13 +59,13 @@ def get_prompt(message: str, chat_history, system_prompt: str) -> str:
 
 if __name__ == '__main__':
     os_name = platform.system()
+    command = 'cls' if os_name == 'Windows' else 'clear'
     print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
         if query == "stop":
             break
         if query == "clear":
-            command = 'cls' if os_name == 'Windows' else 'clear'
             os.system(command)
             print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
             continue
