@@ -89,6 +89,7 @@ class Evaluator(Callback):
     """
     def __init__(self):
         self.best_val_acc = 0.
+        self.run_callback = model.deepspeed_engine.local_rank == 0
 
     def on_epoch_end(self, global_step, epoch, logs=None):
         val_acc = self.evaluate(valid_dataloader)

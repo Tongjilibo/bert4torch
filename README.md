@@ -108,8 +108,9 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 <details><summary><b>5.1 即将更新</b></summary>
 
-- llama系列的微调
-- chatgpt三阶段的训练
+- [✓] llama系列的微调
+- [ ] chatglm的chatglm使用
+- [ ] chatgpt三阶段的训练
 
 </details>
 
@@ -231,7 +232,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
          <a href="https://github.com/Tongjilibo">微信号</a> 
       </td>
       <td>
-         <a href="https://github.com/Tongjilibo"><img width="200" height="250" src="./docs/pics/wechat_group.jpg" alt="pic"></a><br>
+         <a href="https://github.com/Tongjilibo"><img width="200" height="300" src="./docs/pics/wechat_group.jpg" alt="pic"></a><br>
          <a href="https://github.com/Tongjilibo">微信群</a> 
       </td>
     </tr>
