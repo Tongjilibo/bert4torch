@@ -29,15 +29,13 @@ mode = 'eval'
 max_source_length = 256
 max_target_length = 256
 lr = 5e-4
-batch_size = 1
 eval_batch_size = 4
-grad_accumulation_steps = 10
 max_seq_length = max_source_length + max_target_length
 epochs = 1
 prefix = ''
 
 # 模型配置
-dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
+dir_path = '/mnt/e/pretrain_ckpt/llama-2/llama-2-7b-chat'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'
@@ -90,8 +88,6 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama', add_trainer=True).half()
@@ -129,6 +125,11 @@ peft_config = LoraConfig(
     )
 model = model.get_peft_model(peft_config).to(device)
 model_ds = DeepSpeedTrainer(model, config_path='./deepspeed.json')
+
+batch_size = model_ds.config.train_micro_batch_size_per_gpu
+grad_accumulation_steps = model_ds.config.gradient_accumulation
+train_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
