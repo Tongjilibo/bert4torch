@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # 微调T5 PEGASUS做Seq2Seq任务, 使用到是BertTokenizer
 # 介绍链接：https://kexue.fm/archives/8209
-# 权重转换脚本: https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_t5_pegasus.py
+# 权重转换脚本: https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_t5_pegasus.py
 
 import json, os
 from bert4torch.models import build_transformer_model

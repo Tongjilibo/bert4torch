@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：deberta_v2的mlm预测
-# 需要先进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_deberta_v2.py
+# 需要先进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_deberta_v2.py
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer

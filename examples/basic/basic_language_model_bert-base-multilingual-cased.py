@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：mlm预测
 # 链接: https://huggingface.co/bert-base-multilingual-cased
-# 转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bert-base-chinese.py
+# 转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_bert-base-chinese.py
 
 from bert4torch.models import build_transformer_model
 from transformers import BertTokenizer, BertForMaskedLM

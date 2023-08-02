@@ -1,6 +1,6 @@
 # 测试bart语言模型的预测效果
 # 权重地址：https://github.com/fastnlp/CPT
-# bert4torch需要转换一下权重，https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_bart_fudanNLP.py
+# bert4torch需要转换一下权重，https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_bart_fudanNLP.py
 
 # 选择v1还是v2
 # ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/"  # v1.0

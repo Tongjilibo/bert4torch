@@ -4,7 +4,7 @@
 # 数据：https://github.com/bojone/gpt_cchess
 # 模型训练可以在python2/python3进行。但是cchess模块只支持python3，
 # 因此如果需要交互式体验模型棋力，那么需要在python3下进行。
-# 权重转换脚本见：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_roberta_chess.py
+# 权重转换脚本见：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_roberta_chess.py
 
 import json
 import numpy as np

@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # NEZHA模型做闲聊任务，这里只提供了测试脚本
 # 源项目：https://github.com/bojone/nezha_gpt_dialog
-# 权重转换脚本见：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_nezha_gpt_dialog.py
+# 权重转换脚本见：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_nezha_gpt_dialog.py
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer

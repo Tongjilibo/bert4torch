@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：chatglm2的对话测试, 使用前请先使用转换脚本转一下权重
-# 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/examples/convert_script/convert_chatglm.py
+# 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_chatglm.py
 # 官方项目：https://github.com/THUDM/ChatGLM2-6B
 # hf链接：https://huggingface.co/THUDM/chatglm2-6b
 
