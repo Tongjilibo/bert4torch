@@ -1,7 +1,7 @@
 {
     "train_micro_batch_size_per_gpu": 1,
-    "train_batch_size": 16,
-    "gradient_accumulation": 8,
+    "train_batch_size": 10,
+    "gradient_accumulation": 10,
     "zero_allow_untested_optimizer": true,
     "fp16": {
       "enabled": true,
@@ -14,7 +14,7 @@
     "optimizer": {
         "type": "AdamW",
         "params": {
-            "lr": 2e-5,
+            "lr": 5e-4,
             "betas": [0.8, 0.999],
             "eps": 1e-8,
             "weight_decay": 3e-7
@@ -22,10 +22,6 @@
     },
     "zero_optimization": {
       "stage": 2,
-      "offload_optimizer": {
-        "device": "cpu",
-        "pin_memory": true
-        },
       "allgather_partitions": true,
       "allgather_bucket_size": 5e8,
       "overlap_comm": true,

@@ -25,10 +25,9 @@ from peft import LoraConfig, prepare_model_for_kbit_training
 
 
 # 基本参数
-mode = 'eval'
+mode = 'train'
 max_source_length = 256
 max_target_length = 256
-lr = 5e-4
 eval_batch_size = 4
 max_seq_length = max_source_length + max_target_length
 epochs = 1
@@ -127,7 +126,6 @@ model = model.get_peft_model(peft_config).to(device)
 model_ds = DeepSpeedTrainer(model, config_path='./deepspeed.json')
 
 batch_size = model_ds.config.train_micro_batch_size_per_gpu
-grad_accumulation_steps = model_ds.config.gradient_accumulation
 train_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
 dev_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
@@ -150,12 +148,10 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
 
         return loss.to(raw_dtyps)
 
-optimizer = optim.AdamW(model.parameters(), lr)
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, (len(train_dataloader)*epochs)//(grad_accumulation_steps*batch_size))
-model_ds.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
+model_ds.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=None)
 
 tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-generation = SeqGeneration(model_ds, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
                            maxlen=max_seq_length, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
