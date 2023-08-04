@@ -194,6 +194,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     logger = Logger('./log.log', interval=10)
+    logger.run_callback = model.deepspeed_engine.local_rank == 0
 
     if mode == 'train':
         model_ds.fit(train_dataloader, steps_per_epoch=None, epochs=epochs, callbacks=[evaluator, logger])

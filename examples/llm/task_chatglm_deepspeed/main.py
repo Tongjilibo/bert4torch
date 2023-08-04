@@ -27,10 +27,7 @@ from peft import LoraConfig
 mode = 'train'
 max_source_length = 64
 max_target_length = 64
-lr = 5e-4
-batch_size = 16
-eval_batch_size = 4
-grad_accumulation_steps = 1
+eval_batch_size = 16
 max_seq_length = max_source_length + max_target_length
 ignore_pad_token_for_loss = True
 epochs = 1
@@ -107,9 +104,6 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('/tf/libo/data/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=False, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('/tf/libo/data/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
-
 peft_config = LoraConfig(
         inference_mode=False,
         r=8,
@@ -123,6 +117,11 @@ net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoin
 
 net = net.get_peft_model(peft_config).to(device)
 net.print_trainable_parameters()
+
+model = DeepSpeedTrainer(net, config_path='./deepspeed.json')
+batch_size = model.config.train_micro_batch_size_per_gpu
+train_dataloader = DataLoader(MyDataset('/tf/libo/data/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=False, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('/tf/libo/data/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -143,7 +142,6 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
 
         return loss.to(raw_dtyps)
 
-model = DeepSpeedTrainer(net, config_path='./deepspeed.json')
 model.compile(loss=CrossEntropyLoss(ignore_index=-100), 
               optimizer=None)
 
@@ -158,7 +156,7 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        model.save_checkpoint(f'./ckpt')
+        model.save_to_checkpoint(save_dir='./ckpt')
     
     def evaluate(self, data, epoch='final'):
         preds, labels = [], []
@@ -192,9 +190,9 @@ if __name__ == '__main__':
     evaluator = Evaluator()
 
     if mode == 'train':
-        logger = Logger('./log.log')
+        logger = Logger('./ckpt/log.log')
         logger.run_callback = model.deepspeed_engine.local_rank == 0
-        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[logger, evaluator])
+        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
 
