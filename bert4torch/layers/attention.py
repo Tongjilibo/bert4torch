@@ -10,7 +10,7 @@ class MultiHeadAttentionLayer(nn.Module):
     '''多头注意力
     '''
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 output_attentions=False, bias=True, p_bias=None, flash_attention=False, **kwargs):
+                 output_attentions=False, bias=True, p_bias=None, use_dynamic_ntk=False, flash_attention=False, logn_attn_len=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
@@ -19,9 +19,10 @@ class MultiHeadAttentionLayer(nn.Module):
         self.output_attentions = output_attentions
         self.bias = bias
         self.p_bias = p_bias
+        self.use_dynamic_ntk = use_dynamic_ntk
         self.flash_attention = flash_attention
-
-        max_position = kwargs.get('max_position')
+        self.logn_attn_len = logn_attn_len
+        self.max_position = max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
@@ -29,6 +30,12 @@ class MultiHeadAttentionLayer(nn.Module):
         q_inner_dim = self.attention_key_size * num_attention_heads
         k_inner_dim = q_inner_dim
         v_inner_dim = self.attention_head_size * num_attention_heads
+
+        # 使用logn_attn
+        if self.logn_attn_len is not None:
+            logn_list = [math.log(i, self.max_position) if i > self.max_position else 1 for i in range(1, self.logn_attn_len)]
+            logn_tensor = torch.Tensor(logn_list)[None, None, :, None]
+            self.register_buffer('logn_tensor', logn_tensor)
 
         # multi query attention
         if kwargs.get('multi_query_group_num') is not None:
@@ -51,7 +58,7 @@ class MultiHeadAttentionLayer(nn.Module):
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
             self.position_encoding_2d_v2 = kwargs.get('position_encoding_2d_v2', False)
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d or self.position_encoding_2d_v2 else self.attention_head_size
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, rope_rank=kwargs.get('rope_rank', 'adjacent'))
+            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, **kwargs)
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
@@ -187,6 +194,15 @@ class MultiHeadAttentionLayer(nn.Module):
         return context_layer, attention_scores
 
     def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
+        ''' 执行rotary相对位置编码 '''
+        if self.use_dynamic_ntk and (not self.training):
+            # rotary的ntk，其实仅仅在step=1时候还会触发
+            kv_seq_len = key_layer.shape[2] + 0 if past_key_value is None else past_key_value[0].shape[2]
+            if kv_seq_len == query_layer.shape[-2]:
+                context_value = math.log(kv_seq_len / self.max_position, 2) + 1
+                ntk_alpha = 2 ** math.ceil(context_value) - 1
+                self.relative_positions_encoding.reset_ntk_alpha(max(ntk_alpha, 1))
+
         if self.position_encoding_2d:  # chatglm独有逻辑
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
@@ -249,6 +265,14 @@ class MultiHeadAttentionLayer(nn.Module):
 
         if self.p_bias == 'rotary':
             query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
+
+        if (self.logn_attn_len is not None) and not self.training:
+            # if self.logn_tensor.device != query_layer.device:
+            #     self.logn_tensor = self.logn_tensor.to(query_layer.device).type_as(query_layer)
+            seq_start = key_layer.size(2) - query_layer.size(2)
+            seq_end = key_layer.size(2)
+            logn_tensor = self.logn_tensor[:, :, seq_start:seq_end, :]
+            query_layer = query_layer * logn_tensor.expand_as(query_layer)
 
         if self.is_decoder:
             past_key_value = (key_layer, value_layer)
@@ -357,7 +381,7 @@ class GatedAttentionUnit(nn.Module):
         
         self.p_bias = kwargs.get('p_bias')
         if self.p_bias == 'rotary':  # RoPE
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size)
+            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size, **kwargs)
 
     def forward(self, hidden_states, attention_mask):
         # 投影变换

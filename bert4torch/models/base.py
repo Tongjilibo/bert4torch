@@ -146,7 +146,7 @@ class BERT_BASE(nn.Module):
             # 固定的相对位置编码如Sinusoidal无需初始化
             module.weight.data.normal_(mean=0.0, std=self.initializer_range)
         elif isinstance(module, LayerNorm):
-            if hasattr(module, 'bias') and module.bias.requires_grad:  # T5等模型使用的是rmsnorm
+            if hasattr(module, 'bias') and (module.bias is not None) and module.bias.requires_grad:  # T5等模型使用的是rmsnorm
                 module.bias.data.zero_()
             if hasattr(module, 'weight') and module.weight.requires_grad:
                 module.weight.data.fill_(1.0)

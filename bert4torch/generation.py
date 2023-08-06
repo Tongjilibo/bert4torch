@@ -143,6 +143,20 @@ class AutoRegressiveDecoder(object):
             inputs.append(input_new)
         return inputs
 
+    def _identify_sentence_end(self, output_ids):
+        '''判断句子是否结束'''
+        if isinstance(self.end_id, (int, float)):
+            is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
+            end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        elif isinstance(self.end_id, (set, tuple, list)):
+            end_counts = 0
+            is_end = None
+            for end_id in self.end_id:
+                tmp = output_ids[:, -1] == end_id
+                is_end = tmp if is_end is None else is_end or tmp
+                end_counts += (output_ids == end_id).sum(1)
+        return is_end, end_counts
+
     def __beam_search_step(self, step, inputs, output_ids, output_scores, states):
         '''beam_search单条推理计算得分'''
         self.step = step
@@ -160,8 +174,7 @@ class AutoRegressiveDecoder(object):
     def __beam_search_end(self, inputs, output_ids, output_scores, results):
         '''beam_search单条推理计算是否结束'''
         break_tag = False
-        is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
-        end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        is_end, end_counts = self._identify_sentence_end(output_ids)
         flag = ~is_end | (end_counts < self.min_ends)  # 标记未完成序列
         self.flag = flag  # 记录未完成序列
         if output_ids.shape[1] >= self.minlen:  # 最短长度判断
@@ -219,8 +232,7 @@ class AutoRegressiveDecoder(object):
 
     def __batch_beam_search_end(self, inputs, output_ids, output_scores, results):
         break_tag = False
-        is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
-        end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        is_end, end_counts = self._identify_sentence_end(output_ids)
         self.flag = ~is_end | (end_counts < self.min_ends)  # 标记未完成序列
 
         if output_ids.shape[1] >= self.minlen:  # 最短长度判断
@@ -235,8 +247,7 @@ class AutoRegressiveDecoder(object):
                 output_id = output_ids[start:end]
 
                 best = output_score.argmax()  # 得分最大的那个
-                is_end = output_id[:, -1] == self.end_id  # 标记是否以end标记结束
-                end_counts = (output_id == self.end_id).sum(1)  # 统计出现的end标记
+                is_end, end_counts = self._identify_sentence_end(output_id)
                 flag = ~is_end | (end_counts < self.min_ends)  # 标记未完成序列
                 if is_end[best] and end_counts[best] >= self.min_ends:  # 如果已经终止
                     results[smp_i] = output_id[output_score.argmax()]
@@ -368,8 +379,7 @@ class AutoRegressiveDecoder(object):
 
     def __random_sample_end(self, inputs, output_ids, results, smp_indexs=None):
         break_tag = False
-        is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
-        end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
+        is_end, end_counts = self._identify_sentence_end(output_ids)
         f_flag = is_end & (end_counts >= self.min_ends)  # 标记已完成序列
         self.flag = (f_flag == False)  # 记录未完成序列，这里是裁前的，用于use_states时候的裁剪操作
         if (output_ids.shape[1] >= self.minlen) and f_flag.any():  # 最短长度判断, 如果有已完成的
@@ -461,8 +471,8 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', 
-                 use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None,
+                 pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
         '''
         :param model: 模型
         :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
@@ -470,7 +480,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param end_id: int, 结束解码的token_id
         :param pad_id: int, pad_id，在batch解码时候使用
         :param pad_mode: str, padding在前面还是后面，pre或者post
-        :param tokenizer_config: dict, tokenize的参数
+        :param tokenizer_config: dict, tokenize的参数, 一般设置这个即可，若部分参数无法设置，则单独设置tokenizer_encode_config和tokenizer_decode_config
+        :param tokenizer_encode_config: dict, tokenize的encode参数
+        :param tokenizer_decode_config: dict, tokenize的decode参数
         :param maxlen: int, 最大解码长度
         :param minlen: int, 最小解码长度
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
@@ -495,8 +507,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
         tokenizer_config = tokenizer_config or dict()
         tokenizer_config.update({'maxlen': maxlen})
-        self.encode_config = self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode)
-        self.decode_config = self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode)
+        tokenizer_encode_config = tokenizer_encode_config or {}
+        tokenizer_decode_config = tokenizer_decode_config or {}
+        self.tokenizer_encode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode), **tokenizer_encode_config}
+        self.tokenizer_decode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode), **tokenizer_decode_config}
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
@@ -640,16 +654,16 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.input_text = text if self.include_input else ''
         if self.tokenizer_type == 'b4t':
             # bert4torch的tokenizer
-            inputs = self.tokenizer.encode(text, **self.encode_config)
+            inputs = self.tokenizer.encode(text, **self.tokenizer_encode_config)
             return inputs if self.use_segment_ids else [inputs[0]]
         else:
             # hf的tokenize
-            return [self.tokenizer(text, **self.encode_config)['input_ids']]
+            return [self.tokenizer(text, **self.tokenizer_encode_config)['input_ids']]
     
     def post_process(self, output_ids):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
         if len(output_ids) > 1:
-            outputs = [self.tokenizer.decode(ids.cpu().numpy(), **self.decode_config) for ids in output_ids]
+            outputs = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
             if isinstance(self.input_text, str):
                 # 输入是str，则在前面直接添加
                 return [self.input_text + item for item in outputs]
@@ -658,7 +672,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 return [self.input_text[i] + item for i, item in enumerate(outputs)]
             return outputs
         elif len(output_ids) == 1:
-            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.decode_config)
+            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         return output_ids
 
     def _generate(self, inputs):

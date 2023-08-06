@@ -47,15 +47,17 @@ class LayerNorm(nn.Module):
 
         if not hasattr(self, 'weight'):
             self.weight = 1
-        if not hasattr(self, 'bias'):
-            self.bias = 0
 
         if self.conditional_size and (cond is not None):
             for _ in range(len(hidden_states.shape) - len(cond.shape)):
                 cond = cond.unsqueeze(dim=1)
-            return (self.weight + self.dense1(cond)) * o + (self.bias + self.dense2(cond))
+            output = (self.weight + self.dense1(cond)) * o + self.dense2(cond)
         else:
-            return self.weight * o + self.bias
+            output = self.weight * o
+
+        if hasattr(self, 'bias') and (self.bias is not None):
+            output += self.bias
+        return output
 
 
 class BertEmbeddings(nn.Module):
@@ -167,3 +169,15 @@ class PositionWiseFeedForward(nn.Module):
         # x shape: (batch size, seq len, hidden_size)
         return x
 
+
+class LlamaFeedForward(nn.Module):
+    '''FeedForward和Bert的不一致，Bert只有两个全连接, LLaMA和Qwen使用'''
+    def __init__(self, dim: int, intermediate_size: int, hidden_act='silu', bias=False, **kwargs):
+        super().__init__()
+        self.intermediateDense = nn.Linear(dim, intermediate_size, bias=bias)
+        self.outputDense = nn.Linear(intermediate_size, dim, bias=bias)
+        self.intermediateDense2 = nn.Linear(dim, intermediate_size, bias=bias)
+        self.intermediate_act_fn = get_activation(hidden_act)
+
+    def forward(self, x):
+        return self.outputDense(self.intermediate_act_fn(self.intermediateDense(x)) * self.intermediateDense2(x))

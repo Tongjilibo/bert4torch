@@ -48,6 +48,7 @@
 - [basic_language_model_chatglm_nbce.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm_nbce.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, 使用朴素贝叶斯增加LLM的Context处理长度。
 - [basic_language_model_chatglm2_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm2_stream.py): 测试[chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)模型, stream方式输出。
 - [basic_language_model_moss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_moss.py): 测试[moss](https://github.com/OpenLMLab/MOSS)模型, int4和int8低成本部署。
+- [basic_language_model_Qwen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_Qwen.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型。
 
 ## LLM
 - [task_chatglm_ptuning_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_ptuning_v2.py): [chatglm-6b](https://github.com/THUDM/ChatGLM-6B)的ptuning_v2微调。
