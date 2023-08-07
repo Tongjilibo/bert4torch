@@ -527,19 +527,8 @@ def set_module_tensor_to_device(module: nn.Module, tensor_name: str, device: Uni
             kwargs = module._parameters[tensor_name].__dict__
             new_value = param_cls(new_value, requires_grad=old_value.requires_grad, **kwargs).to(device)
             module._parameters[tensor_name] = new_value
-
-
-def load_state_dict_into_meta_model(model: nn.Module, state_dict):
-    '''将device='meta'的参数用预训练权重赋值'''
-    for param_name, param in model.named_parameters():
-        # 权重文件中有
-        if param_name in state_dict.keys():
-            set_module_tensor_to_device(model, param_name, 'cpu', state_dict[param_name])
-        # 权重文件中没有
-        elif param.device == torch.device('meta'):
-            # 这里采用全0初始化
-            value = torch.zeros(*param.size(), dtype=param.dtype)
-            set_module_tensor_to_device(model, param_name, 'cpu', value)
+    # clean pre and post foward hook
+    torch.cuda.empty_cache()
 
 
 def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dtype:

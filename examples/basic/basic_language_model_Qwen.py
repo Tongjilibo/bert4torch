@@ -24,13 +24,14 @@ else:
 include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+# checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'  # 单文件
+checkpoint_path = [f'{dir_path}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
-# model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
+# model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)  # 解开注释使用量化
 model = model.to(device)
 
 def make_context(tokenizer, query: str, history: List[Tuple[str, str]] = None, system: str = "", max_window_size: int = 6144, chat_format: str = "chatml"):

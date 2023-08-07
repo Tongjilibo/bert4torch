@@ -27,6 +27,8 @@
 - [task_chatglm2_ptuning_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm2_ptuning_v2.py): [chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)的ptuning_v2微调。
 - [task_chatglm2_lora.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm2_lora.py): [chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)的lora微调(基于peft)。
 - [task_llama-2_lora.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_llama-2_lora.py): [llama-2](https://github.com/facebookresearch/llama)的lora微调(基于peft)。
+- [task_chatglm_deepspeed.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_deepspeed.py): [chatglm](https://github.com/THUDM/ChatGLM-6B)的lora微调(peft+deepspeed)。
+- [task_llama_deepspeed.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_llama_deepspeed.py): [llama-2](https://github.com/facebookresearch/llama)的lora微调(peft+deepspeed)。
 
 ### 微调指标
 

@@ -5,7 +5,7 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import load_state_dict_into_meta_model, torch_div, log_warn
+from bert4torch.snippets import set_module_tensor_to_device, torch_div, log_warn
 from bert4torch.snippets import take_along_dim, get_parameter_device
 import warnings
 from torch4keras.model import *
@@ -245,8 +245,8 @@ class BERT_BASE(nn.Module):
         if not skip_init:
             self.load_state_dict(state_dict_new, strict=False)
         else:
-            # meta方式加载
-            load_state_dict_into_meta_model(self, state_dict_new)
+            for param_name in state_dict_new.keys():
+                set_module_tensor_to_device(self, param_name, 'cpu', state_dict_new[param_name])
             
         del state_dict_new
         gc.collect()

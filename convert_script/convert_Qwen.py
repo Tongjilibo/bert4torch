@@ -7,26 +7,33 @@ import torch
 import json
 
 ckpt_dir = 'E:/pretrain_ckpt/Qwen/Qwen-7B-Chat'
-ckpt_file = f'{ckpt_dir}/pytorch_model.bin'
-output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
+
+# 单文件版本
+# ckpt_file = f'{ckpt_dir}/pytorch_model.bin'
+# output_ckpt_file = f'{ckpt_dir}/bert4torch_pytorch_model.bin'
+
+# 多文件版本
+ckpt_file = [f'{ckpt_dir}/pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]
+output_ckpt_file = [f'{ckpt_dir}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]
+
 num_hidden_layers = 32
 
 
-def convert():
+def convert_single(ckpt_file, output_ckpt_file):
     torch_weights = torch.load(ckpt_file)
     new_weights = {}
     prefix = 'qwen'
 
     # 词向量
-    w = torch_weights['transformer.wte.weight']
+    w = torch_weights.get('transformer.wte.weight', None)
     new_weights[f'{prefix}.embeddings.word_embeddings.weight'] = w
 
     # lm_head
-    w = torch_weights['lm_head.weight']
+    w = torch_weights.get('lm_head.weight', None)
     new_weights[f'{prefix}.lm_head.weight'] = w
 
     # layernorm_final
-    w = torch_weights['transformer.ln_f.weight']
+    w = torch_weights.get('transformer.ln_f.weight', None)
     new_weights[f'{prefix}.LayerNormFinal.weight'] = w
 
     qkv = ['query', 'key', 'value']
@@ -34,50 +41,59 @@ def convert():
         prefix_i = f'{prefix}.encoder.layer.%d.' % i
 
         # q, k, v
-        w = torch_weights['transformer.h.%s.attn.c_attn.weight' % i]
-        ws = torch.chunk(w, 3, dim=0)
-        for k, w in zip(qkv, ws):
-            name = prefix_i + f'attention.self.{k}.weight'
-            new_weights[name] = w
-        b = torch_weights['transformer.h.%s.attn.c_attn.bias' % i]
-        bs = torch.chunk(b, 3, dim=0)
-        for k, b in zip(qkv, bs):
-            name = prefix_i + f'attention.self.{k}.bias'
-            new_weights[name] = b
+        w = torch_weights.get('transformer.h.%s.attn.c_attn.weight' % i, None)
+        if w is not None:
+            ws = torch.chunk(w, 3, dim=0)
+            for k, w in zip(qkv, ws):
+                name = prefix_i + f'attention.self.{k}.weight'
+                new_weights[name] = w
+        b = torch_weights.get('transformer.h.%s.attn.c_attn.bias' % i, None)
+        if b is not None:
+            bs = torch.chunk(b, 3, dim=0)
+            for k, b in zip(qkv, bs):
+                name = prefix_i + f'attention.self.{k}.bias'
+                new_weights[name] = b
 
         # hdsz-hdsz的全连接
-        w = torch_weights['transformer.h.%s.attn.c_proj.weight' % i]
+        w = torch_weights.get('transformer.h.%s.attn.c_proj.weight' % i, None)
         name = prefix_i + 'attention.output.dense.weight'
         new_weights[name] = w
 
         # layernorm1
-        w = torch_weights['transformer.h.%s.ln_1.weight' % i]
+        w = torch_weights.get('transformer.h.%s.ln_1.weight' % i, None)
         name = prefix_i + 'attention.output.LayerNorm.weight'
         new_weights[name] = w
 
         # feed forward 第一层
-        w = torch_weights['transformer.h.%s.mlp.w2.weight' % i]
+        w = torch_weights.get('transformer.h.%s.mlp.w2.weight' % i, None)
         name = prefix_i + 'intermediate.dense.weight'
         new_weights[name] = w
 
-        w = torch_weights['transformer.h.%s.mlp.w1.weight' % i]
+        w = torch_weights.get('transformer.h.%s.mlp.w1.weight' % i, None)
         name = prefix_i + 'intermediate2.dense.weight'
         new_weights[name] = w
 
         # feed forward 第二层
-        w = torch_weights['transformer.h.%s.mlp.c_proj.weight' % i]
+        w = torch_weights.get('transformer.h.%s.mlp.c_proj.weight' % i, None)
         name = prefix_i + 'output.dense.weight'
         new_weights[name] = w
 
         # layernorm2
-        w = torch_weights['transformer.h.%s.ln_2.weight' % i]
+        w = torch_weights.get('transformer.h.%s.ln_2.weight' % i, None)
         name = prefix_i + 'output.LayerNorm.weight'
         new_weights[name] = w
-        
+    
+    new_weights = {k:v for k, v in new_weights.items() if v is not None}
     torch.save(new_weights, output_ckpt_file)
 
+        
 if __name__ == '__main__':
-    convert()
+    if isinstance(ckpt_file, str):
+        convert_single(ckpt_file, output_ckpt_file)
+    else:
+        for ckpt_file_i, output_ckpt_file_i in zip(ckpt_file, output_ckpt_file):
+            convert_single(ckpt_file_i, output_ckpt_file_i)
+
 
     config = \
     {
