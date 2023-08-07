@@ -266,9 +266,8 @@ class MultiHeadAttentionLayer(nn.Module):
         if self.p_bias == 'rotary':
             query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
 
+        # 使用logn_attn
         if (self.logn_attn_len is not None) and not self.training:
-            # if self.logn_tensor.device != query_layer.device:
-            #     self.logn_tensor = self.logn_tensor.to(query_layer.device).type_as(query_layer)
             seq_start = key_layer.size(2) - query_layer.size(2)
             seq_end = key_layer.size(2)
             logn_tensor = self.logn_tensor[:, :, seq_start:seq_end, :]

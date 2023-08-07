@@ -3,13 +3,17 @@ from bert4torch.layers import LlamaFeedForward, BlockIdentity
 
 
 class Qwen(Decoder):
+    '''通义千问: https://github.com/QwenLM/Qwen-7B
+    1）FeedForward和Llama一致，三个dense层
+    2）除了qkv有bias，其余均没有bias
+    '''
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'norm_mode': 'rmsnorm', 
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
 
-        # 修改feedword
+        # 修改网络结构
         kwargs.pop('bias')
         for layer in self.decoderLayer:
             layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
