@@ -11,8 +11,14 @@ import math
 import gc
 import json
 import random
+import importlib
 from torch4keras.snippets import *
 from torch4keras.callbacks import *
+if sys.version_info < (3, 8):
+    import importlib_metadata
+else:
+    import importlib.metadata as importlib_metadata
+
 
 is_py2 = six.PY2
 
@@ -482,55 +488,6 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 
-def set_module_tensor_to_device(module: nn.Module, tensor_name: str, device: Union[int, str, torch.device], value: Optional[torch.Tensor]=None):
-    """
-    A helper function to set a given tensor (parameter of buffer) of a module on a specific device (note that doing
-    `param.to(device)` creates a new tensor not linked to the parameter, which is why we need this function).
-
-    Args:
-        module (`torch.nn.Module`): The module in which the tensor we want to move lives.
-        param_name (`str`): The full name of the parameter/buffer.
-        device (`int`, `str` or `torch.device`): The device on which to set the tensor.
-        value (`torch.Tensor`, *optional*): The value of the tensor (useful when going from the meta device to any
-            other device).
-    """
-    # Recurse if needed
-    if "." in tensor_name:
-        splits = tensor_name.split(".")
-        for split in splits[:-1]:
-            new_module = getattr(module, split)
-            if new_module is None:
-                raise ValueError(f"{module} has no attribute {split}.")
-            module = new_module
-        tensor_name = splits[-1]
-
-    if tensor_name not in module._parameters and tensor_name not in module._buffers:
-        raise ValueError(f"{module} does not have a parameter or a buffer named {tensor_name}.")
-    is_buffer = tensor_name in module._buffers
-    old_value = getattr(module, tensor_name)
-
-    if old_value.device == torch.device("meta") and device not in ["meta", torch.device("meta")] and value is None:
-        raise ValueError(f"{tensor_name} is on the meta device, we need a `value` to put in on {device}.")
-
-    with torch.no_grad():
-        if value is None:
-            new_value = old_value.to(device)
-        elif isinstance(value, torch.Tensor):
-            new_value = value.to(device)
-        else:
-            new_value = torch.tensor(value, device=device)
-
-        if is_buffer:
-            module._buffers[tensor_name] = new_value
-        elif value is not None or torch.device(device) != module._parameters[tensor_name].device:
-            param_cls = type(module._parameters[tensor_name])
-            kwargs = module._parameters[tensor_name].__dict__
-            new_value = param_cls(new_value, requires_grad=old_value.requires_grad, **kwargs).to(device)
-            module._parameters[tensor_name] = new_value
-    # clean pre and post foward hook
-    torch.cuda.empty_cache()
-
-
 def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dtype:
     """设置默认权重类型"""
     if not isinstance(model_name, str):
@@ -550,3 +507,14 @@ def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dty
     dtype_orig = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
     return dtype_orig
+
+
+def is_accelerate_available(check_partial_state=False):
+    accelerate_available = importlib.util.find_spec("accelerate") is not None
+    if accelerate_available:
+        if check_partial_state:
+            return version.parse(importlib_metadata.version("accelerate")) >= version.parse("0.17.0")
+        else:
+            return True
+    else:
+        return False

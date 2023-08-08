@@ -22,7 +22,7 @@ from bert4torch.models.bloom import *
 from bert4torch.models.qwen import *
 
 
-def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, **kwargs):
+def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, device_map=None, **kwargs):
     """根据配置文件构建模型，可选加载checkpoint权重
 
     :param config_path: str, 模型的config文件地址
@@ -164,7 +164,9 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     # 权重加载
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
-        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, verbose=verbose)
+        if isinstance(device_map, str):
+            device_map = infer_auto_device_map(transformer, dtype=torch_dtype)
+        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, verbose=verbose)
     
     # 权重tie，若skip_init则模型结构中的tie_weights会失效，这里重新tie_weights一下
     transformer.tie_weights()

@@ -5,12 +5,22 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import set_module_tensor_to_device, torch_div, log_warn
+from bert4torch.snippets import torch_div, log_warn, is_accelerate_available
 from bert4torch.snippets import take_along_dim, get_parameter_device
 import warnings
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
+
+if is_accelerate_available():
+    from accelerate import dispatch_model, infer_auto_device_map, init_empty_weights
+    from accelerate.utils import (
+        find_tied_parameters,
+        load_offloaded_weights,
+        offload_weight,
+        save_offload_index,
+        set_module_tensor_to_device,
+    )
 
 
 class BERT_BASE(nn.Module):
@@ -198,7 +208,7 @@ class BERT_BASE(nn.Module):
 
         return embeddings
 
-    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, verbose=1):
+    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, device_map=None, verbose=1):
         """根据mapping从checkpoint加载权重"""
         # 加载模型文件
         if isinstance(checkpoint, str):
@@ -252,14 +262,14 @@ class BERT_BASE(nn.Module):
         gc.collect()
         return missing_keys, needed_keys
 
-    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, verbose=1):
+    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, device_map=None, verbose=1):
         """逐个ckpt加载"""
         if isinstance(checkpoints, str):
-            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, verbose=verbose)
+            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, device_map=device_map, verbose=verbose)
         elif isinstance(checkpoints, (tuple, list)):
             all_missing_keys = []
             for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
-                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, verbose=0)
+                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, device_map=device_map, verbose=0)
                 all_missing_keys.extend(missing_keys)
             all_missing_set = set(all_missing_keys).difference(set(needed_keys))
             if verbose != 0:
