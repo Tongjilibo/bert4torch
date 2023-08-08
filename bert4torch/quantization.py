@@ -261,7 +261,7 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
             n, m = module.weight.size(0), module.weight.size(1)
             cache[cache_name] = CacheTensor(n, m, dtype=dtype, device=current_device, requires_grad=False)
 
-        module = QuantizedLinearWithPara(
+        module_quant = QuantizedLinearWithPara(
                 weight_tensor=module.weight.to(current_device),
                 bias_tensor=module.bias,
                 in_features=module.in_features,
@@ -269,13 +269,14 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
                 device=module.weight.device,
                 quantization_cache=cache.get(cache_name)
             )
+        del module
         # 赋值
         name_new = list(name)
         for iter_ in re.finditer('\.[0-9]+\.', name):
             iter_str = name[iter_.start():iter_.end()]
             name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
             name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
-        exec('model.' + ''.join(name_new) + ' = module')
+        exec('model.' + ''.join(name_new) + ' = module_quant')
     return model
 
 

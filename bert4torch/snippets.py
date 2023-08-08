@@ -518,3 +518,49 @@ def is_accelerate_available(check_partial_state=False):
             return True
     else:
         return False
+
+
+def load_state_dict_into_meta_model(model, state_dict, start_prefix='', device_map=None, dtype=None):
+    """ 从transformers中迁移并简化 """
+
+    if is_accelerate_available():
+        from accelerate.utils import set_module_tensor_to_device
+
+    for param_name, param in state_dict.items():
+        if param_name.startswith(start_prefix):
+            param_name = param_name[len(start_prefix):]
+
+        module_name = param_name
+        set_module_kwargs = {}
+
+        # if "dtype" in list(inspect.signature(set_module_tensor_to_device).parameters):
+        #     set_module_kwargs["dtype"] = torch.float32
+
+        # For compatibility with PyTorch load_state_dict which converts state dict dtype to existing dtype in model
+        if dtype is None:
+            param = param.to(dtype)
+            old_param = model
+            splits = param_name.split(".")
+            for split in splits:
+                old_param = getattr(old_param, split)
+                if old_param is None:
+                    break
+
+            if old_param is not None:
+                param = param.to(old_param.dtype)
+
+        set_module_kwargs["value"] = param
+
+        if device_map is None:
+            param_device = "cpu"
+        else:
+            # find next higher level module that is defined in device_map:
+            # bert.lm_head.weight -> bert.lm_head -> bert -> ''
+            while len(module_name) > 0 and module_name not in device_map:
+                module_name = ".".join(module_name.split(".")[:-1])
+            if module_name == "" and "" not in device_map:
+                # TODO: group all errors and raise at the end.
+                raise ValueError(f"{param_name} doesn't have any device set.")
+            param_device = device_map[module_name]
+
+        set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)

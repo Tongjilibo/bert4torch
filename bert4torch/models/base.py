@@ -5,22 +5,12 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import torch_div, log_warn, is_accelerate_available
+from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model
 from bert4torch.snippets import take_along_dim, get_parameter_device
 import warnings
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
-
-if is_accelerate_available():
-    from accelerate import dispatch_model, infer_auto_device_map, init_empty_weights
-    from accelerate.utils import (
-        find_tied_parameters,
-        load_offloaded_weights,
-        offload_weight,
-        save_offload_index,
-        set_module_tensor_to_device,
-    )
 
 
 class BERT_BASE(nn.Module):
@@ -255,8 +245,7 @@ class BERT_BASE(nn.Module):
         if not skip_init:
             self.load_state_dict(state_dict_new, strict=False)
         else:
-            for param_name in state_dict_new.keys():
-                set_module_tensor_to_device(self, param_name, 'cpu', state_dict_new[param_name])
+            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map)
             
         del state_dict_new
         gc.collect()
@@ -352,6 +341,7 @@ class BERT_BASE(nn.Module):
             raise ValueError('Please check args `quantization_method`')
 
         self.quantized = True
+        torch.cuda.empty_cache()
         return self
 
     def add_adapter(self, adapter_method='bottleneck', bottlenect_size=64):
