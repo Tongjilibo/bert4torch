@@ -67,8 +67,10 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    skip_init = configs.get('skip_init', False) or configs.get('low_cpu_mem_usage', False)
     device_map = configs.get('device_map', None)
+    skip_init = configs.get('skip_init', False) or configs.get('low_cpu_mem_usage', False)
+    skip_init = True if device_map is not None else skip_init  # 指定了device_map，就必须skip_init
+
     torch_dtype = configs.get('torch_dtype', None)
     configs['add_trainer'] = add_trainer
 
@@ -154,9 +156,9 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
 
     # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要设置
     if configs.get('quantization_method') is not None:
-        if skip_init:  # 把meta权重to_empty(device='cpu')
+        if skip_init:  # 把meta权重to_empty(device='cpu'), 执行后就不是meta了
             transformer.apply(transformer.init_meta_weights)
-        transformer = transformer.half().quantize(**configs)  # 已经不是meta了
+        transformer = transformer.half().quantize(**configs)
         skip_init = False
 
     # 恢复默认权重类型
@@ -168,7 +170,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         verbose = not configs.get('ignore_invalid_weights', False)
         if skip_init and (device_map is not None):
             from accelerate import infer_auto_device_map
-            device_map = infer_auto_device_map(transformer, dtype=torch_dtype)
+            device_map = infer_auto_device_map(transformer, dtype=torch_dtype or dtype_orig)
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, verbose=verbose)
     
     # 权重tie，若skip_init则模型结构中的tie_weights会失效，这里重新tie_weights一下
