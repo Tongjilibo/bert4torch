@@ -5,6 +5,7 @@ from bert4torch.layers import LayerNorm, BlockIdentity, GatedAttentionUnit
 
 
 class GAU_alpha(RoFormerV2):
+    _no_split_modules = [r"GAU_Layer"]
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': False, 'bias': False, 'norm_mode': 'rmsnorm', 'normalization': 'softmax_plus'})
         super().__init__(*args, **kwargs)

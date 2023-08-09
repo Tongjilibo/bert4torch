@@ -153,7 +153,7 @@ class AutoRegressiveDecoder(object):
             is_end = None
             for end_id in self.end_id:
                 tmp = output_ids[:, -1] == end_id
-                is_end = tmp if is_end is None else is_end or tmp
+                is_end = tmp if is_end is None else is_end + tmp
                 end_counts += (output_ids == end_id).sum(1)
         return is_end, end_counts
 

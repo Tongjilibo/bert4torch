@@ -15,6 +15,7 @@ class Transformer_XL(BERT):
     3) SinusoidalPositionEncoding一般是sincos间隔排列, 这里是先sin后cos；
     4) attention_mask在multi_attn中使用中使用1e30来替代原来的1000。
     '''
+    _no_split_modules = [r"XlnetLayer"]
     @delete_arguments('with_pool', 'with_nsp', 'with_mlm')
     @insert_arguments(with_lm=False)
     def __init__(self, *args, mem_len=0, same_length=False, clamp_len=-1, **kwargs):

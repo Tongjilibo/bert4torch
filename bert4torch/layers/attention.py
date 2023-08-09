@@ -268,9 +268,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
         # 使用logn_attn
         if (self.logn_attn_len is not None) and not self.training:
-            seq_start = key_layer.size(2) - query_layer.size(2)
-            seq_end = key_layer.size(2)
-            logn_tensor = self.logn_tensor[:, :, seq_start:seq_end, :]
+            logn_tensor = self.logn_tensor.take_along_dim(position_ids[:, None, :, None], dim=2)  # 可以cover住batch生成时候
             query_layer = query_layer * logn_tensor.expand_as(query_layer)
 
         if self.is_decoder:

@@ -56,6 +56,7 @@ class GPT2_ML(Decoder):
     1. embedding后也有layernorm
     2. 第二个跳跃链接的输入是在layernorm前，bert是在之后
     """
+    _no_split_modules = [r"Gpt2MlLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
