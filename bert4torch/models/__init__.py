@@ -1,5 +1,5 @@
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, get_device_map
+from bert4torch.snippets import set_default_torch_dtype
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -164,10 +164,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     # 恢复默认权重类型
     if dtype_orig is not None:
         torch.set_default_dtype(dtype_orig)
-
-    # device_map的处理
-    if skip_init and (device_map is not None):
-        device_map = get_device_map(device_map, transformer, torch_dtype, configs.pop('max_memory', None))
     
     # 权重加载
     if checkpoint_path is not None:

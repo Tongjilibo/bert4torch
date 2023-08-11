@@ -17,7 +17,6 @@ class GLM(Decoder):
     4）跳跃连接有权重设计
     5) embedding之后没有layernorm
     '''
-    _no_split_modules = [r"GLMBlock"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})

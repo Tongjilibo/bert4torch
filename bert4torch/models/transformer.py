@@ -112,7 +112,6 @@ class Decoder(LM_Mask, BERT):
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构'''
-    _no_split_modules = [r"BertLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)

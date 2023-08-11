@@ -520,100 +520,27 @@ def is_accelerate_available(check_partial_state=False):
         return False
 
 
-def load_state_dict_into_meta_model(model, state_dict, start_prefix='', device_map=None, dtype=None):
-    """ 从transformers中迁移并简化 """
+def load_state_dict_into_meta_model(model, state_dict, device_map=None):
+    """ 把state_dict导入meta_model
+    为了代码简洁，这里device_map需要外部手动指定, 形式如{'embeddings.word_embeddings': 0, 'LayerNormFinal': 0, 'lm_head': 0}
+    """
 
-    if is_accelerate_available():
-        from accelerate.utils import set_module_tensor_to_device
-
+    from accelerate.utils import set_module_tensor_to_device
     for param_name, param in state_dict.items():
-        if param_name.startswith(start_prefix):
-            param_name = param_name[len(start_prefix):]
-
-        module_name = param_name
-        set_module_kwargs = {}
-
-        # if "dtype" in list(inspect.signature(set_module_tensor_to_device).parameters):
-        #     set_module_kwargs["dtype"] = torch.float32
-
-        # For compatibility with PyTorch load_state_dict which converts state dict dtype to existing dtype in model
-        if dtype is None:
-            param = param.to(dtype)
-            old_param = model
-            splits = param_name.split(".")
-            for split in splits:
-                old_param = getattr(old_param, split)
-                if old_param is None:
-                    break
-
-            if old_param is not None:
-                param = param.to(old_param.dtype)
-
-        set_module_kwargs["value"] = param
-
-        if device_map is None:
+        set_module_kwargs = {"value": param}
+        if (device_map is None) or (device_map == 'cpu'):
             param_device = "cpu"
+        elif device_map == 'auto':
+            param_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        elif device_map in {'gpu', 'cuda'}:
+            param_device = 'cuda'
+        elif isinstance(device_map, torch.device) or isinstance(device_map, int):
+            param_device = device_map
+        elif isinstance(device_map, dict):
+            param_device = device_map[param_name]
         else:
-            # find next higher level module that is defined in device_map:
-            # bert.lm_head.weight -> bert.lm_head -> bert -> ''
-            while len(module_name) > 0 and module_name not in device_map:
-                module_name = ".".join(module_name.split(".")[:-1])
-            if module_name == "" and "" not in device_map:
-                # TODO: group all errors and raise at the end.
-                raise ValueError(f"{param_name} doesn't have any device set.")
-            param_device = device_map[module_name]
+            param_device = 'cpu'
+            log_warn(f'Args `device_map`={device_map} has not been pre maintained')
 
+        set_module_kwargs["dtype"] = param.dtype
         set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
-
-
-def get_device_map(device_map, model, target_dtype, max_memory):
-    ''' 获取device_map，从transformers中迁移并简化 '''
-    if isinstance(device_map, torch.device):
-        device_map = {"": device_map}
-    elif isinstance(device_map, str) and device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
-        try:
-            device_map = {"": torch.device(device_map)}
-        except RuntimeError:
-            raise ValueError(
-                "When passing device_map as a string, the value needs to be a device name (e.g. cpu, cuda:0) or "
-                f"'auto', 'balanced', 'balanced_low_0', 'sequential' but found {device_map}."
-            )
-    elif isinstance(device_map, int):
-        if device_map < 0:
-            raise ValueError(
-                "You can't pass device_map as a negative int. If you want to put the model on the cpu, pass device_map = 'cpu' "
-            )
-        else:
-            device_map = {"": device_map}
-
-    from accelerate import infer_auto_device_map
-    no_split_modules = model._no_split_modules
-    if device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
-        raise ValueError(
-            "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "
-            "'sequential'."
-        )
-
-    kwargs = {"no_split_module_classes": no_split_modules}
-    special_dtypes = {}
-    if "special_dtypes" in inspect.signature(infer_auto_device_map).parameters:
-        kwargs["special_dtypes"] = special_dtypes
-    elif len(special_dtypes) > 0:
-        log_warn(
-            "This model has some weights that should be kept in higher precision, you need to upgrade "
-            "`accelerate` to properly deal with them (`pip install --upgrade accelerate`)."
-        )
-    if device_map != "sequential":
-        from accelerate.utils import get_balanced_memory
-        max_memory = get_balanced_memory(
-            model,
-            dtype=target_dtype,
-            low_zero=(device_map == "balanced_low_0"),
-            max_memory=max_memory,
-            **kwargs,
-        )
-    kwargs["max_memory"] = max_memory
-    # Make sure tied weights are tied before creating the device map.
-    model.tie_weights()
-    device_map = infer_auto_device_map(model, dtype=target_dtype, **kwargs)
-    return device_map

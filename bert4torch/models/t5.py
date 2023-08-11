@@ -127,7 +127,6 @@ class T5_Decoder(Decoder):
 
 
 class T5(Transformer):
-    _no_split_modules = [r"T5Layer"]
     """Google的T5模型（Encoder-Decoder）"""
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args,  tie_emb_src_tgt_weight=True, **kwargs):
