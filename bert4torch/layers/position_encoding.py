@@ -189,12 +189,12 @@ class RoPEPositionEncoding(nn.Module):
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
             cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        elif self.rope_rank == 'updown':  # 目前chatglm和llama系列有部分使用
+        elif self.rope_rank in {'updown', 'half'}:  # 目前chatglm和llama系列有部分使用
             # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
             cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
             sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
         else:
-            raise ValueError('Args `rope_rank` only support `adjacent` and `updown` mode')
+            raise ValueError('Args `rope_rank` only support `adjacent` and `updown/half` mode')
         return cos_position, sin_position
     
     def forward(self, qw, position_ids=None, seq_dim=-2):
@@ -203,7 +203,7 @@ class RoPEPositionEncoding(nn.Module):
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
         if self.rope_rank == 'adjacent':
             qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
-        elif self.rope_rank == 'updown':  # 目前仅chatglm使用
+        elif self.rope_rank in {'updown', 'half'}:  # 目前仅chatglm使用
             qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
         
         # 超过缓存长度

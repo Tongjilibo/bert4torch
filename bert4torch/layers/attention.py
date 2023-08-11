@@ -88,6 +88,78 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.p_bias == 'alibi':
             self.relative_positions_encoding = ALiBiPositionsEncoding(num_attention_heads)
 
+    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, position_ids=None, **model_kwargs):
+        '''
+        hidden_states shape: [batch_size, seq_q, hidden_size]
+        attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
+        encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
+        encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
+        past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
+        '''
+
+        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+        query_layer = self.transpose_for_q_scores(self.q(hidden_states))
+        if self.p_bias == 'rotary':
+            # rotary有cache情况下，需要先rope后再和past_key_value concat
+            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
+            query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
+        elif (encoder_hidden_states is not None) and (past_key_value is not None):
+            key_layer, value_layer = past_key_value
+            attention_mask = encoder_attention_mask
+        elif encoder_hidden_states is not None:
+            key_layer = self.transpose_for_k_scores(self.k(encoder_hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
+            attention_mask = encoder_attention_mask
+        elif past_key_value is not None:
+            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
+            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
+            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
+        else:
+            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
+            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
+
+        # 使用logn_attn
+        if self.logn_attn_len is not None:
+            logn_tensor = self.logn_tensor.take_along_dim(position_ids[:, None, :, None], dim=2)  # 可以cover住batch生成时候
+            query_layer = query_layer * logn_tensor.expand_as(query_layer)
+
+        # past_key_values
+        if self.is_decoder:
+            past_key_value = (key_layer, value_layer)
+
+        # multi_query_attention
+        if hasattr(self, 'multi_query_group_num'):
+            key_layer = key_layer.unsqueeze(2)
+            key_layer = key_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+            key_layer = key_layer.contiguous().view(key_layer.shape[:1] + (self.num_attention_heads,) + key_layer.shape[-2:])
+            value_layer = value_layer.unsqueeze(2)
+            value_layer = value_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+            value_layer = value_layer.contiguous().view(value_layer.shape[:1] + (self.num_attention_heads,) + value_layer.shape[-2:])
+
+        # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用, 主要为了应对额外传入的past_key_values
+        if attention_mask.shape[-1] < key_layer.shape[-2]:
+            size_ = attention_mask.shape[:3] + torch.Size([key_layer.shape[-2]-attention_mask.shape[-1]])
+            pre_attention_mask = torch.ones(size_).to(attention_mask)
+            attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
+
+        # 是否使用torch2.0的flash_attention加速
+        if self.flash_attention and (int(torch.__version__.split('.')[0]) >= 2):
+            context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+            context_layer = context_layer.permute(0, 2, 1, 3)
+            new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
+            context_layer = context_layer.reshape(*new_context_layer_shape)
+            attention_scores = None
+        else:
+            context_layer, attention_scores = self.get_context_layer(query_layer, key_layer, value_layer, attention_mask)
+
+        # 是否返回attention scores
+        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+        return outputs + (past_key_value,) if self.is_decoder else outputs
+
     def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
         x = x.view(*new_x_shape)
@@ -114,7 +186,7 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
-        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
+        if self.p_bias == 'typical_relative':
             # ==================== nezha相对位置编码 ====================
             relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
             # 旧实现，方便读者理解维度转换
@@ -126,7 +198,7 @@ class MultiHeadAttentionLayer(nn.Module):
             # 新实现
             key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
             attention_scores = attention_scores + key_position_scores_r_t
-        elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
+        elif self.p_bias == 't5_relative':
             # ==================== t5相对位置编码 ====================
             relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
             key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
@@ -171,7 +243,7 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_probs = self.dropout(attention_probs)
         context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
-        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
+        if self.p_bias == 'typical_relative':
             # ==================== nezha相对位置编码 ====================
             relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
             # 旧实现，方便读者理解维度转换
@@ -195,7 +267,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
         ''' 执行rotary相对位置编码 '''
-        if self.use_dynamic_ntk and (not self.training):
+        if self.use_dynamic_ntk:
             # rotary的ntk，其实仅仅在step=1时候还会触发
             kv_seq_len = key_layer.shape[2] + 0 if past_key_value is None else past_key_value[0].shape[2]
             if kv_seq_len == query_layer.shape[-2]:
@@ -228,80 +300,6 @@ class MultiHeadAttentionLayer(nn.Module):
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         return query_layer, key_layer, value_layer
-
-    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, position_ids=None, **model_kwargs):
-        # hidden_states shape: [batch_size, seq_q, hidden_size]
-        # attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
-        # encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
-        # encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
-        # past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
-
-        query_layer = self.transpose_for_q_scores(self.q(hidden_states))
-
-        # 参考hf增加了关于past_key_value的逻辑
-        if self.p_bias == 'rotary':
-            # rotary有cache情况下，需要先rope后再和past_key_value concat
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-        elif (encoder_hidden_states is not None) and past_key_value is not None:
-            key_layer = past_key_value[0]
-            value_layer = past_key_value[1]
-            attention_mask = encoder_attention_mask
-        elif encoder_hidden_states is not None:
-            key_layer = self.transpose_for_k_scores(self.k(encoder_hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
-            attention_mask = encoder_attention_mask
-        elif past_key_value is not None:
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
-        else:
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
-
-        if self.p_bias == 'rotary':
-            query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
-
-        # 使用logn_attn
-        if (self.logn_attn_len is not None) and not self.training:
-            logn_tensor = self.logn_tensor.take_along_dim(position_ids[:, None, :, None], dim=2)  # 可以cover住batch生成时候
-            query_layer = query_layer * logn_tensor.expand_as(query_layer)
-
-        if self.is_decoder:
-            past_key_value = (key_layer, value_layer)
-
-        # multi_query_attention
-        if hasattr(self, 'multi_query_group_num'):
-            key_layer = key_layer.unsqueeze(2)
-            key_layer = key_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
-            key_layer = key_layer.contiguous().view(key_layer.shape[:1] + (self.num_attention_heads,) + key_layer.shape[-2:])
-            value_layer = value_layer.unsqueeze(2)
-            value_layer = value_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
-            value_layer = value_layer.contiguous().view(value_layer.shape[:1] + (self.num_attention_heads,) + value_layer.shape[-2:])
-
-        # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用, 主要为了应对额外传入的past_key_values
-        if attention_mask.shape[-1] < key_layer.shape[-2]:
-            size_ = attention_mask.shape[:3] + torch.Size([key_layer.shape[-2]-attention_mask.shape[-1]])
-            pre_attention_mask = torch.ones(size_).to(attention_mask)
-            attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
-
-        # 是否使用torch2.0的flash_attention加速
-        if self.flash_attention and (int(torch.__version__.split('.')[0]) >= 2):
-            context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
-            context_layer = context_layer.permute(0, 2, 1, 3)
-            new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-            context_layer = context_layer.reshape(*new_context_layer_shape)
-            attention_scores = None
-        else:
-            context_layer, attention_scores = self.get_context_layer(query_layer, key_layer, value_layer, attention_mask)
-
-        # 是否返回attention scores
-        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
-        return outputs + (past_key_value,) if self.is_decoder else outputs
 
     def disentangled_attention_bias(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
         '''deberta_v2使用，和原版区别是query_layer是4维'''
