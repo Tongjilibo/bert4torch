@@ -69,15 +69,16 @@ class BERT(BERT_BASE):
             self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.embedding_size, eps=1e-12, conditional_size=self.conditional_size)
             self.mlmDecoder = nn.Linear(self.embedding_size, self.vocab_size, bias=False)
-            self.tie_weights()
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
+            self.tie_weights()
         # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
 
     def tie_weights(self):
         """权重的tie"""
         if self.tie_emb_prj_weight is True:
             self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
+            self.mlmDecoder.bias = self.mlmBias
     
     def get_input_embeddings(self):
         """获取word_embeddings"""

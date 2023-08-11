@@ -1,5 +1,5 @@
 from torch4keras.model import *
-from bert4torch.snippets import *
+from bert4torch.snippets import set_default_torch_dtype, get_device_map
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -178,56 +178,3 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     transformer.tie_weights()
     transformer.configs = transformer.config = configs
     return transformer
-
-
-def get_device_map(device_map, model, target_dtype, max_memory):
-    ''' 获取device_map '''
-    if isinstance(device_map, torch.device):
-        device_map = {"": device_map}
-    elif isinstance(device_map, str) and device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
-        try:
-            device_map = {"": torch.device(device_map)}
-        except RuntimeError:
-            raise ValueError(
-                "When passing device_map as a string, the value needs to be a device name (e.g. cpu, cuda:0) or "
-                f"'auto', 'balanced', 'balanced_low_0', 'sequential' but found {device_map}."
-            )
-    elif isinstance(device_map, int):
-        if device_map < 0:
-            raise ValueError(
-                "You can't pass device_map as a negative int. If you want to put the model on the cpu, pass device_map = 'cpu' "
-            )
-        else:
-            device_map = {"": device_map}
-
-    from accelerate import infer_auto_device_map
-    no_split_modules = model._no_split_modules
-    if device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
-        raise ValueError(
-            "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "
-            "'sequential'."
-        )
-
-    kwargs = {"no_split_module_classes": no_split_modules}
-    special_dtypes = {}
-    if "special_dtypes" in inspect.signature(infer_auto_device_map).parameters:
-        kwargs["special_dtypes"] = special_dtypes
-    elif len(special_dtypes) > 0:
-        log_warn(
-            "This model has some weights that should be kept in higher precision, you need to upgrade "
-            "`accelerate` to properly deal with them (`pip install --upgrade accelerate`)."
-        )
-    if device_map != "sequential":
-        from accelerate.utils import get_balanced_memory
-        max_memory = get_balanced_memory(
-            model,
-            dtype=target_dtype,
-            low_zero=(device_map == "balanced_low_0"),
-            max_memory=max_memory,
-            **kwargs,
-        )
-    kwargs["max_memory"] = max_memory
-    # Make sure tied weights are tied before creating the device map.
-    model.tie_weights()
-    device_map = infer_auto_device_map(model, dtype=target_dtype, **kwargs)
-    return device_map

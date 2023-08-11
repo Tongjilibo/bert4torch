@@ -112,6 +112,7 @@ class Decoder(LM_Mask, BERT):
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构'''
+    _no_split_modules = [r"BertLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
@@ -126,6 +127,9 @@ class Transformer(BERT_BASE):
             # encoder和decoder的embedding权重共享
             assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
             self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
+
+    def tie_weights(self):
+        self.decoder.tie_weights()
 
     def forward(self, *inputs):
         inputs = self.args_segmentate(inputs)
