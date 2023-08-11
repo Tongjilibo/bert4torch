@@ -1,6 +1,7 @@
 #! -*- coding:utf-8 -*-
 # DDP示例
-# 启动命令：python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 task_distributed_data_parallel.py
+# 启动命令(旧)：python -m torch.distributed.launch --nproc_per_node=2 --nnodes=1 task_distributed_data_parallel_v1.py
+# 启动命令(新)：torchrun --nproc_per_node=2 --nnodes=1 task_distributed_data_parallel_v1.py
 # 该版本是loss在forward中计算
 
 import os
@@ -13,18 +14,14 @@ from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, 
 import torch.nn as nn
 import torch
 import torch.optim as optim
-import random, os, numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-import argparse
+import os
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--local_rank", type=int, default=-1)
-args = parser.parse_args()
-
-torch.cuda.set_device(args.local_rank)
-device = torch.device('cuda', args.local_rank)
 torch.distributed.init_process_group(backend='nccl')
+local_rank = int(os.getenv('LOCAL_RANK'))
+torch.cuda.set_device(local_rank)
+device = torch.device('cuda', local_rank)
 
 # 模型设置
 maxlen = 256
@@ -102,7 +99,7 @@ class Model(nn.Module):
 model = Model().to(device)
 
 # 指定DDP模型使用多gpu, master_rank为指定用于打印训练过程的local_rank
-model = BaseModelDDP(model, master_rank=0, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False)
+model = BaseModelDDP(model, master_rank=0, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=False)
 
 class Evaluator(Callback):
     """评估与保存
