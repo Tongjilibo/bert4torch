@@ -1,6 +1,7 @@
 from torch import nn
 import torch
 import math
+import numpy as np
 import torch.nn.functional as F
 from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
@@ -10,7 +11,7 @@ class MultiHeadAttentionLayer(nn.Module):
     '''多头注意力
     '''
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 output_attentions=False, bias=True, p_bias=None, use_dynamic_ntk=False, flash_attention=False, logn_attn_len=None, **kwargs):
+                 output_attentions=False, bias=True, p_bias=None, use_dynamic_ntk=False, flash_attention=False, use_logn_attn=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
@@ -21,7 +22,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.p_bias = p_bias
         self.use_dynamic_ntk = use_dynamic_ntk
         self.flash_attention = flash_attention
-        self.logn_attn_len = logn_attn_len
+        self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
@@ -30,12 +31,6 @@ class MultiHeadAttentionLayer(nn.Module):
         q_inner_dim = self.attention_key_size * num_attention_heads
         k_inner_dim = q_inner_dim
         v_inner_dim = self.attention_head_size * num_attention_heads
-
-        # 使用logn_attn
-        if self.logn_attn_len is not None:
-            logn_list = [math.log(i, self.max_position) if i > self.max_position else 1 for i in range(1, self.logn_attn_len)]
-            logn_tensor = torch.Tensor(logn_list)[None, None, :, None]
-            self.register_buffer('logn_tensor', logn_tensor)
 
         # multi query attention
         if kwargs.get('multi_query_group_num') is not None:
@@ -123,22 +118,16 @@ class MultiHeadAttentionLayer(nn.Module):
             value_layer = self.transpose_for_v_scores(self.v(hidden_states))
 
         # 使用logn_attn
-        if self.logn_attn_len is not None:
-            logn_tensor = self.logn_tensor.take_along_dim(position_ids[:, None, :, None], dim=2)  # 可以cover住batch生成时候
-            query_layer = query_layer * logn_tensor.expand_as(query_layer)
+        if self.use_logn_attn:
+            query_layer *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_layer.dtype)
 
         # past_key_values
         if self.is_decoder:
             past_key_value = (key_layer, value_layer)
 
         # multi_query_attention
-        if hasattr(self, 'multi_query_group_num'):
-            key_layer = key_layer.unsqueeze(2)
-            key_layer = key_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
-            key_layer = key_layer.contiguous().view(key_layer.shape[:1] + (self.num_attention_heads,) + key_layer.shape[-2:])
-            value_layer = value_layer.unsqueeze(2)
-            value_layer = value_layer.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
-            value_layer = value_layer.contiguous().view(value_layer.shape[:1] + (self.num_attention_heads,) + value_layer.shape[-2:])
+        key_layer = self.repeat_kv(key_layer)
+        value_layer = self.repeat_kv(value_layer)
 
         # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用, 主要为了应对额外传入的past_key_values
         if attention_mask.shape[-1] < key_layer.shape[-2]:
@@ -159,6 +148,13 @@ class MultiHeadAttentionLayer(nn.Module):
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
         return outputs + (past_key_value,) if self.is_decoder else outputs
+
+    def repeat_kv(self, hidden_states):
+        if hasattr(self, 'multi_query_group_num'):
+            hidden_states = hidden_states.unsqueeze(2)
+            hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+            hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
+        return hidden_states
 
     def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)

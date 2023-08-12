@@ -71,6 +71,6 @@ if __name__ == '__main__':
             continue
         if with_prompt:
             query = get_prompt(query, [], DEFAULT_SYSTEM_PROMPT)
-        response = article_completion.generate(query, topp=0.95, temperature=0.3, repetition_penalty=1.3, include_input=include_input)      
+        response = article_completion.generate(query, topp=0.95, temperature=0.3, repetition_penalty=1.3, include_input=include_input)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")

@@ -57,7 +57,7 @@ class LayerNorm(nn.Module):
 
         if hasattr(self, 'bias') and (self.bias is not None):
             output += self.bias
-        return output
+        return output.type_as(hidden_states)
 
 
 class BertEmbeddings(nn.Module):

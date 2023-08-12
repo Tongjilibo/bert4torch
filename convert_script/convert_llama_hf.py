@@ -213,7 +213,7 @@ elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
     "p_bias": "alibi",
     "skip_init": True
     }
-elif choice in {'llama-2-7b', 'llama-2-7b-chat'}:
+elif choice == 'llama-2-7b':
     config = \
     {
         "hidden_size": 4096,
@@ -225,6 +225,21 @@ elif choice in {'llama-2-7b', 'llama-2-7b-chat'}:
         "segment_vocab_size": 0,
         "skip_init": True,
         "layer_norm_eps": 1e-5,
+        "rope_rank": "updown"
+    }
+elif choice == 'llama-2-7b-chat':
+    # layer_norm_eps和llama-2-7b有细微区别
+    config = \
+    {
+        "hidden_size": 4096,
+        "intermediate_size": 11008, 
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "hidden_act": "silu",
+        "vocab_size": 32000,
+        "segment_vocab_size": 0,
+        "skip_init": True,
+        "layer_norm_eps": 1e-6,
         "rope_rank": "updown"
     }
 elif choice in {'llama-2-13b', 'llama-2-13b-chat'}:

@@ -682,6 +682,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             output_ids = self.beam_search(inputs)  # 基于beam search
         return output_ids
 
+    @torch.inference_mode()
     def generate(self, text:str, **generation_config):
         '''单条样本生成'''
         self.set_generation_config(generation_config)
@@ -690,6 +691,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         output_ids = self._generate(inputs)
         return self.post_process(output_ids)
 
+    @torch.inference_mode()
     def batch_generate(self, text_list:list, **generation_config):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
         # 参数设定
@@ -705,6 +707,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         output_ids = self._generate(inputs)
         return self.post_process(output_ids)
 
+    @torch.inference_mode()
     def stream_generate(self, text:str, **generation_config):
         '''单条样本stream输出预测的结果'''
         self.set_generation_config(generation_config)
@@ -735,7 +738,8 @@ class Seq2SeqGeneration(SeqGeneration):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
-            
+    
+    @torch.inference_mode()
     def generate(self, text:str, **generation_config):
         self.set_generation_config(generation_config)
         self.use_batch = False
@@ -745,6 +749,7 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super()._generate(encoder_output)
         return self.post_process(output_ids)
 
+    @torch.inference_mode()
     def batch_generate(self, text_list:list, **generation_config):
         '''batch样本生成'''
         # 参数设定
@@ -757,6 +762,7 @@ class Seq2SeqGeneration(SeqGeneration):
         output_ids = super()._generate(encoder_output)
         return self.post_process(output_ids)
 
+    @torch.inference_mode()
     def stream_generate(self, text:str, **generation_config):
         '''stream输出t预测的结果'''
         self.set_generation_config(generation_config)

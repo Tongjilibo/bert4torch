@@ -121,7 +121,7 @@ if __name__ == '__main__':
         "use_flash_attn": True,
         "vocab_size": 151936,
         "use_dynamic_ntk": True,
-        "logn_attn_len": 32768,
+        "use_logn_attn": True,
         "segment_vocab_size": 0,
         "skip_init": True,
         "model": "qwen",
