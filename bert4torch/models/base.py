@@ -198,7 +198,8 @@ class BERT_BASE(nn.Module):
 
         return embeddings
 
-    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, device_map=None, verbose=1):
+    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, device_map=None, 
+                                             torch_dtype=None, verbose=1):
         """根据mapping从checkpoint加载权重"""
         # 加载模型文件
         if isinstance(checkpoint, str):
@@ -245,20 +246,23 @@ class BERT_BASE(nn.Module):
         if not skip_init:
             self.load_state_dict(state_dict_new, strict=False)
         else:
-            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map)
+            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, torch_dtype=torch_dtype)
             
         del state_dict_new
         gc.collect()
         return missing_keys, needed_keys
 
-    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, device_map=None, verbose=1):
+    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, device_map=None, 
+                                              torch_dtype=None, verbose=1):
         """逐个ckpt加载"""
         if isinstance(checkpoints, str):
-            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, device_map=device_map, verbose=verbose)
+            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, 
+                                                      device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         elif isinstance(checkpoints, (tuple, list)):
             all_missing_keys = []
             for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
-                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, device_map=device_map, verbose=0)
+                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, 
+                                                                                      device_map=device_map, torch_dtype=torch_dtype, verbose=0)
                 all_missing_keys.extend(missing_keys)
             all_missing_set = set(all_missing_keys).difference(set(needed_keys))
             if verbose != 0:

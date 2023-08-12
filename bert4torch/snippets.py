@@ -506,7 +506,7 @@ def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dty
     log_info(f"Instantiating {model_name} under default dtype {dtype}.")
     dtype_orig = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
-    return dtype_orig
+    return dtype, dtype_orig
 
 
 def is_accelerate_available(check_partial_state=False):
@@ -520,7 +520,7 @@ def is_accelerate_available(check_partial_state=False):
         return False
 
 
-def load_state_dict_into_meta_model(model, state_dict, device_map=None):
+def load_state_dict_into_meta_model(model, state_dict, device_map=None, torch_dtype=None):
     """ 把state_dict导入meta_model
     为了代码简洁，这里device_map需要外部手动指定, 形式如{'embeddings.word_embeddings': 0, 'LayerNormFinal': 0, 'lm_head': 0}
     """
@@ -542,5 +542,5 @@ def load_state_dict_into_meta_model(model, state_dict, device_map=None):
             param_device = 'cpu'
             log_warn(f'Args `device_map`={device_map} has not been pre maintained')
 
-        set_module_kwargs["dtype"] = param.dtype
+        set_module_kwargs["dtype"] = torch_dtype or param.dtype
         set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)

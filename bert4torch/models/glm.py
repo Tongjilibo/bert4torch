@@ -130,7 +130,7 @@ class GLM(Decoder):
             del self.dropout1
             del self.dropout2
 
-        def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
+        def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, use_states=False, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.layerNorm1(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
@@ -140,7 +140,7 @@ class GLM(Decoder):
             x = self.layerNorm2(hidden_states)
             hidden_states = x *alpha +  self.feedForward(x)
 
-            if self.is_decoder:
+            if self.is_decoder and use_states:
                 model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs

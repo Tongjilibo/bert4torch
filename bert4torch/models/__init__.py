@@ -143,7 +143,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     # 指定默认权重类型
     dtype_orig = None
     if torch_dtype is not None:
-        dtype_orig = set_default_torch_dtype(torch_dtype, model)
+        torch_dtype, dtype_orig = set_default_torch_dtype(torch_dtype, model)
 
     # 生成网络结构
     if skip_init:
@@ -168,7 +168,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     # 权重加载
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
-        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, verbose=verbose)
+        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, 
+                                                          torch_dtype=torch_dtype, verbose=verbose)
     
     # 权重tie，若skip_init则模型结构中的tie_weights会失效，这里重新tie_weights一下
     transformer.tie_weights()
