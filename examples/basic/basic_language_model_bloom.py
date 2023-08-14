@@ -17,7 +17,6 @@ import os
 dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
@@ -42,6 +41,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use bloom model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query, topk=1, include_input=True)      
+        response = article_completion.generate(query, include_input=True)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nbloom：{response}")

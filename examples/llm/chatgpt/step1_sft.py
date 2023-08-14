@@ -21,7 +21,7 @@ epochs = 10000
 mask_prompt = False  # 是否把prompt部分mask掉
 
 # 模型配置
-root_path = 'E:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
+root_path = 'E:/pretrain_ckpt/bloom/bloom-560m/'
 config_path = root_path + 'bert4torch_config.json'
 checkpoint_path = root_path + 'bert4torch_pytorch_model.bin'
 dict_path = root_path + 'vocab.txt'
@@ -55,7 +55,7 @@ def collate_fn(batch):
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
     return [batch_token_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(MyDataset('./data/prompt_examples.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('E:/Github/MedicalGPT/data/finetune/prompt_examples.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 model = build_transformer_model(
     config_path=config_path,
