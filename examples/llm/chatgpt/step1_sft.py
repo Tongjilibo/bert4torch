@@ -3,7 +3,7 @@
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
-from bert4torch.callbacks import Callback
+from bert4torch.callbacks import Callback, Logger
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -11,16 +11,21 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
-from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.generation import SeqGeneration
 import json
+from glob import glob
+
 
 # 基本参数
-maxlen = 512
+max_source_length = 256
+max_target_length = 256
+maxlen = max_source_length + max_target_length
 batch_size = 8
 epochs = 10000
 mask_prompt = False  # 是否把prompt部分mask掉
 
 # 模型配置
+data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.txt'
 root_path = 'E:/pretrain_ckpt/bloom/bloom-560m/'
 config_path = root_path + 'bert4torch_config.json'
 checkpoint_path = root_path + 'bert4torch_pytorch_model.bin'
@@ -55,7 +60,7 @@ def collate_fn(batch):
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
     return [batch_token_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(MyDataset('E:/Github/MedicalGPT/data/finetune/prompt_examples.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 model = build_transformer_model(
     config_path=config_path,
@@ -86,34 +91,8 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
 
-class ArticleCompletion(AutoRegressiveDecoder):
-    """基于随机采样的文章续写
-    """
-    @AutoRegressiveDecoder.wraps(default_rtype='logits')
-    def predict(self, inputs, output_ids, states):
-        token_ids = torch.cat([inputs[0], output_ids], 1)
-        logits = model.predict([token_ids])
-        return logits[:, -1, :]
-
-    def generate(self, text, n=1, topp=0.95):
-        token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n=n, topp=topp)  # 基于随机采样
-        return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
-
-
-article_completion = ArticleCompletion(
-    start_id=None,
-    end_id=511,  # 511是中文句号
-    maxlen=100,
-    minlen=50,
-    device=device
-)
-
-def just_show():
-    s1 = u'别爱我没结果'
-    s2 = u'你这样会失去我的'
-    for s in [s1, s2]:
-        print(u'生成标题:', article_completion.generate(s))
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+                           maxlen=maxlen, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
@@ -126,19 +105,11 @@ class Evaluator(Callback):
         if logs['loss'] <= self.lowest:
             self.lowest = logs['loss']
             # model.save_weights('./best_model.pt')
-        # 演示效果
-        just_show()
 
 if __name__ == '__main__':
-    just_show()
+    logger = Logger('./log_sft.log')
     evaluator = Evaluator()
-
-    model.fit(
-        train_dataloader,
-        steps_per_epoch=None,
-        epochs=epochs,
-        callbacks=[]
-    )
+    model.fit(train_dataloader, steps_per_epoch=None, epochs=epochs, callbacks=[evaluator, logger])
 
 else:
     model.load_weights('./best_model.pt')

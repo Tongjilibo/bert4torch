@@ -167,7 +167,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return loss.to(raw_dtyps)
 
 optimizer = optim.AdamW(model.parameters(), lr)
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, steps_per_epoch*epochs)  # torch4keras<0.0.8需要设置为(steps_per_epoch*epochs)//grad_accumulation_steps
 model.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):

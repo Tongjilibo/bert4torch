@@ -10,14 +10,9 @@ from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import IterDataset
-from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from transformers import AutoTokenizer
-import json
-import jieba 
-from rouge_chinese import Rouge
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
 from peft import LoraConfig, prepare_model_for_kbit_training
@@ -29,10 +24,10 @@ mode = 'train'
 lr = 1e-5
 batch_size = 1
 eval_batch_size = 4
-grad_accumulation_steps = 1
-max_seq_length = 256
+grad_accumulation_steps = 4
+max_seq_length = 512
 epochs = 1
-steps_per_epoch = 3000
+steps_per_epoch = 500
 use_lora = False
 load_in_nbit = None
 
@@ -55,7 +50,6 @@ class MyDataset(IterDataset):
         for filename in filenames:
             with open(filename, encoding='utf-8') as f:
                 for l in f:
-                    l = '你好'
                     input_ids = tokenizer.encode(text=l, add_special_tokens=False)
                     if len(D) + len(input_ids) > max_seq_length:
                         yield D
@@ -128,13 +122,9 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return loss.to(raw_dtyps)
 
 optimizer = optim.AdamW(model.parameters(), lr)
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, (steps_per_epoch*epochs)//grad_accumulation_steps)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, steps_per_epoch*epochs)
 model.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, 
               grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
-
-tokenizer_config = {'skip_special_tokens': True}
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, tokenizer_config=tokenizer_config,
-                           pad_id=tokenizer.pad_token_id, mode='random_sample', maxlen=512, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
@@ -145,38 +135,25 @@ class Evaluator(Callback):
     def on_epoch_end(self, steps, epoch, logs=None):
         model.save_weights(f'./model.pt', trainable_only=True)
     
-    def evaluate(self, data, epoch='final'):
-        preds, labels = [], []
-        for prompt, label in tqdm(data, desc='Evaluating'):
-            pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
-            preds.extend(pred)
-            labels.extend(label)
-            with open(f'./preds_{epoch}.txt', 'a+', encoding='utf-8') as f:
-                for pred_i, label_i in zip(pred, label):
-                    f.write(json.dumps({'pred': pred_i, 'label': label_i}, ensure_ascii=False) + '\n')
+    def evaluate(self, data):
+        correct, total = 0, 0
+        for input_ids, label in tqdm(data, desc='Evaluating'):
+            pred = model.predict(input_ids).argmax(dim=-1)
+            label = label[:, 1:]
+            pred = pred[:, :-1]
+            mask = (label != tokenizer.pad_token_id)
+            correct += ((label==pred) * mask).sum().item()
+            total += mask.sum().item()
 
-        score_dict = {"rouge-1": [], "rouge-2": [], "rouge-l": [], "bleu-4": []}
-        for pred, label in zip(preds, labels):
-            hypothesis = list(jieba.cut(pred))
-            reference = list(jieba.cut(label))
-            rouge = Rouge()
-            scores = rouge.get_scores(' '.join(hypothesis) , ' '.join(reference))
-            result = scores[0]
-            
-            for k, v in result.items():
-                score_dict[k].append(round(v["f"] * 100, 4))
-            bleu_score = sentence_bleu([list(label)], list(pred), smoothing_function=SmoothingFunction().method3)
-            score_dict["bleu-4"].append(round(bleu_score * 100, 4))
-
-        for k, v in score_dict.items():
-            score_dict[k] = float(np.mean(v))
-        return score_dict
+        return {'acc': correct/total}
 
 
 if __name__ == '__main__':
     evaluator = Evaluator()
     logger = Logger('./log.log', interval=100)
-
+    score_dict = evaluator.evaluate(dev_dataloader)
+    print(score_dict)
+    
     if mode == 'train':
         model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
         score_dict = evaluator.evaluate(dev_dataloader)
