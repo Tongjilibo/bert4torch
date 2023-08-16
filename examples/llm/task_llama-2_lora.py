@@ -43,7 +43,6 @@ prefix = ''
 dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)

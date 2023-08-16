@@ -15,11 +15,11 @@ from bert4torch.optimizers import get_linear_schedule_with_warmup
 from transformers import AutoTokenizer
 from tqdm import tqdm
 from glob import glob
+from utils import get_model_config
 
 
 # 基本参数
-mode = 'train'
-lr = 1e-5
+lr = 5e-5
 batch_size = 1
 eval_batch_size = 4
 grad_accumulation_steps = 4
@@ -28,15 +28,11 @@ epochs = 1
 steps_per_epoch = 500
 use_lora = False
 load_in_nbit = None
-
-# 模型配置
 data_path = 'E:/Github/MedicalGPT/data/pretrain/**/*.txt'
-model_type = 'bloom'
-dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# 模型配置
+model_type, dir_path, config_path, checkpoint_path = get_model_config('bloom')
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 
 # 加载数据集, 数据量较大使用IterDataset
@@ -50,7 +46,10 @@ class MyDataset(IterDataset):
             with open(filename, encoding='utf-8') as f:
                 for l in f:
                     input_ids = tokenizer.encode(text=l, add_special_tokens=False)
-                    if len(D) + len(input_ids) > max_seq_length:  # +当前输入超长的话，则返回之前的累计输入
+                    if len(input_ids) > 0 and input_ids[-1] == tokenizer.eos_token_id:
+                        input_ids = input_ids[:-1]
+                    if len(D) + len(input_ids) > max_seq_length-1:  # +当前输入超长的话，则返回之前的累计输入
+                        D += [tokenizer.eos_token_id]
                         yield D
                         D = input_ids
                     else:
@@ -156,15 +155,6 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     logger = Logger('./log_pretrain.log')
-    score_dict = evaluator.evaluate(dev_dataloader)
-    print(score_dict)
-    
-    if mode == 'train':
-        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
-        score_dict = evaluator.evaluate(dev_dataloader)
-        print(score_dict)
-
-    else:
-        model.load_weights('./best_model_pretain.pt', strict=False)
-        score_dict = evaluator.evaluate(dev_dataloader)
-        print(score_dict)
+    model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
+else:
+    model.load_weights('./best_model_pretain.pt', strict=False)

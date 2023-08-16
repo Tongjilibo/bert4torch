@@ -17,27 +17,24 @@ from tqdm import tqdm
 from glob import glob
 import json
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from utils import get_model_config
 
 
 # 基本参数
-mode = 'train'
 lr = 1e-5
 batch_size = 4
 eval_batch_size = 4
 grad_accumulation_steps = 1
 max_seq_length = 512
 epochs = 1
-steps_per_epoch = 500
+steps_per_epoch = 100
 use_lora = False
 load_in_nbit = None
+data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 模型配置
-data_path = '/Users/lb/Documents/Project/Github/MedicalGPT/data/reward/**/*.json'
-model_type = 'bloom'
-dir_path = '/Users/lb/Documents/pretrain_ckpt/bloom/bloom-560m/'
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+model_type, dir_path, config_path, checkpoint_path = get_model_config('bloom')
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 pad_token_id = tokenizer.pad_token_id or -100
@@ -77,7 +74,7 @@ dev_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_si
 class Model(BaseModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, with_lm=False)
+        self.model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, pad_token_id=pad_token_id, with_lm=False)
         self.score = nn.Linear(self.model.config['hidden_size'], 1)
     
     def forward(self, input_ids_chosen, input_ids_rejected):
@@ -150,7 +147,7 @@ class Evaluator(Callback):
     
     def evaluate(self, data):
         for (input_ids_chosen, input_ids_rejected), _ in tqdm(data, desc='Evaluating'):
-            chosen_score, reject_score = model.predict([input_ids_chosen, input_ids_rejected]).argmax(dim=-1)
+            chosen_score, reject_score = model.predict([input_ids_chosen, input_ids_rejected])
             if isinstance(chosen_score, torch.Tensor):
                 chosen_score = chosen_score.detach().cpu().numpy()
             if isinstance(reject_score, torch.Tensor):
@@ -165,13 +162,6 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     logger = Logger('./log_reward.log')
-    
-    if mode == 'train':
-        model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
-        score_dict = evaluator.evaluate(dev_dataloader)
-        print(score_dict)
-
-    else:
-        model.load_weights('./best_model_reward.pt', strict=False)
-        score_dict = evaluator.evaluate(dev_dataloader)
-        print(score_dict)
+    model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
+else:
+    model.load_weights('./best_model_reward.pt', strict=False)
