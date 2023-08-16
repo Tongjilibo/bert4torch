@@ -52,8 +52,12 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     > 大模型参数
     :param skip_init: bool, 是否初始化，默认为False
     :param low_cpu_mem_usage: bool, 是否初始化，默认为False, 同skip_init，仅需要设置一个即可
+    :param device_map: None/str/dict, 为不同Module指定不同的device，默认为None表示加载到cpu中，不同于transformer自动分配，这里需手动指定dict
     :param torch_dtype: 指定权重的dtype
     :param flash_attention: bool, 是否使用flash_attention，即torch2的scaled_dot_product_attention(), 默认为False
+    :param use_logn_attn: bool, 在attention模块中是否使用logn_attn
+    :param multi_query_group_num: int, 使用MQA的头数
+    :param ntk_alpha: float, rope外推使用ntk方法时的alhpa参数
 
     :return: A pytorch model instance
     """
@@ -67,11 +71,11 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         configs['dropout_rate'] = configs.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in configs:
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
-    device_map = configs.get('device_map', None)
+    device_map = configs.pop('device_map', None)
     skip_init = configs.get('skip_init', False) or configs.get('low_cpu_mem_usage', False)
     skip_init = True if device_map is not None else skip_init  # 指定了device_map，就必须skip_init
 
-    torch_dtype = configs.get('torch_dtype', None)
+    torch_dtype = configs.pop('torch_dtype', None)
     configs['add_trainer'] = add_trainer
 
     models = {

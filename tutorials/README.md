@@ -125,7 +125,6 @@ build_transformer_model(
     with_pool=False,  # 是否包含Pool部分
     with_nsp=False,  # 是否包含NSP部分
     with_mlm=False,  # 是否包含MLM部分
-    return_model_config=False,  # 是否返回模型配置参数
     output_all_encoded_layers=False,  # 是否返回所有hidden_state层
 )
 ```

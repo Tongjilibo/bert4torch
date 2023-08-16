@@ -13,7 +13,6 @@ from transformers import AutoTokenizer, LlamaTokenizer
 import platform
 import os
 
-# 原生llama
 dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
@@ -25,8 +24,8 @@ model = build_transformer_model(config_path=config_path, checkpoint_path=checkpo
 model = model.to(device)
 
 tokenizer_config = {'skip_special_tokens': True}
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample', tokenizer_config=tokenizer_config,
-                                   maxlen=20, default_rtype='logits', use_states=True)
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', 
+                                   tokenizer_config=tokenizer_config, maxlen=20, default_rtype='logits', use_states=True)
 
 
 if __name__ == '__main__':
@@ -41,6 +40,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use bloom model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query, topk=1, include_input=True)      
+        response = generation.generate(query, topk=1, include_input=True)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nbloom：{response}")

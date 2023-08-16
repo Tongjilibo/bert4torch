@@ -51,7 +51,7 @@ class Decoder(LM_Mask, BERT):
                                             weight=kwargs.get('weight', True), bias=kwargs.get('bias', True))
 
     def tie_weights(self):
-        if self.tie_emb_prj_weight is True:
+        if (self.tie_emb_prj_weight is True) and self.with_lm:
             self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def apply_main_layers(self, **model_kwargs):

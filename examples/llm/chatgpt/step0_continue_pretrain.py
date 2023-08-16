@@ -1,21 +1,19 @@
 #! -*- coding: utf-8 -*-
-# continue pretrain：还在测试
+# continue pretrain
 
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, text_segmentate
+from bert4torch.snippets import sequence_padding
 import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch
-from bert4torch.models import build_transformer_model, BaseModel
+from bert4torch.models import build_transformer_model
 from bert4torch.snippets import IterDataset
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from transformers import AutoTokenizer
-import numpy as np
 from tqdm import tqdm
-from peft import LoraConfig, prepare_model_for_kbit_training
 from glob import glob
 
 
@@ -33,6 +31,7 @@ load_in_nbit = None
 
 # 模型配置
 data_path = 'E:/Github/MedicalGPT/data/pretrain/**/*.txt'
+model_type = 'bloom'
 dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
@@ -40,7 +39,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 
-# 加载数据集
+# 加载数据集, 数据量较大使用IterDataset
 class MyDataset(IterDataset):
     @staticmethod
     def load_data(filenames):
@@ -51,7 +50,7 @@ class MyDataset(IterDataset):
             with open(filename, encoding='utf-8') as f:
                 for l in f:
                     input_ids = tokenizer.encode(text=l, add_special_tokens=False)
-                    if len(D) + len(input_ids) > max_seq_length:
+                    if len(D) + len(input_ids) > max_seq_length:  # +当前输入超长的话，则返回之前的累计输入
                         yield D
                         D = input_ids
                     else:
@@ -65,7 +64,7 @@ train_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_
 dev_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_size=eval_batch_size, collate_fn=collate_fn)
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='bloom', add_trainer=True)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, add_trainer=True)
 
 # 量化
 if load_in_nbit == 8:
@@ -80,6 +79,7 @@ if load_in_nbit == 8:
     
 elif load_in_nbit == 4:
     from transformers import BitsAndBytesConfig
+    from peft import prepare_model_for_kbit_training
     q_config = BitsAndBytesConfig(load_in_4bit=True,
                                 bnb_4bit_quant_type='nf4',
                                 bnb_4bit_use_double_quant=True,
@@ -91,6 +91,7 @@ elif load_in_nbit == 4:
 
 # lora
 if use_lora:
+    from peft import LoraConfig
     peft_config = LoraConfig(
             inference_mode=False,
             r=8,
@@ -133,7 +134,11 @@ class Evaluator(Callback):
         self.best = 0
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        model.save_weights(f'./model.pt', trainable_only=True)
+        acc = self.evaluate(dev_dataloader)
+        if self.best < acc['acc']:
+            model.save_weights(f'./best_model_pretain.pt', trainable_only=True)
+            acc['best_acc'] = acc['acc']
+        print(acc)
     
     def evaluate(self, data):
         correct, total = 0, 0
@@ -150,7 +155,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    logger = Logger('./log.log', interval=100)
+    logger = Logger('./log_pretrain.log')
     score_dict = evaluator.evaluate(dev_dataloader)
     print(score_dict)
     
@@ -160,6 +165,6 @@ if __name__ == '__main__':
         print(score_dict)
 
     else:
-        model.load_weights('./model.pt', strict=False)
+        model.load_weights('./best_model_pretain.pt', strict=False)
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
