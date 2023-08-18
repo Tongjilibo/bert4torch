@@ -3,11 +3,10 @@ from bert4torch.models.transformer import Transformer
 
 class BART(Transformer):
     '''encoder-decoder结构'''
-    def __init__(self, *args, tie_emb_src_tgt_weight=True, **kwargs):
+    def __init__(self, *args, **kwargs):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
-        super(BART, self).__init__(*args, tie_emb_src_tgt_weight=tie_emb_src_tgt_weight, **kwargs)
-        self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
+        super(BART, self).__init__(*args, **kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):
         # 加载单个变量的函数

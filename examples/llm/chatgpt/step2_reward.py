@@ -78,9 +78,14 @@ class Model(BaseModel):
         self.score = nn.Linear(self.model.config['hidden_size'], 1)
     
     def forward(self, input_ids_chosen, input_ids_rejected):
+        # 最后一个token的logit计算得分，作为整个response的得分
         chosen_score = self.score(self.model(input_ids_chosen)[:, -1, :])
         reject_score = self.score(self.model(input_ids_rejected)[:, -1, :])
         return chosen_score, reject_score
+
+    def predict_score(self, input_ids):
+        # 返回某个query+response组合的得分
+        return self.score(self.model(input_ids)[:, -1, :])
 
 model = Model()
 

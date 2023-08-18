@@ -38,12 +38,10 @@ class Decoder(LM_Mask, BERT):
         if self.with_lm:
             self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
             self.final_activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
+        self.tie_weights()
 
-            # decoder底层的embedding和顶层的全连接共享
-            # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
-            self.tie_weights()
-            if logit_scale:  # T5默认会有logit_scale, bart默认没有
-                self.logit_scale = (self.hidden_size ** -0.5)
+        if logit_scale:  # T5默认会有logit_scale, bart默认没有
+            self.logit_scale = (self.hidden_size ** -0.5)
         
         if self.final_layernorm:
             self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), 
@@ -51,6 +49,8 @@ class Decoder(LM_Mask, BERT):
                                             weight=kwargs.get('weight', True), bias=kwargs.get('bias', True))
 
     def tie_weights(self):
+        # decoder底层的embedding和顶层的全连接共享
+        # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
         if (self.tie_emb_prj_weight is True) and self.with_lm:
             self.lm_head.weight = self.embeddings.word_embeddings.weight
 
@@ -115,6 +115,8 @@ class Transformer(BERT_BASE):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
+        self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
+        self.is_encoder_decoder = True
 
         # encoder
         self.encoder = Encoder(*args, **kwargs)
@@ -122,13 +124,12 @@ class Transformer(BERT_BASE):
         # decoder
         self.decoder = Decoder(*args, add_cross_attention=True, **kwargs)
 
-        if tie_emb_src_tgt_weight:
-            # encoder和decoder的embedding权重共享
-            assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
-            self.encoder.embeddings.word_embeddings.weight = self.decoder.embeddings.word_embeddings.weight
-
     def tie_weights(self):
         self.decoder.tie_weights()
+        # encoder和decoder的embedding权重共享
+        if self.tie_emb_src_tgt_weight:
+            assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
+            self.decoder.embeddings.word_embeddings.weight = self.encoder.embeddings.word_embeddings.weight
 
     def forward(self, *inputs):
         inputs = self.args_segmentate(inputs)

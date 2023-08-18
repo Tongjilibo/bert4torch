@@ -129,9 +129,8 @@ class T5_Decoder(Decoder):
 class T5(Transformer):
     """Google的T5模型（Encoder-Decoder）"""
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args,  tie_emb_src_tgt_weight=True, **kwargs):
+    def __init__(self, *args,  **kwargs):
         super(T5, self).__init__(*args, **kwargs)
-        self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
 
         # encoder
         self.encoder = T5_Encoder(*args, **kwargs)
