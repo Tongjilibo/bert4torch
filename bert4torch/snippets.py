@@ -14,6 +14,7 @@ import random
 import importlib
 from torch4keras.snippets import *
 from torch4keras.callbacks import *
+from torch.utils.checkpoint import CheckpointFunction
 if sys.version_info < (3, 8):
     import importlib_metadata
 else:
@@ -544,3 +545,33 @@ def load_state_dict_into_meta_model(model, state_dict, device_map=None, torch_dt
 
         set_module_kwargs["dtype"] = torch_dtype or param.dtype
         set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+
+
+def checkpoint_old(function, model_kwargs):
+    ''' 兼容torch<1.11.0时仅允许输入输出是位置参数
+    通过闭包来对返回参数进行控制
+    '''
+
+    def create_custom_forward(module):
+        def custom_forward(*inputs):
+            outputs = module(*inputs)
+            if isinstance(outputs, dict):
+                setattr(create_custom_forward, 'outputs_keys', [v for v in outputs.keys()])
+                return *[v for v in outputs.values()],
+            else:
+                return outputs
+        return custom_forward
+    
+    args = []
+    __args = inspect.getargspec(type(function).forward)
+    arg_names, arg_defaults = __args[0][1:], __args[-1]
+    for i, arg_name in enumerate(arg_names):
+        args.append(model_kwargs.get(arg_name, arg_defaults[i]))
+
+    preserve = model_kwargs.pop('preserve_rng_state', True)
+
+    outputs = CheckpointFunction.apply(create_custom_forward(function), preserve, *args)
+    if hasattr(create_custom_forward, 'outputs_keys'):
+        return dict(zip(create_custom_forward.outputs_keys, outputs))
+    else:
+        return outputs

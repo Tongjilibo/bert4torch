@@ -34,8 +34,8 @@ class BertLayer(nn.Module):
             self.dropout3 = nn.Dropout(dropout_rate)
             self.layerNorm3 = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, 
-                cross_past_key_value=None, position_ids=None, use_states=False, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, position_ids=None, conditional_emb=None, encoder_hidden_states=None, 
+                encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
         # ============== self attention ==============
         x = self.layerNorm1(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
@@ -49,7 +49,7 @@ class BertLayer(nn.Module):
             cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, position_ids=position_ids)
             residual = x if self.apply_residual_post_layernorm else hidden_states
             hidden_states = residual + self.dropout3(cross_attn_output[0])
-            if use_states:
+            if model_kwargs.get('use_states', False):
                 model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
             hidden_states = self.layerNorm3(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
 
@@ -60,7 +60,7 @@ class BertLayer(nn.Module):
         hidden_states = residual + self.dropout2(feedforward_output)
         hidden_states = self.layerNorm2(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
         
-        if self.is_decoder and use_states:
+        if self.is_decoder and model_kwargs.get('use_states', False):
             model_kwargs['past_key_value'] = self_attn_output[-1]
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
@@ -82,8 +82,8 @@ class T5Layer(BertLayer):
             del self.crossAttention.relative_positions_encoding
             del self.crossAttention.relative_positions
 
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, 
-                cross_past_key_value=None, use_states=False, **model_kwargs):
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, 
+                encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
         # bert的layernorm是在attn/ffc之后，Openai-gpt2是在之前
         x = self.layerNorm1(hidden_states, conditional_emb)
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
@@ -94,7 +94,7 @@ class T5Layer(BertLayer):
             x = self.layerNorm3(hidden_states, conditional_emb)
             cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value)
             hidden_states = hidden_states + self.dropout3(cross_attn_output[0])
-            if use_states:
+            if model_kwargs.get('use_states', False):
                 model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
 
         # feed forward
@@ -102,7 +102,7 @@ class T5Layer(BertLayer):
         ffn_output = self.feedForward(x)
         hidden_states = hidden_states + self.dropout2(ffn_output)
 
-        if self.is_decoder and use_states:
+        if self.is_decoder and model_kwargs.get('use_states', False):
             model_kwargs['past_key_value'] = self_attn_output[-1]
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs

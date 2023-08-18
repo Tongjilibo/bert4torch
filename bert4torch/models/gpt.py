@@ -75,7 +75,7 @@ class GPT2_ML(Decoder):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
-        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, use_states=False, **model_kwargs):
+        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             self_attn_output = self.multiHeadAttention(hidden_states, attention_mask, past_key_value=past_key_value)
             hidden_states = hidden_states + self.dropout1(self_attn_output[0])
             x = self.layerNorm1(hidden_states, conditional_emb)
@@ -85,7 +85,7 @@ class GPT2_ML(Decoder):
             # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加layerNorm1
             hidden_states = hidden_states + self.dropout2(ffn_output)
             hidden_states = self.layerNorm2(hidden_states, conditional_emb)
-            if self.is_decoder and use_states:
+            if self.is_decoder and model_kwargs.get('use_states', False):
                 model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs

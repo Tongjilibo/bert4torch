@@ -3,10 +3,12 @@ from bert4torch.layers import LayerNorm, BertEmbeddings
 from torch import nn
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
 from torch.utils.checkpoint import checkpoint
+from bert4torch.snippets import checkpoint_old
 import torch
 from bert4torch.activations import get_activation
 import copy
 import inspect
+from packaging import version
 from bert4torch.snippets import create_position_ids_start_at_padding
 
 
@@ -85,14 +87,9 @@ class BERT(BERT_BASE):
     def layer_forward(self, layer, model_kwargs, use_reentrant=False):
         """transformer block的forward"""
         if self.gradient_checkpoint and self.training:
-            if use_reentrant is True:
-                # TODO: 此种方式要求输入输入是list类型，目前实现了输入，输出的dict默认没有梯度
-                args = []
-                __args = inspect.getargspec(type(layer).forward)
-                arg_names, arg_defaults = __args[0][1:], __args[-1]
-                for i, arg_name in enumerate(arg_names):
-                    args.append(model_kwargs.get(arg_name, arg_defaults[i]))
-                return checkpoint(layer, *args)
+            if (use_reentrant is True) or version.parse(torch.__version__) < version.parse("1.11.0"):
+                # 此种方式要求输入输出是位置参数
+                return checkpoint_old(layer, model_kwargs)
             else:
                 return checkpoint(layer, use_reentrant=use_reentrant, **model_kwargs)
         else:
