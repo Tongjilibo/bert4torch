@@ -3,7 +3,7 @@ from bert4torch.layers import LayerNorm, BertEmbeddings
 from torch import nn
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
 from torch.utils.checkpoint import checkpoint
-from bert4torch.snippets import checkpoint_old
+from bert4torch.snippets import old_checkpoint
 import torch
 from bert4torch.activations import get_activation
 import copy
@@ -89,7 +89,7 @@ class BERT(BERT_BASE):
         if self.gradient_checkpoint and self.training:
             if (use_reentrant is True) or version.parse(torch.__version__) < version.parse("1.11.0"):
                 # 此种方式要求输入输出是位置参数
-                return checkpoint_old(layer, model_kwargs)
+                return old_checkpoint(layer, model_kwargs)
             else:
                 return checkpoint(layer, use_reentrant=use_reentrant, **model_kwargs)
         else:

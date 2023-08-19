@@ -547,7 +547,7 @@ def load_state_dict_into_meta_model(model, state_dict, device_map=None, torch_dt
         set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
 
 
-def checkpoint_old(function, model_kwargs):
+def old_checkpoint(function, model_kwargs):
     ''' 兼容torch<1.11.0时仅允许输入输出是位置参数
     通过闭包来对返回参数进行控制
     '''
