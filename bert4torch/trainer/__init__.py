@@ -6,4 +6,4 @@ try:
     from torch4keras.trainer import *  # torch4keras>=0.1.3
 except:
     pass
-from bert4torch.trainer.ppo_trainer import *
+from bert4torch.trainer.ppo_trainer_trl import *
