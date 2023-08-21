@@ -1,5 +1,6 @@
 ''' 量化模块
 '''
+
 from torch.nn import Linear, Embedding
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F

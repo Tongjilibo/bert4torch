@@ -1,3 +1,7 @@
+''' Callbacks
+通用的callback定义在torch4keras中，这里是定义NLP中使用的callback
+'''
+
 import torch
 import torch.nn.functional as F
 from torch4keras.snippets import *

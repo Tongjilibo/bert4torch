@@ -1,3 +1,6 @@
+'''Optimizer
+'''
+
 from torch.optim.lr_scheduler import LambdaLR
 from torch.optim.optimizer import Optimizer
 import torch

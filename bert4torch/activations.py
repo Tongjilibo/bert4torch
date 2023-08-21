@@ -1,4 +1,6 @@
-# 从transformer中移植过来的activation, 原来的bert4keras并没有
+''' Activation激活函数
+从transformer中移植过来的activation, 原来的bert4keras并没有
+'''
 
 import math
 import torch
