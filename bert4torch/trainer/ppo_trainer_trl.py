@@ -5,7 +5,7 @@ try:
     from torch4keras.trainer import Trainer
     from trl.trainer import PPOTrainer
 except:
-    pass
+    PPOTrainer = object
 
 
 class PPOTrainerTrl(Trainer, PPOTrainer):
