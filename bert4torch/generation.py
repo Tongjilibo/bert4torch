@@ -478,8 +478,9 @@ class AutoRegressiveDecoder(object):
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
     '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None,
-                 pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True, device=None, n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
+    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, tokenizer_encode_config=None, 
+                 tokenizer_decode_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True, device=None, n=1, 
+                 topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1, tokenizer_type=None):
         '''
         :param model: 模型
         :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
@@ -495,6 +496,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
         :param use_states: str, 是否使用cache
         :param device: str, 默认为None，因为可以直接使用传入的model.device
+        :param tokenizer_type: str, 默认为None, 表示按照type(tokenizer)自行判断
         '''
         if pad_id is not None:  # 用户自行设置了
             pass
@@ -511,7 +513,10 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # tokenizer参数
         self.tokenizer = tokenizer
-        self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
+        if tokenizer_type is None:
+            self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
+        else:
+            self.tokenizer_type = tokenizer_type
         tokenizer_config = tokenizer_config or dict()
         tokenizer_config.update({'maxlen': maxlen})
         tokenizer_encode_config = tokenizer_encode_config or {}
@@ -663,9 +668,12 @@ class SeqGeneration(AutoRegressiveDecoder):
             # bert4torch的tokenizer
             inputs = self.tokenizer.encode(text, **self.tokenizer_encode_config)
             return inputs if self.use_segment_ids else [inputs[0]]
-        else:
+        elif self.tokenizer_type == 'hf':
             # hf的tokenize
             return [self.tokenizer(text, **self.tokenizer_encode_config)['input_ids']]
+        else:
+            # 不处理，适用于输入已经是token_ids的类型
+            return text
     
     def post_process(self, output_ids):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''

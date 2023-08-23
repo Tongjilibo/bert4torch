@@ -16,27 +16,34 @@ class PPOTrainerTrl(Trainer, PPOTrainer):
             raise ValueError('Please install trl by running `pip install trl`')
         Trainer.__init__(self)
         PPOTrainer.__init__(self, *args, **kwargs)
-        self.generation =generation
+        self.generation = generation
+        self.generation.tokenizer_type = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
         self.generation_kwargs = generation_kwargs or {}
+        self.reward_baseline = kwargs.pop('reward_baseline', 0)
 
-    def train_step(self, batch, *args):
+    def train_step(self, train_X, train_y):
         device = self.model.device
-        question_tensors = batch["input_ids"]
+        if isinstance(train_X, (tuple, list)):
+            question_tensors, query = train_X[0], train_X[1]
+        elif isinstance(train_X, dict):
+            question_tensors, query = train_X["input_ids"], train_X["query"]
+        else:
+            raise ValueError('Args `train_X` format illegel')
+        
+        # actor生成得到推理结果
         question_tensors = [torch.LongTensor(i).to(device).squeeze(0) for i in question_tensors]
         responses = []
         response_tensors = []
         for q_tensor in question_tensors:
-            response_tensor = self.generation(q_tensor, return_prompt=False, **self.generation_kwargs)
-            r = self.tokenizer.batch_decode(response_tensor, skip_special_tokens=True)[0]
+            response_tensor = self.generation(q_tensor, **self.generation_kwargs)
+            r = self.tokenizer.decode(response_tensor, skip_special_tokens=True)[0]
             responses.append(r)
             response_tensors.append(response_tensor.squeeze(0))
 
         # Compute reward score
-        score_outputs = [
-            self.get_reward_model_output(self.reward_model, self.reward_tokenizer, q, r, device) for q, r in
-            zip(batch["query"], responses)
-        ]
-        rewards = self.calculate_rewards(score_outputs, args.reward_baseline)
+        score_outputs = [self.get_reward_model_output(self.reward_model, self.reward_tokenizer, q, r, device)
+                         for q, r in zip(query, responses)]
+        rewards = self.calculate_rewards(score_outputs, self.reward_baseline)
 
         # Run PPO step
         try:
