@@ -3,14 +3,16 @@
 import torch
 from torch4keras.trainer import Trainer
 from torch4keras.snippets import log_warn
-from bert4torch.generation import SeqGeneration
+from bert4torch.models import BaseModel
 try:
+    import trl
+    trl.trainer.ppo_trainer.SUPPORTED_ARCHITECTURES = (BaseModel, )
     from trl.trainer import PPOTrainer
 except:
     PPOTrainer = object
 
 
-class PPOTrainerTrl(Trainer, PPOTrainer):
+class PPOTrainerTrl(PPOTrainer, Trainer):
     def __init__(self, *args, generation=None, generation_kwargs=None, **kwargs):
         if PPOTrainer == object:
             raise ValueError('Please install trl by running `pip install trl`')
@@ -20,6 +22,7 @@ class PPOTrainerTrl(Trainer, PPOTrainer):
         self.generation.tokenizer_type = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
         self.generation_kwargs = generation_kwargs or {}
         self.reward_baseline = kwargs.pop('reward_baseline', 0)
+        self.grad_accumulation_steps = self.config.gradient_accumulation_steps
 
     def train_step(self, train_X, train_y):
         device = self.model.device
@@ -31,14 +34,12 @@ class PPOTrainerTrl(Trainer, PPOTrainer):
             raise ValueError('Args `train_X` format illegel')
         
         # actor生成得到推理结果
-        question_tensors = [torch.LongTensor(i).to(device).squeeze(0) for i in question_tensors]
         responses = []
         response_tensors = []
-        for q_tensor in question_tensors:
-            response_tensor = self.generation(q_tensor, **self.generation_kwargs)
-            r = self.tokenizer.decode(response_tensor, skip_special_tokens=True)[0]
-            responses.append(r)
-            response_tensors.append(response_tensor.squeeze(0))
+        response_tensor = self.generation.batch_generate(question_tensors, **self.generation_kwargs)
+        r = self.tokenizer.decode(response_tensor, skip_special_tokens=True)[0]
+        responses.append(r)
+        response_tensors.append(response_tensor.squeeze(0))
 
         # Compute reward score
         score_outputs = [self.get_reward_model_output(self.reward_model, self.reward_tokenizer, q, r, device)
@@ -78,5 +79,9 @@ class PPOTrainerTrl(Trainer, PPOTrainer):
         """
         inputs = reward_tokenizer(question, answer, return_tensors='pt').to(device)
         score = reward_model(**inputs).logits[0].cpu().detach()
-
         return score
+
+    def unwrap_model(self):
+        '''返回nn.Module模块
+        '''
+        return self.accelerator.unwrap_model(self.model)

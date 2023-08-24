@@ -5,151 +5,167 @@ rlhf
 """
 
 from glob import glob
+import torch
 from torch import nn
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.generation import SeqGeneration
-import torch
-from trl import PPOConfig, PPOTrainer, set_seed
-from utils import get_model_config
-from transformers import AutoTokenizer
 from bert4torch.callbacks import Callback, Logger
+from bert4torch.trainer import PPOTrainerTrl
+from trl import PPOConfig, set_seed
+from utils import get_model_config
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import json
 
 
-steps_per_epoch = None
-epochs = 1
+# 基本参数
 args = DottableDict()
+args.steps_per_epoch = None
+args.epochs = 1
+args.data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.jsonl'
+args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
-device = "cuda" if torch.cuda.is_available() else "cpu"
+args.seed = 1234
+args.max_source_length = 256
+args.max_target_length = 256
+args.reward_model_name_or_path = "E:/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
+args.load_in_8bit = False
+args.max_steps = 100
+args.learning_rate = 1e-5
+args.batch_size = 8
+args.gradient_accumulation_steps = 1
+args.target_kl = 0.1
+args.init_kl_coef = 0.2
+args.adap_kl_ctrl = True
+args.trust_remote_code = True
 
-
-# Set seed before initializing value head for deterministic eval
 set_seed(args.seed)
 
 # 模型配置
-args.model_type, dir_path, config_path, checkpoint_path = get_model_config('bloom')
+args.model_type, args.model_name_or_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
 
-def main():
-    # =============== 定义tokenizer ==================
-    if args.model_type == 'bloom':
-        args.use_fast_tokenizer = True
-    # Load tokenizer
-    tokenizer_kwargs = {
-        "cache_dir": args.cache_dir,
-        "use_fast": args.use_fast_tokenizer,
-        "trust_remote_code": args.trust_remote_code,
-    }
-    tokenizer_name_or_path = args.tokenizer_name_or_path
-    if not tokenizer_name_or_path:
-        tokenizer_name_or_path = args.model_name_or_path
-    tokenizer  = AutoTokenizer.from_pretrained(dir_path, **tokenizer_kwargs)
-    # Required for llama
-    if args.model_type == "llama" and tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
-    pad_token_id = tokenizer.pad_token_id or -100
+# =============== 定义tokenizer ==================
+if args.model_type == 'bloom':
+    args.use_fast_tokenizer = True
+# Load tokenizer
+tokenizer_kwargs = {
+    "use_fast": args.use_fast_tokenizer,
+    "trust_remote_code": args.trust_remote_code,
+}
+tokenizer  = AutoTokenizer.from_pretrained(args.model_name_or_path, **tokenizer_kwargs)
+# Required for llama
+if args.model_type == "llama" and tokenizer.pad_token is None:
+    tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+pad_token_id = tokenizer.pad_token_id or -100
 
-    # =============== 定义Dataset ==================
-    max_source_length = args.max_source_length
-    max_target_length = args.max_target_length
+# =============== 定义Dataset ==================
+max_source_length = args.max_source_length
+max_target_length = args.max_target_length
 
-    def preprocess_function(examples):
-        new_examples = {
-            "query": [],
-            "input_ids": [],
-        }
-        for conversation in examples['conversations']:
-            for message in conversation:
-                instruction = message['value']
-                input = message['from']
-                if input:
-                    instruction = instruction + "\n" + input
-                source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-                tokenized_question = tokenizer(
-                    source, truncation=True, max_length=max_source_length, padding="max_length",
-                    return_tensors="pt"
-                )
-                new_examples["query"].append(source)
-                new_examples["input_ids"].append(tokenized_question["input_ids"])
+PROMPT_TEMPLATE = (
+    "Below is an instruction that describes a task. "
+    "Write a response that appropriately completes the request.\n\n"
+    "### Instruction:\n{instruction}\n\n### Response: "
+)
 
-        return new_examples
+def preprocess_function(examples):
+    new_examples = []
+    for conversation in examples:
+        for message in conversation:
+            instruction = message['value']
+            input = message['from']
+            if input:
+                instruction = instruction + "\n" + input
+            source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+            tokenized_question = tokenizer(source, truncation=True, max_length=max_source_length)["input_ids"]
+            new_examples.append((source, tokenized_question))
+    return new_examples
 
+# 加载数据集
+class MyDataset(ListDataset):
+    @staticmethod
+    def load_data(filenames):
+        """加载数据，并尽量分为不超过maxlen的句子
+        """
+        D = []
+        for filename in filenames:
+            with open(filename, encoding='utf-8') as f:
+                for l in f:
+                    D.append(json.loads(l)['conversations'])
+        return preprocess_function(D)
 
+def collate_fn(batch):
+    batch_token_ids, batch_queries = [], []
+    for query, token_ids in batch:
+        batch_token_ids.append(token_ids)
+        batch_queries.append(query)
 
-    # ============= 定义 model =============
-    class Model(BaseModel):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.module = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=args.model_type, 
-                                                 pad_token_id=pad_token_id, with_lm=False)
-            self.score = nn.Linear(self.module.config['hidden_size'], 1)
-        
-        def forward(self, input_ids):
-            logit = self.score(self.module(input_ids))
-            return logit
-    model = Model().to(device)
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
+    return {'input_ids': batch_token_ids, 'query': batch_queries}, None
 
-    # ============= 定义reward model =============
-    class RewardModel(BaseModel):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.module = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=args.model_type, 
-                                                 pad_token_id=pad_token_id, with_lm=False)
-            self.score = nn.Linear(self.module.config['hidden_size'], 1)
-        
-        def forward(self, input_ids):
-            # 最后一个token的logit计算得分，作为整个response的得分
-            score = self.score(self.module(input_ids)[:, -1, :])
-            return score
-    reward_model = RewardModel().to(device)
-    reward_tokenizer = AutoTokenizer.from_pretrained(args.reward_model_name_or_path, **tokenizer_kwargs)
+train_dataset = MyDataset(glob(args.data_path, recursive=True))
 
-    output_dir = args.output_dir
-    config = PPOConfig(
-        steps=args.max_steps,
-        model_name=args.model_name_or_path,
-        learning_rate=args.learning_rate,
-        log_with=args.log_with,
-        batch_size=args.batch_size,
-        mini_batch_size=args.mini_batch_size,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        optimize_cuda_cache=True,
-        early_stopping=args.early_stopping,
-        target_kl=args.target_kl,
-        seed=args.seed,
-        init_kl_coef=args.init_kl_coef,
-        adap_kl_ctrl=args.adap_kl_ctrl,
-        project_kwargs={"logging_dir": output_dir},
-    )
+# ============= 定义 model =============
+class Model(BaseModel):
+    def __init__(self, *arg, **kwargs):
+        super().__init__(*arg, **kwargs)
+        self.module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
+                                                pad_token_id=pad_token_id, with_lm=False)
+        self.score = nn.Linear(self.module.config['hidden_size'], 1)
+    
+    def forward(self, input_ids):
+        logit = self.score(self.module(input_ids))
+        return logit
+model = Model().to(args.device)
 
-    # ============= generation =============
-    generation_kwargs = {
-        "temperature": 1.0,
-        "repetition_penalty": 1.0,
-        "top_p": 1.0,
-        "do_sample": True,
-    }
-    tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-    generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
-                            maxlen=max_target_length, default_rtype='logits', use_states=True)
+# ============= 定义reward model =============
+reward_model = AutoModelForSequenceClassification.from_pretrained(
+    args.reward_model_name_or_path,
+    # config=config,
+    load_in_8bit=args.load_in_8bit,
+    trust_remote_code=args.trust_remote_code,
+)
+reward_model = reward_model.to(args.device)
+reward_tokenizer = AutoTokenizer.from_pretrained(args.reward_model_name_or_path, **tokenizer_kwargs)
 
+config = PPOConfig(
+    steps=args.max_steps,
+    model_name=args.model_name_or_path,
+    learning_rate=args.learning_rate,
+    batch_size=args.batch_size,
+    gradient_accumulation_steps=args.gradient_accumulation_steps,
+    optimize_cuda_cache=True,
+    target_kl=args.target_kl,
+    seed=args.seed,
+    init_kl_coef=args.init_kl_coef,
+    adap_kl_ctrl=args.adap_kl_ctrl
+)
 
-    # ============= PPOTrainer =============
-    trainer = PPOTrainer(
-        config,
-        model,
-        ref_model=None,
-        tokenizer=tokenizer,
-        dataset=train_dataset,
-        data_collator=collator,
-    )
+# ============= generation =============
+generation_kwargs = {
+    "temperature": 1.0,
+    "repetition_penalty": 1.0,
+    "topp": 1.0,
+}
+tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+                        maxlen=max_target_length, default_rtype='logits', use_states=True)
 
 
-    def save_model(save_dir):
-        trainer.accelerator.unwrap_model(trainer.model).save_pretrained(save_dir)
-        trainer.tokenizer.save_pretrained(save_dir)
+# ============= PPOTrainer =============
+trainer = PPOTrainerTrl(
+    config,
+    model,
+    ref_model=None,
+    tokenizer=tokenizer,
+    dataset=train_dataset,
+    data_collator=collate_fn,
+    generation=generation,
+    generation_kwargs=generation_kwargs
+)
 
-    logger = Logger('./log_reward.log')
-    trainer.fit(trainer.dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[logger])
+trainer.compile(loss=None, optimizer=None)
 
 if __name__ == "__main__":
-    main()
+    logger = Logger('./log_reward.log')
+    trainer.fit(trainer.dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[logger])

@@ -104,7 +104,9 @@ class BERT(BERT_BASE):
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
         # ========================= token_ids =========================
-        if model_kwargs.get('token_ids') is not None:
+        if model_kwargs.get('input_ids') is not None:
+            token_ids = model_kwargs['input_ids']
+        elif model_kwargs.get('token_ids') is not None:
             token_ids = model_kwargs['token_ids']
         else:
             token_ids = inputs[0]
