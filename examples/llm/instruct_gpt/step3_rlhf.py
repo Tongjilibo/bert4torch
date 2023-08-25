@@ -22,13 +22,13 @@ import json
 args = DottableDict()
 args.steps_per_epoch = None
 args.epochs = 1
-args.data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.jsonl'
+args.data_path = '/Users/lb/Documents/Project/Github/MedicalGPT/data/finetune/**/*.jsonl'
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
 args.seed = 1234
 args.max_source_length = 256
 args.max_target_length = 256
-args.reward_model_name_or_path = "E:/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
+args.reward_model_name_or_path = "/Users/lb/Documents/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
 args.load_in_8bit = False
 args.max_steps = 100
 args.learning_rate = 1e-5
@@ -38,11 +38,9 @@ args.target_kl = 0.1
 args.init_kl_coef = 0.2
 args.adap_kl_ctrl = True
 args.trust_remote_code = True
+args.model_type, args.model_name_or_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
 
 set_seed(args.seed)
-
-# 模型配置
-args.model_type, args.model_name_or_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
 
 # =============== 定义tokenizer ==================
 if args.model_type == 'bloom':
@@ -57,6 +55,7 @@ tokenizer  = AutoTokenizer.from_pretrained(args.model_name_or_path, **tokenizer_
 if args.model_type == "llama" and tokenizer.pad_token is None:
     tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 pad_token_id = tokenizer.pad_token_id or -100
+
 
 # =============== 定义Dataset ==================
 max_source_length = args.max_source_length
@@ -105,6 +104,7 @@ def collate_fn(batch):
 
 train_dataset = MyDataset(glob(args.data_path, recursive=True))
 
+
 # ============= 定义 model =============
 class Model(BaseModel):
     def __init__(self, *arg, **kwargs):
@@ -118,6 +118,7 @@ class Model(BaseModel):
         return logit
 model = Model().to(args.device)
 
+
 # ============= 定义reward model =============
 reward_model = AutoModelForSequenceClassification.from_pretrained(
     args.reward_model_name_or_path,
@@ -128,6 +129,19 @@ reward_model = AutoModelForSequenceClassification.from_pretrained(
 reward_model = reward_model.to(args.device)
 reward_tokenizer = AutoTokenizer.from_pretrained(args.reward_model_name_or_path, **tokenizer_kwargs)
 
+
+# ============= generation =============
+generation_kwargs = {
+    "temperature": 1.0,
+    "repetition_penalty": 1.0,
+    "topp": 1.0,
+}
+tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+                           maxlen=max_target_length, default_rtype='logits', use_states=True)
+
+
+# ============= PPOTrainer =============
 config = PPOConfig(
     steps=args.max_steps,
     model_name=args.model_name_or_path,
@@ -141,18 +155,6 @@ config = PPOConfig(
     adap_kl_ctrl=args.adap_kl_ctrl
 )
 
-# ============= generation =============
-generation_kwargs = {
-    "temperature": 1.0,
-    "repetition_penalty": 1.0,
-    "topp": 1.0,
-}
-tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
-                        maxlen=max_target_length, default_rtype='logits', use_states=True)
-
-
-# ============= PPOTrainer =============
 trainer = PPOTrainerTrl(
     config,
     model,

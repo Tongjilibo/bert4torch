@@ -1,6 +1,7 @@
 '''修改trl包的PPOTrainer, 正在修改中
 '''
 import torch
+from torch import nn
 from torch4keras.trainer import Trainer
 from torch4keras.snippets import log_warn
 from bert4torch.models import BaseModel
@@ -82,6 +83,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         return score
 
     def unwrap_model(self):
-        '''返回nn.Module模块
-        '''
-        return self.accelerator.unwrap_model(self.model)
+        '''返回nn.Module模块'''
+        unwrap_model = self.accelerator.unwrap_model(self.model)
+        if isinstance(unwrap_model, nn.Module): return unwrap_model
+        return unwrap_model.module if hasattr(unwrap_model, 'module') else unwrap_model

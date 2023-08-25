@@ -127,7 +127,7 @@ class AutoRegressiveDecoder(object):
         '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]'''
         # 传入的Tensor直接[]后返回
         if isinstance(inputs_raw, torch.Tensor):
-            self.input_seqlen = torch.ones(inputs_raw.shape[0]).to(self.device) * inputs_raw.shape[1]
+            self.input_seqlen = torch.ones(inputs_raw.shape[0], dtype=torch.long).to(self.device) * inputs_raw.shape[1]
             return [inputs_raw.to(self.device)]
         inputs = []
         for input_ in inputs_raw:
@@ -141,10 +141,10 @@ class AutoRegressiveDecoder(object):
 
                 # padding在右边则input_seqlen是真实的长度，左边则统一为最大程度
                 if self.pad_mode in {'post', 'right'}:
-                    self.input_seqlen = torch.tensor([len(i) for i in input_]).to(self.device)
+                    self.input_seqlen = torch.tensor([len(i) for i in input_], dtype=torch.long).to(self.device)
                 else:
                     max_len = input_new.shape[1]
-                    self.input_seqlen = torch.tensor([max_len]*len(input_new)).to(self.device)
+                    self.input_seqlen = torch.tensor([max_len]*len(input_new), dtype=torch.long).to(self.device)
             else:
                 raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_new)
