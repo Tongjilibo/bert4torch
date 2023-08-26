@@ -106,7 +106,7 @@ train_dataset = MyDataset(glob(args.data_path, recursive=True))
 
 
 # ============= 定义 model =============
-class Model(BaseModel):
+class AutoModelForCausalLMWithValueHead(BaseModel):
     def __init__(self, *arg, **kwargs):
         super().__init__(*arg, **kwargs)
         self.module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
@@ -119,7 +119,7 @@ class Model(BaseModel):
         lm_logits = self.module.lm_head(hidden_states)
         value = self.score(hidden_states).squeeze(-1)
         return lm_logits, None, value
-model = Model().to(args.device)
+model = AutoModelForCausalLMWithValueHead().to(args.device)
 
 
 # ============= 定义reward model =============
@@ -170,7 +170,6 @@ trainer = PPOTrainerTrl(
     generation_kwargs=generation_kwargs
 )
 
-trainer.compile(loss=None, optimizer=trainer.optimizer)
 
 if __name__ == "__main__":
     logger = Logger('./log_rlhf.log')

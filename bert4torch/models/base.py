@@ -39,6 +39,7 @@ class BERT_BASE(nn.Module):
             gradient_checkpoint=False, # 是否使用gradient_checkpoint
             output_all_encoded_layers=False, # 是否返回所有layer的hidden_states
             tie_emb_prj_weight=False,  # 是否绑定embedding和lm_head的权重
+            return_dict=False,  # 是否返回的格式是dict
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
@@ -72,6 +73,7 @@ class BERT_BASE(nn.Module):
         self.output_all_encoded_layers = output_all_encoded_layers
         self.add_trainer = kwargs['add_trainer']
         self.tie_emb_prj_weight = tie_emb_prj_weight
+        self.return_dict = return_dict
 
     def tie_weights(self):
         pass

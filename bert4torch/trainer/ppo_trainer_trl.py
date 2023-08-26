@@ -26,9 +26,9 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.generation_kwargs = generation_kwargs or {}
         self.reward_baseline = kwargs.pop('reward_baseline', 0)
         self.grad_accumulation_steps = self.config.gradient_accumulation_steps
+        self.compile(loss=None, optimizer=self.optimizer)
             
     def train_step(self, train_X, train_y):
-        device = self.model.device
         if isinstance(train_X, (tuple, list)):
             question_tensors, query = train_X[0], train_X[1]
         elif isinstance(train_X, dict):
@@ -46,8 +46,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
             responses.append(r)
 
         # Compute reward score
-        score_outputs = [self.get_reward_model_output(self.reward_model, self.reward_tokenizer, q, r, device)
-                         for q, r in zip(query, responses)]
+        score_outputs = [self.get_reward_model_output(q, r) for q, r in zip(query, responses)]
         rewards = self.calculate_rewards(score_outputs, self.reward_baseline)
 
         # Run PPO step
@@ -56,14 +55,17 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.rewards = rewards
         self.ppo_step = True
         stats = self.step()
-        return None, torch.tensor(stats['ppo/loss/total']), stats
+        
+        self.logs.update({k:v for k,v in stats.items() if isinstance(v, (int, float))})  # 更新到logs中
+        batch = {'query': query, 'response': responses}
+        self.log_stats(stats, batch, rewards)
+        return None, torch.tensor(stats['ppo/loss/total']), dict()
 
     def step(self):
         if self.ppo_step:
             self.ppo_step = False
             return PPOTrainer.step(self, self.question_tensors, self.response_tensors, self.rewards)
         
-
     @staticmethod
     def calculate_rewards(reward_score_outputs, reward_baseline=0):
         """
@@ -83,13 +85,12 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
                 rewards.append(torch.tensor(reward_value))
         return rewards
     
-    @staticmethod
-    def get_reward_model_output(reward_model, reward_tokenizer, question, answer, device):
+    def get_reward_model_output(self, question, answer):
         """
         Get the reward score for a given question and answer pair.
         """
-        inputs = reward_tokenizer(question, answer, return_tensors='pt').to(device)
-        score = reward_model(**inputs).logits[0].cpu().detach()
+        inputs = self.reward_tokenizer(question, answer, return_tensors='pt').to(self.model.device)
+        score = self.reward_model(**inputs).logits[0].cpu().detach()
         return score
 
     def unwrap_model(self):

@@ -1,15 +1,13 @@
+import torch
+from torch import nn
+from torch.utils.checkpoint import checkpoint
 from bert4torch.models.base import BERT_BASE
 from bert4torch.layers import LayerNorm, BertEmbeddings
-from torch import nn
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
-from torch.utils.checkpoint import checkpoint
-from bert4torch.snippets import old_checkpoint
-import torch
+from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_padding, DottableDict
 from bert4torch.activations import get_activation
 import copy
-import inspect
 from packaging import version
-from bert4torch.snippets import create_position_ids_start_at_padding
 
 
 class BERT(BERT_BASE):
@@ -253,8 +251,17 @@ class BERT(BERT_BASE):
         else:
             mlm_scores = None
         
-        outputs = [value for value in [encoded_layers, pooled_output, mlm_scores, nsp_scores] if value is not None]
-        return outputs if len(outputs) > 1 else outputs[0]
+        if not self.return_dict:
+            # 不以dict格式返回
+            outputs = [value for value in [encoded_layers, pooled_output, mlm_scores, nsp_scores] if value is not None]
+            return outputs if len(outputs) > 1 else outputs[0]
+        else:
+            # 以dict格式返回
+            outputs = {'encoded_layers': encoded_layers} if len(encoded_layers) > 1 else {'last_hidden_state': encoded_layers[-1]}
+            for k,v in {'pooled_output': pooled_output, 'mlm_scores': mlm_scores, 'nsp_scores': nsp_scores}.items():
+                if v is not None:
+                    outputs.update({k: v})
+            return DottableDict(outputs)
 
     def load_variable(self, state_dict, name, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
