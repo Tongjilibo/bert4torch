@@ -22,13 +22,13 @@ import json
 args = DottableDict()
 args.steps_per_epoch = None
 args.epochs = 1
-args.data_path = '/Users/lb/Documents/Project/Github/MedicalGPT/data/finetune/**/*.jsonl'
+args.data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.jsonl'
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
 args.seed = 1234
 args.max_source_length = 256
 args.max_target_length = 256
-args.reward_model_name_or_path = "/Users/lb/Documents/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
+args.reward_model_name_or_path = "E:/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
 args.load_in_8bit = False
 args.max_steps = 100
 args.learning_rate = 1e-5
@@ -110,19 +110,21 @@ class Model(BaseModel):
     def __init__(self, *arg, **kwargs):
         super().__init__(*arg, **kwargs)
         self.module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
-                                                pad_token_id=pad_token_id, with_lm=False)
+                                                pad_token_id=pad_token_id)
         self.score = nn.Linear(self.module.config['hidden_size'], 1)
     
-    def forward(self, input_ids):
-        logit = self.score(self.module(input_ids))
-        return logit
+    def forward(self, *args, **kwargs):
+        self.module.with_lm = False
+        hidden_states = self.module(kwargs['input_ids'])
+        lm_logits = self.module.lm_head(hidden_states)
+        value = self.score(hidden_states).squeeze(-1)
+        return lm_logits, None, value
 model = Model().to(args.device)
 
 
 # ============= 定义reward model =============
 reward_model = AutoModelForSequenceClassification.from_pretrained(
     args.reward_model_name_or_path,
-    # config=config,
     load_in_8bit=args.load_in_8bit,
     trust_remote_code=args.trust_remote_code,
 )
@@ -137,7 +139,7 @@ generation_kwargs = {
     "topp": 1.0,
 }
 tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+generation = SeqGeneration(model.module, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
                            maxlen=max_target_length, default_rtype='logits', use_states=True)
 
 
@@ -160,14 +162,16 @@ trainer = PPOTrainerTrl(
     model,
     ref_model=None,
     tokenizer=tokenizer,
+    reward_model=reward_model,
+    reward_tokenizer=reward_tokenizer,
     dataset=train_dataset,
     data_collator=collate_fn,
     generation=generation,
     generation_kwargs=generation_kwargs
 )
 
-trainer.compile(loss=None, optimizer=None)
+trainer.compile(loss=None, optimizer=trainer.optimizer)
 
 if __name__ == "__main__":
-    logger = Logger('./log_reward.log')
+    logger = Logger('./log_rlhf.log')
     trainer.fit(trainer.dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[logger])

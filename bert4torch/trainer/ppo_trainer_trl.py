@@ -14,17 +14,19 @@ except:
 
 
 class PPOTrainerTrl(PPOTrainer, Trainer):
-    def __init__(self, *args, generation=None, generation_kwargs=None, **kwargs):
+    def __init__(self, *args, generation=None, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
         if PPOTrainer == object:
             raise ValueError('Please install trl by running `pip install trl`')
         Trainer.__init__(self)
         PPOTrainer.__init__(self, *args, **kwargs)
         self.generation = generation
-        self.generation.tokenizer_type = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
+        self.generation.process_choice = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
+        self.reward_model = reward_model
+        self.reward_tokenizer = reward_tokenizer
         self.generation_kwargs = generation_kwargs or {}
         self.reward_baseline = kwargs.pop('reward_baseline', 0)
         self.grad_accumulation_steps = self.config.gradient_accumulation_steps
-
+            
     def train_step(self, train_X, train_y):
         device = self.model.device
         if isinstance(train_X, (tuple, list)):
@@ -36,11 +38,12 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         
         # actor生成得到推理结果
         responses = []
-        response_tensors = []
-        response_tensor = self.generation.batch_generate(question_tensors, **self.generation_kwargs)
-        r = self.tokenizer.decode(response_tensor, skip_special_tokens=True)[0]
-        responses.append(r)
-        response_tensors.append(response_tensor.squeeze(0))
+        self.generation.decoder.with_lm = True
+        response_tensors = self.generation.batch_generate(question_tensors, **self.generation_kwargs)
+        self.generation.decoder.with_lm = False
+        for response_tensor in response_tensors:
+            r = self.tokenizer.decode(response_tensor, skip_special_tokens=True)
+            responses.append(r)
 
         # Compute reward score
         score_outputs = [self.get_reward_model_output(self.reward_model, self.reward_tokenizer, q, r, device)
@@ -48,11 +51,18 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         rewards = self.calculate_rewards(score_outputs, self.reward_baseline)
 
         # Run PPO step
-        try:
-            stats = self.step(question_tensors, response_tensors, rewards)
-        except ValueError as e:
-            log_warn(f"Failed to log stats because of {e}")
-        return None, None, dict()
+        self.question_tensors = [i for i in question_tensors]
+        self.response_tensors = response_tensors
+        self.rewards = rewards
+        self.ppo_step = True
+        stats = self.step()
+        return None, torch.tensor(stats['ppo/loss/total']), stats
+
+    def step(self):
+        if self.ppo_step:
+            self.ppo_step = False
+            return PPOTrainer.step(self, self.question_tensors, self.response_tensors, self.rewards)
+        
 
     @staticmethod
     def calculate_rewards(reward_score_outputs, reward_baseline=0):
