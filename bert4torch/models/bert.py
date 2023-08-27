@@ -225,14 +225,11 @@ class BERT(BERT_BASE):
         """
         # 获取最后一层隐藏层的输出
         encoded_layers, conditional_emb = model_kwargs['encoded_layers'], model_kwargs.get('conditional_emb', None)
-        sequence_output = encoded_layers[-1]
-        # 是否取最后一层输出
-        if not self.output_all_encoded_layers:
-            encoded_layers = encoded_layers[-1]
+        last_hidden_state = encoded_layers[-1]
 
         # 是否添加pool层
         if self.with_pool:
-            pooled_output = self.pooler_activation(self.pooler(sequence_output[:, 0]))
+            pooled_output = self.pooler_activation(self.pooler(last_hidden_state[:, 0]))
         else:
             pooled_output = None
         # 是否添加nsp
@@ -242,7 +239,7 @@ class BERT(BERT_BASE):
             nsp_scores = None
         # 是否添加mlm
         if self.with_mlm:
-            mlm_hidden_state = self.mlmDense(sequence_output)
+            mlm_hidden_state = self.mlmDense(last_hidden_state)
             mlm_hidden_state = self.transform_act_fn(mlm_hidden_state)
             mlm_hidden_state = self.mlmLayerNorm(mlm_hidden_state, conditional_emb)
             mlm_scores = self.mlmDecoder(mlm_hidden_state)
@@ -250,18 +247,31 @@ class BERT(BERT_BASE):
             mlm_scores = mlm_activation(mlm_scores)
         else:
             mlm_scores = None
+
+        # 是否取最后一层输出
+        if not self.output_all_encoded_layers:
+            return self.gen_outputs(locals(), last_hidden_state, pooled_output, mlm_scores, nsp_scores)
+        else:
+            return self.gen_outputs(locals(), encoded_layers, pooled_output, mlm_scores, nsp_scores)        
         
+    def gen_outputs(self, locals_dict, *args):
+        ''' 生成outputs list/dict两种形式'''
         if not self.return_dict:
             # 不以dict格式返回
-            outputs = [value for value in [encoded_layers, pooled_output, mlm_scores, nsp_scores] if value is not None]
+            outputs = [value for value in args if value is not None]
             return outputs if len(outputs) > 1 else outputs[0]
         else:
             # 以dict格式返回
-            outputs = {'encoded_layers': encoded_layers} if len(encoded_layers) > 1 else {'last_hidden_state': encoded_layers[-1]}
-            for k,v in {'pooled_output': pooled_output, 'mlm_scores': mlm_scores, 'nsp_scores': nsp_scores}.items():
-                if v is not None:
-                    outputs.update({k: v})
-            return DottableDict(outputs)
+            outputs = DottableDict()
+            for arg in args:
+                if arg is None:
+                    continue
+                # 获取变量名
+                for name, value in locals_dict.items():
+                    if value is arg:
+                        outputs[name] = arg
+                        break
+            return outputs
 
     def load_variable(self, state_dict, name, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""

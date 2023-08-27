@@ -43,11 +43,17 @@ class XLNET(Transformer_XL):
         return pos_emb
 
     def apply_final_layers(self, **model_kwargs):
-        hidden_state = super().apply_final_layers(**model_kwargs)
-        if self.with_lm:
-            return [hidden_state, self.lm_head(hidden_state)]
+        outputs = super().apply_final_layers(**model_kwargs)
+        last_hidden_state = outputs['last_hidden_state'] if self.return_dict else outputs
+
+        lm_logits = None
+        if (not self.return_dict) and self.with_lm:
+            lm_logits = self.lm_head(last_hidden_state)
+            return [last_hidden_state, lm_logits]
+        elif not self.return_dict:
+            return last_hidden_state
         else:
-            return hidden_state
+            return self.gen_outputs(locals(), last_hidden_state, lm_logits)
 
     def load_variable(self, state_dict, name, prefix='transformer'):
         # 加载单个变量的函数

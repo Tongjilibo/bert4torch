@@ -47,16 +47,19 @@ class RoFormerV2(RoFormer):
         """
         # 获取最后一层隐藏层的输出
         encoded_layers = model_kwargs['encoded_layers']
-        sequence_output = encoded_layers[-1]
+        last_hidden_state = encoded_layers[-1]
         # 是否取最后一层输出
         if not self.output_all_encoded_layers:
             encoded_layers = encoded_layers[-1]
 
         # 是否添加mlm
         if self.with_mlm:
-            mlm_scores = self.mlmDecoder(sequence_output)
+            mlm_scores = self.mlmDecoder(last_hidden_state)
         else:
             mlm_scores = None
-        
-        outputs = [value for value in [encoded_layers, mlm_scores] if value is not None]
-        return outputs if len(outputs) > 1 else outputs[0]
+            
+        # 是否取最后一层输出
+        if not self.output_all_encoded_layers:
+            return self.gen_outputs(locals(), last_hidden_state, mlm_scores)
+        else:
+            return self.gen_outputs(locals(), encoded_layers, mlm_scores)        

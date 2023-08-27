@@ -28,20 +28,28 @@ class UIE(BERT):
             self.embeddings.word_embeddings.register_forward_hook(hook)
 
     def apply_final_layers(self, **model_kwargs):
-        hidden_states = super().apply_final_layers(**model_kwargs)  # 仅有hidden_state一项输出
-        sequence_output = hidden_states[0] if isinstance(hidden_states, (tuple, list)) else hidden_states
+        outputs = super().apply_final_layers(**model_kwargs)
+        if isinstance(outputs, (tuple, list)):
+            last_hidden_state = outputs[0]
+        elif isinstance(outputs, dict):
+            last_hidden_state = outputs['last_hidden_state']
+        else:
+            last_hidden_state = outputs
 
-        start_logits = self.linear_start(sequence_output)
+        start_logits = self.linear_start(last_hidden_state)
         start_logits = torch.squeeze(start_logits, -1)
         start_prob = self.sigmoid(start_logits) if hasattr(self, 'sigmoid') else start_logits
-        end_logits = self.linear_end(sequence_output)
+        end_logits = self.linear_end(last_hidden_state)
         end_logits = torch.squeeze(end_logits, -1)
         end_prob = self.sigmoid(end_logits) if hasattr(self, 'sigmoid') else end_logits
 
-        if isinstance(hidden_states, (tuple, list)):
-            return hidden_states + [start_prob, end_prob]
+        if isinstance(outputs, (tuple, list)):
+            outputs = outputs + [start_prob, end_prob]
+        elif isinstance(outputs, dict):
+            outputs.update({'start_prob': start_prob, 'end_prob': end_prob})
         else:
-            return hidden_states, start_prob, end_prob
+            outputs = [outputs, start_prob, end_prob]
+        return outputs
 
     def variable_mapping(self):
         mapping = super(UIE, self).variable_mapping()

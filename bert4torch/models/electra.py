@@ -16,15 +16,21 @@ class ELECTRA(BERT):
             self.dense = nn.Linear(self.hidden_size, self.hidden_size)
             self.dense_act = get_activation(self.hidden_act)
             self.dense_prediction = nn.Linear(self.hidden_size, 1)
-            self.dense_prediction_act = get_activation('sigmoid') if self.with_discriminator is True else get_activation(self.with_discriminator)
+            self.dense_prediction_act = get_activation('sigmoid') if self.with_discriminator is True else \
+                                        get_activation(self.with_discriminator)
 
     def apply_final_layers(self, **model_kwargs):
-        hidden_states = super().apply_final_layers(**model_kwargs)  # 仅有hidden_state一项输出
+        outputs = super().apply_final_layers(**model_kwargs)
+        last_hidden_state = outputs['last_hidden_state'] if self.return_dict else outputs
+        
         if self.with_discriminator:
-            logit = self.dense_act(self.dense(hidden_states))
-            return [hidden_states, self.dense_prediction_act(self.dense_prediction(logit))]
-        else:
-            return hidden_states
+            logits = self.dense_act(self.dense(last_hidden_state))
+            logits = self.dense_prediction_act(self.dense_prediction(logits))
+            if self.return_dict:
+                outputs['logits'] = logits
+            else:
+                outputs.append(logits)
+        return outputs
 
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数

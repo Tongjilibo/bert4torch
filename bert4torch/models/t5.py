@@ -25,8 +25,9 @@ class T5_Encoder(Encoder):
         self.dropout = nn.Dropout(self.dropout_rate)
 
     def apply_final_layers(self, **model_kwargs):
-        hidden_states = super().apply_final_layers(**model_kwargs)
-        return self.dropout(self.final_layer_norm(hidden_states))
+        outputs = super().apply_final_layers(**model_kwargs)
+        last_hidden_state = outputs['last_hidden_state'] if self.return_dict else outputs
+        return self.dropout(self.final_layer_norm(last_hidden_state))
 
     def load_variable(self, state_dict, name, prefix=''):
         # 加载单个变量的函数
@@ -81,8 +82,8 @@ class T5_Decoder(Decoder):
 
     def apply_final_layers(self, **model_kwargs):
         # 这里的encoded_layers没有改成decoded_layers是想使用super()
-        last_hidden_states = model_kwargs['decoded_layers'][-1]
-        model_kwargs['decoded_layers'][-1] = self.dropout(self.final_layer_norm(last_hidden_states))  # 在转logit前把最后一层的hidden_states加layernorm
+        last_hidden_state = model_kwargs['decoded_layers'][-1]
+        model_kwargs['decoded_layers'][-1] = self.dropout(self.final_layer_norm(last_hidden_state))  # 在转logit前把最后一层的hidden_states加layernorm
         return super().apply_final_layers(**model_kwargs)
 
     def load_variable(self, state_dict, name, prefix=''):
