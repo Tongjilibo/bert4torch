@@ -79,16 +79,17 @@ class Decoder(LM_Mask, BERT):
         if self.final_layernorm:
             last_hidden_state = self.LayerNormFinal(last_hidden_state)
         
-        lm_logits = None
-        if (not self.return_dict) and self.with_lm:
+        if self.with_lm:
             lm_logits = self.lm_head(last_hidden_state)  # [btz, seq_len, vocab_size]
             lm_logits = lm_logits * self.logit_scale if hasattr(self, 'logit_scale') else lm_logits
             lm_logits = self.final_activation(lm_logits)
-            return lm_logits
+            # if lm_logits.dtype != torch.float32:
+            #     lm_logits = lm_logits.float()
+            return self.gen_outputs(locals(), last_hidden_state, lm_logits) if self.return_dict else lm_logits
         elif not self.return_dict:
             return last_hidden_state
         else:
-            return self.gen_outputs(locals(), last_hidden_state, lm_logits)
+            return self.gen_outputs(locals(), last_hidden_state)
 
     def load_variable(self, state_dict, name, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""

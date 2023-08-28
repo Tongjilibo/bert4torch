@@ -184,7 +184,7 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
-        if self.p_bias == 'typical_relative':
+        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== nezha相对位置编码 ====================
             relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
             # 旧实现，方便读者理解维度转换
@@ -196,12 +196,12 @@ class MultiHeadAttentionLayer(nn.Module):
             # 新实现
             key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
             attention_scores = attention_scores + key_position_scores_r_t
-        elif self.p_bias == 't5_relative':
+        elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== t5相对位置编码 ====================
             relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
             key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
             attention_scores = attention_scores + key_position_scores_r_t
-        elif self.p_bias == 'deberta_v2':
+        elif (self.p_bias == 'deberta_v2') and hasattr(self, 'relative_positions_encoding'):
             # ==================== deberta_v2相对位置编码 ====================
             self.attention_scale = False  # deberta_v2使用自己的attention_scale
             scale_factor = 1
@@ -221,7 +221,7 @@ class MultiHeadAttentionLayer(nn.Module):
             # 是否进行attention scale
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         
-        if self.p_bias == 'alibi':
+        if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
             # ==================== alibi相对位置编码 ====================
             key_position_scores_r_t = self.relative_positions_encoding(key_layer)
             attention_scores = attention_scores + key_position_scores_r_t
@@ -241,7 +241,7 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_probs = self.dropout(attention_probs)
         context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
-        if self.p_bias == 'typical_relative':
+        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== nezha相对位置编码 ====================
             relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
             # 旧实现，方便读者理解维度转换
