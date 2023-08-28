@@ -1,15 +1,12 @@
 #! -*- coding: utf-8 -*-
 # Reward model
 
-from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding
 import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import torch
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import ListDataset
+from bert4torch.snippets import ListDataset, sequence_padding, DottableDict
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from transformers import AutoTokenizer
@@ -17,26 +14,25 @@ from tqdm import tqdm
 from glob import glob
 import json
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from utils import get_model_config
+from utils import get_model_config, get_nbit_lora_model
 
 
 # 基本参数
-lr = 1e-5
-batch_size = 4
-eval_batch_size = 4
-grad_accumulation_steps = 1
-max_seq_length = 512
-epochs = 1
-steps_per_epoch = 100
-use_lora = False
-load_in_nbit = None
-data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+args = DottableDict()
+args.lr = 1e-5
+args.batch_size = 4
+args.eval_batch_size = 4
+args.grad_accumulation_steps = 1
+args.max_seq_length = 512
+args.epochs = 1
+args.steps_per_epoch = 100
+args.use_lora = False
+args.load_in_nbit = None
+args.data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
+args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+args.model_type, args.dir_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
 
-# 模型配置
-model_type, dir_path, config_path, checkpoint_path = get_model_config('bloom')
-
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(args.dir_path, trust_remote_code=True)
 pad_token_id = tokenizer.pad_token_id or -100
 
 # 加载数据集
@@ -52,8 +48,8 @@ class MyDataset(ListDataset):
                     examples.append(json.loads(l))
         new_examples = []
         for example in examples:
-            tokenized_chosen = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_chosen"], max_length=max_seq_length)
-            tokenized_rejected = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_rejected"], max_length=max_seq_length)
+            tokenized_chosen = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_chosen"], max_length=args.max_seq_length)
+            tokenized_rejected = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_rejected"], max_length=args.max_seq_length)
             new_examples.append((tokenized_chosen, tokenized_rejected))
         return new_examples
 
@@ -63,18 +59,18 @@ def collate_fn(batch):
         input_ids_chosen.append(input_ids_chosen_i)
         input_ids_rejected.append(input_ids_rejected_i)
     # padding在左侧
-    input_ids_chosen = torch.tensor(sequence_padding(input_ids_chosen, value=pad_token_id, mode='pre'), dtype=torch.long, device=device)
-    input_ids_rejected = torch.tensor(sequence_padding(input_ids_rejected, value=pad_token_id, mode='pre'), dtype=torch.long, device=device)
+    input_ids_chosen = torch.tensor(sequence_padding(input_ids_chosen, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
+    input_ids_rejected = torch.tensor(sequence_padding(input_ids_rejected, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
     return [input_ids_chosen, input_ids_rejected], None
 
-train_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_size=batch_size, collate_fn=collate_fn) 
-dev_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_size=eval_batch_size, collate_fn=collate_fn)
+train_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, collate_fn=collate_fn) 
+dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.eval_batch_size, collate_fn=collate_fn)
 
 # 建立模型，加载权重
 class Model(BaseModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, pad_token_id=pad_token_id, with_lm=False)
+    def __init__(self, *arg, **kwargs):
+        super().__init__(*arg, **kwargs)
+        self.model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, pad_token_id=pad_token_id, with_lm=False)
         self.score = nn.Linear(self.model.config['hidden_size'], 1)
     
     def forward(self, input_ids_chosen, input_ids_rejected):
@@ -88,28 +84,10 @@ class Model(BaseModel):
         return self.score(self.model(input_ids)[:, -1, :])
 
 model = Model()
-
-# 量化
-if load_in_nbit == 8:
-    model.gradient_checkpointing_enable()
-    model.enable_input_require_grads()
-
-    model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
-    
-elif load_in_nbit == 4:
-    from transformers import BitsAndBytesConfig
-    from peft import prepare_model_for_kbit_training
-    q_config = BitsAndBytesConfig(load_in_4bit=True,
-                                bnb_4bit_quant_type='nf4',
-                                bnb_4bit_use_double_quant=True,
-                                bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
-                                llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
-                                )
-    model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
 # lora
-if use_lora:
+if args.use_lora:
     from peft import LoraConfig
     peft_config = LoraConfig(
             inference_mode=False,
@@ -118,9 +96,9 @@ if use_lora:
             lora_dropout=0.1,
             target_modules=['q', 'k', 'v']
         )
-    model = model.get_peft_model(peft_config).to(device)
+    model = model.get_peft_model(peft_config).to(args.device)
 else:
-    model = model.to(device)
+    model = model.to(args.device)
 
 class Loss:
     def __call__(self, output, labels):
@@ -132,10 +110,10 @@ class Loss:
         loss = -torch.nn.functional.logsigmoid(rewards_chosen - rewards_rejected).mean()
         return loss
 
-optimizer = optim.AdamW(model.parameters(), lr)
-scheduler = get_linear_schedule_with_warmup(optimizer, 0, steps_per_epoch*epochs)
+optimizer = optim.AdamW(model.parameters(), args.lr)
+scheduler = get_linear_schedule_with_warmup(optimizer, 0, args.steps_per_epoch*args.epochs)
 model.compile(loss=Loss(), optimizer=optimizer, scheduler=scheduler, 
-              grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
+              grad_accumulation_steps=args.grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Evaluator(Callback):
     """评估与保存
@@ -167,6 +145,6 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     logger = Logger('./log_reward.log')
-    model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
+    model.fit(train_dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[evaluator, logger])
 else:
     model.load_weights('./best_model_reward.pt', strict=False)

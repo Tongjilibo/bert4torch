@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Sequence
 from bert4torch.snippets import log_warn
+import torch
+from torch import nn
 
 def get_model_config(model):
     if model == 'bloom':
@@ -17,6 +19,43 @@ def get_model_config(model):
         raise ValueError(f'illegal model_choice={model}')
     return model_type, dir_path, config_path, checkpoint_path
 
+
+def get_nbit_lora_model(model, load_in_nbit=None, use_lora=False):
+    # 量化
+    if load_in_nbit == 8:
+        model.gradient_checkpointing_enable()
+        model.enable_input_require_grads()
+
+        class CastOutputToFloat(nn.Sequential):
+            def forward(self, x):
+                return super().forward(x).to(torch.float32)
+        model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
+        model.lm_head = CastOutputToFloat(model.lm_head)
+        
+    elif load_in_nbit == 4:
+        from transformers import BitsAndBytesConfig
+        from peft import prepare_model_for_kbit_training
+        q_config = BitsAndBytesConfig(load_in_4bit=True,
+                                    bnb_4bit_quant_type='nf4',
+                                    bnb_4bit_use_double_quant=True,
+                                    bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
+                                    llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
+                                    )
+        model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
+
+    # lora
+    if use_lora:
+        from peft import LoraConfig
+        peft_config = LoraConfig(
+                inference_mode=False,
+                r=8,
+                lora_alpha=32,
+                lora_dropout=0.1,
+                target_modules=['q', 'k', 'v']
+            )
+        model = model.get_peft_model(peft_config)
+    return model
 
 # ================================================================
 # ================     各个模型的prompt设计    =====================

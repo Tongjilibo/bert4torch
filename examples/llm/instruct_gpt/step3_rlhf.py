@@ -13,7 +13,7 @@ from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.trainer import PPOTrainerTrl
 from trl import PPOConfig, set_seed
-from utils import get_model_config
+from utils import get_model_config, get_nbit_lora_model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import json
 
@@ -38,6 +38,8 @@ args.target_kl = 0.1
 args.init_kl_coef = 0.2
 args.adap_kl_ctrl = True
 args.trust_remote_code = True
+args.use_lora = False
+args.load_in_nbit = None
 args.model_type, args.model_name_or_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
 
 set_seed(args.seed)
@@ -120,6 +122,7 @@ class ActorModel(BaseModel):
         value = self.score(hidden_states).squeeze(-1)
         return lm_logits, None, value
 model = ActorModel().to(args.device)
+model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
 
 # ============= 定义reward model =============

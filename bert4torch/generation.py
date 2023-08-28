@@ -8,6 +8,9 @@ import inspect
 from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn
 from bert4torch.tokenizers import TokenizerBase
 from packaging import version
+from contextlib import contextmanager
+import gc
+
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):
     model_inference_mode = torch.inference_mode
@@ -22,6 +25,19 @@ def repetition_penalty_func(input_ids: torch.LongTensor, scores: torch.FloatTens
     return scores
 
 
+class EmptyCacheDecorators(object):
+    optimize_cuda_cache = False
+
+    @classmethod
+    @contextmanager
+    def empty_cuda_cache(cls):
+        yield
+        if cls.optimize_cuda_cache and torch.cuda.is_available():
+            gc.collect()
+            torch.cuda.empty_cache()
+            gc.collect()
+
+
 class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
     包含beam search和random sample两种策略
@@ -32,7 +48,7 @@ class AutoRegressiveDecoder(object):
     :param minlen: int, 最小解码长度, 默认为1
     :param device: str, 默认为'cpu'
     """
-    @torch.no_grad()
+    @model_inference_mode()
     def __init__(self, start_id, end_id, maxlen, minlen=1, pad_id=0, pad_mode='post', device='cpu', 
                  n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
         self.start_id = start_id
@@ -480,7 +496,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     '''
     def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, tokenizer_encode_config=None, 
                  tokenizer_decode_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True, device=None, n=1, 
-                 topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1, process_choice='both'):
+                 topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1, process_choice='both', optimize_cuda_cache=False):
         '''
         :param model: 模型
         :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
@@ -532,6 +548,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_segment_ids = hasattr(model, 'segment_vocab_size') and (model.segment_vocab_size > 0)  # 是否使用segment_ids
         self.include_input = False  # 输出是否包含输入
         self.input_text = ''
+        EmptyCacheDecorators.optimize_cuda_cache = optimize_cuda_cache
     
     def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
@@ -701,6 +718,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         return output_ids
 
     @model_inference_mode()
+    @EmptyCacheDecorators.empty_cuda_cache()
     def generate(self, text:str, **generation_config):
         '''单条样本生成'''
         self.set_generation_config(generation_config)
@@ -710,6 +728,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         return self.post_process(output_ids)
 
     @model_inference_mode()
+    @EmptyCacheDecorators.empty_cuda_cache()
     def batch_generate(self, text_list:list, **generation_config):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
         # 参数设定
@@ -726,6 +745,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         return self.post_process(output_ids)
 
     @model_inference_mode()
+    @EmptyCacheDecorators.empty_cuda_cache()
     def stream_generate(self, text:str, **generation_config):
         '''单条样本stream输出预测的结果'''
         self.set_generation_config(generation_config)
@@ -758,6 +778,7 @@ class Seq2SeqGeneration(SeqGeneration):
         return inputs
     
     @model_inference_mode()
+    @EmptyCacheDecorators.empty_cuda_cache()
     def generate(self, text:str, **generation_config):
         self.set_generation_config(generation_config)
         self.use_batch = False
@@ -768,6 +789,7 @@ class Seq2SeqGeneration(SeqGeneration):
         return self.post_process(output_ids)
 
     @model_inference_mode()
+    @EmptyCacheDecorators.empty_cuda_cache()
     def batch_generate(self, text_list:list, **generation_config):
         '''batch样本生成'''
         # 参数设定
@@ -781,6 +803,7 @@ class Seq2SeqGeneration(SeqGeneration):
         return self.post_process(output_ids)
 
     @model_inference_mode()
+    @EmptyCacheDecorators.empty_cuda_cache()
     def stream_generate(self, text:str, **generation_config):
         '''stream输出t预测的结果'''
         self.set_generation_config(generation_config)

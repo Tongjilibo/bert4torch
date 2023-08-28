@@ -2,7 +2,7 @@
 # Supervised Finetune
 
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, DottableDict
 from bert4torch.callbacks import Callback, Logger
 import torch.nn as nn
 import torch
@@ -14,27 +14,26 @@ import json
 from glob import glob
 from transformers import AutoTokenizer
 from tqdm import tqdm
-from utils import get_model_config, get_conv_template
+from utils import get_model_config, get_conv_template, get_nbit_lora_model
 
 
 # 基本参数
-max_source_length = 256
-max_target_length = 256
-max_length = max_source_length + max_target_length
-batch_size = 2
-grad_accumulation_steps = 4
-lr = 5e-5
-epochs = 1
-use_lora = False
-load_in_nbit = None
-data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.jsonl'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-model_name = 'bloom'
+args = DottableDict()
+args.max_source_length = 256
+args.max_target_length = 256
+args.max_length = args.max_source_length + args.max_target_length
+args.batch_size = 2
+args.grad_accumulation_steps = 4
+args.lr = 5e-5
+args.epochs = 1
+args.use_lora = False
+args.load_in_nbit = None
+args.data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.jsonl'
+args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+args.model_name = 'bloom'
+args.model_type, args.dir_path, args.config_path, args.checkpoint_path = get_model_config(args.model_name)
 
-# 模型配置
-model_type, dir_path, config_path, checkpoint_path = get_model_config(model_name)
-
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(args.dir_path, trust_remote_code=True)
 pad_token_id = tokenizer.pad_token_id or -100
 
 def preprocess_function(examples):
@@ -45,7 +44,7 @@ def preprocess_function(examples):
     input_ids_list = []
     targets_list = []
     roles = ["human", "gpt"]
-    prompt_template = get_conv_template(model_name)
+    prompt_template = get_conv_template(args.model_name)
 
     def get_dialog(examples):
         for i, source in enumerate(examples):
@@ -79,15 +78,15 @@ def preprocess_function(examples):
             source_ids = tokenizer.encode(text=dialog[2 * i], add_special_tokens=(i == 0))
             target_ids = tokenizer.encode(text=dialog[2 * i + 1], add_special_tokens=False)
 
-            if len(source_ids) > max_source_length:
-                source_ids = source_ids[:max_source_length]
-            if len(target_ids) > max_target_length - 1:  # eos token
-                target_ids = target_ids[:max_target_length - 1]
+            if len(source_ids) > args.max_source_length:
+                source_ids = source_ids[:args.max_source_length]
+            if len(target_ids) > args.max_target_length - 1:  # eos token
+                target_ids = target_ids[:args.max_target_length - 1]
             if len(source_ids) > 0 and source_ids[0] == tokenizer.eos_token_id:
                 source_ids = source_ids[1:]
             if len(target_ids) > 0 and target_ids[-1] == tokenizer.eos_token_id:
                 target_ids = target_ids[:-1]
-            if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
+            if len(input_ids) + len(source_ids) + len(target_ids) + 1 > args.max_length:
                 break
 
             input_ids += source_ids + target_ids + [tokenizer.eos_token_id]  # add eos token for each turn
@@ -117,51 +116,15 @@ def collate_fn(batch):
         batch_token_ids.append(token_ids)
         batch_labels.append(label_ids)
 
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=pad_token_id), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels, value=pad_token_id), dtype=torch.long, device=device)
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=pad_token_id), dtype=torch.long, device=args.device)
+    batch_labels = torch.tensor(sequence_padding(batch_labels, value=pad_token_id), dtype=torch.long, device=args.device)
     return [batch_token_ids], batch_labels
 
-train_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-dev_dataloader = DataLoader(MyDataset(glob(data_path, recursive=True)), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, add_trainer=True, pad_token_id=pad_token_id,
-                                grad_accumulation_steps=grad_accumulation_steps).to(device)
-
-# 量化
-if load_in_nbit == 8:
-    model.gradient_checkpointing_enable()
-    model.enable_input_require_grads()
-
-    class CastOutputToFloat(nn.Sequential):
-        def forward(self, x):
-            return super().forward(x).to(torch.float32)
-    model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
-    model.lm_head = CastOutputToFloat(model.lm_head)
-    
-elif load_in_nbit == 4:
-    from peft import prepare_model_for_kbit_training
-    from transformers import BitsAndBytesConfig
-    q_config = BitsAndBytesConfig(load_in_4bit=True,
-                                bnb_4bit_quant_type='nf4',
-                                bnb_4bit_use_double_quant=True,
-                                bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
-                                llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
-                                )
-    model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
-
-# lora
-if use_lora:
-    from peft import LoraConfig
-    peft_config = LoraConfig(
-            inference_mode=False,
-            r=8,
-            lora_alpha=32,
-            lora_dropout=0.1,
-            target_modules=['q', 'k', 'v']
-        )
-    model = model.get_peft_model(peft_config).to(device)
-else:
-    model = model.to(device)
+train_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn) 
+dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn) 
+model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, add_trainer=True, pad_token_id=pad_token_id,
+                                grad_accumulation_steps=args.grad_accumulation_steps).to(args.device)
+model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
@@ -179,7 +142,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         return super().forward(y_pred, y_true)
 
 loss_fun = CrossEntropyLoss(ignore_index=pad_token_id)
-model.compile(loss=loss_fun, optimizer=optim.Adam(model.parameters(), lr))
+model.compile(loss=loss_fun, optimizer=optim.Adam(model.parameters(), args.lr))
 
 class Evaluator(Callback):
     """评估与保存
@@ -208,6 +171,6 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     logger = Logger('./log_sft.log')
     evaluator = Evaluator()
-    model.fit(train_dataloader, steps_per_epoch=None, epochs=epochs, callbacks=[evaluator, logger])
+    model.fit(train_dataloader, steps_per_epoch=None, epochs=args.epochs, callbacks=[evaluator, logger])
 else:
     model.load_weights('./best_model_sft.pt')
