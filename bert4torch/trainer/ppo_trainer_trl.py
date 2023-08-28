@@ -1,4 +1,4 @@
-'''修改trl包的PPOTrainer, 正在修改中
+'''修改trl包的PPOTrainer, 用于支持bert4torch框架
 '''
 import torch
 from torch import nn

@@ -170,6 +170,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         torch.set_default_dtype(dtype_orig)
     
     # 权重加载
+    checkpoint_path = checkpoint_path or configs.get('checkpoint_path')
     if checkpoint_path is not None:
         verbose = not configs.get('ignore_invalid_weights', False)
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, 
