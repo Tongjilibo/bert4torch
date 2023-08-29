@@ -3,7 +3,6 @@
 import torch
 from torch import nn
 from torch4keras.trainer import Trainer
-from torch4keras.snippets import log_warn
 from bert4torch.models import BaseModel
 try:
     import trl

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-rlhf
-正在调试中
+dpo: 仍在测试中
 """
 
 from glob import glob
 import torch
 from torch import nn
+from torch.utils.data import DataLoader
 from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.generation import SeqGeneration
@@ -26,8 +26,7 @@ args.data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
 args.seed = 1234
-args.max_source_length = 256
-args.max_target_length = 256
+args.max_seq_length = 512
 args.reward_model_name_or_path = "E:/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
 args.load_in_8bit = False
 args.max_steps = 100
@@ -60,51 +59,36 @@ pad_token_id = tokenizer.pad_token_id or -100
 
 
 # =============== 定义Dataset ==================
-max_source_length = args.max_source_length
-max_target_length = args.max_target_length
-
-PROMPT_TEMPLATE = (
-    "Below is an instruction that describes a task. "
-    "Write a response that appropriately completes the request.\n\n"
-    "### Instruction:\n{instruction}\n\n### Response: "
-)
-
-def preprocess_function(examples):
-    new_examples = []
-    for conversation in examples:
-        for message in conversation:
-            instruction = message['value']
-            input = message['from']
-            if input:
-                instruction = instruction + "\n" + input
-            source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-            tokenized_question = tokenizer(source, truncation=True, max_length=max_source_length)["input_ids"]
-            new_examples.append((source, tokenized_question))
-    return new_examples
-
 # 加载数据集
 class MyDataset(ListDataset):
     @staticmethod
     def load_data(filenames):
         """加载数据，并尽量分为不超过maxlen的句子
         """
-        D = []
+        examples = []
         for filename in filenames:
             with open(filename, encoding='utf-8') as f:
                 for l in f:
-                    D.append(json.loads(l)['conversations'])
-        return preprocess_function(D)
+                    examples.append(json.loads(l))
+        new_examples = []
+        for example in examples:
+            tokenized_chosen = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_chosen"], max_length=args.max_seq_length)
+            tokenized_rejected = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_rejected"], max_length=args.max_seq_length)
+            new_examples.append((tokenized_chosen, tokenized_rejected))
+        return new_examples
 
 def collate_fn(batch):
-    batch_token_ids, batch_queries = [], []
-    for query, token_ids in batch:
-        batch_token_ids.append(token_ids)
-        batch_queries.append(query)
+    input_ids_chosen, input_ids_rejected = [], []
+    for input_ids_chosen_i, input_ids_rejected_i in batch:
+        input_ids_chosen.append(input_ids_chosen_i)
+        input_ids_rejected.append(input_ids_rejected_i)
+    # padding在左侧
+    input_ids_chosen = torch.tensor(sequence_padding(input_ids_chosen, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
+    input_ids_rejected = torch.tensor(sequence_padding(input_ids_rejected, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
+    return [input_ids_chosen, input_ids_rejected], None
 
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
-    return {'input_ids': batch_token_ids, 'query': batch_queries}, None
-
-train_dataset = MyDataset(glob(args.data_path, recursive=True))
+train_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, collate_fn=collate_fn) 
+dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.eval_batch_size, collate_fn=collate_fn)
 
 
 # ============= 定义 model =============
@@ -126,14 +110,6 @@ model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.loa
 
 
 # ============= 定义reward model =============
-reward_model = AutoModelForSequenceClassification.from_pretrained(
-    args.reward_model_name_or_path,
-    load_in_8bit=args.load_in_8bit,
-    trust_remote_code=args.trust_remote_code,
-)
-reward_model = reward_model.to(args.device)
-reward_tokenizer = AutoTokenizer.from_pretrained(args.reward_model_name_or_path, **tokenizer_kwargs)
-
 
 # ============= generation =============
 generation_kwargs = {
