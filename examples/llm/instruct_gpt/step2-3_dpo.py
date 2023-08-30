@@ -26,7 +26,9 @@ args.data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
 args.seed = 1234
-args.max_seq_length = 512
+args.max_src_length = 128
+args.max_tgt_length = 128
+args.max_seq_length = args.max_src_length + args.max_tgt_length
 args.reward_model_name_or_path = "E:/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
 args.load_in_8bit = False
 args.max_steps = 100
@@ -72,9 +74,10 @@ class MyDataset(ListDataset):
                     examples.append(json.loads(l))
         new_examples = []
         for example in examples:
-            tokenized_chosen = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_chosen"], max_length=args.max_seq_length)
-            tokenized_rejected = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: " + example["response_rejected"], max_length=args.max_seq_length)
-            new_examples.append((tokenized_chosen, tokenized_rejected))
+            prompt_ids = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: ", max_length=args.max_seq_length)
+            chosen_ids = tokenizer.encode(example["response_chosen"], max_length=args.max_tgt_length)
+            rejected_ids = tokenizer.encode(example["response_rejected"], max_length=args.max_tgt_length)
+            new_examples.append((prompt_ids, chosen_ids, rejected_ids))
         return new_examples
 
 def collate_fn(batch):
