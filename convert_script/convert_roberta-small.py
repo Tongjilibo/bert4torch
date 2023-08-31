@@ -10,7 +10,6 @@ import torch
 import tensorflow as tf
 import json
 
-# 也可以从huggingface下第三方转换的https://huggingface.co/peterchou/simbert-chinese-base
 tf_dir = './tf_chinese_roberta_L-6_H-384-384_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
 torch_path = './pt_chinese_roberta_L-6_H-384-384_A-12/pytorch_model.bin'

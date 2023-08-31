@@ -5,45 +5,41 @@ dpo: 仍在测试中
 
 from glob import glob
 import torch
-from torch import nn
+import torch.nn.functional as F
+import torch.optim as optim
 from torch.utils.data import DataLoader
+from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
 from bert4torch.models import BaseModel, build_transformer_model
-from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
-from bert4torch.trainer import PPOTrainerTrl
-from trl import PPOConfig, set_seed
+from bert4torch.trainer import DPOTrainer
 from utils import get_model_config, get_nbit_lora_model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import json
+import copy
 
 
 # 基本参数
 args = DottableDict()
 args.steps_per_epoch = None
 args.epochs = 1
-args.data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
+args.data_path = '/Users/lb/Documents/Project/Github/MedicalGPT/data/reward/**/*.json'
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
+args.lr = 1e-5
 args.seed = 1234
 args.max_src_length = 128
 args.max_tgt_length = 128
-args.max_seq_length = args.max_src_length + args.max_tgt_length
-args.reward_model_name_or_path = "E:/pretrain_ckpt/deberta/[OpenAssistant]--reward-model-deberta-v3-large-v2"
+args.full_max_length = args.max_src_length + args.max_tgt_length
 args.load_in_8bit = False
 args.max_steps = 100
 args.learning_rate = 1e-5
 args.batch_size = 8
-args.gradient_accumulation_steps = 1
-args.target_kl = 0.1
-args.init_kl_coef = 0.2
-args.adap_kl_ctrl = True
+args.grad_accumulation_steps = 1
 args.trust_remote_code = True
 args.use_lora = False
 args.load_in_nbit = None
 args.model_type, args.model_name_or_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
-
-set_seed(args.seed)
 
 # =============== 定义tokenizer ==================
 if args.model_type == 'bloom':
@@ -74,85 +70,37 @@ class MyDataset(ListDataset):
                     examples.append(json.loads(l))
         new_examples = []
         for example in examples:
-            prompt_ids = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: ", max_length=args.max_seq_length)
-            chosen_ids = tokenizer.encode(example["response_chosen"], max_length=args.max_tgt_length)
-            rejected_ids = tokenizer.encode(example["response_rejected"], max_length=args.max_tgt_length)
+            prompt_ids = tokenizer.encode("Question: " + example["question"] + "\n\nAnswer: ", max_length=args.max_src_length, add_special_tokens=False)
+            chosen_ids = tokenizer.encode(example["response_chosen"], max_length=args.max_tgt_length, add_special_tokens=False) + [tokenizer.eos_token_id]
+            rejected_ids = tokenizer.encode(example["response_rejected"], max_length=args.max_tgt_length, add_special_tokens=False) + [tokenizer.eos_token_id]
             new_examples.append((prompt_ids, chosen_ids, rejected_ids))
         return new_examples
 
 def collate_fn(batch):
-    input_ids_chosen, input_ids_rejected = [], []
-    for input_ids_chosen_i, input_ids_rejected_i in batch:
-        input_ids_chosen.append(input_ids_chosen_i)
-        input_ids_rejected.append(input_ids_rejected_i)
-    # padding在左侧
-    input_ids_chosen = torch.tensor(sequence_padding(input_ids_chosen, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
-    input_ids_rejected = torch.tensor(sequence_padding(input_ids_rejected, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
-    return [input_ids_chosen, input_ids_rejected], None
+    chosen_ids, chosen_labels, rejected_ids, rejected_labels = [], [], [], []
+    for prompt_id, chosen_id, rejected_id in batch:
+        chosen_ids.append(prompt_id+chosen_id)
+        chosen_labels.append([pad_token_id]*len(prompt_id) + chosen_id)
+        rejected_ids.append(prompt_id+rejected_id)
+        rejected_labels.append([pad_token_id]*len(prompt_id) + rejected_id)
+
+    input_ids = torch.tensor(sequence_padding(chosen_ids+rejected_ids, value=pad_token_id), dtype=torch.long, device=args.device)
+    input_labels = torch.tensor(sequence_padding(chosen_labels+rejected_labels, value=pad_token_id), dtype=torch.long, device=args.device)
+    return input_ids, input_labels
 
 train_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, collate_fn=collate_fn) 
-dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.eval_batch_size, collate_fn=collate_fn)
+dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, collate_fn=collate_fn)
 
 
 # ============= 定义 model =============
-class ActorModel(BaseModel):
-    def __init__(self, *arg, **kwargs):
-        super().__init__(*arg, **kwargs)
-        self.module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
-                                                pad_token_id=pad_token_id)
-        self.score = nn.Linear(self.module.config['hidden_size'], 1)
-    
-    def forward(self, *args, **kwargs):
-        self.module.with_lm = False
-        hidden_states = self.module(kwargs['input_ids'])
-        lm_logits = self.module.lm_head(hidden_states)
-        value = self.score(hidden_states).squeeze(-1)
-        return lm_logits, None, value
-model = ActorModel().to(args.device)
-model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
+net = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
+                                pad_token_id=pad_token_id)
+net = get_nbit_lora_model(net, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
+model = DPOTrainer(net)
 
-
-# ============= 定义reward model =============
-
-# ============= generation =============
-generation_kwargs = {
-    "temperature": 1.0,
-    "repetition_penalty": 1.0,
-    "topp": 1.0,
-}
-tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-generation = SeqGeneration(model.module, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
-                           maxlen=max_target_length, default_rtype='logits', use_states=True)
-
-
-# ============= PPOTrainer =============
-config = PPOConfig(
-    steps=args.max_steps,
-    model_name=args.model_name_or_path,
-    learning_rate=args.learning_rate,
-    batch_size=args.batch_size,
-    gradient_accumulation_steps=args.gradient_accumulation_steps,
-    optimize_cuda_cache=True,
-    target_kl=args.target_kl,
-    seed=args.seed,
-    init_kl_coef=args.init_kl_coef,
-    adap_kl_ctrl=args.adap_kl_ctrl
-)
-
-trainer = PPOTrainerTrl(
-    config,
-    model,
-    ref_model=None,
-    tokenizer=tokenizer,
-    reward_model=reward_model,
-    reward_tokenizer=reward_tokenizer,
-    dataset=train_dataset,
-    data_collator=collate_fn,
-    generation=generation,
-    generation_kwargs=generation_kwargs
-)
-
+optimizer = optim.AdamW(net.parameters(), args.lr)
+model.compile(optimizer=optimizer, grad_accumulation_steps=args.grad_accumulation_steps, clip_grad_norm=1.0)
 
 if __name__ == "__main__":
-    logger = Logger('./log_rlhf.log')
-    trainer.fit(trainer.dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[logger])
+    logger = Logger('./log_dpo.log')
+    model.fit(train_dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[logger])

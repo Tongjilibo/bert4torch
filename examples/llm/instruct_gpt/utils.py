@@ -7,7 +7,7 @@ from torch import nn
 def get_model_config(model):
     if model == 'bloom':
         model_type = 'bloom'
-        dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
+        dir_path = '/Users/lb/Documents/pretrain_ckpt/bloom/bloom-560m'
         config_path = dir_path + '/bert4torch_config.json'
         checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
     elif model == 'llama2':

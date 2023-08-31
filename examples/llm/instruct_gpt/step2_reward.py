@@ -86,19 +86,6 @@ class Model(BaseModel):
 model = Model()
 model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
-# lora
-if args.use_lora:
-    from peft import LoraConfig
-    peft_config = LoraConfig(
-            inference_mode=False,
-            r=8,
-            lora_alpha=32,
-            lora_dropout=0.1,
-            target_modules=['q', 'k', 'v']
-        )
-    model = model.get_peft_model(peft_config).to(args.device)
-else:
-    model = model.to(args.device)
 
 class Loss:
     def __call__(self, output, labels):
