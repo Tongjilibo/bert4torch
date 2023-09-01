@@ -347,3 +347,73 @@ class TemporalEnsemblingLoss(nn.Module):
         if bti >= len(self.hist_sup):
             self.hist_sup.append(torch.zeros_like(y_pred_sup).to(self.hist_device))
             self.hist_unsup.append(torch.zeros_like(y_pred_unsup).to(self.hist_device))
+
+
+class DPOLoss:
+    ''' DPO算法的loss计算
+    :param pad_token_id: pad的token_id, 用于计算mask
+    :param beta: float, dpo中beta参数
+    :param reference_free: bool, 默认为False
+    :param average_log_prob: bool, 是否对log_prob去均值，默认为False
+    :param prefix: 进度条展示指标的前缀
+    '''
+    def __init__(self, pad_token_id=0, beta=0.1, reference_free=False, average_log_prob=False, prefix='') -> None:
+        self.pad_token_id = pad_token_id
+        self.beta = beta
+        self.reference_free = reference_free
+        self.average_log_prob = average_log_prob
+        self.prefix = prefix
+    
+    def __call__(self, logits, labels):
+        '''
+        :param logit: tuple/list, 分别表示policy_logits, reference_logits，tensor中前一半为chosen，后一半为rejected
+        :param labels: 真实标签
+        '''
+        policy_logits, reference_logits = logits
+        pol_chosen_logps, pol_rejected_logps = self._get_batch_logps(policy_logits, labels)
+        ref_chosen_logps, ref_rejected_logps = self._get_batch_logps(reference_logits, labels)
+
+        pi_logratios = pol_chosen_logps - pol_rejected_logps
+        ref_logratios = ref_chosen_logps - ref_rejected_logps
+
+        if self.reference_free:
+            ref_logratios = 0
+
+        logits = pi_logratios - ref_logratios
+
+        losses = -F.logsigmoid(self.beta * logits)
+        chosen_rewards = self.beta * (pol_chosen_logps - ref_chosen_logps).detach()
+        rejected_rewards = self.beta * (pol_rejected_logps - ref_rejected_logps).detach()
+        reward_accuracies = (chosen_rewards > rejected_rewards).float()
+
+        loss_detail = {'loss': losses.mean()}
+        loss_detail[f"{self.prefix}chosen"] = chosen_rewards.cpu().numpy().mean()
+        loss_detail[f"{self.prefix}rejected"] = rejected_rewards.cpu().numpy().mean()
+        loss_detail[f"{self.prefix}accuracies"] = reward_accuracies.cpu().numpy().mean()
+        loss_detail[f"{self.prefix}margins"] = (chosen_rewards - rejected_rewards).cpu().numpy().mean()
+        return loss_detail
+
+    def _get_batch_logps(self, logits, labels):
+        """Compute the log probabilities of the given labels under the given logits.
+        """
+        if logits.shape[:-1] != labels.shape:
+            raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
+
+        labels = labels[:, 1:].clone()  # labels取从1到n
+        logits = logits[:, :-1, :]  # logits去从0到n-1
+        loss_mask = labels != self.pad_token_id  # 仅计算非padding部分
+
+        # dummy token; we'll ignore the losses on these tokens later
+        labels[labels == self.pad_token_id] = 0
+
+        per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
+
+        if self.average_log_prob:
+            all_logps = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
+        else:
+            all_logps =  (per_token_logps * loss_mask).sum(-1)
+
+        split = labels.shape[0] // 2
+        chosen_logps = all_logps[:split]
+        rejected_logps = all_logps[split:]
+        return chosen_logps, rejected_logps

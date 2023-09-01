@@ -13,6 +13,13 @@ except:
 
 
 class PPOTrainerTrl(PPOTrainer, Trainer):
+    '''对trl中PPOTrainer的二次封装，使得可以使用model.complie(), model.fit()的方式进行模型训练
+
+    :param generation:
+    :param generation_kwargs:
+    :param reward_model:
+    :param reward_tokenizer:
+    '''
     def __init__(self, *args, generation=None, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
         if PPOTrainer == object:
             raise ValueError('Please install trl by running `pip install trl`')
@@ -27,7 +34,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.grad_accumulation_steps = self.config.gradient_accumulation_steps
         self.compile(loss=None, optimizer=self.optimizer)
             
-    def train_step(self, train_X, train_y):
+    def train_step(self, train_X, *args, **kwargs):
         if isinstance(train_X, (tuple, list)):
             question_tensors, query = train_X[0], train_X[1]
         elif isinstance(train_X, dict):

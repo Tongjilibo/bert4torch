@@ -4,4 +4,3 @@
 
 from torch4keras.trainer import *  # torch4keras>=0.1.2.post2
 from bert4torch.trainer.ppo_trainer_trl import *
-from bert4torch.trainer.dpo_trainer import *

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-dpo: 仍在测试中
+dpo算法，可用于提到reward+rlhf两个步骤
 """
 
 from glob import glob
@@ -12,9 +12,9 @@ from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.callbacks import Callback, Logger
-from bert4torch.trainer import DPOTrainer
+from bert4torch.losses import DPOLoss
 from utils import get_model_config, get_nbit_lora_model
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer
 import json
 import copy
 
@@ -80,10 +80,10 @@ def collate_fn(batch):
     chosen_ids, chosen_labels, rejected_ids, rejected_labels = [], [], [], []
     for prompt_id, chosen_id, rejected_id in batch:
         chosen_ids.append(prompt_id+chosen_id)
-        chosen_labels.append([pad_token_id]*len(prompt_id) + chosen_id)
+        chosen_labels.append([pad_token_id]*len(prompt_id) + chosen_id)  # prompt部分用padding位
         rejected_ids.append(prompt_id+rejected_id)
         rejected_labels.append([pad_token_id]*len(prompt_id) + rejected_id)
-
+    # 这里是把chosen和rejected放到同一个batch中，前半部分是chosen，后半部分是rejected
     input_ids = torch.tensor(sequence_padding(chosen_ids+rejected_ids, value=pad_token_id), dtype=torch.long, device=args.device)
     input_labels = torch.tensor(sequence_padding(chosen_labels+rejected_labels, value=pad_token_id), dtype=torch.long, device=args.device)
     return input_ids, input_labels
@@ -93,13 +93,28 @@ dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), bat
 
 
 # ============= 定义 model =============
-net = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
-                                pad_token_id=pad_token_id)
-net = get_nbit_lora_model(net, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
-model = DPOTrainer(net)
+class DPOModel(BaseModel):
+    def __init__(self):
+        super().__init__()
+        self.model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
+                                              model=args.model_type, pad_token_id=pad_token_id)
+        self.red_model = copy.deepcopy(self.model)
+        self.red_model.eval()
 
-optimizer = optim.AdamW(net.parameters(), args.lr)
-model.compile(optimizer=optimizer, grad_accumulation_steps=args.grad_accumulation_steps, clip_grad_norm=1.0)
+    def forward(self, input_ids):
+        policy_logits = self.model(input_ids).to(torch.float32)
+        with torch.no_grad():
+            reference_logits = self.red_model(input_ids).to(torch.float32)
+
+        return policy_logits, reference_logits
+
+model = DPOModel()
+model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
+
+loss = DPOLoss(pad_token_id=pad_token_id)
+optimizer = optim.AdamW(model.parameters(), args.lr)
+model.compile(loss=loss, optimizer=optimizer, grad_accumulation_steps=args.grad_accumulation_steps)
+
 
 if __name__ == "__main__":
     logger = Logger('./log_dpo.log')
