@@ -110,13 +110,13 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 <details><summary><b>5.1 即将更新</b></summary>
 
-- [ ] chatgpt三阶段的训练
+- [ ] 接入更多开源大模型
 
 </details>
 
 <details><summary><b>5.2 更新历史</b></summary>
 
-- **20230828**：修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练
+- **20230901**：修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练
 - **20230812**：增加llama-2的微调, 增加大模型deepspeed的使用，增加Qwen模型(增加ntk和logn_attn)，generation的end_id支持多个token_id，修复多文件权重加载资源占用问题
 - **20230726**：修改baichuan的alibi逻辑，增加bloom, 简化decoder架构代码(gpt, llama, chatglm均继承decoder)
 - **20230716**：修改models和layers为文件夹方便扩展, 增加flash_attention参数控制，增加chatglm-api示例，修改skip_init逻辑减少显存占用，generation增加repetition_penalty，修复chatglm的pv2的bug，generation支持transformers的tokenize，增加ziya，Baichuan
@@ -158,6 +158,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 - 部分权重是要加载修改的[config.json](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/README.md)
 
+<details><summary><b>6.1 已支持权重</b></summary>
 
 | 模型分类| 权重来源| 权重链接 | 备注(若有)|
 | ----- | ----- | ----- | ----- |
@@ -205,6 +206,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | bloom | bigscience | [560m](https://huggingface.co/bigscience/bloom-560m) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_bloom.py) |
 | Qwen | 阿里云 | [github](https://github.com/QwenLM/Qwen-7B), [7B](https://huggingface.co/Qwen/Qwen-7B), [7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_Qwen.py) |
 
+</details>
 
 ## 7. 鸣谢
 

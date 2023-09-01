@@ -171,6 +171,7 @@ trainer = PPOTrainerTrl(
     generation=generation,
     generation_kwargs=generation_kwargs
 )
+trainer.compile()
 
 
 if __name__ == "__main__":

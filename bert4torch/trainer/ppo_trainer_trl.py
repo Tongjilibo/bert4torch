@@ -15,10 +15,10 @@ except:
 class PPOTrainerTrl(PPOTrainer, Trainer):
     '''对trl中PPOTrainer的二次封装，使得可以使用model.complie(), model.fit()的方式进行模型训练
 
-    :param generation:
-    :param generation_kwargs:
-    :param reward_model:
-    :param reward_tokenizer:
+    :param generation: bert4torch的generation, 基于actor_model
+    :param generation_kwargs: generation使用的genration_kwargs
+    :param reward_model: 奖励模型，可以用bert4torch构建的，也可以用transformers格式的
+    :param reward_tokenizer: 奖励模型的tokenizer
     '''
     def __init__(self, *args, generation=None, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
         if PPOTrainer == object:
@@ -32,9 +32,8 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.generation_kwargs = generation_kwargs or {}
         self.reward_baseline = kwargs.pop('reward_baseline', 0)
         self.grad_accumulation_steps = self.config.gradient_accumulation_steps
-        self.compile(loss=None, optimizer=self.optimizer)
             
-    def train_step(self, train_X, *args, **kwargs):
+    def train_step(self, train_X):
         if isinstance(train_X, (tuple, list)):
             question_tensors, query = train_X[0], train_X[1]
         elif isinstance(train_X, dict):
@@ -44,7 +43,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         
         # actor生成得到推理结果
         responses = []
-        self.generation.decoder.with_lm = True
+        self.generation.decoder.with_lm = True  # 输出lm_logits
         response_tensors = self.generation.batch_generate(question_tensors, **self.generation_kwargs)
         self.generation.decoder.with_lm = False
         for response_tensor in response_tensors:
@@ -65,6 +64,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.logs.update({k:v for k,v in stats.items() if isinstance(v, (int, float))})  # 更新到logs中
         batch = {'query': query, 'response': responses}
         self.log_stats(stats, batch, rewards)
+        # 按照output, loss, loss_detail个顺序返回
         return None, torch.tensor(stats['ppo/loss/total']), dict()
 
     def step(self):
@@ -95,8 +95,20 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         """
         Get the reward score for a given question and answer pair.
         """
-        inputs = self.reward_tokenizer(question, answer, return_tensors='pt').to(self.model.device)
-        score = self.reward_model(**inputs).logits[0].cpu().detach()
+        # 这里reward_tokenizer是transformer格式的
+        inputs = self.reward_tokenizer(question, answer, return_tensors='pt').to(self.reward_model.device)
+        if isinstance(self.reward_model, BaseModel):
+            # bert4torch格式
+            score = self.reward_model(inputs['input_ids'])
+            if isinstance(score, torch.Tensor):
+                score = score.cpu().detach()
+            elif isinstance(score, (list, tuple)):
+                score = score[0].cpu().detach()
+            else:
+                raise ValueError('Output `score` format illegal')
+        else:
+            # transformer格式
+            score = self.reward_model(**inputs).logits[0].cpu().detach()
         return score
 
     def unwrap_model(self):

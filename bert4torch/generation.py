@@ -512,7 +512,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
         :param use_states: str, 是否使用cache
         :param device: str, 默认为None，因为可以直接使用传入的model.device
-        :param process_choice: str, both/encode_only/decode_only/none
+        :param process_choice: str, both/encode_only/decode_only/None
         '''
         if pad_id is not None:  # 用户自行设置了
             pass
