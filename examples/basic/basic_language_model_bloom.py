@@ -9,7 +9,7 @@ bloom-560m: https://huggingface.co/bigscience/bloom-560m
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.generation import SeqGeneration
-from transformers import AutoTokenizer, LlamaTokenizer
+from transformers import AutoTokenizer
 import platform
 import os
 

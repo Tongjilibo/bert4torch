@@ -33,7 +33,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.reward_baseline = kwargs.pop('reward_baseline', 0)
         self.grad_accumulation_steps = self.config.gradient_accumulation_steps
             
-    def train_step(self, train_X):
+    def train_step(self, train_X, _):
         if isinstance(train_X, (tuple, list)):
             question_tensors, query = train_X[0], train_X[1]
         elif isinstance(train_X, dict):

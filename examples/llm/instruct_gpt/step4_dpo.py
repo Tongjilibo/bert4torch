@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from bert4torch.optimizers import get_linear_schedule_with_warmup
-from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
+from bert4torch.snippets import DottableDict, ListDataset, sequence_padding, seed_everything
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.losses import DPOLoss
@@ -23,23 +23,22 @@ import copy
 args = DottableDict()
 args.steps_per_epoch = None
 args.epochs = 1
-args.data_path = '/Users/lb/Documents/Project/Github/MedicalGPT/data/reward/**/*.json'
+args.data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'
 args.device = "cuda" if torch.cuda.is_available() else "cpu"
 args.use_fast_tokenizer = False
-args.lr = 1e-5
 args.seed = 1234
+args.lr = 1e-5
+args.batch_size = 2
 args.max_src_length = 128
 args.max_tgt_length = 128
 args.full_max_length = args.max_src_length + args.max_tgt_length
-args.load_in_8bit = False
-args.max_steps = 100
-args.learning_rate = 1e-5
-args.batch_size = 8
 args.grad_accumulation_steps = 1
 args.trust_remote_code = True
 args.use_lora = False
 args.load_in_nbit = None
 args.model_type, args.model_name_or_path, args.config_path, args.checkpoint_path = get_model_config('bloom')
+
+seed_everything(args.seed)
 
 # =============== 定义tokenizer ==================
 if args.model_type == 'bloom':
@@ -98,14 +97,17 @@ class DPOModel(BaseModel):
         super().__init__()
         self.model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
                                               model=args.model_type, pad_token_id=pad_token_id)
-        self.red_model = copy.deepcopy(self.model)
-        self.red_model.eval()
+        self.model.print_trainable_parameters()
+        self.ref_model = copy.deepcopy(self.model)
+        for p in self.ref_model.parameters():
+            p.requires_grad = False
+        self.ref_model.print_trainable_parameters()
 
     def forward(self, input_ids):
         policy_logits = self.model(input_ids).to(torch.float32)
+        self.ref_model.eval()
         with torch.no_grad():
-            reference_logits = self.red_model(input_ids).to(torch.float32)
-
+            reference_logits = self.ref_model(input_ids).to(torch.float32)
         return policy_logits, reference_logits
 
 model = DPOModel()
