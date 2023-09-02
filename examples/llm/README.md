@@ -21,6 +21,7 @@
 - [basic_language_model_moss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_moss.py): 测试[moss](https://github.com/OpenLMLab/MOSS)模型, int4和int8低成本部署。
 
 ## 其他
+- [instruct_gpt](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/instruct_gpt): 按照三个步骤复现rlhf的实现
 - [task_chatglm_nbce.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_nbce.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, 使用朴素贝叶斯增加LLM的Context处理长度。
 
 ## 微调
@@ -29,8 +30,8 @@
 - [task_chatglm2_ptuning_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm2_ptuning_v2.py): [chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)的ptuning_v2微调。
 - [task_chatglm2_lora.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm2_lora.py): [chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)的lora微调(基于peft)。
 - [task_llama-2_lora.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_llama-2_lora.py): [llama-2](https://github.com/facebookresearch/llama)的lora微调(基于peft)。
-- [task_chatglm_deepspeed.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_deepspeed.py): [chatglm](https://github.com/THUDM/ChatGLM-6B)的lora微调(peft+deepspeed)。
-- [task_llama_deepspeed.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_llama_deepspeed.py): [llama-2](https://github.com/facebookresearch/llama)的lora微调(peft+deepspeed)。
+- [task_chatglm_deepspeed](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_deepspeed): [chatglm](https://github.com/THUDM/ChatGLM-6B)的lora微调(peft+deepspeed)。
+- [task_llama_deepspeed](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_llama_deepspeed): [llama-2](https://github.com/facebookresearch/llama)的lora微调(peft+deepspeed)。
 
 ### 微调指标
 

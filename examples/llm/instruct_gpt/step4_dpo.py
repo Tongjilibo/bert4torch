@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-dpo算法，可用于提到reward+rlhf两个步骤
+dpo算法，可用于替换reward+rlhf两个步骤
 """
 
 from glob import glob
