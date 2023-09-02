@@ -1,10 +1,11 @@
 '''chatglm-6b的转换脚本
-bloom-560m:  https://huggingface.co/bigscience/bloom-560m
+bloom-560m:   https://huggingface.co/bigscience/bloom-560m
+bloomz-560m:  https://huggingface.co/bigscience/bloomz-560m
 '''
 import torch
 import json
 
-ckpt_dir = 'E:/pretrain_ckpt/bloom/bloom-560m/'
+ckpt_dir = 'E:/pretrain_ckpt/bloom/bloomz-560m/'
 ckpt_file = ckpt_dir + 'pytorch_model.bin'
 output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 num_hidden_layers = 24

@@ -150,6 +150,10 @@ class TrainingDatasetRoBERTa(TrainingDataset):
     def sentence_process(self, text):
         """单个文本的处理函数
         流程：分词，然后转id，按照mask_rate构建全词mask的序列, 来指定哪些token是否要被mask
+
+        return
+            token_ids: 部分token_id已经被 "[MASK]/不变/随机" 替换之后的token_ids
+            mask_ids:  指示被替换位置的真实ids, 未被替换的位置为0，被替换的位置为替换前的id
         """
         words = self.word_segment(text)
         rands = np.random.random(len(words))
