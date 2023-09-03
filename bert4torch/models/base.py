@@ -367,6 +367,8 @@ class BERT_BASE(nn.Module):
             model = peft.LoraModel(self, self.peft_config, adapter_name)
         elif isinstance(peft_config, peft.AdaLoraConfig):
             model = peft.AdaLoraModel(self, self.peft_config, adapter_name)
+        else:
+            raise ValueError(f'{type(peft_config)} has not been supported')
         
         # 返回的model无法使用torch4keras的trainer
         self = add_trainer(model) if self.add_trainer else model
