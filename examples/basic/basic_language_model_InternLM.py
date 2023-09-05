@@ -14,7 +14,7 @@ import os
 
 choice = 'internlm-chat-7b'
 if choice == 'internlm-chat-7b':
-    dir_path = '/Users/lb/Documents/pretrain_ckpt/internlm/internlm-chat-7b'
+    dir_path = 'E:/pretrain_ckpt/internlm/internlm-chat-7b'
     with_prompt = True
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
@@ -43,18 +43,21 @@ def build_inputs(query: str, history: List[Tuple[str, str]] = [], replace=False)
     if replace:
         for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
             prompt = prompt.replace(reg, '')
+        prompt = prompt.replace('<|User|>:', '\nUser：')
+        prompt = prompt.replace('<|Bot|>:', '\nInternLM：')
     return prompt
 
 tokenizer_config = {'skip_special_tokens': True}
-chat = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', 
-                     tokenizer_config=tokenizer_config, maxlen=256, default_rtype='logits', use_states=True)
+chat = SeqGeneration(model, tokenizer, start_id=None, end_id=[tokenizer.eos_token_id, tokenizer.encode('<eoa>')[-1]], mode='random_sample', 
+                     tokenizer_config=tokenizer_config, maxlen=1024, default_rtype='logits', use_states=True)
 
 
 if __name__ == '__main__':
     history = []
     os_name = platform.system()
     clear_command = 'cls' if os_name == 'Windows' else 'clear'
-    print("Welcome to use InternLM model，type `clear` to clear history，type `stop` to stop program")
+    welcome_prompt = "Welcome to use InternLM model，type `clear` to clear history，type `stop` to stop program"
+    print(welcome_prompt)
     while True:
         query_input = query = input("\nUser：")
         if query == "stop":
@@ -62,16 +65,16 @@ if __name__ == '__main__':
         if query == "clear":
             history = []
             os.system(clear_command)
-            print("Welcome to use InternLM model，type `clear` to clear history，type `stop` to stop program")
+            print(welcome_prompt)
             continue
         if with_prompt:
             query = build_inputs(query, history)
         else:
             query = build_inputs(query, [])
 
-        for response in chat.stream_generate(query, include_input=include_input):
+        for response in chat.stream_generate(query, include_input=include_input, topp=0.8, temperature=0.8):
             os.system(clear_command)
-            print(build_inputs(None, history+[(query_input, response)], replace=True), flush=True)
+            print(welcome_prompt + '\n\n' + build_inputs(None, history+[(query_input, response)], replace=True), flush=True)
 
         if with_prompt:
             history.append((query_input, response))

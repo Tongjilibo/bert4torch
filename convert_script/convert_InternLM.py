@@ -12,7 +12,7 @@ from tqdm import tqdm
 choice = 'internlm-chat-7b'
 
 if choice == 'internlm-chat-7b':
-    ckpt_dir = '/Users/lb/Documents/pretrain_ckpt/internlm/internlm-chat-7b/'
+    ckpt_dir = 'E:/pretrain_ckpt/internlm/internlm-chat-7b/'
     ckpt_file = [f'{ckpt_dir}/pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]
     output_ckpt_file = [f'{ckpt_dir}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]
     num_hidden_layers = 32
