@@ -20,6 +20,7 @@ from bert4torch.models.uie import *
 from bert4torch.models.xlnet import *
 from bert4torch.models.bloom import *
 from bert4torch.models.qwen import *
+from bert4torch.models.internlm import *
 
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, **kwargs):
@@ -118,7 +119,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         'transformer_xl': Transformer_XL,
         'xlnet': XLNET,
         'bloom': Bloom,
-        'qwen': Qwen
+        'qwen': Qwen,
+        'internlm': InternLM
     }
 
     model = model or configs.get('model', 'bert')

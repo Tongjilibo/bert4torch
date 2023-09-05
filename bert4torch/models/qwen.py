@@ -6,6 +6,7 @@ class Qwen(Decoder):
     '''通义千问: https://github.com/QwenLM/Qwen-7B
     1）FeedForward和Llama一致，三个dense层
     2）除了qkv有bias，其余均没有bias
+    3) 和InternLM基本一致，唯一的差别是InternLM的multiHeadAttention.o有bias
     '''
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'norm_mode': 'rmsnorm', 
