@@ -5,9 +5,10 @@ class ERNIE(BERT):
     """百度文心 https://github.com/PaddlePaddle/ERNIE"""
     def __init__(self, *args, **kwargs):
         super(ERNIE, self).__init__(*args, **kwargs)
+        self.name = 'ernie'
 
     def variable_mapping(self):
-        mapping = super(ERNIE, self).variable_mapping(prefix='ernie')
+        mapping = super(ERNIE, self).variable_mapping()
         mapping.update({'mlmDecoder.weight': 'ernie.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias'})
         for k, v in mapping.items():
@@ -17,6 +18,3 @@ class ERNIE(BERT):
         for del_key in ['nsp.weight', 'nsp.bias']:
             del mapping[del_key]
         return mapping
-
-    def load_variable(self, state_dict, name, prefix='ernie'):
-        return super().load_variable(state_dict, name, prefix=prefix)

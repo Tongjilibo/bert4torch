@@ -16,7 +16,7 @@ class DebertaV2(BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'deberta_v2'})  # 控制在Embedding阶段不生成position_embedding
         super(DebertaV2, self).__init__(*args, **kwargs)
-        
+        self.name = 'deberta'
         # Encoder中transformer_block前的其他网络结构
         self.relative_attention = kwargs.get("relative_attention", True)
         self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
@@ -49,7 +49,7 @@ class DebertaV2(BERT):
         return model_kwargs
 
     def variable_mapping(self):
-        mapping = super(DebertaV2, self).variable_mapping(prefix='deberta')
+        mapping = super(DebertaV2, self).variable_mapping()
         mapping.update({'mlmDecoder.weight': 'deberta.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias',
                         'encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'deberta.encoder.rel_embeddings.weight',
@@ -63,5 +63,5 @@ class DebertaV2(BERT):
             del mapping[del_key]
         return mapping
 
-    def load_variable(self, state_dict, name, prefix='deberta'):
-        return super().load_variable(state_dict, name, prefix=prefix)
+    def load_variable(self, state_dict, name):
+        return super().load_variable(state_dict, name)

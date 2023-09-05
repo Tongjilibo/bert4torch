@@ -12,6 +12,7 @@ class ELECTRA(BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, max_position, **kwargs):
         super(ELECTRA, self).__init__(max_position, **kwargs)
+        self.name = 'electra'
         if self.with_discriminator:
             self.dense = nn.Linear(self.hidden_size, self.hidden_size)
             self.dense_act = get_activation(self.hidden_act)
@@ -34,10 +35,10 @@ class ELECTRA(BERT):
 
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
-        return super().load_variable(state_dict, name, prefix='electra')
+        return super().load_variable(state_dict, name)
 
     def variable_mapping(self):
-        mapping = super(ELECTRA, self).variable_mapping(prefix='electra')
+        mapping = super(ELECTRA, self).variable_mapping()
         mapping.update({'dense.weight': 'discriminator_predictions.dense.weight', 
                         'dense.bias': 'discriminator_predictions.dense.bias',
                         'dense_prediction.weight': 'discriminator_predictions.dense_prediction.weight',

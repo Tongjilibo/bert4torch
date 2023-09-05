@@ -7,8 +7,9 @@ class BART(Transformer):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(BART, self).__init__(*args, **kwargs)
+        self.name = 'bart'
 
-    def load_variable(self, state_dict, name, prefix=''):
+    def load_variable(self, state_dict, name):
         # 加载单个变量的函数
         variable = state_dict[name]
         if name in {
@@ -22,7 +23,7 @@ class BART(Transformer):
         else:
             return variable
 
-    def variable_mapping(self, prefix=''):
+    def variable_mapping(self):
         # 查看check_point发现'shared.weight'
         mapping = {
             'encoder.embeddings.word_embeddings.weight': 'shared.weight' if self.tie_emb_src_tgt_weight else 'encoder.embed_tokens.weight',

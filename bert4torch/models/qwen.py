@@ -9,12 +9,6 @@ class Qwen(InternLM):
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.name = 'qwen'
         for layer in self.decoderLayer:
             layer.multiHeadAttention.o.register_parameter('bias', None)
-
-    def load_variable(self, state_dict, name, prefix='qwen'):
-        return super().load_variable(state_dict, name, prefix=prefix)
-
-    def variable_mapping(self, prefix='qwen'):
-        # 映射到权重格式
-        return super().variable_mapping(prefix=prefix)

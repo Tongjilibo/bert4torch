@@ -9,9 +9,4 @@ class Bloom(Decoder):
     def __init__(self, *args, p_bias='alibi', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
-
-    def load_variable(self, state_dict, name, prefix='bloom'):
-        return super().load_variable(state_dict, name, prefix=prefix)
-
-    def variable_mapping(self, prefix='bloom'):
-        return super().variable_mapping(prefix)
+        self.name = 'bloom'

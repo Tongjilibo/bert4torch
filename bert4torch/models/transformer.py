@@ -13,6 +13,7 @@ class Encoder(BERT):
         super().__init__(*args, **kwargs)
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
+        self.name = 'encoder'
     
     def forward(self, *inputs, **model_kwargs):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
@@ -30,6 +31,7 @@ class Decoder(LM_Mask, BERT):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
+        self.name = 'decoder'
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
         self.final_layernorm = final_layernorm
@@ -91,27 +93,27 @@ class Decoder(LM_Mask, BERT):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, state_dict, name, prefix='bert'):
+    def load_variable(self, state_dict, name):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[name]
-        if name in {f'{prefix}.embeddings.word_embeddings.weight', 'lm_head.weight'}:
+        if name in {f'{self.name}.embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
-        elif name == f'{prefix}.embeddings.position_embeddings.weight':
+        elif name == f'{self.name}.embeddings.position_embeddings.weight':
             return self.load_pos_embeddings(variable)
         else:
             return variable
         
-    def variable_mapping(self, prefix='bert'):
-        raw_mapping = super().variable_mapping(prefix)
+    def variable_mapping(self):
+        raw_mapping = super().variable_mapping()
         mapping = {}
         for k, v in raw_mapping.items():
             mapping[k.replace('encoderLayer', 'decoderLayer')] = v
         
         if self.final_layernorm:
-            mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
-                            'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias'})
+            mapping.update({'LayerNormFinal.weight': f'{self.name}.LayerNormFinal.weight',
+                            'LayerNormFinal.bias': f'{self.name}.LayerNormFinal.bias'})
         if self.with_lm and (not self.tie_emb_prj_weight):  # 当且仅当未绑定权重的时候
-            mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
+            mapping.update({'lm_head.weight': f'{self.name}.lm_head.weight'})
         return mapping
 
 

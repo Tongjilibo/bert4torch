@@ -16,13 +16,7 @@ class GPT(Decoder):
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-
-    def load_variable(self, state_dict, name, prefix='gpt'):
-        return super(GPT, self).load_variable(state_dict, name, prefix=prefix)
-
-    def variable_mapping(self, prefix='gpt'):
-        # 映射到GPT权重格式
-        return super(GPT, self).variable_mapping(prefix=prefix)
+        self.name = 'gpt'
 
 
 class GPT2(Decoder):
@@ -40,13 +34,7 @@ class GPT2(Decoder):
         kwargs['final_layernorm'] = kwargs.get('final_layernorm', True)
         super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-
-    def load_variable(self, state_dict, name, prefix='gpt2'):
-        return super(GPT2, self).load_variable(state_dict, name, prefix=prefix)
-
-    def variable_mapping(self, prefix='gpt2'):
-        # 映射到GPT权重格式
-        return super(GPT2, self).variable_mapping(prefix=prefix)
+        self.name = 'gpt2'
 
 
 class GPT2_ML(Decoder):
@@ -63,13 +51,7 @@ class GPT2_ML(Decoder):
         layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
                                  is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
-
-    def load_variable(self, state_dict, name):
-        return super(GPT2_ML, self).load_variable(state_dict, name, prefix='gpt2_ml')
-
-    def variable_mapping(self):
-        # 映射到GPT2权重格式
-        return super(GPT2_ML, self).variable_mapping(prefix='gpt2_ml')
+        self.name = 'gpt2_ml'
 
     class Gpt2MlLayer(BertLayer):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；

@@ -10,12 +10,10 @@ class RoFormer(BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary'})  # 指定在attention阶段使用rotary编码
         super(RoFormer, self).__init__(*args, **kwargs)
+        self.name = 'roformer'
     
-    def load_variable(self, state_dict, name, prefix='roformer'):
-        return super().load_variable(state_dict, name, prefix)
-
-    def variable_mapping(self, prefix='roformer'):
-        mapping =  super().variable_mapping(prefix)
+    def variable_mapping(self):
+        mapping =  super().variable_mapping()
         del mapping['embeddings.position_embeddings.weight'] # 没有位置编码
         return mapping
 
@@ -34,8 +32,8 @@ class RoFormerV2(RoFormer):
             del self.mlmDense
             self.mlmDecoder.register_parameter('bias', None)
 
-    def variable_mapping(self, prefix='roformer'):
-        mapping = super().variable_mapping(prefix)
+    def variable_mapping(self):
+        mapping = super().variable_mapping()
         mapping_new = {}
         for k, v in mapping.items():
             if (not re.search('bias|layernorm', k.lower())) and (not re.search('bias|layernorm', v.lower())):

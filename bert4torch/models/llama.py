@@ -17,6 +17,7 @@ class LLaMA(Decoder):
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
+        self.name = 'llama'
 
         # 修改feedword
         for layer in self.decoderLayer:
@@ -24,13 +25,10 @@ class LLaMA(Decoder):
             layer.dropout1 = BlockIdentity()  # llama未使用dropout
             layer.dropout2 = BlockIdentity()
 
-    def load_variable(self, state_dict, name, prefix='llama'):
-        return super(LLaMA, self).load_variable(state_dict, name, prefix=prefix)
-
-    def variable_mapping(self, prefix='llama'):
+    def variable_mapping(self):
         # 映射到权重格式
-        mapping = super(LLaMA, self).variable_mapping(prefix=prefix)
+        mapping = super(LLaMA, self).variable_mapping()
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{prefix}.encoder.layer.%d.' % i
+            prefix_i = f'{self.name}.encoder.layer.%d.' % i
             mapping.update({f'decoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})
         return mapping

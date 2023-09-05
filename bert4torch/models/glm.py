@@ -28,11 +28,9 @@ class GLM(Decoder):
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
-
-    def load_variable(self, state_dict, name, prefix='transformer'):
-        return super(GLM, self).load_variable(state_dict, name, prefix=prefix)
+        self.name = 'transformer'
         
-    def variable_mapping(self, prefix='transformer'):
+    def variable_mapping(self):
         # 映射到权重格式
         mapping = {
             'LayerNormFinal.weight': "transformer.final_layernorm.weight",
@@ -41,7 +39,7 @@ class GLM(Decoder):
             'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
 
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{prefix}.layers.%d.' % i
+            prefix_i = f'{self.name}.layers.%d.' % i
             mapping.update({
                 f'decoderLayer.{i}.layerNorm1.weight': prefix_i + 'input_layernorm.weight',
                 f'decoderLayer.{i}.layerNorm1.bias': prefix_i + 'input_layernorm.bias',

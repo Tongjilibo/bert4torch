@@ -12,11 +12,11 @@ class GAU_alpha(RoFormerV2):
         layer = self.GAU_Layer(**kwargs)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
     
-    def load_variable(self, state_dict, name, prefix=''):
+    def load_variable(self, state_dict, name):
         variable = state_dict[name]
         return self.load_embeddings(variable) if name in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'} else variable
 
-    def variable_mapping(self, prefix=''):
+    def variable_mapping(self):
         '''在convert脚本里已经把key转成bert4torch可用的
         '''
         return {k: k for k, _ in self.named_parameters()}
