@@ -3,6 +3,7 @@ from bert4torch.models.base import LM_Mask, BERT_BASE
 from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
 from bert4torch.layers import LayerNorm
+from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
 from torch import nn
 import torch
 
@@ -116,6 +117,26 @@ class Decoder(LM_Mask, BERT):
             mapping.update({'lm_head.weight': f'{self.name}.lm_head.weight'})
         return mapping
 
+    def _prepare_generation(self, **generation_config):
+        if not hasattr(self, 'generation'):
+            self.generation = SeqGeneration(self, **generation_config)
+
+    def generate(self, text:str, **generation_config):
+        '''单条样本生成'''
+        self._prepare_generation(**generation_config)
+        return self.generation.generate(text, **generation_config)
+
+    def batch_generate(self, text_list:list, **generation_config):
+        '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
+        self._prepare_generation(**generation_config)
+        return self.generation.batch_generate(text_list, **generation_config)
+
+    def stream_generate(self, text:str, **generation_config):
+        '''单条样本stream输出预测的结果'''
+        self._prepare_generation(**generation_config)
+        for response in self.generation.stream_generate(text, **generation_config):
+            yield response
+
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构'''
@@ -152,3 +173,22 @@ class Transformer(BERT_BASE):
         # with_lm=True时候，decoder_outputs为logits, False时候为decoder_hidden_state
         return [encoder_hidden_states] + [decoder_outputs]
 
+    def _prepare_generation(self, **generation_config):
+        if not hasattr(self, 'generation'):
+            self.generation = Seq2SeqGeneration(self, **generation_config)
+
+    def generate(self, text:str, **generation_config):
+        '''单条样本生成'''
+        self._prepare_generation(**generation_config)
+        return self.generation.generate(text, **generation_config)
+
+    def batch_generate(self, text_list:list, **generation_config):
+        '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
+        self._prepare_generation(**generation_config)
+        return self.generation.batch_generate(text_list, **generation_config)
+
+    def stream_generate(self, text:str, **generation_config):
+        '''单条样本stream输出预测的结果'''
+        self._prepare_generation(**generation_config)
+        for response in self.generation.stream_generate(text, **generation_config):
+            yield response

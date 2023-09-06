@@ -26,7 +26,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         Trainer.__init__(self)
         PPOTrainer.__init__(self, *args, **kwargs)
         self.generation = generation
-        self.generation.process_choice = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
+        self.generation.tokenizer = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
         self.reward_model = reward_model
         self.reward_tokenizer = reward_tokenizer
         self.generation_kwargs = generation_kwargs or {}

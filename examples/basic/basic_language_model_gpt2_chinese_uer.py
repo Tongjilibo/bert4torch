@@ -91,3 +91,14 @@ text = texts[0]
 for output in article_completion.stream_generate(text, topk=topk):
     os.system('clear')
     print(text+output, flush=True)
+
+
+print('==============直接调用.generate()================')
+generate_configs = {'tokenizer': tokenizer, 'start_id': None, 'eos_token_id': end_id, 'mode':mode,
+                    'maxlen':100, 'default_rtype':'logits', 'use_states':False, 'n':1, 'topk':topk, 'include_input':True}
+for text in texts:
+    print(model.generate(text, **generate_configs))
+print(model.batch_generate(texts, **generate_configs))
+for output in model.stream_generate(text, **generate_configs):
+    os.system('clear')
+    print(output, flush=True)

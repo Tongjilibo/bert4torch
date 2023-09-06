@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import inspect
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn, log_warn_once
 from bert4torch.tokenizers import TokenizerBase
 from packaging import version
 from contextlib import contextmanager
@@ -94,9 +94,10 @@ class AutoRegressiveDecoder(object):
         for key, value in generation_config.items():
             if key in self.alias:  # 兼容transformers的参数设置
                 setattr(self, self.alias[key], value)
-            elif not hasattr(self, key):
-                raise ValueError(f'Generation_config `{key}` has not been pre maintained')
-            setattr(self, key, value)  # 在generate()时候动态设置属性
+            elif hasattr(self, key):
+                setattr(self, key, value)  # 在generate()时候动态设置属性
+            # else:
+            #     log_warn_once(f'Generation_config `{key}` has not been pre maintained')
 
     @staticmethod
     def wraps(default_rtype='probas', use_states=False):
@@ -521,7 +522,6 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
     :param use_states: str, 是否使用cache
     :param device: str, 默认为None，因为可以直接使用传入的model.device
-    :param process_choice: str, both/encode_only/decode_only/None
 
     > generation_config
     :param start_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
@@ -538,8 +538,8 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param repetition_penalty: 重复的惩罚系数
     :param min_ends: int, 最小的end_id的个数
     '''
-    def __init__(self, model, tokenizer, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
-                 mode='random_sample', default_rtype='logits', use_states=True, process_choice='both', optimize_cuda_cache=False, **generation_config):
+    def __init__(self, model, tokenizer=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
+                 mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **generation_config):
         generation_config = self._default_generation_config(tokenizer, model, generation_config)  # 对部分参数进行默认设置
         super().__init__(**generation_config)
 
@@ -548,9 +548,6 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # tokenizer参数
         self.tokenizer = tokenizer
-        assert process_choice in {"both", "encode_only", "decode_only", "None", None}, \
-                                  'Args `process_choice` only support `both/encode_only/decode_only/None`'
-        self.process_choice = process_choice
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
         tokenizer_config = tokenizer_config or dict()
         tokenizer_config.update({'maxlen': self.maxlen})
@@ -576,7 +573,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             pass
         elif generation_config.get('pad_token_id') is not None:  # 用户自行设置（别名）
             pass
-        elif tokenizer.pad_token_id is not None:
+        elif (tokenizer is not None) and (tokenizer.pad_token_id is not None):
             generation_config['pad_id'] = tokenizer.pad_token_id
         else:
             generation_config['pad_id'] = 0
@@ -586,7 +583,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             pass
         elif generation_config.get('eos_token_id') is not None:  # 用户自行设置（别名）
             pass
-        elif hasattr(tokenizer, 'eos_token_id') and tokenizer.eos_token_id is not None:
+        elif (tokenizer is not None) and hasattr(tokenizer, 'eos_token_id') and (tokenizer.eos_token_id is not None):
             generation_config['end_id'] = tokenizer.eos_token_id
             log_info(f'Arg `end_id` has been set to tokenizer.eos_token_id:{tokenizer.eos_token_id}')
         else:
@@ -726,7 +723,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     def pre_process(self, text):
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
-        if self.process_choice not in {'both', 'encode_only'}:
+        if self.tokenizer is None:
             return text
         
         if self.tokenizer_type == 'b4t':
@@ -739,7 +736,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     
     def post_process(self, output_ids):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
-        if self.process_choice not in {'both', 'decode_only'}:
+        if self.tokenizer is None:
             return output_ids
 
         if len(output_ids) > 1:
