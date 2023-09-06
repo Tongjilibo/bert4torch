@@ -43,14 +43,23 @@ class AutoRegressiveDecoder(object):
     包含beam search和random sample两种策略
 
     :param start_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
-    :param end_id: int, 解码使用的结束token_id，不同预训练模型设置可能不一样
+    :param end_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到maxlen）
     :param maxlen: int, 最大解码长度
     :param minlen: int, 最小解码长度, 默认为1
+    :param pad_id: int, pad_id，在batch解码时候使用
+    :param pad_mode: str, padding在前面还是后面，pre或者post
     :param device: str, 默认为'cpu'
+    :param n: int, random_sample时候表示生成的个数；beam_search时表示束宽
+    :param topk: int, 这里的topk是指仅保留topk的值
+    :param topp: float, 这里的topp是token的概率阈值设置
+    :param temperature: 温度参数，默认为1
+    :param repetition_penalty: 重复的惩罚系数
+    :param min_ends: int, 最小的end_id的个数
     """
     @model_inference_mode()
-    def __init__(self, start_id, end_id, maxlen, minlen=1, pad_id=0, pad_mode='post', device='cpu', 
-                 n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1):
+    def __init__(self, start_id=None, end_id=-1, maxlen=64, minlen=1, pad_id=0, pad_mode='post', device='cpu', 
+                 n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1, **generation_config):
+        # generation_config
         self.start_id = start_id
         self.end_id = end_id
         self.maxlen = maxlen
@@ -58,15 +67,23 @@ class AutoRegressiveDecoder(object):
         self.pad_id = pad_id   # pad_token_id兼容bert4torch和hf的，如错误则需要显式传入pad_id:int
         self.pad_mode = pad_mode
         self.device = device
-
-        # generation_config
         self.n = n
         self.topk = topk
         self.topp = topp
         self.temperature = temperature
         self.repetition_penalty = repetition_penalty
         self.min_ends = min_ends
-
+        # 参数别名：兼容transformers的参数设置
+        self.alias = {'bos_token_id': 'start_id',
+                      'eos_token_id': 'end_id',
+                      'top_k': 'topk',
+                      'top_p': 'topp',
+                      'max_new_tokens': 'maxlen',
+                      'min_new_tokens': 'minlen',
+                      'pad_token_id': 'pad_id'
+                     }
+        self.set_generation_config(generation_config)
+                
         self.use_batch = False
         if start_id is None:
             self.first_output_ids = torch.empty((1, 0), dtype=int, device=device)
@@ -75,9 +92,11 @@ class AutoRegressiveDecoder(object):
 
     def set_generation_config(self, generation_config):
         for key, value in generation_config.items():
-            if not hasattr(self, key):
+            if key in self.alias:  # 兼容transformers的参数设置
+                setattr(self, self.alias[key], value)
+            elif not hasattr(self, key):
                 raise ValueError(f'Generation_config `{key}` has not been pre maintained')
-            setattr(self, key, value)
+            setattr(self, key, value)  # 在generate()时候动态设置属性
 
     @staticmethod
     def wraps(default_rtype='probas', use_states=False):
@@ -493,37 +512,37 @@ class AutoRegressiveDecoder(object):
 
 class SeqGeneration(AutoRegressiveDecoder):
     '''单向decoder语言模型的解码，对AutoRegressiveDecoder的简单封装，可以使用cache来加快解码
-    '''
-    def __init__(self, model, tokenizer, start_id, end_id, maxlen, minlen=1, pad_id=None, tokenizer_config=None, tokenizer_encode_config=None, 
-                 tokenizer_decode_config=None, pad_mode='post', mode='random_sample', default_rtype='logits', use_states=True, device=None, n=1, 
-                 topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1, process_choice='both', optimize_cuda_cache=False):
-        '''
-        :param model: 模型
-        :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
-        :param start_id: int, decoder初始的token_id
-        :param end_id: int, 结束解码的token_id
-        :param pad_id: int, pad_id，在batch解码时候使用
-        :param pad_mode: str, padding在前面还是后面，pre或者post
-        :param tokenizer_config: dict, tokenize的参数, 一般设置这个即可，若部分参数无法设置，则单独设置tokenizer_encode_config和tokenizer_decode_config
-        :param tokenizer_encode_config: dict, tokenize的encode参数
-        :param tokenizer_decode_config: dict, tokenize的decode参数
-        :param maxlen: int, 最大解码长度
-        :param minlen: int, 最小解码长度
-        :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
-        :param use_states: str, 是否使用cache
-        :param device: str, 默认为None，因为可以直接使用传入的model.device
-        :param process_choice: str, both/encode_only/decode_only/None
-        '''
-        if pad_id is not None:  # 用户自行设置了
-            pass
-        elif tokenizer.pad_token_id is not None:
-            pad_id = tokenizer.pad_token_id
-        else:
-            pad_id = 0
-            log_info(f'Arg `pad_id` has been set to default value 0')
 
-        super().__init__(start_id, end_id, maxlen, minlen, pad_id, pad_mode, device or next(model.parameters()).device, 
-                         n, topk, topp, temperature, repetition_penalty, min_ends)
+    :param model: 模型
+    :param tokenizer: tokenizer，如果使用第三方的tokenize，需要继承重写下pre_process和post_process
+    :param tokenizer_config: dict, tokenize的参数, 一般设置这个即可，若部分参数无法设置，则单独设置tokenizer_encode_config和tokenizer_decode_config
+    :param tokenizer_encode_config: dict, tokenize的encode参数
+    :param tokenizer_decode_config: dict, tokenize的decode参数
+    :param default_rtype: str, 模型输出的结果是logits设置为logits，如果是probas设置为probas
+    :param use_states: str, 是否使用cache
+    :param device: str, 默认为None，因为可以直接使用传入的model.device
+    :param process_choice: str, both/encode_only/decode_only/None
+
+    > generation_config
+    :param start_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
+    :param end_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到maxlen）
+    :param maxlen: int, 最大解码长度
+    :param minlen: int, 最小解码长度, 默认为1
+    :param pad_id: int, pad_id，在batch解码时候使用
+    :param pad_mode: str, padding在前面还是后面，pre或者post
+    :param device: str, 默认为'cpu'
+    :param n: int, random_sample时候表示生成的个数；beam_search时表示束宽
+    :param topk: int, 这里的topk是指仅保留topk的值
+    :param topp: float, 这里的topp是token的概率阈值设置
+    :param temperature: 温度参数，默认为1
+    :param repetition_penalty: 重复的惩罚系数
+    :param min_ends: int, 最小的end_id的个数
+    '''
+    def __init__(self, model, tokenizer, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
+                 mode='random_sample', default_rtype='logits', use_states=True, process_choice='both', optimize_cuda_cache=False, **generation_config):
+        generation_config = self._default_generation_config(tokenizer, model, generation_config)  # 对部分参数进行默认设置
+        super().__init__(**generation_config)
+
         self.encoder = None
         self.decoder = model
 
@@ -534,7 +553,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.process_choice = process_choice
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
         tokenizer_config = tokenizer_config or dict()
-        tokenizer_config.update({'maxlen': maxlen})
+        tokenizer_config.update({'maxlen': self.maxlen})
         tokenizer_encode_config = tokenizer_encode_config or {}
         tokenizer_decode_config = tokenizer_decode_config or {}
         self.tokenizer_encode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode), **tokenizer_encode_config}
@@ -550,6 +569,32 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.input_text = ''
         EmptyCacheDecorators.optimize_cuda_cache = optimize_cuda_cache
     
+    @staticmethod
+    def _default_generation_config(tokenizer, model, generation_config):
+        ''' genration的默认参数设置 '''
+        if generation_config.get('pad_id') is not None:  # 用户自行设置
+            pass
+        elif generation_config.get('pad_token_id') is not None:  # 用户自行设置（别名）
+            pass
+        elif tokenizer.pad_token_id is not None:
+            generation_config['pad_id'] = tokenizer.pad_token_id
+        else:
+            generation_config['pad_id'] = 0
+            log_info(f'Arg `pad_id` has been set to default value 0')
+        
+        if generation_config.get('end_id') is not None:  # 用户自行设置
+            pass
+        elif generation_config.get('eos_token_id') is not None:  # 用户自行设置（别名）
+            pass
+        elif hasattr(tokenizer, 'eos_token_id') and tokenizer.eos_token_id is not None:
+            generation_config['end_id'] = tokenizer.eos_token_id
+            log_info(f'Arg `end_id` has been set to tokenizer.eos_token_id:{tokenizer.eos_token_id}')
+        else:
+            generation_config['end_id'] = generation_config['pad_id']
+            log_info(f'Arg `end_id` has been set to `pad_id`:{generation_config["pad_id"]}')
+        generation_config['device'] = generation_config.get('device') or next(model.parameters()).device
+        return generation_config
+
     def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
         def concat_token_ids(token_ids, output_ids):
