@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
     if mode == 'train':
         logger = Logger('./ckpt/log.log')
-        logger.run_callback = model.deepspeed_engine.local_rank == 0
+        logger.run_callback = model.deepspeed_engine.local_rank == 0  # 指定只有local_rank=0的记录log文件
         model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)

@@ -193,8 +193,8 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     evaluator = Evaluator()
-    logger = Logger('./log.log', interval=10)
-    logger.run_callback = model_ds.deepspeed_engine.local_rank == 0
+    logger = Logger('./log.log')
+    logger.run_callback = model_ds.deepspeed_engine.local_rank == 0  # 指定只有local_rank=0的记录log文件
 
     if mode == 'train':
         model_ds.fit(train_dataloader, steps_per_epoch=None, epochs=epochs, callbacks=[evaluator, logger])
