@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import inspect
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn, log_warn_once
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn
 from bert4torch.tokenizers import TokenizerBase
 from packaging import version
 from contextlib import contextmanager

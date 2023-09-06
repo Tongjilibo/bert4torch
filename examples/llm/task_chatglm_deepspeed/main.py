@@ -115,7 +115,7 @@ peft_config = LoraConfig(
 net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
                                 pad_token_id=tokenizer.pad_token_id, add_trainer=True).half()
 
-net = net.get_peft_model(peft_config).to(device)
+net = net.get_peft_model(peft_config)
 model = DeepSpeedTrainer(net, config_path='./deepspeed.json')
 batch_size = model.config.train_micro_batch_size_per_gpu
 train_dataloader = DataLoader(MyDataset('/tf/libo/data/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=False, collate_fn=collate_train_fn) 

@@ -122,7 +122,7 @@ peft_config = LoraConfig(
         lora_dropout=0.1,
         target_modules=['q', 'k', 'v']
     )
-model = model.get_peft_model(peft_config).to(device)
+model = model.get_peft_model(peft_config)
 model_ds = DeepSpeedTrainer(model, config_path='./deepspeed.json')
 
 batch_size = model_ds.config.train_micro_batch_size_per_gpu

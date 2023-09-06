@@ -112,6 +112,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 <details><summary><b>5.1 即将更新</b></summary>
 
 - [ ] 接入更多开源大模型
+- [ ] 增加大模型在各个榜单的评估脚本
 
 </details>
 
