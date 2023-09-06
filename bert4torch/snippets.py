@@ -558,7 +558,7 @@ def old_checkpoint(function, model_kwargs):
             outputs = module(*inputs)
             if isinstance(outputs, dict):
                 setattr(create_custom_forward, 'outputs_keys', [v for v in outputs.keys()])
-                return *[v for v in outputs.values()],
+                return tuple(outputs.values())
             else:
                 return outputs
         return custom_forward
