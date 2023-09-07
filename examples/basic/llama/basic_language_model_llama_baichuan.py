@@ -12,23 +12,28 @@ from typing import List
 import platform
 import os
 
-choice = '13B-Chat'
+choice = 'Baichuan2-7B-Chat'
 
-if choice == '7B':
+if choice == 'Baichuan-7B':
     dir_path = 'E:\\pretrain_ckpt\\llama\\Baichuan-7B'
     with_prompt = False
     maxlen = 64
     topk, topp, temperature, repetition_penalty = 50, 1, 1, 1.1
-elif choice == '13B':
+elif choice == 'Baichuan-13B':
     dir_path = 'E:\\pretrain_ckpt\\llama\\Baichuan-13B'
     with_prompt = False
     maxlen = 64
     topk, topp, temperature, repetition_penalty = 50, 1, 1, 1.1
-elif choice == '13B-Chat':
+elif choice == 'Baichuan-13B-Chat':
     dir_path = 'E:\\pretrain_ckpt\\llama\\Baichuan-13B-Chat'
     with_prompt = True
     maxlen = 4096
     topk, topp, temperature, repetition_penalty = 5, 0.85, 0.3, 1.1
+elif choice == 'Baichuan2-7B-Chat':
+    dir_path = 'E:\\pretrain_ckpt\\llama\\Baichuan2-7B-Chat'
+    with_prompt = True
+    maxlen = 2048
+    topk, topp, temperature, repetition_penalty = 5, 0.85, 0.3, 1.05
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
@@ -101,7 +106,7 @@ if __name__ == '__main__':
         if with_prompt:
             history.append({"role": "user", "content": query})
             query = build_input_ids(history)
-        response = article_completion.generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=1.1, include_input=include_input)      
+        response = article_completion.generate(query, topk=topk, topp=topp, temperature=temperature, repetition_penalty=repetition_penalty, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nbaichuan：{response}")
         

@@ -20,21 +20,27 @@
         --delta E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1-delta
     3）转换为bert4torch的适配权重
 
-[6]. baichuan：https://github.com/baichuan-inc/Baichuan-7B
-[7]. baichuan：https://github.com/baichuan-inc/Baichuan-13B
-[8]. baichuan：https://github.com/baichuan-inc/Baichuan-13B-Chat
+[6]. baichuan：https://huggingface.co/baichuan-inc/Baichuan-7B
+[7]. baichuan：https://huggingface.co/baichuan-inc/Baichuan-13B
+[8]. baichuan：https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
     其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
+[9]. Baichuan2-7B-Base: https://huggingface.co/baichuan-inc/Baichuan2-7B-Base
+[10]. Baichuan2-7B-Chat: https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat
+[11]. Baichuan2-13B-Chat: https://huggingface.co/baichuan-inc/Baichuan-13B-Base
+[12]. Baichuan2-13B-Chat: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
 
-[9]. Llama-2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
-[10]. Llama-2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
-[11]. Llama-2-c7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
-[12]. Llama-2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
+[13]. Llama-2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
+[14]. Llama-2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
+[15]. Llama-2-c7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+[16]. Llama-2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
+
+
 '''
 import torch
 import os
 import json
 
-choice = 'llama-2-13b-chat'
+choice = 'Baichuan2-7B-Chat'
 
 if choice == 'belle-llama':
     ckpt_dir = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m/'
@@ -54,6 +60,16 @@ elif choice == 'Baichuan-7B':
     num_hidden_layers = 32
     hidden_size = 4096
 elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama/{choice}/'
+    ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
+    num_hidden_layers = 40
+    hidden_size = 5120
+elif choice in {'Baichuan2-7B-Base', 'Baichuan2-7B-Chat'}:
+    ckpt_dir = f'E:/pretrain_ckpt/llama/{choice}/'
+    ckpt_file = ckpt_dir + 'pytorch_model.bin'
+    num_hidden_layers = 32
+    hidden_size = 4096
+elif choice in {'Baichuan2-13B-Base', 'Baichuan2-13B-Chat'}:
     ckpt_dir = f'E:/pretrain_ckpt/llama/{choice}/'
     ckpt_file = [i for i in os.listdir(ckpt_dir) if i.endswith('.bin') and i.startswith('pytorch')]
     num_hidden_layers = 40
@@ -170,7 +186,7 @@ elif choice == 'Ziya-LLaMA-13B_v1.1':
     "skip_init": True,
     "rope_rank": "updown"
     }
-elif choice == 'Baichuan-7B':
+elif choice in {'Baichuan-7B', 'Baichuan-7B'}:
     config = \
     {
     "bos_token_id": 1,

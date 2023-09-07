@@ -118,7 +118,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 <details><summary><b>5.2 更新历史</b></summary>
 
-- **20230906**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理
+- **20230907**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm与模型，训练时会默认自动把dataloader转移到model.device上
 - **20230902**：修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练+dpo训练
 - **20230812**：增加llama-2的微调, 增加大模型deepspeed的使用，增加Qwen模型(增加ntk和logn_attn)，generation的end_id支持多个token_id，修复多文件权重加载资源占用问题
 - **20230726**：修改baichuan的alibi逻辑，增加bloom, 简化decoder架构代码(gpt, llama, chatglm均继承decoder)
@@ -203,7 +203,8 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | vicuna | FastChat| [torch](https://huggingface.co/AlekseyKorshuk/vicuna-7b) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py)|
 | Belle_llama| LianjiaTech| [github](https://github.com/LianjiaTech/BELLE), [7B-2M-enc](https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc) | [合成说明](https://github.com/LianjiaTech/BELLE/tree/main/models)、[转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py)|
 | Ziya | IDEA-CCNL | [v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1), [v1.1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1), [pretrain-v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrain-v1) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_pth.py) |
-| Baichuan | baichuan-inc | [7B](https://github.com/baichuan-inc/Baichuan-7B), [13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base), [13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py) |
+| Baichuan | baichuan-inc | [github](https://github.com/baichuan-inc/Baichuan), [7B](https://huggingface.co/baichuan-inc/Baichuan-7B), [13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base), [13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py) |
+| Baichuan2 | baichuan-inc | [github](https://github.com/baichuan-inc/Baichuan2), [7B](https://huggingface.co/baichuan-inc/Baichuan2-7B-Base), [7B-Chat](https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat), [13B-Base](https://huggingface.co/baichuan-inc/Baichuan2-13B-Base), [13B-Chat](https://huggingface.co/baichuan-inc/Baichuan2-13B-Chat) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py) |
 | bloom | bigscience | [bloom-560m](https://huggingface.co/bigscience/bloom-560m), [bloomz-560m](https://huggingface.co/bigscience/bloomz-560m) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_bloom.py) |
 | Qwen | 阿里云 | [github](https://github.com/QwenLM/Qwen-7B), [7B](https://huggingface.co/Qwen/Qwen-7B), [7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_Qwen.py) |
 | InternLM | 上海人工智能实验室 | [github](https://github.com/InternLM/InternLM), [7B-Chat](https://huggingface.co/internlm/internlm-chat-7b), [7B](https://huggingface.co/internlm/internlm-7b) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_InternLM.py) |
