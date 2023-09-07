@@ -351,7 +351,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     adversarial_train = AdversarialTraining('vat')
-    train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
+    train_model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator, adversarial_train])
 else:
     train_model.load_weights('best_model2.pt')
 
