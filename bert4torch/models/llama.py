@@ -1,6 +1,6 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
-from bert4torch.layers import BlockIdentity, LlamaFeedForward
+from bert4torch.layers import BlockIdentity, LlamaFeedForward, NormHead
 
 
 class LLaMA(Decoder):
@@ -24,6 +24,10 @@ class LLaMA(Decoder):
             layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
             layer.dropout1 = BlockIdentity()  # llama未使用dropout
             layer.dropout2 = BlockIdentity()
+        
+        # 修改lm_head，目前在Baichuan2中使用
+        if kwargs.get('norm_head') is True:
+            self.lm_head = NormHead(self.hidden_size, self.vocab_size)
 
     def variable_mapping(self):
         # 映射到权重格式

@@ -225,7 +225,8 @@ elif choice in {'Baichuan2-7B-Base', 'Baichuan2-7B-Chat'}:
     "vocab_size": 125696,
     "segment_vocab_size": 0,
     "rope_rank": "updown",
-    "skip_init": True
+    "skip_init": True,
+    "norm_head": True
     }
 elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
     config = \
@@ -267,7 +268,8 @@ elif choice in {'Baichuan2-13B-Base', 'Baichuan2-13B-Chat'}:
     "vocab_size": 125696,
     "segment_vocab_size": 0,
     "p_bias": "alibi",
-    "skip_init": True
+    "skip_init": True,
+    "norm_head": True
     }
 elif choice == 'llama-2-7b':
     config = \

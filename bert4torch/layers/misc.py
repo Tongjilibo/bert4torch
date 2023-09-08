@@ -6,6 +6,7 @@ from bert4torch.activations import get_activation
 from bert4torch.layers.core import LayerNorm
 import random
 import warnings
+import math
 
 
 class AdaptiveEmbedding(nn.Module):
@@ -393,3 +394,23 @@ def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
     else:
         pass
     return model
+
+
+class NormHead(nn.Module):
+    '''normalized lm_head，目前是Baichuan2使用'''
+    def __init__(self, hidden_size, vocab_size, bias=False):
+        super().__init__()
+        self.weight = nn.Parameter(torch.empty((vocab_size, hidden_size)))
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        self.first_flag = True
+
+    def forward(self, hidden_states):
+        if self.training:
+            norm_weight = nn.functional.normalize(self.weight)
+        elif self.first_flag:
+            self.first_flag = False
+            self.weight.data = nn.functional.normalize(self.weight)
+            norm_weight = self.weight
+        else:
+            norm_weight = self.weight
+        return nn.functional.linear(hidden_states, norm_weight)

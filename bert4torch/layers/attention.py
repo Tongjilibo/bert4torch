@@ -5,6 +5,11 @@ import numpy as np
 import torch.nn.functional as F
 from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
+from torch4keras.snippets import log_warn_once
+try:
+    from xformers import ops as xops
+except ImportError:
+    xops = None
 
 
 class MultiHeadAttentionLayer(nn.Module):
@@ -21,7 +26,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.bias = bias
         self.p_bias = p_bias
         self.use_dynamic_ntk = use_dynamic_ntk
-        self.flash_attention = flash_attention
+        self.flash_attention = self._get_flash_attention(flash_attention)
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
@@ -137,9 +142,17 @@ class MultiHeadAttentionLayer(nn.Module):
             pre_attention_mask = torch.ones(size_).to(attention_mask)
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
-        # 是否使用torch2.0的flash_attention加速
-        if self.flash_attention and (int(torch.__version__.split('.')[0]) >= 2):
-            context_layer = torch.nn.functional.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+        # 是否使用flash_attention加速
+        if (self.flash_attention == 'xformers') and self.training:
+            # xformers
+            context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
+        elif self.flash_attention == 'sdpa':
+            # SDPA
+            context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+        else:
+            context_layer = None
+
+        if context_layer is not None:
             context_layer = context_layer.permute(0, 2, 1, 3)
             new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
             context_layer = context_layer.reshape(*new_context_layer_shape)
@@ -346,8 +359,23 @@ class MultiHeadAttentionLayer(nn.Module):
             p2c_att = torch.matmul(key_layer, pos_query_layer.transpose(-1, -2))
             p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand([btz, n_head, k_len, k_len])).transpose(-1, -2)
             score += p2c_att / scale.to(dtype=p2c_att.dtype)
-
         return score
+    
+    @staticmethod
+    def _get_flash_attention(flash_attention):
+        ''' 获取flash_attention的配置项 '''
+        if (flash_attention == True) or (flash_attention == 'sdpa'):
+            if int(torch.__version__.split('.')[0]) < 2:
+                log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
+                return False
+            return 'sdpa'
+        elif flash_attention == 'xformers':
+            if xops is None:
+                log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
+                return False
+            return flash_attention
+        else:
+            return False
 
 
 class GatedAttentionUnit(nn.Module):
