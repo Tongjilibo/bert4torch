@@ -20,20 +20,19 @@
         --delta E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1-delta
     3）转换为bert4torch的适配权重
 
-[6]. baichuan：https://huggingface.co/baichuan-inc/Baichuan-7B
-[7]. baichuan：https://huggingface.co/baichuan-inc/Baichuan-13B
-[8]. baichuan：https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
-    其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
+[6]. Baichuan-7B：https://huggingface.co/baichuan-inc/Baichuan-7B
+[7]. Baichuan-13B：https://huggingface.co/baichuan-inc/Baichuan-13B
+[8]. Baichuan-13B-Chat：https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
 [9]. Baichuan2-7B-Base: https://huggingface.co/baichuan-inc/Baichuan2-7B-Base
 [10]. Baichuan2-7B-Chat: https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat
-[11]. Baichuan2-13B-Chat: https://huggingface.co/baichuan-inc/Baichuan-13B-Base
+[11]. Baichuan2-13B-Base: https://huggingface.co/baichuan-inc/Baichuan-13B-Base
 [12]. Baichuan2-13B-Chat: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
+    1) 其实baichuan-7b就是llama架构，baichuan-13b是把rope相对编码换成了alibi位置编码
 
 [13]. Llama-2-7B: https://huggingface.co/meta-llama/Llama-2-7b-hf
-[14]. Llama-2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
-[15]. Llama-2-c7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+[14]. Llama-2-7B-Chat: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+[15]. Llama-2-13B: https://huggingface.co/meta-llama/Llama-2-13b-hf
 [16]. Llama-2-13B-Chat: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
-
 
 '''
 import torch
@@ -186,7 +185,7 @@ elif choice == 'Ziya-LLaMA-13B_v1.1':
     "skip_init": True,
     "rope_rank": "updown"
     }
-elif choice in {'Baichuan-7B', 'Baichuan-7B'}:
+elif choice == 'Baichuan-7B':
     config = \
     {
     "bos_token_id": 1,
@@ -203,6 +202,27 @@ elif choice in {'Baichuan-7B', 'Baichuan-7B'}:
     "tie_word_embeddings": False,
     "torch_dtype": "float32",
     "vocab_size": 64000,
+    "segment_vocab_size": 0,
+    "rope_rank": "updown",
+    "skip_init": True
+    }
+elif choice in {'Baichuan2-7B-Base', 'Baichuan2-7B-Chat'}:
+    config = \
+    {
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "hidden_act": "silu",
+    "hidden_size": 4096,
+    "initializer_range": 0.02,
+    "intermediate_size": 11008,
+    "max_position_embeddings": 4096,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 32,
+    "pad_token_id": 0,
+    "layer_norm_eps": 1e-06,
+    "tie_word_embeddings": False,
+    "torch_dtype": "bfloat16",
+    "vocab_size": 125696,
     "segment_vocab_size": 0,
     "rope_rank": "updown",
     "skip_init": True
@@ -225,7 +245,27 @@ elif choice in {'Baichuan-13B', 'Baichuan-13B-Chat'}:
     "torch_dtype": "bfloat16",
     "vocab_size": 64000,
     "segment_vocab_size": 0,
-    "rope_rank": "updown",
+    "p_bias": "alibi",
+    "skip_init": True
+    }
+elif choice in {'Baichuan2-13B-Base', 'Baichuan2-13B-Chat'}:
+    config = \
+    {
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "hidden_act": "silu",
+    "hidden_size": 5120,
+    "initializer_range": 0.02,
+    "intermediate_size": 13696,
+    "model_max_length": 4096,
+    "num_attention_heads": 40,
+    "num_hidden_layers": 40,
+    "pad_token_id": 0,
+    "layer_norm_eps": 1e-06,
+    "tie_word_embeddings": False,
+    "torch_dtype": "bfloat16",
+    "vocab_size": 125696,
+    "segment_vocab_size": 0,
     "p_bias": "alibi",
     "skip_init": True
     }
