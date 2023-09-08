@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.snippets import DottableDict, ListDataset, sequence_padding, seed_everything
 from bert4torch.models import BaseModel, build_transformer_model
+from bert4torch.trainer import DPOTrainer
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.losses import DPOLoss
 from utils import get_model_config, get_nbit_lora_model
@@ -92,29 +93,36 @@ dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), bat
 
 
 # ============= 定义 model =============
-class DPOModel(BaseModel):
-    def __init__(self):
-        super().__init__()
-        self.model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
-                                              model=args.model_type, pad_token_id=pad_token_id)
-        self.model.print_trainable_parameters()
-        self.ref_model = copy.deepcopy(self.model)
-        for p in self.ref_model.parameters():
-            p.requires_grad = False
-        self.ref_model.print_trainable_parameters()
+if False:
+    # 老的实现，自定义模型结构
+    class DPOModel(BaseModel):
+        def __init__(self):
+            super().__init__()
+            self.model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
+                                                model=args.model_type, pad_token_id=pad_token_id)
+            self.model.print_trainable_parameters()
+            self.ref_model = copy.deepcopy(self.model)
+            for p in self.ref_model.parameters():
+                p.requires_grad = False
+            self.ref_model.print_trainable_parameters()
 
-    def forward(self, input_ids):
-        policy_logits = self.model(input_ids).to(torch.float32)
-        self.ref_model.eval()
-        with torch.no_grad():
-            reference_logits = self.ref_model(input_ids).to(torch.float32)
-        return policy_logits, reference_logits
-
-model = DPOModel()
-model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
+        def forward(self, input_ids):
+            policy_logits = self.model(input_ids).to(torch.float32)
+            self.ref_model.eval()
+            with torch.no_grad():
+                reference_logits = self.ref_model(input_ids).to(torch.float32)
+            return policy_logits, reference_logits
+    model = DPOModel()
+    model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
+    optimizer = optim.AdamW(model.parameters(), args.lr)
+else:
+    # 新的实现，使用内置的Trainer
+    net = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
+                                  model=args.model_type, pad_token_id=pad_token_id).to(args.device)
+    model = DPOTrainer(net)
+    optimizer = optim.AdamW(net.parameters(), args.lr)
 
 loss = DPOLoss(pad_token_id=pad_token_id)
-optimizer = optim.AdamW(model.parameters(), args.lr)
 model.compile(loss=loss, optimizer=optimizer, grad_accumulation_steps=args.grad_accumulation_steps)
 
 
