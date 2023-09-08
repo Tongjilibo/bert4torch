@@ -7,7 +7,8 @@ import copy
 class DPOTrainer(Trainer):
     '''使用dpo算法进行人类偏好对齐
 
-    :param model: 模型
+    :param model: 待训练模型
+    :param ref_model: 参考模型
     '''
     def __init__(self, model:BaseModel, ref_model:BaseModel=None):
         super().__init__()
