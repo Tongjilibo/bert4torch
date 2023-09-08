@@ -5,11 +5,11 @@ class ERNIE(BERT):
     """百度文心 https://github.com/PaddlePaddle/ERNIE"""
     def __init__(self, *args, **kwargs):
         super(ERNIE, self).__init__(*args, **kwargs)
-        self.name = 'ernie'
+        self.prefix = 'ernie'
 
     def variable_mapping(self):
         mapping = super(ERNIE, self).variable_mapping()
-        mapping.update({'mlmDecoder.weight': 'ernie.embeddings.word_embeddings.weight',
+        mapping.update({'mlmDecoder.weight': f'{self.prefix}.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias'})
         for k, v in mapping.items():
             if ('LayerNorm.weight' in v) or ('LayerNorm.bias' in v):

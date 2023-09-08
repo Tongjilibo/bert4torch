@@ -7,7 +7,6 @@ class BART(Transformer):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(BART, self).__init__(*args, **kwargs)
-        self.name = 'bart'
 
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数

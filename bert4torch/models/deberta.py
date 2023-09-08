@@ -14,9 +14,9 @@ class DebertaV2(BERT):
     '''
     @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'deberta_v2'})  # 控制在Embedding阶段不生成position_embedding
+        kwargs.update({'p_bias': f'{self.prefix}_v2'})  # 控制在Embedding阶段不生成position_embedding
         super(DebertaV2, self).__init__(*args, **kwargs)
-        self.name = 'deberta'
+        self.prefix = 'deberta'
         # Encoder中transformer_block前的其他网络结构
         self.relative_attention = kwargs.get("relative_attention", True)
         self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
@@ -50,18 +50,15 @@ class DebertaV2(BERT):
 
     def variable_mapping(self):
         mapping = super(DebertaV2, self).variable_mapping()
-        mapping.update({'mlmDecoder.weight': 'deberta.embeddings.word_embeddings.weight',
+        mapping.update({'mlmDecoder.weight': f'{self.prefix}.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias',
-                        'encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'deberta.encoder.rel_embeddings.weight',
-                        'encoderLayer.0.multiHeadAttention.layernorm.weight': 'deberta.encoder.LayerNorm.weight',
-                        'encoderLayer.0.multiHeadAttention.layernorm.bias': 'deberta.encoder.LayerNorm.bias',
-                        'conv.conv.weight': 'deberta.encoder.conv.conv.weight',
-                        'conv.conv.bias': 'deberta.encoder.conv.conv.bias',
-                        'conv.LayerNorm.weight': 'deberta.encoder.conv.LayerNorm.weight',
-                        'conv.LayerNorm.bias': 'deberta.encoder.conv.LayerNorm.bias'})
+                        'encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': f'{self.prefix}.encoder.rel_embeddings.weight',
+                        'encoderLayer.0.multiHeadAttention.layernorm.weight': f'{self.prefix}.encoder.LayerNorm.weight',
+                        'encoderLayer.0.multiHeadAttention.layernorm.bias': f'{self.prefix}.encoder.LayerNorm.bias',
+                        'conv.conv.weight': f'{self.prefix}.encoder.conv.conv.weight',
+                        'conv.conv.bias': f'{self.prefix}.encoder.conv.conv.bias',
+                        'conv.LayerNorm.weight': f'{self.prefix}.encoder.conv.LayerNorm.weight',
+                        'conv.LayerNorm.bias': f'{self.prefix}.encoder.conv.LayerNorm.bias'})
         for del_key in ['nsp.weight', 'nsp.bias', 'embeddings.position_embeddings.weight', 'embeddings.segment_embeddings.weight']:
             del mapping[del_key]
         return mapping
-
-    def load_variable(self, state_dict, name):
-        return super().load_variable(state_dict, name)

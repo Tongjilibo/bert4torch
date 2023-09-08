@@ -13,7 +13,7 @@ class XLNET(Transformer_XL):
         self.bi_data = bi_data
         kwargs['rel_shift_opt'] = 'xlnet'
         super().__init__(*args, **kwargs)
-        self.name = 'transformer'
+        self.prefix = 'transformer'
     
     def relative_positional_encoding(self, qlen, klen, device):
         # 生成pos_emb, 这里使用sincos的位置编码, transformer_xl里面有-1
@@ -58,7 +58,7 @@ class XLNET(Transformer_XL):
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
         variable = state_dict[name]
-        if name in {f'{self.name}.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
+        if name in {f'{self.prefix}.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
             return self.load_embeddings(variable)
         elif re.search('rel_attn\.(q|k|v|r)$', name):
             return variable.reshape(variable.shape[0], -1).T
@@ -70,12 +70,12 @@ class XLNET(Transformer_XL):
 
     def variable_mapping(self):
         mapping = {
-            'embeddings.weight': f'{self.name}.word_embedding.weight',
+            'embeddings.weight': f'{self.prefix}.word_embedding.weight',
             'lm_head.weight': 'lm_loss.weight',
             'lm_head.bias': 'lm_loss.bias',
         }
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.name}.layer.%d.' % i
+            prefix_i = f'{self.prefix}.layer.%d.' % i
             mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'rel_attn.q',
                             f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'rel_attn.k',
                             f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'rel_attn.v',

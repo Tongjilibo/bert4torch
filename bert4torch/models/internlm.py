@@ -12,7 +12,7 @@ class InternLM(Decoder):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'norm_mode': 'rmsnorm', 
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
-        self.name = 'internlm'
+        self.prefix = 'internlm'
         del self.embeddings.layerNorm
 
         # 修改网络结构
@@ -29,6 +29,6 @@ class InternLM(Decoder):
         # 映射到权重格式
         mapping = super().variable_mapping()
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.name}.encoder.layer.%d.' % i
+            prefix_i = f'{self.prefix}.encoder.layer.%d.' % i
             mapping.update({f'decoderLayer.{i}.feedForward.intermediateDense2.weight': prefix_i + 'intermediate2.dense.weight'})
         return mapping

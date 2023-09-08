@@ -16,7 +16,7 @@ class GPT(Decoder):
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        self.name = 'gpt'
+        self.prefix = 'gpt'
 
 
 class GPT2(Decoder):
@@ -34,7 +34,7 @@ class GPT2(Decoder):
         kwargs['final_layernorm'] = kwargs.get('final_layernorm', True)
         super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-        self.name = 'gpt2'
+        self.prefix = 'gpt2'
 
 
 class GPT2_ML(Decoder):
@@ -51,7 +51,7 @@ class GPT2_ML(Decoder):
         layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
                                  is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
-        self.name = 'gpt2_ml'
+        self.prefix = 'gpt2_ml'
 
     class Gpt2MlLayer(BertLayer):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
