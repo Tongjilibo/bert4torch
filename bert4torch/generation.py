@@ -553,8 +553,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         tokenizer_config.update({'maxlen': self.maxlen})
         tokenizer_encode_config = tokenizer_encode_config or {}
         tokenizer_decode_config = tokenizer_decode_config or {}
-        self.tokenizer_encode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode), **tokenizer_encode_config}
-        self.tokenizer_decode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode), **tokenizer_decode_config}
+        if self.tokenizer is not None:
+            self.tokenizer_encode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode), **tokenizer_encode_config}
+            self.tokenizer_decode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode), **tokenizer_decode_config}
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode

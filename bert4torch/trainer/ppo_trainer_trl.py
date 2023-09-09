@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch4keras.trainer import Trainer
 from bert4torch.models import BaseModel
+from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
 try:
     import trl
     trl.trainer.ppo_trainer.SUPPORTED_ARCHITECTURES = (BaseModel, )
@@ -20,19 +21,41 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
     :param reward_model: 奖励模型，可以用bert4torch构建的，也可以用transformers格式的
     :param reward_tokenizer: 奖励模型的tokenizer
     '''
-    def __init__(self, *args, generation=None, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
+    def __init__(self, *args, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
         if PPOTrainer == object:
             raise ValueError('Please install trl by running `pip install trl`')
         Trainer.__init__(self)
         PPOTrainer.__init__(self, *args, **kwargs)
-        self.generation = generation
-        self.generation.tokenizer = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
         self.reward_model = reward_model
         self.reward_tokenizer = reward_tokenizer
         self.generation_kwargs = generation_kwargs or {}
         self.reward_baseline = kwargs.pop('reward_baseline', 0)
         self.grad_accumulation_steps = self.config.gradient_accumulation_steps
+        if getattr(self.model.module, 'is_decoder') is True:
+            self.generation = SeqGeneration(self.model.module, **generation_kwargs)
+        elif getattr(self.model.module, 'is_encoder_decoder') is True:
+            self.generation = Seq2SeqGeneration(self.model.module, **generation_kwargs)
+        else:
+            raise ValueError('self.model.module is not a decoder/encoder-decoder model')
+        self.generation.tokenizer = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
+
+    @staticmethod
+    def get_actor_model(model):
+        ''' 获取ActorModel '''
+        class ActorModel(BaseModel):
+            def __init__(self, model, *arg, **kwargs):
+                super().__init__(*arg, **kwargs)
+                self.module = model
+                self.score = nn.Linear(self.module.config['hidden_size'], 1)
             
+            def forward(self, *args, **kwargs):
+                self.module.with_lm = False
+                hidden_states = self.module(kwargs['input_ids'])
+                lm_logits = self.module.lm_head(hidden_states)
+                value = self.score(hidden_states).squeeze(-1)
+                return lm_logits, None, value
+        return ActorModel(model)
+    
     def train_step(self, train_X, _):
         if isinstance(train_X, (tuple, list)):
             question_tensors, query = train_X[0], train_X[1]

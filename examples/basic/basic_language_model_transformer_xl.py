@@ -32,7 +32,7 @@ model = build_transformer_model(
     segment_vocab_size=0,
 )
 
-print('bert4torch last_hidden_state: ', model.predict([inputs['input_ids']]))
+print('bert4torch last_hidden_state: \n', model.predict([inputs['input_ids']]))
 # tensor([[[ 0.1027,  0.0604, -0.2585,  ...,  0.3137, -0.2679,  0.1036],
 #          [ 0.3482, -0.0458, -0.4582,  ...,  0.0242, -0.0721,  0.2311],
 #          [ 0.3426, -0.1353, -0.4145,  ...,  0.1123,  0.1374,  0.1313],

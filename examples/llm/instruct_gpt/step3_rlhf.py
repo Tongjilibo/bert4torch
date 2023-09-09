@@ -106,22 +106,11 @@ def collate_fn(batch):
 train_dataset = MyDataset(glob(args.data_path, recursive=True))
 
 
-# ============= 定义 model =============
-class ActorModel(BaseModel):
-    def __init__(self, *arg, **kwargs):
-        super().__init__(*arg, **kwargs)
-        self.module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
-                                                pad_token_id=pad_token_id)
-        self.score = nn.Linear(self.module.config['hidden_size'], 1)
-    
-    def forward(self, *args, **kwargs):
-        self.module.with_lm = False
-        hidden_states = self.module(kwargs['input_ids'])
-        lm_logits = self.module.lm_head(hidden_states)
-        value = self.score(hidden_states).squeeze(-1)
-        return lm_logits, None, value
-model = ActorModel().to(args.device)
-model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
+# ============= 定义actor_model =============
+module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
+                                        pad_token_id=pad_token_id)
+actor_model = PPOTrainerTrl.get_actor_model(module).to(args.device)
+actor_model = get_nbit_lora_model(actor_model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
 
 # ============= 定义reward model =============
@@ -139,10 +128,14 @@ generation_kwargs = {
     "temperature": 1.0,
     "repetition_penalty": 1.0,
     "topp": 1.0,
+    "start_id": None, 
+    "end_id": tokenizer.eos_token_id, 
+    "mode": 'random_sample', 
+    "tokenizer_config": {'skip_special_tokens': True, 'add_special_tokens': False},
+    "maxlen": max_target_length, 
+    "default_rtype": 'logits', 
+    "use_states": True
 }
-tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-generation = SeqGeneration(model.module, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
-                           maxlen=max_target_length, default_rtype='logits', use_states=True)
 
 
 # ============= PPOTrainer =============
@@ -161,14 +154,13 @@ config = PPOConfig(
 
 trainer = PPOTrainerTrl(
     config,
-    model,
+    actor_model,
     ref_model=None,
     tokenizer=tokenizer,
     reward_model=reward_model,
     reward_tokenizer=reward_tokenizer,
     dataset=train_dataset,
     data_collator=collate_fn,
-    generation=generation,
     generation_kwargs=generation_kwargs
 )
 trainer.compile()

@@ -32,6 +32,7 @@ class Decoder(LM_Mask, BERT):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
+        self.is_decoder = True
         self.prefix = 'decoder'
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
