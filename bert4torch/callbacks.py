@@ -193,13 +193,18 @@ class AdversarialTraining(Callback):
             self.ad_train = PGD(self.model)
         elif self.mode == 'vat':
             self.ad_train = VAT(self.model, **self.adversarial)
+    
+        self.trainer.old_train_step = self.trainer.train_step
+        self.trainer.train_step = self.train_step
 
-    def on_train_step_end(self, logs=None):
+    def train_step(self, train_X, train_y):
+        output, loss, loss_detail = self.trainer.old_train_step(train_X, train_y)
+
         # 对抗训练执行逻辑
         if self.mode == 'fgm':
             self.ad_train.attack(**self.adversarial) # embedding被修改了
-            output, self.trainer.loss, self.trainer.loss_detail = self.trainer.train_step(self.trainer.train_X, self.trainer.train_y)
-            # self.trainer.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+            output, loss, loss_detail = self.trainer.old_train_step(train_X, train_y)
+            # loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             # 恢复Embedding的参数, 因为要在正常的embedding上更新参数，而不是增加了对抗扰动后的embedding上更新参数~
             self.ad_train.restore(**self.adversarial)
         elif self.mode == 'pgd':
@@ -211,19 +216,20 @@ class AdversarialTraining(Callback):
                     self.optimizer.zero_grad()  # 为了累积扰动而不是梯度
                 else:
                     self.ad_train.restore_grad() # 恢复正常的grad
-                output, self.trainer.loss, self.trainer.loss_detail = self.trainer.train_step(self.trainer.train_X, self.trainer.train_y)
-                # self.trainer.loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
+                output, loss, loss_detail = self.trainer.old_train_step(train_X, train_y)
+                # loss.backward() # 反向传播，在正常的grad基础上，累加对抗训练的梯度
             self.ad_train.restore(**self.adversarial) # 恢复embedding参数
         # 梯度惩罚
         elif self.mode == 'gradient_penalty':
             para = search_layer(self.model, self.adversarial['emb_name'], retrun_first=True)
             gp = (para.grad ** 2).sum()
-            self.trainer.loss += 0.5 * gp * self.adversarial['epsilon']
-            self.trainer.loss.backward()
+            loss += 0.5 * gp * self.adversarial['epsilon']
+            loss.backward()
         # 虚拟对抗训练
         elif self.mode == 'vat':
-            logit = self.trainer.output[self.adversarial['rank']] if isinstance(self.trainer.output, (tuple, list)) else self.trainer.output
-            adv_loss = self.ad_train.virtual_adversarial_training(self.trainer.train_X, logit)
-            self.trainer.loss_detail.update({'loss_sup': self.trainer.loss.item(), 'loss_unsup': adv_loss})
-            self.trainer.loss += (adv_loss if adv_loss else 0)
-            self.trainer.loss.backward()
+            logit = output[self.adversarial['rank']] if isinstance(output, (tuple, list)) else output
+            adv_loss = self.ad_train.virtual_adversarial_training(train_X, logit)
+            loss += (adv_loss if adv_loss else 0)
+            loss.backward()
+            loss_detail.update({'loss_sup': loss.item(), 'loss_unsup': adv_loss.item()})
+        return output, loss, loss_detail
