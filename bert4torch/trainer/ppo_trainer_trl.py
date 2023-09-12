@@ -84,11 +84,12 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         self.ppo_step = True
         stats = self.step()
         
-        self.logs.update({k:v for k,v in stats.items() if isinstance(v, (int, float))})  # 更新到logs中
         batch = {'query': query, 'response': responses}
         self.log_stats(stats, batch, rewards)
+        loss = torch.tensor(stats['ppo/loss/total'])
+        loss_detail = {k:v for k,v in stats.items() if isinstance(v, (int, float))}  # 更新到logs中
         # 按照output, loss, loss_detail个顺序返回
-        return None, torch.tensor(stats['ppo/loss/total']), dict()
+        return None, loss, loss_detail
 
     def step(self):
         if self.ppo_step:
