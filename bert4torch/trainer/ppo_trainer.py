@@ -5,15 +5,18 @@ from torch import nn
 from torch4keras.trainer import Trainer
 from bert4torch.models import BaseModel
 from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
+from torch4keras.snippets import DottableDict
+import importlib
 try:
     import trl
     trl.trainer.ppo_trainer.SUPPORTED_ARCHITECTURES = (BaseModel, )
-    from trl.trainer import PPOTrainer
+    from trl.trainer import PPOTrainer as PPOTrainerTrl
 except:
-    PPOTrainer = object
+    class PPOTrainerTrl:
+        pass
 
 
-class PPOTrainerTrl(PPOTrainer, Trainer):
+class PPOTrainer(PPOTrainerTrl, Trainer):
     '''对trl中PPOTrainer的二次封装，使得可以使用model.complie(), model.fit()的方式进行模型训练
 
     :param generation_kwargs: generation使用的genration_kwargs
@@ -21,10 +24,10 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
     :param reward_tokenizer: 奖励模型的tokenizer
     '''
     def __init__(self, *args, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
-        if PPOTrainer == object:
+        if not importlib.util.find_spec("trl"):
             raise ValueError('Please install trl by running `pip install trl`')
         Trainer.__init__(self)
-        PPOTrainer.__init__(self, *args, **kwargs)
+        PPOTrainerTrl.__init__(self, *args, **kwargs)
         self.reward_model = reward_model
         self.reward_tokenizer = reward_tokenizer
         self.generation_kwargs = generation_kwargs or {}
@@ -41,18 +44,24 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
 
     @staticmethod
     def get_actor_model(model):
-        ''' 获取ActorModel '''
+        '''获取ActorModel'''
+        from trl.models.modeling_value_head import ValueHead, AutoModelForCausalLMWithValueHead
+
         class ActorModel(BaseModel):
-            def __init__(self, model, *arg, **kwargs):
+            def __init__(self, model, *arg, value_head_config=None, **kwargs):
                 super().__init__(*arg, **kwargs)
                 self.module = model
-                self.score = nn.Linear(self.module.config['hidden_size'], 1)
+                if value_head_config is None:
+                    value_head_config = DottableDict({'summary_dropout_prob': 0.1, 'hidden_size': self.module.config['hidden_size']})
+                self.v_head = ValueHead(value_head_config, **kwargs)
+                self._init_weights = AutoModelForCausalLMWithValueHead._init_weights
+                self._init_weights(self, **kwargs)
             
             def forward(self, *args, **kwargs):
                 self.module.with_lm = False
                 hidden_states = self.module(kwargs['input_ids'])
                 lm_logits = self.module.lm_head(hidden_states)
-                value = self.score(hidden_states).squeeze(-1)
+                value = self.v_head(hidden_states).squeeze(-1)
                 return lm_logits, None, value
         return ActorModel(model)
     
@@ -94,7 +103,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
     def step(self):
         if self.ppo_step:
             self.ppo_step = False
-            return PPOTrainer.step(self, self.question_tensors, self.response_tensors, self.rewards)
+            return PPOTrainerTrl.step(self, self.question_tensors, self.response_tensors, self.rewards)
         
     @staticmethod
     def calculate_rewards(reward_score_outputs, reward_baseline=0):

@@ -10,7 +10,7 @@ from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
-from bert4torch.trainer import PPOTrainerTrl
+from bert4torch.trainer import PPOTrainer
 from trl import PPOConfig, set_seed
 from utils import get_model_config, get_nbit_lora_model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -109,7 +109,7 @@ train_dataset = MyDataset(glob(args.data_path, recursive=True))
 # ============= 定义actor_model =============
 module = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, 
                                         pad_token_id=pad_token_id)
-actor_model = PPOTrainerTrl.get_actor_model(module).to(args.device)
+actor_model = PPOTrainer.get_actor_model(module).to(args.device)
 actor_model = get_nbit_lora_model(actor_model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
 
@@ -152,7 +152,7 @@ config = PPOConfig(
     adap_kl_ctrl=args.adap_kl_ctrl
 )
 
-trainer = PPOTrainerTrl(
+trainer = PPOTrainer(
     config,
     actor_model,
     ref_model=None,

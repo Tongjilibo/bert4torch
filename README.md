@@ -80,7 +80,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch版本 | torch4keras版本 | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
-|20230909| 0.3.5          | 0.1.4     |修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers|
+|20230912| 0.3.5.post2    | 0.1.4.post2     |修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers|
 |20230902| 0.3.4          | 0.1.3     |修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练+dpo训练|
 |20230812| 0.3.3          | 0.1.2     |增加大模型deepspeed的使用，增加Qwen模型(增加ntk和logn_attn)，generation的end_id支持多个token_id，修复多文件权重加载资源占用问题|
 |20230804| 0.3.2          | 0.1.1     |修改依赖的torch4keras, 主要是进度条和logger, tensorboard的同步|
@@ -119,7 +119,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 <details><summary><b>5.2 更新历史</b></summary>
 
-- **20230909**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
+- **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
 - **20230902**：修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练+dpo训练
 - **20230812**：增加llama-2的微调, 增加大模型deepspeed的使用，增加Qwen模型(增加ntk和logn_attn)，generation的end_id支持多个token_id，修复多文件权重加载资源占用问题
 - **20230726**：修改baichuan的alibi逻辑，增加bloom, 简化decoder架构代码(gpt, llama, chatglm均继承decoder)
