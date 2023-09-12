@@ -16,7 +16,6 @@ except:
 class PPOTrainerTrl(PPOTrainer, Trainer):
     '''对trl中PPOTrainer的二次封装，使得可以使用model.complie(), model.fit()的方式进行模型训练
 
-    :param generation: bert4torch的generation, 基于actor_model
     :param generation_kwargs: generation使用的genration_kwargs
     :param reward_model: 奖励模型，可以用bert4torch构建的，也可以用transformers格式的
     :param reward_tokenizer: 奖励模型的tokenizer
@@ -38,6 +37,7 @@ class PPOTrainerTrl(PPOTrainer, Trainer):
         else:
             raise ValueError('self.model.module is not a decoder/encoder-decoder model')
         self.generation.tokenizer = None  # 训练的时候已经传入的是token_ids，因此这里不tokenize了
+        self.loss2metrics = False
 
     @staticmethod
     def get_actor_model(model):
