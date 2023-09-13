@@ -62,7 +62,7 @@ for i in range(num_hidden_layers):
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict[f'h.{i}.post_attention_layernorm.weight'.format(i)]
     new_state_dict[prefix_i + 'output.LayerNorm.bias'] = state_dict[f'h.{i}.post_attention_layernorm.bias'.format(i)]
 
-torch.save(new_state_dict, output_ckpt_file)
+# torch.save(new_state_dict, output_ckpt_file)
 
 
 # bloom-560m
@@ -91,7 +91,8 @@ config = \
   "vocab_size": 250880,
   "segment_vocab_size": 0,
   "pre_layernorm": True,
-  "tie_emb_prj_weight": True
+  "tie_emb_prj_weight": True,
+  "model": "bloom"
 }
 with open(ckpt_dir+'bert4torch_config.json', 'w') as f:
     f.write(json.dumps(config, indent=4))

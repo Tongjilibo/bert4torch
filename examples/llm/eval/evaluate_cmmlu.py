@@ -8,8 +8,8 @@ from collections import defaultdict
 from typing import List
 from tqdm import tqdm
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import seed_everything
-
+from bert4torch.snippets import seed_everything, JsonConfig
+from transformers import AutoTokenizer
 
 """
 wget https://huggingface.co/datasets/haonan-li/cmmlu/resolve/main/cmmlu_v1_0_1.zip
@@ -22,10 +22,11 @@ python evaluate_cmmlu.py -d data/cmmlu/
 
 
 def load_models_tokenizer(args):
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_dir, trust_remote_code=True)
-    model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, add_trainer=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_path, trust_remote_code=True)
+    config_path = args.checkpoint_path + '/bert4torch_config.json'
+    checkpoint_path = [args.checkpoint_path + '/' + i for i in os.listdir(args.checkpoint_path) if i.startswith('bert4torch') and i.endswith('.bin')]
+    model_type = JsonConfig(config_path)['model']
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, add_trainer=True)
     return model, tokenizer
 
 
@@ -287,15 +288,12 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test HF checkpoint.")
-    parser.add_argument("-c", "--checkpoint-dir", type=str, help="Checkpoint dir", default="/Users/lb/Documents/pretrain_ckpt/bloom/bloom-560m")
-    parser.add_argument("-ckpt", "--checkpoint-path", type=str, help="Checkpoint path", default="/Users/lb/Documents/pretrain_ckpt/bloom/bloom-560m/bert4torch_pytorch_model.bin")
-    parser.add_argument("-config", "--config_path", type=str, help="Config path", default="/Users/lb/Documents/pretrain_ckpt/bloom/bloom-560m/bert4torch_config.json")
-    parser.add_argument("-m", "--model_type", type=str, help="Model type", default="bloom")
+    parser.add_argument("-c", "--checkpoint-path", type=str, help="Checkpoint dir", default="E:/pretrain_ckpt/bloom/bloomz-560m")
     parser.add_argument("-s", "--seed", type=int, default=1234, help="Random seed")
 
     """Provide extra arguments required for tasks."""
     group = parser.add_argument_group(title="Evaluation options")
-    group.add_argument("-d", "--eval_data_path", type=str, default="/Users/lb/Documents/data/llm/evaluation/cmmlu_v1_0_1", help="Path to eval data")
+    group.add_argument("-d", "--eval_data_path", type=str, default="E:/data/corpus/prompt/evaluataion/cmmlu_v1_0_1", help="Path to eval data")
     group.add_argument("--max-seq-len", type=int, default=2048, help="Size of the output generated text.")
     group.add_argument("--debug", action="store_true", default=False, help="Print infos.")
 
