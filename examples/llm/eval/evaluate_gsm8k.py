@@ -8,6 +8,7 @@ from datasets import load_from_disk, load_dataset
 from transformers import AutoTokenizer
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import seed_everything, JsonConfig
+import os
 
 
 ANS_RE = re.compile(r"#### (\-?[0-9\.\,]+)")
