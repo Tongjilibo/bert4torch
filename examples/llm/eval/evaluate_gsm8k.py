@@ -32,12 +32,12 @@ def doc_to_text(doc):
     )
 
 
-def decode(tokens_list, tokenizer, raw_text_len):
+def decode(tokens_list, tokenizer):
     sents = []
     # print(len(tokens_list))
     for tokens in tokens_list:
         tokens = tokens.cpu().numpy().tolist()
-        sent = tokenizer.tokenizer.decode(tokens[raw_text_len:])
+        sent = tokenizer.decode(tokens)
         sent = sent.split("<|endoftext|>")[0]
         sent = sent.split("\n\n\n")[0]
         sent = sent.split("\n\n")[0]
@@ -47,12 +47,11 @@ def decode(tokens_list, tokenizer, raw_text_len):
 
 
 def generate_sample(model, tokenizer, input_txt):
-    input_ids = tokenizer.tokenizer.encode(input_txt)
-    raw_text_len = len(input_ids)
+    input_ids = tokenizer.encode(input_txt)
     context_enc = torch.tensor([input_ids]).to(model.device)
     print(f"Input text: {input_txt}\n")
-    outputs = model.generate(context_enc)
-    output_text = decode(outputs, tokenizer, raw_text_len)[0]
+    outputs = model.generate(context_enc, topk=1)
+    output_text = decode(outputs, tokenizer)[0]
     print(f"\nOutput text: {output_text}\n")
     return output_text
 

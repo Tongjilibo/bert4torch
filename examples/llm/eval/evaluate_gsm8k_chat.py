@@ -44,32 +44,6 @@ def doc_to_text(doc, use_fewshot):
     return context
 
 
-def decode(tokens_list, tokenizer, raw_text_len):
-    sents = []
-    for tokens in tokens_list:
-        tokens = tokens.cpu().numpy().tolist()
-        sent = tokenizer.tokenizer.decode(tokens[raw_text_len:])
-        sent = sent.split("<|endoftext|>")[0]
-        sent = sent.split("\n\n\n")[0]
-        sent = sent.split("\n\n")[0]
-        sent = sent.split("Question:")[0]
-        sents.append(sent)
-    return sents
-
-
-def generate_sample(model, tokenizer, question):
-    response, _ = model.chat(
-        tokenizer,
-        question,
-        history=None,
-    )
-    print(question)
-    print("-------------")
-    print(response)
-    print("=============")
-    return response
-
-
 def extract_answer_hf(completion):
     def _get_last_digit(s):
         _PAT_LAST_DIGIT = re.compile(
@@ -119,12 +93,6 @@ if __name__ == "__main__":
     else:
         dataset = load_dataset("gsm8k", "main")
 
-    print("Loading tokenizer ...")
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.checkpoint_path, trust_remote_code=True, bf16=True, use_flash_attn=True
-    )
-
-    print("Loading model ...")
     model, tokenizer = load_models_tokenizer(args)
 
     test = dataset["test"]
@@ -135,7 +103,8 @@ if __name__ == "__main__":
     for doc in tqdm.tqdm(test):
         context = doc_to_text(doc, args.use_fewshot)
         print(context)
-        completion = generate_sample(model, tokenizer, context)
+        completion = model.generate(context, tokenizer=tokenizer, topk=1)
+
         answer = doc["answer"]
         acc = is_correct(completion, answer)
         doc["completion"] = completion
