@@ -62,7 +62,7 @@ for i in range(num_hidden_layers):
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict[f'h.{i}.post_attention_layernorm.weight'.format(i)]
     new_state_dict[prefix_i + 'output.LayerNorm.bias'] = state_dict[f'h.{i}.post_attention_layernorm.bias'.format(i)]
 
-# torch.save(new_state_dict, output_ckpt_file)
+torch.save(new_state_dict, output_ckpt_file)
 
 
 # bloom-560m

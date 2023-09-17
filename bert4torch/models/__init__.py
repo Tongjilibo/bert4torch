@@ -21,6 +21,7 @@ from bert4torch.models.xlnet import *
 from bert4torch.models.bloom import *
 from bert4torch.models.qwen import *
 from bert4torch.models.internlm import *
+from bert4torch.models.falcon import *
 
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, **kwargs):
@@ -120,7 +121,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         'xlnet': XLNET,
         'bloom': Bloom,
         'qwen': Qwen,
-        'internlm': InternLM
+        'internlm': InternLM,
+        'falcon': Falcon
     }
 
     model = model or configs.get('model', 'bert')
