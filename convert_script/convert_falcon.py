@@ -4,14 +4,14 @@ falcon-rw-1b:   https://huggingface.co/tiiuae/falcon-rw-1b
 import torch
 import json
 
-ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-rw-1b/'
+ckpt_dir = '/Users/lb/Documents/pretrain_ckpt/falcon/falcon-rw-1b/'
 ckpt_file = ckpt_dir + 'pytorch_model.bin'
 output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 num_hidden_layers = 24
 new_state_dict = {}
 prefix = 'falcon'
 
-state_dict = torch.load(ckpt_file)
+state_dict = torch.load(ckpt_file, map_location=torch.device('cpu'))
 new_state_dict[f'{prefix}.embeddings.word_embeddings.weight'] = state_dict['transformer.word_embeddings.weight']
 new_state_dict[f'{prefix}.LayerNormFinal.weight'] = state_dict['transformer.ln_f.weight']
 new_state_dict[f'{prefix}.LayerNormFinal.bias'] = state_dict['transformer.ln_f.bias']
@@ -64,6 +64,8 @@ torch.save(new_state_dict, output_ckpt_file)
 # falcon-rw-1b
 config = \
 {
+  "model": "falcon",
+  "type_vocab_size": 0,
   "p_bias": "alibi",
   "apply_residual_connection_post_layernorm": False,
   "attention_dropout": 0.0,
@@ -73,7 +75,9 @@ config = \
   "hidden_dropout": 0.0,
   "hidden_size": 2048,
   "initializer_range": 0.02,
-  "layer_norm_epsilon": 1e-05,
+  "intermediate_size": 8192,
+  "hidden_act": "silu",
+  "layer_norm_eps": 1e-05,
   "model_type": "falcon",
   "multi_query": False,
   "num_attention_heads": 32,

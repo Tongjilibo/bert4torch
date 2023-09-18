@@ -7,6 +7,8 @@ class Falcon(Decoder):
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, p_bias='alibi', **kwargs):
-        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True, 'final_layernorm': True})
+        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'pre_layernorm': True, 
+                       'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
         self.prefix = 'falcon'
+        del self.embeddings.layerNorm
