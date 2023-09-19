@@ -1,17 +1,27 @@
 from torch import nn
 import torch
+import torch.nn.functional as F
 from bert4torch.activations import get_activation
 from bert4torch.layers.position_encoding import SinusoidalPositionEncoding
 
 
 class LayerNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-12, conditional_size=False, weight=True, bias=True, norm_mode='normal', **kwargs):
-        """layernorm 层，这里自行实现，目的是为了兼容 conditianal layernorm，使得可以做条件文本生成、条件分类等任务
-           条件layernorm来自于苏剑林的想法，详情：https://spaces.ac.cn/archives/7124
+        """ layernorm层，自行实现是为了兼容conditianal layernorm，使得可以做条件文本生成、条件分类等任务
 
-           :param norm_mode: str, `normal`, `rmsnorm`
+            :param hidden_size: int, layernorm的神经元个数
+            :param eps: float
+            :param conditional_size: int, condition layernorm的神经元个数; 详情：https://spaces.ac.cn/archives/7124
+            :param weight: bool, 是否包含权重
+            :param bias: bool, 是否包含偏置
+            :param norm_mode: str, `normal`, `rmsnorm`, `torch_buildin`
         """
         super(LayerNorm, self).__init__()
+        assert norm_mode in {'normal', 'rmsnorm', 'torch_buildin'}, f'Args norm_mode:{norm_mode} not supported'
+        self.normalized_shape = (hidden_size,)
+        self.norm_mode = norm_mode
+        self.eps = eps
+        self.conditional_size = conditional_size
         
         # 兼容roformer_v2不包含weight
         if weight:
@@ -19,12 +29,8 @@ class LayerNorm(nn.Module):
         # 兼容t5不包含bias项, 和t5使用的RMSnorm
         if bias:
             self.bias = nn.Parameter(torch.zeros(hidden_size))
-        self.norm_mode = norm_mode
-
-        self.eps = eps
-        self.conditional_size = conditional_size
+        # 条件layernorm, 用于条件文本生成
         if conditional_size:
-            # 条件layernorm, 用于条件文本生成,
             # 这里采用全零初始化, 目的是在初始状态不干扰原来的预训练权重
             self.dense1 = nn.Linear(conditional_size, hidden_size, bias=False)
             self.dense1.weight.data.uniform_(0, 0)
@@ -36,10 +42,14 @@ class LayerNorm(nn.Module):
             cond = hidden_states[1] if self.conditional_size else None
             hidden_states = hidden_states[0]
 
-        if self.norm_mode == 'rmsnorm':
-            # t5、大模型系列均使用RMSnorm
+        # torch自带LayerNorm
+        if self.norm_mode == 'torch_buildin':
+            return F.layer_norm(hidden_states, self.normalized_shape, self.weight, self.bias, self.eps)
+        # RMSnorm: t5、大模型系列均使用
+        elif self.norm_mode == 'rmsnorm':
             variance = hidden_states.float().pow(2).mean(-1, keepdim=True)
             o = (hidden_states.float() * torch.rsqrt(variance + self.eps)).type_as(hidden_states)
+        # 自行实现的LayerNorm
         else:
             u = hidden_states.mean(-1, keepdim=True)
             s = (hidden_states - u).pow(2).mean(-1, keepdim=True)

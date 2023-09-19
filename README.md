@@ -119,7 +119,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 <details><summary><b>5.2 更新历史</b></summary>
 
-- **20230914**：增加大模型的评估代码
+- **20230919**：增加大模型的评估代码, 增加falcon
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
 - **20230902**：修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练+dpo训练
 - **20230812**：增加llama-2的微调, 增加大模型deepspeed的使用，增加Qwen模型(增加ntk和logn_attn)，generation的end_id支持多个token_id，修复多文件权重加载资源占用问题
@@ -210,6 +210,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | bloom | bigscience | [bloom-560m](https://huggingface.co/bigscience/bloom-560m), [bloomz-560m](https://huggingface.co/bigscience/bloomz-560m) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_bloom.py) |
 | Qwen | 阿里云 | [github](https://github.com/QwenLM/Qwen-7B), [7B](https://huggingface.co/Qwen/Qwen-7B), [7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_Qwen.py) |
 | InternLM | 上海人工智能实验室 | [github](https://github.com/InternLM/InternLM), [7B-Chat](https://huggingface.co/internlm/internlm-chat-7b), [7B](https://huggingface.co/internlm/internlm-7b) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_InternLM.py) |
+| Falcon | tiiuae | [hf](https://huggingface.co/tiiuae), [RW-1B](https://huggingface.co/tiiuae/falcon-rw-1b) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_falcon.py) |
 
 </details>
 

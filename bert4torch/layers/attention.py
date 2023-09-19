@@ -234,12 +234,8 @@ class MultiHeadAttentionLayer(nn.Module):
             # 是否进行attention scale
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         
-        if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== alibi相对位置编码 ====================
-            key_position_scores_r_t = self.relative_positions_encoding(key_layer)
-            attention_scores = attention_scores + key_position_scores_r_t
-            attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
-            # attention_mask = None  # baichuan的实现是不使用attention_mask，个人认为有点问题
+        # ==================== alibi相对位置编码 ====================
+        attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
 
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
@@ -275,6 +271,14 @@ class MultiHeadAttentionLayer(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
         context_layer = context_layer.view(*new_context_layer_shape)
         return context_layer, attention_scores
+
+    def apply_alibi_pos_emb(self, attention_scores, key_layer):
+        ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
+        if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
+            key_position_scores_r_t = self.relative_positions_encoding(key_layer)
+            attention_scores = attention_scores + key_position_scores_r_t
+            attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
+        return attention_scores
 
     def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
         ''' 执行rotary相对位置编码 '''
