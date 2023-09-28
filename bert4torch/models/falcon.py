@@ -20,8 +20,11 @@ class Falcon(Decoder):
 def apply_alibi_pos_emb(self, attention_scores, key_layer):
     ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
     if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
+        input_dtype = attention_scores.dtype
+        if input_dtype == torch.float16 or input_dtype == torch.bfloat16:
+            attention_scores = attention_scores.to(torch.float32)
+            
         key_position_scores_r_t = self.relative_positions_encoding(key_layer)
         attention_scores = attention_scores + key_position_scores_r_t
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
     return attention_scores

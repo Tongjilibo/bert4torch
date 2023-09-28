@@ -4,7 +4,7 @@ falcon-rw-1b:   https://huggingface.co/tiiuae/falcon-rw-1b
 import torch
 import json
 
-ckpt_dir = '/Users/lb/Documents/pretrain_ckpt/falcon/falcon-rw-1b/'
+ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-rw-1b/'
 ckpt_file = ckpt_dir + 'pytorch_model.bin'
 output_ckpt_file = ckpt_dir + 'bert4torch_pytorch_model.bin'
 num_hidden_layers = 24
@@ -67,7 +67,7 @@ config = \
   "model": "falcon",
   "type_vocab_size": 0,
   "p_bias": "alibi",
-  "apply_residual_connection_post_layernorm": False,
+  "apply_residual_post_layernorm": False,
   "attention_dropout": 0.0,
   "bias": True,
   "bos_token_id": 1,
@@ -83,7 +83,8 @@ config = \
   "num_hidden_layers": 24,
   "parallel_attn": False,
   "torch_dtype": "bfloat16",
-  "vocab_size": 50304
+  "vocab_size": 50304,
+  "skip_init": True
 }
 
 with open(ckpt_dir+'bert4torch_config.json', 'w') as f:

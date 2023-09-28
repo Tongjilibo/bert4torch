@@ -15,7 +15,7 @@ import os
 
 choice = 'falcon-rw-1b'
 if choice == 'falcon-rw-1b':
-    dir_path = '/Users/lb/Documents/pretrain_ckpt/falcon/falcon-rw-1b/'
+    dir_path = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
     include_input = True
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
@@ -46,6 +46,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use falcon model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = generation.generate(query, topk=1, include_input=include_input)      
+        response = generation.generate(query, topk=10, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nfalcon：{response}")
