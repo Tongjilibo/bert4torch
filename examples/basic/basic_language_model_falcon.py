@@ -4,6 +4,8 @@
 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_falcon.py
 
 falcon-rw-1b:   https://huggingface.co/tiiuae/falcon-rw-1b
+falcon-7b:   https://huggingface.co/tiiuae/falcon-7b
+falcon-7b-instruct:   https://huggingface.co/tiiuae/falcon-7b-instruct
 """
 
 import torch
@@ -13,15 +15,23 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-choice = 'falcon-rw-1b'
+choice = 'falcon-7b-instruct'
 if choice == 'falcon-rw-1b':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
+    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
     include_input = True
+elif choice == 'falcon-7b':
+    dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b/'
+    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.startswith('bert4torch') and i.endswith('.bin')]
+    include_input = True
+elif choice == 'falcon-7b-instruct':
+    dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b-instruct/'
+    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.startswith('bert4torch') and i.endswith('.bin')]
+    include_input = False
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
