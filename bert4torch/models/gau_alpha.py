@@ -2,6 +2,7 @@ from bert4torch.models.roformer import RoFormerV2
 from torch import nn
 import copy
 from bert4torch.layers import LayerNorm, BlockIdentity, GatedAttentionUnit
+import torch.nn.functional as F
 
 
 class GAU_alpha(RoFormerV2):
@@ -25,11 +26,11 @@ class GAU_alpha(RoFormerV2):
         def __init__(self, *args, **kwargs):
             super().__init__()
             self.gau = GatedAttentionUnit(**kwargs)
-            self.dropout1 = nn.Dropout(kwargs.get('dropout_rate'))
+            self.dropout_rate = kwargs.get('dropout_rate')
             self.layerNorm1 = LayerNorm(**kwargs)
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             gau_hidden_states = self.gau(hidden_states, attention_mask)
-            hidden_states = hidden_states + self.dropout1(gau_hidden_states)
+            hidden_states = hidden_states + F.dropout(gau_hidden_states, p=self.dropout_rate, training=self.training)
             hidden_states = self.layerNorm1(hidden_states, conditional_emb)
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs

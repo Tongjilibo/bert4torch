@@ -19,8 +19,6 @@ class InternLM(Decoder):
         kwargs.pop('bias')
         for layer in self.decoderLayer:
             layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
-            layer.dropout1 = BlockIdentity()  # 未使用dropout
-            layer.dropout2 = BlockIdentity()
             layer.layerNorm1.register_parameter('bias', None)
             layer.layerNorm2.register_parameter('bias', None)
         self.LayerNormFinal.register_parameter('bias', None)

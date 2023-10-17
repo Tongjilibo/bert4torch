@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-choice = 'falcon-7b-instruct'
+choice = 'falcon-rw-1b'
 if choice == 'falcon-rw-1b':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
@@ -37,6 +37,10 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
+
+for k, v in model.named_parameters():
+    if str(v.device) == 'meta':
+        print(k)
 model = model.to(device)
 
 tokenizer_config = {'skip_special_tokens': True}

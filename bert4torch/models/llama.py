@@ -22,8 +22,6 @@ class LLaMA(Decoder):
         # 修改feedword
         for layer in self.decoderLayer:
             layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
-            layer.dropout1 = BlockIdentity()  # llama未使用dropout
-            layer.dropout2 = BlockIdentity()
         
         # 修改lm_head，目前在Baichuan2中使用
         if kwargs.get('norm_head') is True:

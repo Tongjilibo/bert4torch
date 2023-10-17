@@ -125,8 +125,6 @@ class GLM(Decoder):
             hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
             self.layerNorm1 = torch.nn.LayerNorm(hidden_size, eps=eps)
             self.layerNorm2 = torch.nn.LayerNorm(hidden_size, eps=eps)
-            del self.dropout1
-            del self.dropout2
 
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的

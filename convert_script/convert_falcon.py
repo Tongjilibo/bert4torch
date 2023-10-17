@@ -110,6 +110,7 @@ else:
 {
 	"model": "falcon",
 	"type_vocab_size": 0,
+    "p_bias": "rotary",
     "apply_residual_post_layernorm": False,
     "attention_dropout": 0.0,
     "bias": False,
@@ -127,7 +128,7 @@ else:
     "num_hidden_layers": 32,
     "parallel_attn": True,
     "torch_dtype": "bfloat16",
-    "transformers_version": "4.27.4",
+    "parallel_attn": true,
     "vocab_size": 65024,
 	"skip_init": True
 }
