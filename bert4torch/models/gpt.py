@@ -48,8 +48,8 @@ class GPT2_ML(Decoder):
     def __init__(self, *args, **kwargs):
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super().__init__(*args, **kwargs)
-        layer = self.Gpt2MlLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                                 is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
+        layer = self.Gpt2MlLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.prefix = 'gpt2_ml'
 

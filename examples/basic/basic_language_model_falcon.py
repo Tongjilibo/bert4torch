@@ -15,7 +15,7 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-choice = 'falcon-rw-1b'
+choice = 'falcon-7b-instruct'
 if choice == 'falcon-rw-1b':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
     checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'

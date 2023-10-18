@@ -22,13 +22,16 @@ class Falcon(Decoder):
         del self.embeddings.layerNorm
 
         if kwargs.get('parallel_attn') is True:
-            layer = self.ParallelAttnLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, 
-                                is_dropout=self.is_dropout, conditional_size=self.conditional_size, is_decoder=True)
+            layer = self.ParallelAttnLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                                            'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
             self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+            self.LayerNormFinal.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
 
     class ParallelAttnLayer(BertLayer):
+        ''''''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+            self.layerNorm1.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
             del self.layerNorm2
 
         def forward(self, hidden_states=None, attention_mask=None, position_ids=None, conditional_emb=None, past_key_value=None, **model_kwargs):

@@ -11,12 +11,15 @@ choice = 'falcon-7b-instruct'
 if choice == 'falcon-rw-1b':
     ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-rw-1b/'
     num_hidden_layers = 24
+    multi_query = False
 elif choice == 'falcon-7b':
     ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-7b/'
     num_hidden_layers = 32
+    multi_query = True
 elif choice == 'falcon-7b-instruct':
     ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-7b-instruct/'
     num_hidden_layers = 32
+    multi_query = True
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
@@ -37,7 +40,7 @@ for ckpt_file, output_ckpt_file in zip(ckpt_files, output_ckpt_files):
 
         # k,q,v,o
         qkv = state_dict.get(f'transformer.h.{i}.self_attention.query_key_value.weight')
-        if qkv is not None:
+        if (not multi_query) and (qkv is not None):
             hidden_size = int(qkv.size(0) / 3)
             tensor_list = torch.split(qkv, 64, 0)
             q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
@@ -45,9 +48,14 @@ for ckpt_file, output_ckpt_file in zip(ckpt_files, output_ckpt_files):
             new_state_dict[prefix_i + f'attention.self.query.weight'] = q
             new_state_dict[prefix_i + f'attention.self.key.weight'] = k
             new_state_dict[prefix_i + f'attention.self.value.weight'] = v
+        elif qkv is not None:
+            q, k, v = torch.split(qkv, [4544, 64, 64], 0)
+            new_state_dict[prefix_i + f'attention.self.query.weight'] = q
+            new_state_dict[prefix_i + f'attention.self.key.weight'] = k
+            new_state_dict[prefix_i + f'attention.self.value.weight'] = v
 
         qkv = state_dict.get(f'transformer.h.{i}.self_attention.query_key_value.bias')
-        if qkv is not None:
+        if (not multi_query) and (qkv is not None):
             tensor_list = torch.split(qkv, 64, 0)
             q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
             q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
@@ -128,7 +136,8 @@ else:
     "num_hidden_layers": 32,
     "parallel_attn": True,
     "torch_dtype": "bfloat16",
-    "parallel_attn": true,
+    "parallel_attn": True,
+    "multi_query_group_num": 1,
     "vocab_size": 65024,
 	"skip_init": True
 }

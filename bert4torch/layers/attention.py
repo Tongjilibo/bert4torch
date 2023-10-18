@@ -40,12 +40,12 @@ class MultiHeadAttentionLayer(nn.Module):
         # multi query attention
         if kwargs.get('multi_query_group_num') is not None:
             self.multi_query_group_num = kwargs.get('multi_query_group_num')
-            k_inner_dim_tmp = self.attention_head_size * self.multi_query_group_num
-            v_inner_dim_tmp = k_inner_dim_tmp
+            k_inner_dim = self.attention_head_size * self.multi_query_group_num
+            v_inner_dim = k_inner_dim
 
         self.q = nn.Linear(hidden_size, q_inner_dim, bias=bias)
-        self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else k_inner_dim, bias=bias)
-        self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else v_inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, k_inner_dim, bias=bias)
+        self.v = nn.Linear(hidden_size, v_inner_dim, bias=bias)
         self.o = nn.Linear(v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob)
 
