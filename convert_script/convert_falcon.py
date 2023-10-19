@@ -7,7 +7,7 @@ import torch
 import json
 import os
 
-choice = 'falcon-7b-instruct'
+choice = 'falcon-7b'
 if choice == 'falcon-rw-1b':
     ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-rw-1b/'
     num_hidden_layers = 24

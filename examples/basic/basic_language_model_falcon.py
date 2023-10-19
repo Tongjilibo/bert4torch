@@ -45,8 +45,7 @@ model = model.to(device)
 
 tokenizer_config = {'skip_special_tokens': True}
 generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', 
-                           tokenizer_config=tokenizer_config, maxlen=64, default_rtype='logits', use_states=True)
-
+                           tokenizer_config=tokenizer_config, maxlen=200, default_rtype='logits', use_states=True)
 
 if __name__ == '__main__':
     os_name = platform.system()

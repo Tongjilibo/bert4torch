@@ -9,7 +9,8 @@ import copy
 
 class Falcon(Decoder):
     '''Falcon: https://huggingface.co/tiiuae
-    falcon-rw-1b：主要区别就是alibi编码，但是其attention_scale是在+attention_mask后执行的，和bloom、baichuan-13b-chat其他不一样
+    falcon-rw-1b：alibi编码，但是其attention_scale是在+attention_mask后执行的，和bloom、baichuan-13b-chat其他不一样
+    falcon-7b/falcon-7b-instruct: rotary, 除了layernorm其他都没有bias，其次使用了multi_query_attn
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
@@ -28,7 +29,9 @@ class Falcon(Decoder):
             self.LayerNormFinal.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
 
     class ParallelAttnLayer(BertLayer):
-        ''''''
+        '''适用于Falcon的transformer block
+        主要区别是attention和feedForward是平行的
+        '''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.layerNorm1.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
@@ -43,8 +46,7 @@ class Falcon(Decoder):
             feedforward_output = self.feedForward(x)
             feedforward_output += self_attn_output[0]
             hidden_states = self.dropout_add(feedforward_output, hidden_states)
-            hidden_states = self.layerNorm2(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
-            
+
             if self.is_decoder and model_kwargs.get('use_states', False):
                 model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states
