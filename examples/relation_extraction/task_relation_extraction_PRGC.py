@@ -1,5 +1,5 @@
 #! -*- coding:utf-8 -*-
-# 三元组抽取任务，PGRC: https://github.com/hy-struggle/PRGC
+# 三元组抽取任务，PRGC: https://github.com/hy-struggle/PRGC
 
 import json
 import numpy as np

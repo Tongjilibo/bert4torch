@@ -123,7 +123,7 @@
 - [task_relation_extraction_tplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker.py)：tplinker关系抽取[TPLinker](https://github.com/131250208/TPlinker-joint-extraction)。
 - [task_relation_extraction_tplinker_plus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_tplinker_plus.py)：tplinker关系抽取[TPLinkerPlus](https://github.com/131250208/TPlinker-joint-extraction)。
 - [task_relation_extraction_SPN4RE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_SPN4RE.py)：[SPN4RE](https://github.com/DianboWork/SPN4RE)来做关系提取。
-- [task_relation_extraction_PGRC.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_PGRC.py)：[PGRC](https://github.com/hy-struggle/PRGC)来做关系提取。
+- [task_relation_extraction_PRGC.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_PRGC.py)：[PRGC](https://github.com/hy-struggle/PRGC)来做关系提取。
 
 ## 文本生成
 
@@ -316,7 +316,7 @@
 | tplinker      | 74.49 | seq_len=64, 未完全收敛 |
 | tplinker_plus | 79.30 | seq_len=64             |
 | SPN4RE        | 77.53 |                        |
-| PGRC          | 80.36 | 训练很慢               |
+| PRGC          | 80.36 | 训练很慢               |
 
 ## 5. 文本生成
 
