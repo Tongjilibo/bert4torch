@@ -7,7 +7,7 @@ import torch
 import json
 import os
 
-choice = 'falcon-7b'
+choice = 'falcon-7b-instruct'
 if choice == 'falcon-rw-1b':
     ckpt_dir = 'E:/pretrain_ckpt/falcon/falcon-rw-1b/'
     num_hidden_layers = 24
@@ -119,6 +119,7 @@ else:
 	"model": "falcon",
 	"type_vocab_size": 0,
     "p_bias": "rotary",
+    "rope_rank": "updown",
     "apply_residual_post_layernorm": False,
     "attention_dropout": 0.0,
     "bias": False,

@@ -34,7 +34,7 @@ else:
 config_path = dir_path + '/bert4torch_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
+tokenizer = AutoTokenizer.from_pretrained(dir_path)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 
