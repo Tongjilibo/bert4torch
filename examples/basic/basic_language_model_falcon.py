@@ -38,9 +38,6 @@ tokenizer = AutoTokenizer.from_pretrained(dir_path)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 
-for k, v in model.named_parameters():
-    if str(v.device) == 'meta':
-        print(k)
 model = model.to(device)
 
 tokenizer_config = {'skip_special_tokens': True}

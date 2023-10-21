@@ -111,7 +111,8 @@ if choice == 'falcon-rw-1b':
     "parallel_attn": False,
     "torch_dtype": "bfloat16",
     "vocab_size": 50304,
-    "skip_init": True
+    "skip_init": True,
+    "flash_attention": "sdpa"
     }
 else:
     config = \
@@ -140,7 +141,8 @@ else:
     "parallel_attn": True,
     "multi_query_group_num": 1,
     "vocab_size": 65024,
-	"skip_init": True
+	"skip_init": True,
+    "flash_attention": "sdpa"
 }
 
 with open(ckpt_dir+'bert4torch_config.json', 'w') as f:
