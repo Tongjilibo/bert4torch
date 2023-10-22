@@ -27,10 +27,10 @@ class GAU_alpha(RoFormerV2):
             super().__init__()
             self.gau = GatedAttentionUnit(**kwargs)
             self.dropout_rate = kwargs.get('dropout_rate')
-            self.layerNorm1 = LayerNorm(**kwargs)
+            self.attnLayerNorm = LayerNorm(**kwargs)
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
             gau_hidden_states = self.gau(hidden_states, attention_mask)
             hidden_states = hidden_states + F.dropout(gau_hidden_states, p=self.dropout_rate, training=self.training)
-            hidden_states = self.layerNorm1(hidden_states, conditional_emb)
+            hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
             model_kwargs['hidden_states'] = hidden_states
             return model_kwargs

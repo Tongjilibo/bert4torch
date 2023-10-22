@@ -78,7 +78,7 @@ def convert():
         # hdsz-hdsz的全连接
         new_weights[prefix_i + 'attention.output.dense.weight'] = torch_weights['layers.%s.attention.wo.weight' % i]
 
-        # layernorm1
+        # attnLayerNorm
         new_weights[prefix_i + 'attention.output.LayerNorm.weight'] = torch_weights['layers.%s.attention_norm.weight' % i]
 
         # feed forward 第一层
@@ -90,7 +90,7 @@ def convert():
         # feed forward 第三层(bert结构没有)
         new_weights[prefix_i + 'intermediate2.dense.weight'] = torch_weights['layers.%s.feed_forward.w3.weight' % i]
 
-        # layernorm2
+        # ffnLayerNorm
         new_weights[prefix_i + 'output.LayerNorm.weight'] = torch_weights['layers.%s.ffn_norm.weight' % i]
 
     torch.save(new_weights, output_ckpt_file)

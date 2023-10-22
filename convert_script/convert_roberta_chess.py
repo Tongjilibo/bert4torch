@@ -34,14 +34,14 @@ for i in range(12):
     f'Transformer-{i}-MultiHeadSelfAttention/dense_{i*6+3}/bias:0': [f'encoderLayer.{i}.multiHeadAttention.v.bias', 0],
     f'Transformer-{i}-MultiHeadSelfAttention/dense_{i*6+4}/kernel:0': [f'encoderLayer.{i}.multiHeadAttention.o.weight', 1],
     f'Transformer-{i}-MultiHeadSelfAttention/dense_{i*6+4}/bias:0': [f'encoderLayer.{i}.multiHeadAttention.o.bias', 0],
-    f'Transformer-{i}-MultiHeadSelfAttention-Norm/gamma:0': [f'encoderLayer.{i}.layerNorm1.weight', 0],
-    f'Transformer-{i}-MultiHeadSelfAttention-Norm/beta:0': [f'encoderLayer.{i}.layerNorm1.bias', 0],
+    f'Transformer-{i}-MultiHeadSelfAttention-Norm/gamma:0': [f'encoderLayer.{i}.attnLayerNorm.weight', 0],
+    f'Transformer-{i}-MultiHeadSelfAttention-Norm/beta:0': [f'encoderLayer.{i}.attnLayerNorm.bias', 0],
     f'Transformer-{i}-FeedForward/dense_{i*6+5}/kernel:0': [f'encoderLayer.{i}.feedForward.intermediateDense.weight', 1],
     f'Transformer-{i}-FeedForward/dense_{i*6+5}/bias:0': [f'encoderLayer.{i}.feedForward.intermediateDense.bias', 0],
     f'Transformer-{i}-FeedForward/dense_{i*6+6}/kernel:0': [f'encoderLayer.{i}.feedForward.outputDense.weight', 1],
     f'Transformer-{i}-FeedForward/dense_{i*6+6}/bias:0': [f'encoderLayer.{i}.feedForward.outputDense.bias', 0],
-    f'Transformer-{i}-FeedForward-Norm/gamma:0': [f'encoderLayer.{i}.layerNorm2.weight', 0],
-    f'Transformer-{i}-FeedForward-Norm/beta:0': [f'encoderLayer.{i}.layerNorm2.bias', 0],
+    f'Transformer-{i}-FeedForward-Norm/gamma:0': [f'encoderLayer.{i}.ffnLayerNorm.weight', 0],
+    f'Transformer-{i}-FeedForward-Norm/beta:0': [f'encoderLayer.{i}.ffnLayerNorm.bias', 0],
     })
 
 consume_keys = set()

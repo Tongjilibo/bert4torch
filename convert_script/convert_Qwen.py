@@ -59,7 +59,7 @@ def convert_single(ckpt_file, output_ckpt_file):
         name = prefix_i + 'attention.output.dense.weight'
         new_weights[name] = w
 
-        # layernorm1
+        # attnLayerNorm
         w = torch_weights.get('transformer.h.%s.ln_1.weight' % i, None)
         name = prefix_i + 'attention.output.LayerNorm.weight'
         new_weights[name] = w
@@ -78,7 +78,7 @@ def convert_single(ckpt_file, output_ckpt_file):
         name = prefix_i + 'output.dense.weight'
         new_weights[name] = w
 
-        # layernorm2
+        # ffnLayerNorm
         w = torch_weights.get('transformer.h.%s.ln_2.weight' % i, None)
         name = prefix_i + 'output.LayerNorm.weight'
         new_weights[name] = w

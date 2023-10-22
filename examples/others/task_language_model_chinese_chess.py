@@ -7,14 +7,12 @@
 # 权重转换脚本见：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_roberta_chess.py
 
 import json
-import numpy as np
-import bert4torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.snippets import sequence_padding, ListDataset, take_along_dim
 from bert4torch.callbacks import Callback
 from cchess import *
 
@@ -177,7 +175,7 @@ class ChessPlayer(object):
             segment_ids = torch.zeros_like(token_ids)
             preds = model.predict([token_ids, segment_ids])[-1][:, -5:-1]
             preds = nn.Softmax(dim=-1)(preds)
-            preds = torch.take_along_dim(preds, token_ids[:, -4:, None], dim=2)
+            preds = take_along_dim(preds, token_ids[:, -4:, None], dim=2)
             preds = torch.log(preds + 1e-8)[:, :, 0].sum(dim=1)
             iccs = moves[preds.argmax()]
             move = self.board.move_iccs(iccs)

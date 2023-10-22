@@ -34,12 +34,12 @@ class Falcon(Decoder):
         '''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.layerNorm1.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
-            del self.layerNorm2
+            self.attnLayerNorm.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
+            del self.ffnLayerNorm
 
         def forward(self, hidden_states=None, attention_mask=None, position_ids=None, conditional_emb=None, past_key_value=None, **model_kwargs):
             # ============== self attention ==============
-            x = self.layerNorm1(hidden_states, conditional_emb)
+            x = self.attnLayerNorm(hidden_states, conditional_emb)
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
             
             # ============== feedforward ==============

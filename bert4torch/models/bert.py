@@ -321,14 +321,14 @@ class BERT(BERT_BASE):
                             f'encoderLayer.{i}.multiHeadAttention.v.bias': prefix_i + 'attention.self.value.bias',
                             f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attention.output.dense.weight',
                             f'encoderLayer.{i}.multiHeadAttention.o.bias': prefix_i + 'attention.output.dense.bias',
-                            f'encoderLayer.{i}.layerNorm1.weight': prefix_i + 'attention.output.LayerNorm.weight',
-                            f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'attention.output.LayerNorm.bias',
+                            f'encoderLayer.{i}.attnLayerNorm.weight': prefix_i + 'attention.output.LayerNorm.weight',
+                            f'encoderLayer.{i}.attnLayerNorm.bias': prefix_i + 'attention.output.LayerNorm.bias',
                             f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'intermediate.dense.weight',
                             f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_i + 'intermediate.dense.bias',
                             f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'output.dense.weight',
                             f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'output.dense.bias',
-                            f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'output.LayerNorm.weight',
-                            f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'output.LayerNorm.bias'
+                            f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'output.LayerNorm.weight',
+                            f'encoderLayer.{i}.ffnLayerNorm.bias': prefix_i + 'output.LayerNorm.bias'
                             })
 
         if self.embedding_size != self.hidden_size:

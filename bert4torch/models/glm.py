@@ -24,7 +24,7 @@ class GLM(Decoder):
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs.get('bos_token_id'), kwargs.get('mask_token_id'), kwargs.get('gmask_token_id')
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
         del self.embeddings.layerNorm
-        layer = self.GLMBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+        layer = self.GlmBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
@@ -41,10 +41,10 @@ class GLM(Decoder):
         for i in range(self.num_hidden_layers):
             prefix_i = f'{self.prefix}.layers.%d.' % i
             mapping.update({
-                f'decoderLayer.{i}.layerNorm1.weight': prefix_i + 'input_layernorm.weight',
-                f'decoderLayer.{i}.layerNorm1.bias': prefix_i + 'input_layernorm.bias',
-                f'decoderLayer.{i}.layerNorm2.weight': prefix_i + 'post_attention_layernorm.weight',
-                f'decoderLayer.{i}.layerNorm2.bias': prefix_i + 'post_attention_layernorm.bias',
+                f'decoderLayer.{i}.attnLayerNorm.weight': prefix_i + 'input_layernorm.weight',
+                f'decoderLayer.{i}.attnLayerNorm.bias': prefix_i + 'input_layernorm.bias',
+                f'decoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'post_attention_layernorm.weight',
+                f'decoderLayer.{i}.ffnLayerNorm.bias': prefix_i + 'post_attention_layernorm.bias',
                 f'decoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight',
                 f'decoderLayer.{i}.multiHeadAttention.q.bias': prefix_i + 'attention.self.query.bias',
                 f'decoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attention.self.key.weight',
@@ -117,23 +117,23 @@ class GLM(Decoder):
         model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
        
-    class GLMBlock(BertLayer):
+    class GlmBlock(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.num_hidden_layers = kwargs['num_hidden_layers']
             hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-            self.layerNorm1 = torch.nn.LayerNorm(hidden_size, eps=eps)
-            self.layerNorm2 = torch.nn.LayerNorm(hidden_size, eps=eps)
+            self.attnLayerNorm = torch.nn.LayerNorm(hidden_size, eps=eps)
+            self.ffnLayerNorm = torch.nn.LayerNorm(hidden_size, eps=eps)
 
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
             # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
-            x = self.layerNorm1(hidden_states)
+            x = self.attnLayerNorm(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
             hidden_states = x * alpha + self_attn_output[0]
 
-            x = self.layerNorm2(hidden_states)
+            x = self.ffnLayerNorm(hidden_states)
             hidden_states = x *alpha +  self.feedForward(x)
 
             if self.is_decoder and model_kwargs.get('use_states', False):
@@ -156,13 +156,13 @@ class GLM2(GLM):
     def prepare_inputs(self, *inputs, **model_kwargs):
         return model_kwargs
     
-    class GLMBlock(BertLayer):
+    class GlmBlock(BertLayer):
         '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-            self.layerNorm1 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-            self.layerNorm2 = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+            self.attnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+            self.ffnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
             self.multiHeadAttention.o.register_parameter('bias', None)
             self.feedForward.intermediateDense.register_parameter('bias', None)
             self.feedForward.outputDense.register_parameter('bias', None)

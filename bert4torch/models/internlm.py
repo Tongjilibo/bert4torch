@@ -1,5 +1,5 @@
 from bert4torch.models.transformer import Decoder
-from bert4torch.layers import LlamaFeedForward, BlockIdentity
+from bert4torch.layers import LlamaFeedForward
 
 
 class InternLM(Decoder):
@@ -19,8 +19,8 @@ class InternLM(Decoder):
         kwargs.pop('bias')
         for layer in self.decoderLayer:
             layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
-            layer.layerNorm1.register_parameter('bias', None)
-            layer.layerNorm2.register_parameter('bias', None)
+            layer.attnLayerNorm.register_parameter('bias', None)
+            layer.ffnLayerNorm.register_parameter('bias', None)
         self.LayerNormFinal.register_parameter('bias', None)
 
     def variable_mapping(self):

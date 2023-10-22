@@ -48,7 +48,7 @@ def convert():
         name = prefix_i + 'attention.output.dense.bias'
         new_weights[name] = b
 
-        # layernorm1
+        # attnLayerNorm
         w = torch_weights['transformer.h.%s.ln_1.weight' % i]
         name = prefix_i + 'attention.output.LayerNorm.weight'
         new_weights[name] = w
@@ -72,7 +72,7 @@ def convert():
         name = prefix_i + 'output.dense.bias'
         new_weights[name] = b
 
-        # layernorm2
+        # ffnLayerNorm
         w = torch_weights['transformer.h.%s.ln_2.weight' % i]
         name = prefix_i + 'output.LayerNorm.weight'
         new_weights[name] = w

@@ -45,8 +45,7 @@ for i in range(num_hidden_layers):
     new_state_dict[prefix_i + 'attention.output.dense.weight'] = state_dict[f'h.{i}.self_attention.dense.weight']
     new_state_dict[prefix_i + 'attention.output.dense.bias'] = state_dict[f'h.{i}.self_attention.dense.bias']
 
-
-    # layernorm1
+    # attnLayerNorm
     new_state_dict[prefix_i + 'attention.output.LayerNorm.weight'] = state_dict[f'h.{i}.input_layernorm.weight']
     new_state_dict[prefix_i + 'attention.output.LayerNorm.bias'] = state_dict[f'h.{i}.input_layernorm.bias']
 
@@ -58,7 +57,7 @@ for i in range(num_hidden_layers):
     new_state_dict[prefix_i + 'output.dense.weight'] = state_dict[f'h.{i}.mlp.dense_4h_to_h.weight']
     new_state_dict[prefix_i + 'output.dense.bias'] = state_dict[f'h.{i}.mlp.dense_4h_to_h.bias']
 
-    # layernorm2
+    # ffnLayerNorm
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict[f'h.{i}.post_attention_layernorm.weight'.format(i)]
     new_state_dict[prefix_i + 'output.LayerNorm.bias'] = state_dict[f'h.{i}.post_attention_layernorm.bias'.format(i)]
 
@@ -77,7 +76,7 @@ config = \
   "pad_token_id": 3,
   "unk_token_id": 0,
   "hidden_dropout": 0.0,
-  "hidden_act": "gelu",
+  "hidden_act": "gelu_fast",
   "initializer_range": 0.02,
   "layer_norm_eps": 1e-05,
   "hidden_size": 1024,

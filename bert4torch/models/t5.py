@@ -49,9 +49,9 @@ class T5_Encoder(Encoder):
                 f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.block.{i}.layer.0.SelfAttention.k.weight',
                 f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.block.{i}.layer.0.SelfAttention.v.weight',
                 f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.o.weight': f'encoder.block.{i}.layer.0.SelfAttention.o.weight',
-                f'{self.prefix}.encoderLayer.{i}.layerNorm1.weight': f'encoder.block.{i}.layer.0.layer_norm.weight',
+                f'{self.prefix}.encoderLayer.{i}.attnLayerNorm.weight': f'encoder.block.{i}.layer.0.layer_norm.weight',
                 f'{self.prefix}.encoderLayer.{i}.feedForward.outputDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wo.weight',
-                f'{self.prefix}.encoderLayer.{i}.layerNorm2.weight': f'encoder.block.{i}.layer.1.layer_norm.weight',
+                f'{self.prefix}.encoderLayer.{i}.ffnLayerNorm.weight': f'encoder.block.{i}.layer.1.layer_norm.weight',
                 })
 
             if self.version.endswith('t5.1.0'):
@@ -109,16 +109,16 @@ class T5_Decoder(Decoder):
                 f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.block.{i}.layer.0.SelfAttention.k.weight',
                 f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.block.{i}.layer.0.SelfAttention.v.weight',
                 f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.o.weight': f'decoder.block.{i}.layer.0.SelfAttention.o.weight',
-                f'{self.prefix}.decoderLayer.{i}.layerNorm1.weight': f'decoder.block.{i}.layer.0.layer_norm.weight',
+                f'{self.prefix}.decoderLayer.{i}.attnLayerNorm.weight': f'decoder.block.{i}.layer.0.layer_norm.weight',
 
                 f'{self.prefix}.decoderLayer.{i}.crossAttention.q.weight': f'decoder.block.{i}.layer.1.EncDecAttention.q.weight',
                 f'{self.prefix}.decoderLayer.{i}.crossAttention.k.weight': f'decoder.block.{i}.layer.1.EncDecAttention.k.weight',
                 f'{self.prefix}.decoderLayer.{i}.crossAttention.v.weight': f'decoder.block.{i}.layer.1.EncDecAttention.v.weight',
                 f'{self.prefix}.decoderLayer.{i}.crossAttention.o.weight': f'decoder.block.{i}.layer.1.EncDecAttention.o.weight',
-                f'{self.prefix}.decoderLayer.{i}.layerNorm3.weight': f'decoder.block.{i}.layer.1.layer_norm.weight',
+                f'{self.prefix}.decoderLayer.{i}.crossLayerNorm.weight': f'decoder.block.{i}.layer.1.layer_norm.weight',
 
                 f'{self.prefix}.decoderLayer.{i}.feedForward.outputDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wo.weight',
-                f'{self.prefix}.decoderLayer.{i}.layerNorm2.weight': f'decoder.block.{i}.layer.2.layer_norm.weight',
+                f'{self.prefix}.decoderLayer.{i}.ffnLayerNorm.weight': f'decoder.block.{i}.layer.2.layer_norm.weight',
                 })
 
             if self.version.endswith('t5.1.0'):

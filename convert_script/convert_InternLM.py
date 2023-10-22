@@ -43,7 +43,7 @@ def convert_single(ckpt_file, output_ckpt_file):
         new_state_dict[prefix_i + f'attention.self.value.bias'] = state_dict.get('model.layers.{0}.self_attn.v_proj.bias'.format(i))
         new_state_dict[prefix_i + 'attention.output.dense.bias'] = state_dict.get('model.layers.{0}.self_attn.o_proj.bias'.format(i))
 
-        # layernorm1
+        # attnLayerNorm
         new_state_dict[prefix_i + 'attention.output.LayerNorm.weight'] = state_dict.get('model.layers.{0}.input_layernorm.weight'.format(i))
 
         # feed forward 第一层
@@ -55,7 +55,7 @@ def convert_single(ckpt_file, output_ckpt_file):
         # feed forward 第三层(bert结构没有)
         new_state_dict[prefix_i + 'intermediate2.dense.weight'] = state_dict.get('model.layers.{0}.mlp.up_proj.weight'.format(i))
 
-        # layernorm2
+        # ffnLayerNorm
         new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict.get('model.layers.{0}.post_attention_layernorm.weight'.format(i))
 
     new_state_dict = {k:v for k, v in new_state_dict.items() if v is not None}

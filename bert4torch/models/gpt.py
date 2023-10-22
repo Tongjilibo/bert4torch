@@ -58,15 +58,18 @@ class GPT2_ML(Decoder):
         顺序：Att --> Add --> LN --> FFN --> Add --> LN
         '''
         def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
+            # attn
             self_attn_output = self.multiHeadAttention(hidden_states, attention_mask, past_key_value=past_key_value)
             hidden_states = self.dropout_add(self_attn_output[0], hidden_states)
-            x = self.layerNorm1(hidden_states, conditional_emb)
+            x = self.attnLayerNorm(hidden_states, conditional_emb)
 
+            # ffn
             ffn_output = self.feedForward(x)
-            # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+layerNorm1的hidden_states, 即这里的x
-            # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加layerNorm1
+            # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+attnLayerNorm的hidden_states, 即这里的x
+            # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加attnLayerNorm
             hidden_states = self.dropout_add(ffn_output, hidden_states)
-            hidden_states = self.layerNorm2(hidden_states, conditional_emb)
+            hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb)
+
             if self.is_decoder and model_kwargs.get('use_states', False):
                 model_kwargs['past_key_value'] = self_attn_output[-1]
             model_kwargs['hidden_states'] = hidden_states

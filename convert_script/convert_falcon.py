@@ -66,8 +66,7 @@ for ckpt_file, output_ckpt_file in zip(ckpt_files, output_ckpt_files):
         new_state_dict[prefix_i + 'attention.output.dense.weight'] = state_dict.get(f'transformer.h.{i}.self_attention.dense.weight')
         new_state_dict[prefix_i + 'attention.output.dense.bias'] = state_dict.get(f'transformer.h.{i}.self_attention.dense.bias')
 
-
-        # layernorm1
+        # attnLayerNorm
         new_state_dict[prefix_i + 'attention.output.LayerNorm.weight'] = state_dict.get(f'transformer.h.{i}.input_layernorm.weight')
         new_state_dict[prefix_i + 'attention.output.LayerNorm.bias'] = state_dict.get(f'transformer.h.{i}.input_layernorm.bias')
 
@@ -79,7 +78,7 @@ for ckpt_file, output_ckpt_file in zip(ckpt_files, output_ckpt_files):
         new_state_dict[prefix_i + 'output.dense.weight'] = state_dict.get(f'transformer.h.{i}.mlp.dense_4h_to_h.weight')
         new_state_dict[prefix_i + 'output.dense.bias'] = state_dict.get(f'transformer.h.{i}.mlp.dense_4h_to_h.bias')
 
-        # layernorm2
+        # ffnLayerNorm
         new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict.get(f'transformer.h.{i}.post_attention_layernorm.weight'.format(i))
         new_state_dict[prefix_i + 'output.LayerNorm.bias'] = state_dict.get(f'transformer.h.{i}.post_attention_layernorm.bias'.format(i))
 

@@ -86,13 +86,13 @@ class XLNET(Transformer_XL):
                             f'encoderLayer.{i}.multiHeadAttention.r_w_bias': prefix_i + 'rel_attn.r_w_bias',
                             # f'encoderLayer.{i}.multiHeadAttention.seg_embed.weight': prefix_i + 'rel_attn.seg_embed',
                             f'encoderLayer.{i}.multiHeadAttention.seg_embed': prefix_i + 'rel_attn.seg_embed',
-                            f'encoderLayer.{i}.layerNorm1.weight': prefix_i + 'rel_attn.layer_norm.weight',
-                            f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'rel_attn.layer_norm.bias',
+                            f'encoderLayer.{i}.attnLayerNorm.weight': prefix_i + 'rel_attn.layer_norm.weight',
+                            f'encoderLayer.{i}.attnLayerNorm.bias': prefix_i + 'rel_attn.layer_norm.bias',
                             f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'ff.layer_1.weight',
                             f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_i + 'ff.layer_1.bias',
                             f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'ff.layer_2.weight',
                             f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'ff.layer_2.bias',
-                            f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'ff.layer_norm.weight',
-                            f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'ff.layer_norm.bias'
+                            f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'ff.layer_norm.weight',
+                            f'encoderLayer.{i}.ffnLayerNorm.bias': prefix_i + 'ff.layer_norm.bias'
                             })
         return mapping

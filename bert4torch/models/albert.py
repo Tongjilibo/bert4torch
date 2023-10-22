@@ -61,14 +61,14 @@ class ALBERT(BERT):
                         f'encoderLayer.{i}.multiHeadAttention.v.bias': prefix_i + 'attention.value.bias',
                         f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attention.dense.weight',
                         f'encoderLayer.{i}.multiHeadAttention.o.bias': prefix_i + 'attention.dense.bias',
-                        f'encoderLayer.{i}.layerNorm1.weight': prefix_i + 'attention.LayerNorm.weight',
-                        f'encoderLayer.{i}.layerNorm1.bias': prefix_i + 'attention.LayerNorm.bias',
+                        f'encoderLayer.{i}.attnLayerNorm.weight': prefix_i + 'attention.LayerNorm.weight',
+                        f'encoderLayer.{i}.attnLayerNorm.bias': prefix_i + 'attention.LayerNorm.bias',
                         f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'ffn.weight',
                         f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_i + 'ffn.bias',
                         f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'ffn_output.weight',
                         f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'ffn_output.bias',
-                        f'encoderLayer.{i}.layerNorm2.weight': prefix_i + 'full_layer_layer_norm.weight',
-                        f'encoderLayer.{i}.layerNorm2.bias': prefix_i + 'full_layer_layer_norm.bias'
+                        f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'full_layer_layer_norm.weight',
+                        f'encoderLayer.{i}.ffnLayerNorm.bias': prefix_i + 'full_layer_layer_norm.bias'
                         })
 
         return mapping
@@ -114,13 +114,13 @@ class ALBERT_Unshared(ALBERT):
                             f'encoderLayer.{i}.multiHeadAttention.v.bias': prefix_0 + 'attention.value.bias',
                             f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_0 + 'attention.dense.weight',
                             f'encoderLayer.{i}.multiHeadAttention.o.bias': prefix_0 + 'attention.dense.bias',
-                            f'encoderLayer.{i}.layerNorm1.weight': prefix_0 + 'attention.LayerNorm.weight',
-                            f'encoderLayer.{i}.layerNorm1.bias': prefix_0 + 'attention.LayerNorm.bias',
+                            f'encoderLayer.{i}.attnLayerNorm.weight': prefix_0 + 'attention.LayerNorm.weight',
+                            f'encoderLayer.{i}.attnLayerNorm.bias': prefix_0 + 'attention.LayerNorm.bias',
                             f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_0 + 'ffn.weight',
                             f'encoderLayer.{i}.feedForward.intermediateDense.bias': prefix_0 + 'ffn.bias',
                             f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_0 + 'ffn_output.weight',
                             f'encoderLayer.{i}.feedForward.outputDense.bias': prefix_0 + 'ffn_output.bias',
-                            f'encoderLayer.{i}.layerNorm2.weight': prefix_0 + 'full_layer_layer_norm.weight',
-                            f'encoderLayer.{i}.layerNorm2.bias': prefix_0 + 'full_layer_layer_norm.bias'
+                            f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_0 + 'full_layer_layer_norm.weight',
+                            f'encoderLayer.{i}.ffnLayerNorm.bias': prefix_0 + 'full_layer_layer_norm.bias'
                             })
         return mapping

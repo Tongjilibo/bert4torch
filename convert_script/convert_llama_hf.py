@@ -118,7 +118,7 @@ for i in range(num_hidden_layers):
         new_state_dict[prefix_i + f'attention.self.value.weight'] = state_dict['model.layers.{0}.self_attn.v_proj.weight'.format(i)]
     new_state_dict[prefix_i + 'attention.output.dense.weight'] = state_dict['model.layers.{0}.self_attn.o_proj.weight'.format(i)]
 
-    # layernorm1
+    # attnLayerNorm
     new_state_dict[prefix_i + 'attention.output.LayerNorm.weight'] = state_dict['model.layers.{0}.input_layernorm.weight'.format(i)]
 
     # feed forward 第一层
@@ -130,7 +130,7 @@ for i in range(num_hidden_layers):
     # feed forward 第三层(bert结构没有)
     new_state_dict[prefix_i + 'intermediate2.dense.weight'] = state_dict['model.layers.{0}.mlp.up_proj.weight'.format(i)]
 
-    # layernorm2
+    # ffnLayerNorm
     new_state_dict[prefix_i + 'output.LayerNorm.weight'] = state_dict['model.layers.{0}.post_attention_layernorm.weight'.format(i)]
 
 torch.save(new_state_dict, output_ckpt_file)
