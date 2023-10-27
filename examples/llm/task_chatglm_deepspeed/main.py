@@ -38,7 +38,7 @@ response_column = 'summary'
 history_column = None
 
 # 模型配置
-dir_path = "/tf/libo/pretrain_ckpt/chatglm/6B"
+dir_path = "/tf/libo/pretrain_ckpt/glm/chatglm-6B"
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin', # [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

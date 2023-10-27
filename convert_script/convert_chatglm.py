@@ -10,21 +10,23 @@ import re
 import json
 
 
-choice = 'default'  # default, int4, int8, v1.1.0, chatglm2, chatglm2-int4
+choice = 'chatglm3'  # default, int4, int8, v1.1.0, chatglm2, chatglm2-int4， chatglm3
 layer_prefix = 'decoderLayer'  # v0.3.0(含)之前使用 encoderLayer ，之后使用 decoderLayer
 
 if choice == 'default':
-    dir_path = 'E:/pretrain_ckpt/chatglm/6B/'
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm-6B/'
 elif choice == 'v1.1.0':
-    dir_path = 'E:/pretrain_ckpt/chatglm/6B-v1_1_0/'
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0/'
 elif choice == 'int4':
-    dir_path = 'E:/pretrain_ckpt/chatglm/6B-int4/'
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm-6B-int4/'
 elif choice == 'int8':
-    dir_path = 'E:/pretrain_ckpt/chatglm/6B-int8/'
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm-6B-int8/'
 elif choice == 'chatglm2':
-    dir_path = 'E:/pretrain_ckpt/chatglm2/6B/'
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm2-6B/'
 elif choice == 'chatglm2-int4':
-    dir_path = 'E:/pretrain_ckpt/chatglm2/6B-int4/'
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm2-6B-int4/'
+elif choice == 'chatglm3':
+    dir_path = 'E:/pretrain_ckpt/glm/chatglm3-6B/'
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
     
@@ -154,6 +156,15 @@ elif choice == 'chatglm2-int4':
     new_weights = trans_chatglm2(state_dict_tmp)
     torch.save(new_weights, dir_path + f'bert4torch_pytorch_model.bin')
 
+elif choice == 'chatglm3':
+    for i in range(1, 8):
+        file_path = f"pytorch_model-0000{i}-of-00007.bin"
+        state_dict_tmp = torch.load(dir_path+file_path)
+
+        # 保存成多个文件
+        new_weights = trans_chatglm2(state_dict_tmp)
+        torch.save(new_weights, dir_path + f'bert4torch_pytorch_model_{i}.bin')
+
 
 # config配置
 if choice in {'default', 'v1.1.0'}:
@@ -253,7 +264,7 @@ elif choice == 'chatglm2':
     "skip_init": True,
     "tie_emb_prj_weight": False,
     "eos_token_id": 2,
-    "pad_token_id": 0,
+    "pad_token_id": 2,
     "rmsnorm": True,
     "rope_rank": "updown",
     "position_encoding_2d_v2": True,
@@ -277,7 +288,7 @@ elif choice == 'chatglm2-int4':
     "skip_init": True,
     "tie_emb_prj_weight": False,
     "eos_token_id": 2,
-    "pad_token_id": 0,
+    "pad_token_id": 2,
     "rmsnorm": True,
     "rope_rank": "updown",
     "position_encoding_2d_v2": True,
@@ -286,6 +297,32 @@ elif choice == 'chatglm2-int4':
     "quantization_method": "cpm_kernels",
     "target_modules": ["q", "k", "v", "o", "intermediateDense", "outputDense"]
     }
+
+
+# chatglm3
+elif choice == 'chatglm3':
+    config = \
+    {
+    "hidden_act": "swiglu", 
+    "hidden_size": 4096,
+    "intermediate_size": 13696,
+    "layer_norm_eps": 1e-05,
+    "max_sequence_length": 32768,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 28,
+    "vocab_size": 65024,
+    "segment_vocab_size": 0,
+    "multi_query_group_num": 2,
+    "skip_init": True,
+    "tie_emb_prj_weight": False,
+    "eos_token_id": 2,
+    "pad_token_id": 0,
+    "rmsnorm": True,
+    "rope_rank": "updown",
+    "position_encoding_2d_v2": True,
+    "flash_attention": True
+    }
+
 
 with open(dir_path+'bert4torch_config.json', 'w') as f:
     f.write(json.dumps(config, indent=4))
