@@ -303,6 +303,7 @@ elif choice == 'chatglm2-int4':
 elif choice == 'chatglm3':
     config = \
     {
+    "model": "glm2",
     "hidden_act": "swiglu", 
     "hidden_size": 4096,
     "intermediate_size": 13696,
