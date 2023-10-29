@@ -7,7 +7,6 @@
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
-from bert4torch.generation import SeqGeneration
 import platform
 import os
 
@@ -95,11 +94,13 @@ def main():
             continue
         history.append({"role": "user", "content": query})
         history.append({"role": "assistant", "content": ""})
+
         for response in chat(query, history=history):
             if response and response[-1] != "�":
                 response, history = process_response(response, history)
                 os.system(clear_command)
                 print(build_prompt(history), flush=True)
+
         os.system(clear_command)
         print(build_prompt(history), flush=True)
         torch.cuda.empty_cache()  # 清理显存

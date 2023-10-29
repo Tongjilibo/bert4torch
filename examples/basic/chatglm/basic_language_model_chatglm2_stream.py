@@ -10,7 +10,6 @@ from transformers import AutoTokenizer
 from bert4torch.generation import SeqGeneration
 import platform
 import os
-import signal
 import re
 
 choice = 'default'  # chatglm2, int4, int8
@@ -85,7 +84,6 @@ def chat(query, history=[]):
 
 def main():
     history = []
-    global stop_stream
     print("欢迎使用 ChatGLM2-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序")
     while True:
         query = input("\n用户：")
@@ -96,17 +94,11 @@ def main():
             os.system(clear_command)
             print("欢迎使用 ChatGLM2-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序")
             continue
-        count = 0
+        
         for response, history in chat(query, history=history):
-            if stop_stream:
-                stop_stream = False
-                break
-            else:
-                count += 1
-                if count % 8 == 0:
-                    os.system(clear_command)
-                    print(build_prompt(history), flush=True)
-                    signal.signal(signal.SIGINT, signal_handler)
+            os.system(clear_command)
+            print(build_prompt(history), flush=True)
+        
         os.system(clear_command)
         print(build_prompt(history), flush=True)
         torch.cuda.empty_cache()  # 清理显存
