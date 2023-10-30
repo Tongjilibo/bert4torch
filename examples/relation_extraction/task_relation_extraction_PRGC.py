@@ -186,8 +186,8 @@ def collate_fn_test(data):
     token_ids = torch.tensor(sequence_padding(token_ids, length=maxlen), dtype=torch.long, device=device)
     return token_ids, spoes, tokens
 
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json'), 
-                   batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataset = MyDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
+train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataset = MyTestDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn_test) 
 
