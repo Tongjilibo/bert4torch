@@ -372,6 +372,8 @@ def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
     for param in model.parameters():
         param.requires_grad = False
     if adapter_method == 'bottleneck':
+        # https://paperswithcode.com/paper/parameter-efficient-transfer-learning-for-nlp
+        # https://arxiv.org/pdf/1902.00751v2.pdf
         # 顺序为: Attention --> Adapter --> Add --> LN --> FeedForward --> Adapter --> Add --> LayerNorm
         
         try:

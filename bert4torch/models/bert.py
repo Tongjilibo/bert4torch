@@ -292,6 +292,7 @@ class BERT(BERT_BASE):
             return variable
 
     def variable_mapping(self):
+        """权重映射字典，格式为{new_key: old_key}"""
         mapping = {
             'embeddings.word_embeddings.weight': f'{self.prefix}.embeddings.word_embeddings.weight',
             'embeddings.position_embeddings.weight': f'{self.prefix}.embeddings.position_embeddings.weight',
