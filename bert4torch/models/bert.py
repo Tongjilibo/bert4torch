@@ -274,6 +274,24 @@ class BERT(BERT_BASE):
                         break
             return outputs
 
+    def load_trans_ckpt(self, checkpoint):
+        """加载ckpt, 方便后续继承并做一些预处理"""
+        state_dict = super().load_trans_ckpt(checkpoint)
+        old_keys = []
+        new_keys = []
+        for key in state_dict.keys():
+            new_key = None
+            if ".gamma" in key:
+                new_key = key.replace(".gamma", ".weight")
+            if ".beta" in key:
+                new_key = key.replace(".beta", ".bias")
+            if new_key:
+                old_keys.append(key)
+                new_keys.append(new_key)
+        for old_key, new_key in zip(old_keys, new_keys):
+            state_dict[new_key] = state_dict.pop(old_key)
+        return state_dict    
+
     def load_variable(self, state_dict, name):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[name]

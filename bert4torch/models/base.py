@@ -200,18 +200,21 @@ class BERT_BASE(nn.Module):
 
         return embeddings
 
+    def load_trans_ckpt(self, checkpoint):
+        """加载ckpt, 方便后续继承并做一些预处理"""
+        if isinstance(checkpoint, str):
+            return torch.load(checkpoint, map_location='cpu')
+        raise ValueError('Args `checkpoint_path` only support `str` format')
+
     def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, device_map=None, 
                                              torch_dtype=None, verbose=1):
         """根据mapping从checkpoint加载权重"""
-        # 加载模型文件
-        if isinstance(checkpoint, str):
-            ckpt_state_dict = torch.load(checkpoint, map_location='cpu')
-        else:
-            raise ValueError('Args `checkpoint_path` only support `str` format')
+        # 加载模型文件, 并可专业些转换
+        ckpt_state_dict = self.load_trans_ckpt(checkpoint)
         
+        # 计算mapping
         mapping = mapping or self.variable_mapping()
         model_params = set([i[0] for i in self.named_parameters()])  # 可更新的变量
-        
         # 如果ckpt和model中同时存在，且不在预设的mapping中，则更新mapping
         # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
         for layer_name in model_params:
