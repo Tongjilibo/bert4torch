@@ -20,6 +20,7 @@ class Falcon(Decoder):
             MultiHeadAttentionLayer.apply_alibi_pos_emb = apply_alibi_pos_emb
         super().__init__(*args, **kwargs)
         self.prefix = 'falcon'
+        self.multi_query_attention = kwargs.get('multi_query_group_num') is not None
         del self.embeddings.layerNorm
 
         if kwargs.get('parallel_attn') is True:
@@ -27,6 +28,64 @@ class Falcon(Decoder):
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
             self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
             self.LayerNormFinal.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
+
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        for i in range(self.num_hidden_layers):
+            old_key = f'transformer.h.{i}.self_attention.query_key_value.weight'
+            qkv = state_dict.get(old_key)
+            if qkv is None:
+                continue
+            if not self.multi_query_attention:
+                tensor_list = torch.split(qkv, self.attention_head_size, 0)
+                q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+                q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+            else:
+                q, k, v = torch.split(qkv, [self.hidden_size, self.attention_head_size, self.attention_head_size], 0)
+
+            for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.{i_k}.weight'] = i_v
+            state_dict.pop(old_key)
+
+        for i in range(self.num_hidden_layers):
+            old_key = f'transformer.h.{i}.self_attention.query_key_value.bias'
+            qkv = state_dict.get(old_key)
+            if qkv is None:
+                continue
+            if not self.multi_query_attention:
+                tensor_list = torch.split(qkv, self.attention_head_size, 0)
+                q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+                q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+            else:
+                q, k, v = torch.split(qkv, [self.hidden_size, self.attention_head_size, self.attention_head_size], 0)
+            for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.{i_k}.bias'] = i_v
+            state_dict.pop(old_key)
+        return state_dict
+    
+    def variable_mapping(self):
+        """权重映射字典，格式为{new_key: old_key}"""
+        mapping = {
+            'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight',
+            'lm_head.weight': 'lm_head.weight',
+            'LayerNormFinal.weight': 'transformer.ln_f.weight',
+            'LayerNormFinal.bias': 'transformer.ln_f.bias'
+            }
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'transformer.h.{i}.self_attention.dense.weight',
+            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'transformer.h.{i}.self_attention.dense.bias',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'transformer.h.{i}.input_layernorm.weight',
+            f'decoderLayer.{i}.attnLayerNorm.bias': f'transformer.h.{i}.input_layernorm.bias',
+            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'transformer.h.{i}.mlp.dense_h_to_4h.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense.bias': f'transformer.h.{i}.mlp.dense_h_to_4h.bias',
+            f'decoderLayer.{i}.feedForward.outputDense.weight': f'transformer.h.{i}.mlp.dense_4h_to_h.weight',
+            f'decoderLayer.{i}.feedForward.outputDense.bias': f'transformer.h.{i}.mlp.dense_4h_to_h.bias',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'transformer.h.{i}.post_attention_layernorm.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.bias': f'transformer.h.{i}.post_attention_layernorm.bias'
+            })
+        return mapping
 
     class ParallelAttnLayer(BertLayer):
         '''适用于Falcon的transformer block

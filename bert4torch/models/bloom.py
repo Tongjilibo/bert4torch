@@ -1,5 +1,7 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
+import torch
+
 
 class Bloom(Decoder):
     '''Bloom: https://arxiv.org/abs/2211.05100
@@ -10,3 +12,51 @@ class Bloom(Decoder):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
         self.prefix = 'bloom'
+
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        for i in range(self.num_hidden_layers):
+            old_key = f'h.{i}.self_attention.query_key_value.weight'
+            qkv = state_dict[old_key]
+            tensor_list = torch.split(qkv, self.attention_head_size, 0)
+            q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+            q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+            for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.{i_k}.weight'] = i_v
+            state_dict.pop(old_key)
+
+            old_key = f'h.{i}.self_attention.query_key_value.bias'
+            qkv = state_dict[old_key]
+            tensor_list = torch.split(qkv, self.attention_head_size, 0)
+            q, k, v = tensor_list[0::3], tensor_list[1::3], tensor_list[2::3]
+            q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+            for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.{i_k}.bias'] = i_v
+            state_dict.pop(old_key)
+        return state_dict
+    
+    def variable_mapping(self):
+        """权重映射字典，格式为{new_key: old_key}"""
+        mapping = {
+            'embeddings.word_embeddings.weight': 'word_embeddings.weight',
+            'embeddings.layerNorm.weight': 'word_embeddings_layernorm.weight',
+            'embeddings.layerNorm.bias': 'word_embeddings_layernorm.bias',
+            'lm_head.weight': 'word_embeddings.weight',
+            'LayerNormFinal.weight': 'ln_f.weight',
+            'LayerNormFinal.bias': 'ln_f.bias'
+            }
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'h.{i}.self_attention.dense.weight',
+            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'h.{i}.self_attention.dense.bias',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'h.{i}.input_layernorm.weight',
+            f'decoderLayer.{i}.attnLayerNorm.bias': f'h.{i}.input_layernorm.bias',
+            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'h.{i}.mlp.dense_h_to_4h.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense.bias': f'h.{i}.mlp.dense_h_to_4h.bias',
+            f'decoderLayer.{i}.feedForward.outputDense.weight': f'h.{i}.mlp.dense_4h_to_h.weight',
+            f'decoderLayer.{i}.feedForward.outputDense.bias': f'h.{i}.mlp.dense_4h_to_h.bias',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'h.{i}.post_attention_layernorm.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.bias': f'h.{i}.post_attention_layernorm.bias'
+            })
+        return mapping

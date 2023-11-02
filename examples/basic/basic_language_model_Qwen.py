@@ -25,7 +25,8 @@ include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
 # checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'  # 单文件
-checkpoint_path = [f'{dir_path}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
+# checkpoint_path = [f'{dir_path}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
+checkpoint_path = [f'{dir_path}/pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

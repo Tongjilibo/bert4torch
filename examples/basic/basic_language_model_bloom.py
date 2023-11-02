@@ -26,6 +26,7 @@ else:
 
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = dir_path + '/pytorch_model.bin'  # v3.6.0后（不含）
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)

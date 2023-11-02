@@ -13,7 +13,7 @@ class Qwen(InternLM):
         self.prefix = 'qwen'
         for layer in self.decoderLayer:
             layer.multiHeadAttention.o.register_parameter('bias', None)
-    '''
+
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
         qkv = ['q', 'k', 'v']
@@ -29,14 +29,14 @@ class Qwen(InternLM):
             if (b := state_dict.get(old_key)) is not None:
                 bs = torch.chunk(b, 3, dim=0)
                 for k, b in zip(qkv, bs):
-                    state_dict[f'decoderLayer.{i}.multiHeadAttention.{k}.weight'] = b
+                    state_dict[f'decoderLayer.{i}.multiHeadAttention.{k}.bias'] = b
                 state_dict.pop(old_key)
         return state_dict
     
     def variable_mapping(self):
         """权重映射字典，格式为{new_key: old_key}"""
         mapping = {
-            'embeddings.word_embeddings.weight': f'transformer.wte.weight',
+            'embeddings.word_embeddings.weight': 'transformer.wte.weight',
             'lm_head.weight': 'lm_head.weight',
             'LayerNormFinal.weight': 'transformer.ln_f.weight'
             }
@@ -47,8 +47,7 @@ class Qwen(InternLM):
             f'decoderLayer.{i}.attnLayerNorm.weight': 'transformer.h.%s.ln_1.weight' % i,
             f'decoderLayer.{i}.feedForward.intermediateDense.weight': 'transformer.h.%s.mlp.w2.weight' % i,
             f'decoderLayer.{i}.feedForward.intermediateDense2.weight': 'transformer.h.%s.mlp.w1.weight' % i,
-            f'decoderLayer.{i}.feedForward.outputDense.weight':'transformer.h.%s.mlp.c_proj.weight' % i,
+            f'decoderLayer.{i}.feedForward.outputDense.weight': 'transformer.h.%s.mlp.c_proj.weight' % i,
             f'decoderLayer.{i}.ffnLayerNorm.weight': 'transformer.h.%s.ln_2.weight' % i
             })
         return mapping
-    '''
