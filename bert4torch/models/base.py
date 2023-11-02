@@ -220,7 +220,7 @@ class BERT_BASE(nn.Module):
 
         state_dict_new = {}  # 用new_key作为key整理后的权重字典
         missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
-        over_keys = model_params  # ckpt-model
+        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
         needed_keys = []  # 所需要的全部的old_keys名
         model_state_dict = self.state_dict()  # 模型的字典
         for new_key, old_key in mapping.items():
@@ -232,8 +232,8 @@ class BERT_BASE(nn.Module):
             if old_key in ckpt_state_dict:
                 state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key)
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
-                if new_key in over_keys:
-                    over_keys.remove(new_key)
+                if old_key in over_keys:
+                    over_keys.remove(old_key)
             
             # 3. model中有，但ckpt中没有，即ckpt中缺失部分参数
             else:
