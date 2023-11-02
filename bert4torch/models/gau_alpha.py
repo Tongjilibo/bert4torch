@@ -15,7 +15,10 @@ class GAU_alpha(RoFormerV2):
     
     def load_variable(self, state_dict, name):
         variable = state_dict[name]
-        return self.load_embeddings(variable) if name in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'} else variable
+        if name in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'}:
+            return self.load_embeddings(variable)
+        else:
+            return variable
 
     def variable_mapping(self):
         '''在convert脚本里已经把key转成bert4torch可用的

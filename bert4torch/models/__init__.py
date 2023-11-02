@@ -24,8 +24,8 @@ from bert4torch.models.internlm import *
 from bert4torch.models.falcon import *
 
 
-def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, **kwargs):
-    """根据配置文件构建模型，可选加载checkpoint权重
+def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, verbose=1, **kwargs):
+    """根据配置文件构建模型, 可选加载checkpoint权重
 
     :param config_path: str, 模型的config文件地址
     :param checkpoint_path: str/list[str], 模型文件地址, 默认值None表示不加载预训练模型
@@ -50,13 +50,14 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     :param hierarchical_position: 是否层次分解位置编码, 默认为None表示不使用
     :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
     :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
+    :param verbose: int, 是否显示加载权重的[WARNING]信息, 默认为1表示显示未加载的, 2表示显示所有不匹配的, 0表示不显示
 
     > 大模型参数
-    :param skip_init: bool, 是否初始化，默认为False
-    :param low_cpu_mem_usage: bool, 是否初始化，默认为False, 同skip_init，仅需要设置一个即可
-    :param device_map: None/str/dict, 为不同Module指定不同的device，默认为None表示加载到cpu中，不同于transformer自动分配，这里需手动指定dict
+    :param skip_init: bool, 是否初始化, 默认为False
+    :param low_cpu_mem_usage: bool, 是否初始化, 默认为False, 同skip_init, 仅需要设置一个即可
+    :param device_map: None/str/dict, 为不同Module指定不同的device, 默认为None表示加载到cpu中, 不同于transformer自动分配, 这里需手动指定dict
     :param torch_dtype: 指定权重的dtype
-    :param flash_attention: bool, 是否使用flash_attention，即torch2的scaled_dot_product_attention(), 默认为False
+    :param flash_attention: bool, 是否使用flash_attention, 即torch2的scaled_dot_product_attention(), 默认为False
     :param use_logn_attn: bool, 在attention模块中是否使用logn_attn
     :param multi_query_group_num: int, 使用MQA的头数
     :param ntk_alpha: float, rope外推使用ntk方法时的alhpa参数
@@ -75,7 +76,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         configs['segment_vocab_size'] = configs.get('type_vocab_size', 2)
     device_map = configs.pop('device_map', None)
     skip_init = configs.get('skip_init', False) or configs.get('low_cpu_mem_usage', False)
-    skip_init = True if device_map is not None else skip_init  # 指定了device_map，就必须skip_init
+    skip_init = True if device_map is not None else skip_init  # 指定了device_map, 就必须skip_init
 
     torch_dtype = configs.pop('torch_dtype', None)
     configs['add_trainer'] = add_trainer
@@ -144,7 +145,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     elif application == 'unilm':
         MODEL = extend_with_unified_language_model(MODEL)
 
-    # 动态继承BaseModel，直接加载预训练模型训练时使用
+    # 动态继承BaseModel, 直接加载预训练模型训练时使用
     if add_trainer:
         MODEL = extend_with_base_model(MODEL)
 
@@ -162,7 +163,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         transformer = MODEL(**configs)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
 
-    # 预训练模型是否已量化, 加载量化后的权重使用，如果是加载原权重再自行量化这里不需要设置
+    # 预训练模型是否已量化, 加载量化后的权重使用, 如果是加载原权重再自行量化这里不需要设置
     if configs.get('quantization_method') is not None:
         if skip_init:  # 把meta权重to_empty(device='cpu'), 执行后就不是meta了
             transformer.apply(transformer.init_meta_weights)
@@ -176,11 +177,10 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     # 权重加载
     checkpoint_path = checkpoint_path or configs.get('checkpoint_path')
     if checkpoint_path is not None:
-        verbose = not configs.get('ignore_invalid_weights', False)
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, 
                                                           torch_dtype=torch_dtype, verbose=verbose)
     
-    # 权重tie，若skip_init则模型结构中的tie_weights会失效，这里重新tie_weights一下
+    # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
     transformer.tie_weights()
     transformer.configs = transformer.config = configs
     return transformer

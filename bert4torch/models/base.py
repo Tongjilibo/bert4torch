@@ -205,7 +205,7 @@ class BERT_BASE(nn.Module):
         """根据mapping从checkpoint加载权重"""
         # 加载模型文件
         if isinstance(checkpoint, str):
-            file_state_dict = torch.load(checkpoint, map_location='cpu')
+            ckpt_state_dict = torch.load(checkpoint, map_location='cpu')
         else:
             raise ValueError('Args `checkpoint_path` only support `str` format')
         
@@ -213,36 +213,38 @@ class BERT_BASE(nn.Module):
         model_params = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         
         # 如果ckpt和model中同时存在，且不在预设的mapping中，则更新mapping
-        # 主要是如为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
+        # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
         for layer_name in model_params:
-            if (layer_name in file_state_dict) and (layer_name not in mapping):
+            if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
                 mapping.update({layer_name: layer_name})
 
-        state_dict_new = {}
-        missing_keys, needed_keys = [], []  # 都是old_keys的名字
+        state_dict_new = {}  # 用new_key作为key整理后的权重字典
+        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
+        over_keys = model_params  # ckpt-model
+        needed_keys = []  # 所需要的全部的old_keys名
+        model_state_dict = self.state_dict()  # 模型的字典
         for new_key, old_key in mapping.items():
-            # mapping和model不一致，忽略，如with_nsp=False时候在mapping中有但是model中没有
-            if new_key not in self.state_dict():
+            # 1. mapping和model不一致则忽略，如with_nsp=False时候在mapping中有但是model中没有
+            if new_key not in model_state_dict:
                 continue
-            # model中有，且ckpt中有，正常加载
-            elif old_key in file_state_dict:
-                state_dict_new[new_key] = self.load_variable(file_state_dict, old_key)
-            # model中有，但ckpt中没有，ckpt中缺失部分参数
-            elif old_key not in file_state_dict:
+
+            # 2. model中有，且ckpt中有，正常加载
+            if old_key in ckpt_state_dict:
+                state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key)
+                # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
+                if new_key in over_keys:
+                    over_keys.remove(new_key)
+            
+            # 3. model中有，但ckpt中没有，即ckpt中缺失部分参数
+            else:
                 missing_keys.append(old_key)
-            # 保留未能加载预训练权重的Parameter
-            if new_key in model_params:
-                model_params.remove(new_key)
             needed_keys.append(old_key)
-        del file_state_dict
+        
+        over_keys = list(over_keys)
+        del ckpt_state_dict
         gc.collect()
         
-        # mismatch keys的处理
-        if verbose != 0:
-            for key in missing_keys:  # model中有，但是ckpt中不存在
-                log_warn(f'`{key}` not found in pretrained checkpoints')
-            for key in model_params:  # ckpt中存在，但是model中不存在
-                log_warn(f'Parameter {key} not initialized from pretrained checkpoints')
+        self._print_mismatch_keys(missing_keys, over_keys, verbose)  # 打印mixmatch keys
 
         # 将ckpt的权重load到模型结构中
         if not skip_init:
@@ -252,7 +254,17 @@ class BERT_BASE(nn.Module):
             
         del state_dict_new
         gc.collect()
-        return missing_keys, needed_keys
+        return missing_keys, over_keys, needed_keys
+
+    @staticmethod
+    def _print_mismatch_keys(missing_keys, over_keys, verbose):
+        """打印mismatch keys"""
+        if verbose != 0:
+            for key in missing_keys:  # model中有，但是ckpt中不存在
+                log_warn(f'`{key}` not found in pretrained checkpoints')
+        if verbose > 1:
+            for key in over_keys:  # ckpt中存在，但是model中不存在
+                log_warn(f'`{key}` only exists in pretrained checkpoints but not in model parameters')
 
     def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, device_map=None, 
                                               torch_dtype=None, verbose=1):
@@ -261,15 +273,19 @@ class BERT_BASE(nn.Module):
             self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, 
                                                       device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         elif isinstance(checkpoints, (tuple, list)):
-            all_missing_keys = []
+            all_missing_keys, all_over_keys = [], []
             for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
-                missing_keys, needed_keys = self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, 
-                                                                                      device_map=device_map, torch_dtype=torch_dtype, verbose=0)
+                missing_keys, over_keys, needed_keys = \
+                    self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, 
+                                                              device_map=device_map, torch_dtype=torch_dtype, verbose=0)
                 all_missing_keys.extend(missing_keys)
-            all_missing_set = set(all_missing_keys).difference(set(needed_keys))
-            if verbose != 0:
-                for key in all_missing_set:
-                    log_warn(f'{key} not found in pretrained checkpoints')
+                all_over_keys.extend(over_keys)
+
+            # 打印mixmatch keys
+            all_missing_keys = set(all_missing_keys).difference(set(needed_keys))
+            all_over_keys = set(all_over_keys).difference(set(needed_keys))
+            self._print_mismatch_keys(all_missing_keys, all_over_keys, verbose)
+
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
 
