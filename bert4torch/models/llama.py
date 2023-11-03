@@ -39,6 +39,7 @@ class LLaMA(Decoder):
                 for i_k, i_v in zip(['q','k', 'v'], qkv):
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
+        return state_dict
     
     def variable_mapping(self):
         '''映射到权重格式
@@ -53,14 +54,14 @@ class LLaMA(Decoder):
         for i in range(self.num_hidden_layers):
             mapping.update( 
             {
-            f'decoderLayer.{i}.multiHeadAttention.q.weight': 'model.layers.{0}.self_attn.q_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.k.weight': 'model.layers.{0}.self_attn.k_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.v.weight': 'model.layers.{0}.self_attn.v_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.o.weight': 'model.layers.{0}.self_attn.o_proj.weight',
-            f'decoderLayer.{i}.attnLayerNorm.weight': 'model.layers.{0}.input_layernorm.weight',
-            f'decoderLayer.{i}.feedForward.intermediateDense.weight': 'model.layers.{0}.mlp.gate_proj.weight',
-            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': 'model.layers.{0}.mlp.up_proj.weight',
-            f'decoderLayer.{i}.feedForward.outputDense.weight': 'model.layers.{0}.mlp.down_proj.weight',
-            f'decoderLayer.{i}.ffnLayerNorm.weight': 'model.layers.{0}.post_attention_layernorm.weight'
+            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
+            f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
             })
         return mapping
