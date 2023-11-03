@@ -37,7 +37,7 @@ import torch
 import json
 
 choice = 'llama'
-if choice == 'llame':
+if choice == 'llama':
     ckpt_dir = 'E:/pretrain_ckpt/llama/7B'
 elif choice == 'chinese_llama_plus_7b':
     ckpt_dir = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'

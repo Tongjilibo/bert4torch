@@ -9,12 +9,12 @@ import copy
 
 class GLM(Decoder):
     '''GLM: https://github.com/THUDM/GLM, ChatGLM-6B: https://github.com/THUDM/ChatGLM-6B
-    Unilm设计，可定义为GLM(UniLM_MASK, BERT)但是要求传入segement_ids比较麻烦，这里继承LM_MASK并使用get_masks()重新构造attention_mask
+    Unilm设计, 可定义为GLM(UniLM_MASK, BERT)但是要求传入segement_ids比较麻烦, 这里继承LM_MASK并使用get_masks()重新构造attention_mask
     模型结构特点：
-    1）rotary使用的updown+position_encoding_2d
-    2）qkv合并成一个权重convert时不是concat在一起的
-    3）attention_mask类似于Unilm，最后一个token仅能访问之前的，之前的tokens可以互相访问
-    4）跳跃连接有权重设计
+    1) rotary使用的updown+position_encoding_2d
+    2) qkv合并成一个权重convert时不是concat在一起的
+    3) attention_mask类似于Unilm, 最后一个token仅能访问之前的, 之前的tokens可以互相访问
+    4) 跳跃连接有权重设计
     5) embedding之后没有layernorm
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
@@ -29,7 +29,40 @@ class GLM(Decoder):
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.prefix = 'transformer'
+
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        # weight bias
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                f'transformer.layers.{i}.attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'transformer.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+            }
+            for old_key, new_key in mapping.items():
+                if (qkv := state_dict.get(old_key)) is None:
+                    continue
+                qkv = torch.split(qkv, 128, 0)
+                q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
+                q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+                for i_k, i_v in {'q':q, 'k':k, 'v':v}:
+                    state_dict[new_key.format(i, i_k)] = i_v
+                state_dict.pop(old_key)
         
+        # int8和int4的weight_scale权重
+        for i in range(self.num_hidden_layers):
+            old_key = f'transformer.layers.{i}.attention.query_key_value.weight_scale'
+            if (qkv := state_dict.get(old_key)) is None:
+                continue
+            qkv = torch.split(qkv, 128, 0)
+            q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
+            q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
+            state_dict[f'decoderLayer.{i}.multiHeadAttention.q.weight_scale'] = q
+            state_dict[f'decoderLayer.{i}.multiHeadAttention.k.weight_scale'] = k
+            state_dict[f'decoderLayer.{i}.multiHeadAttention.v.weight_scale'] = v
+            state_dict.pop(old_key)
+
+        return state_dict
+    
     def variable_mapping(self):
         # 映射到权重格式
         mapping = {
@@ -57,6 +90,10 @@ class GLM(Decoder):
                 f'decoderLayer.{i}.feedForward.intermediateDense.bias': prefix_i + 'mlp.dense_h_to_4h.bias',
                 f'decoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'mlp.dense_4h_to_h.weight',
                 f'decoderLayer.{i}.feedForward.outputDense.bias': prefix_i + 'mlp.dense_4h_to_h.bias',
+                # 加载int4和int8使用
+                f'decoderLayer.{i}.multiHeadAttention.o.weight_scale': prefix_i + 'attention.dense.weight_scale',
+                f'decoderLayer.{i}.feedForward.intermediateDense.weight_scale': prefix_i + 'mlp.dense_h_to_4h.weight_scale',
+                f'decoderLayer.{i}.feedForward.outputDense.weight_scale': prefix_i + 'mlp.dense_4h_to_h.weight_scale',
                 })
         return mapping
 
@@ -96,8 +133,8 @@ class GLM(Decoder):
         context_lens = [seq.index(self.bos_token_id) for seq in seqs]  # bos_token_id是倒数第一位
         seq_len = token_ids.shape[1]
 
-        # 1）generation阶段use_states=True且step>0的时候(用cache)
-        # 这里用inputs[0].shape[1] == 1来判断是不是last_token, chatglm过tokenize出来最后会以[mask_token_id, bos_token_id]结尾，长度>1
+        # 1) generation阶段use_states=True且step>0的时候(用cache)
+        # 这里用inputs[0].shape[1] == 1来判断是不是last_token, chatglm过tokenize出来最后会以[mask_token_id, bos_token_id]结尾, 长度>1
         if model_kwargs.get('use_states', False) and (inputs[0].shape[1] == 1) and (model_kwargs.get('past_key_values') is not None):
             if self.position_encoding_2d:  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
@@ -105,7 +142,7 @@ class GLM(Decoder):
             else:  # [btz, 1]
                 position_ids = torch.tensor([mask_position for mask_position in mask_positions], dtype=torch.long, device=device).unsqueeze(-1)
             model_kwargs['position_ids'] = position_ids
-        # 1）train阶段；2）generation阶段use_states=False；3）use_states=True且step=0的时候
+        # 1) train阶段；2) generation阶段use_states=False；3) use_states=True且step=0的时候
         else:
             prepad_lens = [(ts[:l]==self.pad_token_id).sum().item() for l, ts in zip(context_lens, token_ids)]
             model_kwargs['attention_mask'] = self.get_masks(model_kwargs['attention_mask'], context_lens, prepad_lens)
@@ -127,7 +164,7 @@ class GLM(Decoder):
             self.ffnLayerNorm = torch.nn.LayerNorm(hidden_size, eps=eps)
 
         def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
-            # 和bert区别有两点，一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
+            # 和bert区别有两点, 一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
             x = self.attnLayerNorm(hidden_states)
             alpha = (2 * self.num_hidden_layers) ** 0.5
             self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
@@ -144,7 +181,7 @@ class GLM(Decoder):
         
 class GLM2(GLM):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
-    主要修改：1）不使用Unilm式的mask
+    主要修改：1) 不使用Unilm式的mask
              2) flash_attention
              3) multi_query_attention
     """
@@ -152,6 +189,52 @@ class GLM2(GLM):
         kwargs.update({'norm_mode': 'rmsnorm', 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-5), norm_mode='rmsnorm', bias=False)
+        self.prefix = 'transformer.encoder'
+   
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        # weight bias
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                f'transformer.encoder.layers.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'transformer.encoder.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+            }
+            for old_key, new_key in mapping.items():
+                if (qkv := state_dict.get(old_key)) is None:
+                    continue
+                q, k, v = torch.split(qkv, [4096, 256, 256], 0)
+                for i_k, i_v in {'q':q, 'k':k, 'v':v}:
+                    state_dict[new_key.format(i, i_k)] = i_v
+                state_dict.pop(old_key)
+        
+        # int8和int4的weight_scale权重
+        for i in range(self.num_hidden_layers):
+            old_key = f'transformer.encoder.layers.{i}.self_attention.query_key_value.weight_scale'
+            if (qkv := state_dict.get(old_key)) is None:
+                continue
+            q, k, v = torch.split(qkv, [4096, 256, 256], 0)
+            state_dict[f'decoderLayer.{i}.multiHeadAttention.q.weight_scale'] = q
+            state_dict[f'decoderLayer.{i}.multiHeadAttention.k.weight_scale'] = k
+            state_dict[f'decoderLayer.{i}.multiHeadAttention.v.weight_scale'] = v
+            state_dict.pop(old_key)
+
+        return state_dict
+
+    def variable_mapping(self):
+        mapping = super().variable_mapping()
+        mapping.update({
+            'embeddings.word_embeddings.weight': 'transformer.embedding.word_embeddings.weight',
+            'lm_head.weight': "transformer.output_layer.weight"
+        })
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'{self.prefix}.layers.%d.' % i
+            mapping.update({
+                f'decoderLayer.{i}.multiHeadAttention.o.weight_scale': prefix_i + "self_attention.dense.weight_scale",
+                f'decoderLayer.{i}.feedForward.intermediateDense.weight_scale': prefix_i + "mlp.dense_h_to_4h.weight_scale",
+                f'decoderLayer.{i}.feedForward.outputDense.weight_scale': prefix_i + "mlp.dense_4h_to_h.weight_scale",
+                f'decoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + "self_attention.dense.weight",
+            })
+        return mapping
 
     def prepare_inputs(self, *inputs, **model_kwargs):
         return model_kwargs

@@ -4,13 +4,13 @@ from bert4torch.layers import ConvLayer
 
 
 class DebertaV2(BERT):
-    '''DeBERTaV2: https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa；
-       这里使用的是IEDEA的中文模型：https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese；
-       和transformers包中的区别：
-       1）原始使用的StableDropout替换成了nn.Dropout；
-       2）计算attention_score时候用的XSoftmax替换成了F.softmax；
-       3）未实现（认为对结果无影响）：Embedding阶段用attention_mask对embedding的padding部分置0；
-       4）未实现（认为对结果无影响）：计算attention_score前的attention_mask从[btz, 1, 1, k_len]转为了[btz, 1, q_len, k_len]。
+    '''DeBERTaV2: https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa:
+       这里使用的是IEDEA的中文模型: https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese:
+       和transformers包中的区别: 
+       1) 原始使用的StableDropout替换成了nn.Dropout:
+       2) 计算attention_score时候用的XSoftmax替换成了F.softmax:
+       3) 未实现(认为对结果无影响): Embedding阶段用attention_mask对embedding的padding部分置0:
+       4) 未实现(认为对结果无影响): 计算attention_score前的attention_mask从[btz, 1, 1, k_len]转为了[btz, 1, q_len, k_len]。
     '''
     @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
@@ -21,16 +21,14 @@ class DebertaV2(BERT):
         self.relative_attention = kwargs.get("relative_attention", True)
         self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
         
-        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        # 把第二层后的相对位置编码的权重绑定到第一层上, 变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
             self.encoderLayer[i].multiHeadAttention.layernorm.weight = self.encoderLayer[0].multiHeadAttention.layernorm.weight
             self.encoderLayer[i].multiHeadAttention.layernorm.bias = self.encoderLayer[0].multiHeadAttention.layernorm.bias
 
     def apply_main_layers(self, **model_kwargs):
-        """DebertaV2：主要区别是第0层后，会通过卷积层
-        """
-
+        """DebertaV2: 主要区别是第0层后, 会通过卷积层"""
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
             model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
@@ -61,4 +59,12 @@ class DebertaV2(BERT):
                         'conv.LayerNorm.bias': f'{self.prefix}.encoder.conv.LayerNorm.bias'})
         for del_key in ['nsp.weight', 'nsp.bias', 'embeddings.position_embeddings.weight', 'embeddings.segment_embeddings.weight']:
             del mapping[del_key]
+        
+        # 把old_key中的部分关键字替换一下
+        rep_str = {'query': 'query_proj', 'key': 'key_proj', 'value': 'value_proj'}
+        mapping_tmp = {}
+        for new_key, old_key in mapping.items():
+            if old_key in rep_str:
+                mapping_tmp[new_key] = rep_str[old_key]
+        mapping.update(mapping_tmp)
         return mapping

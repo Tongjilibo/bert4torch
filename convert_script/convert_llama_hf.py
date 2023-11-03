@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 
-'''本脚本支持多个llama系列模型转换，原格式为pth
+'''本脚本支持多个llama系列模型转换，原格式为huggingface
 
 [1] belle-llama模型：https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc
     模型说明： https://github.com/LianjiaTech/BELLE/tree/main/models

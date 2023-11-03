@@ -4,9 +4,9 @@ import torch
 
 class Qwen(InternLM):
     '''通义千问: https://github.com/QwenLM/Qwen-7B
-    1）FeedForward和Llama一致，三个dense层
-    2）除了qkv有bias，其余均没有bias
-    3) 和InternLM基本一致，唯一的差别是InternLM的multiHeadAttention.o有bias
+    1) FeedForward和Llama一致, 三个dense层
+    2) 除了qkv有bias, 其余均没有bias
+    3) 和InternLM基本一致, 唯一的差别是InternLM的multiHeadAttention.o有bias
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -16,25 +16,23 @@ class Qwen(InternLM):
 
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
-        qkv = ['q', 'k', 'v']
         for i in range(self.num_hidden_layers):
-            old_key = 'transformer.h.%s.attn.c_attn.weight' % i
-            if (w := state_dict.get(old_key)) is not None:
-                ws = torch.chunk(w, 3, dim=0)
-                for k, w in zip(qkv, ws):
-                    state_dict[f'decoderLayer.{i}.multiHeadAttention.{k}.weight'] = w
-                state_dict.pop(old_key)
-
-            old_key = 'transformer.h.%s.attn.c_attn.bias' % i
-            if (b := state_dict.get(old_key)) is not None:
-                bs = torch.chunk(b, 3, dim=0)
-                for k, b in zip(qkv, bs):
-                    state_dict[f'decoderLayer.{i}.multiHeadAttention.{k}.bias'] = b
+            mapping = {
+                'transformer.h.%s.attn.c_attn.weight' % i: 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                'transformer.h.%s.attn.c_attn.bias' % i: 'decoderLayer.{}.multiHeadAttention.{}.bias'
+            }
+            for old_key, new_key in mapping.items():
+                # 如果当前ckpt不存在该key，则跳过
+                if (qkv := state_dict.get(old_key)) is None:
+                    continue
+                qkv = torch.chunk(qkv, 3, dim=0)
+                for i_k, i_v in zip(['q', 'k', 'v'], qkv):
+                    state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         return state_dict
     
     def variable_mapping(self):
-        """权重映射字典，格式为{new_key: old_key}"""
+        """权重映射字典, 格式为{new_key: old_key}"""
         mapping = {
             'embeddings.word_embeddings.weight': 'transformer.wte.weight',
             'lm_head.weight': 'lm_head.weight',

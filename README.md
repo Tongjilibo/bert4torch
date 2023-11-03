@@ -189,8 +189,8 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | nezha | 华为| [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[torch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | |
 | gpt | thu-coai/CDial-GPT| [torch](https://github.com/thu-coai/CDial-GPT) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_gpt_CDial-GPT-LCCC.py) |
 | gpt2| 清华26亿 cmp_lm | [torch](https://github.com/TsinghuaAI/CPM-1-Generate)| [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_gpt2_cmp_lm_2.6b.py) |
-| gpt2| 中文GPT2_ML模型 | [tf](https://github.com/imcaspar/gpt2-ml)，[torch](https://github.com/ghosthamlet/gpt2-ml-torch) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_gpt2_gpt2-ml.py) |
 | gpt2| UER | [torch](https://huggingface.co/uer/gpt2-chinese-cluecorpussmall) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_gpt2_uer-gpt2-chinese.py)|
+| gpt2-ml| 中文GPT2_ML模型 | [tf](https://github.com/imcaspar/gpt2-ml)，[torch](https://github.com/ghosthamlet/gpt2-ml-torch) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_gpt2_gpt2-ml.py) |
 | t5| UER | [torch](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)| [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/README.md)|
 | mt5 | 谷歌| [torch](https://huggingface.co/google/mt5-base)| [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/README.md)|
 | t5_pegasus| 追一科技| [tf](https://github.com/ZhuiyiTechnology/t5-pegasus) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_t5_pegasus.py)|

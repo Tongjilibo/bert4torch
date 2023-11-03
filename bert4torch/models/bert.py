@@ -277,19 +277,16 @@ class BERT(BERT_BASE):
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理"""
         state_dict = super().load_trans_ckpt(checkpoint)
-        old_keys = []
-        new_keys = []
+        old_new_keys = {}
         for key in state_dict.keys():
-            new_key = None
+            # bert-base-chinese中ln的weight和bias是gamma和beta
             if ".gamma" in key:
-                new_key = key.replace(".gamma", ".weight")
+                old_new_keys[key] = key.replace(".gamma", ".weight")
             if ".beta" in key:
-                new_key = key.replace(".beta", ".bias")
-            if new_key:
-                old_keys.append(key)
-                new_keys.append(new_key)
-        for old_key, new_key in zip(old_keys, new_keys):
+                old_new_keys[key] = key.replace(".beta", ".bias")
+        for old_key, new_key in old_new_keys.items():
             state_dict[new_key] = state_dict.pop(old_key)
+        
         return state_dict    
 
     def load_variable(self, state_dict, name):
@@ -328,7 +325,6 @@ class BERT(BERT_BASE):
             'mlmBias': 'cls.predictions.bias',
             'mlmDecoder.weight': 'cls.predictions.decoder.weight',
             'mlmDecoder.bias': 'cls.predictions.decoder.bias'
-
         }
         for i in range(self.num_hidden_layers):
             prefix_i = f'{self.prefix}.encoder.layer.%d.' % i

@@ -3,6 +3,7 @@ from bert4torch.snippets import delete_arguments
 from bert4torch.layers import BertLayer, BlockIdentity
 from torch import nn
 import copy
+import torch
 
 
 class GPT(Decoder):
@@ -17,6 +18,64 @@ class GPT(Decoder):
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         self.prefix = 'gpt'
+
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        # CDial-GPT的[CLS]是0、[PAD]是1，不符合一般习惯，所以交换一下
+        w = state_dict['transformer.tokens_embed.weight']
+        state_dict[f'embeddings.word_embeddings.weight'] = torch.cat([w[1:2], w[:1], w[2:]], axis=0)
+
+        for i in range(self.num_hidden_layers):
+            # qkv
+            mapping = {
+                f'transformer.h.{i}.attn.c_attn.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'transformer.h.{i}.attn.c_attn.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+            }
+            for old_key, new_key in mapping.items():
+                # 如果当前ckpt不存在该key，则跳过
+                if (qkv := state_dict.get(old_key)) is not None:
+                    qkv = torch.chunk(qkv, 3, dim=1)
+                    for i_k, i_v in zip(['q', 'k', 'v'], qkv):
+                        state_dict[new_key.format(i, i_k)] = i_v.T if old_key.endswith('weight') else i_v
+                    state_dict.pop(old_key)
+
+            # hdsz-hdsz的全连接
+            old_key = f'transformer.h.{i}.attn.c_proj.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.o.weight'] = w.T
+                state_dict.pop(old_key)
+
+            # feed forward 第一层
+            old_key = f'transformer.h.{i}.mlp.c_fc.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.feedForward.intermediateDense.weight'] = w.T
+                state_dict.pop(old_key)
+                
+            # feed forward 第二层
+            old_key = f'transformer.h.{i}s.mlp.c_proj.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
+                state_dict.pop(old_key)
+
+        return state_dict
+    
+    def variable_mapping(self):
+        """权重映射字典，格式为{new_key: old_key}"""
+        mapping = {
+            'embeddings.position_embeddings.weight': 'transformer.positions_embed.weight',
+            }
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'transformer.h.{i}.attn.c_proj.bias',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'transformer.h.{i}.ln_1.weight',
+            f'decoderLayer.{i}.attnLayerNorm.bias': f'transformer.h.{i}.ln_1.bias',
+            f'decoderLayer.{i}.feedForward.intermediateDense.bias': f'transformer.h.{i}.mlp.c_fc.bias',
+            f'decoderLayer.{i}.feedForward.outputDense.bias': f'transformer.h.{i}.mlp.c_proj.bias',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'transformer.h.{i}.ln_2.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.bias': f'transformer.h.{i}.ln_2.bias'
+            })
+        return mapping
 
 
 class GPT2(Decoder):
@@ -36,6 +95,63 @@ class GPT2(Decoder):
         del self.embeddings.layerNorm
         self.prefix = 'gpt2'
 
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        for i in range(self.num_hidden_layers):
+            # qkv
+            mapping = {
+                f'transformer.h.{i}.attn.c_attn.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'transformer.h.{i}.attn.c_attn.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+            }
+            for old_key, new_key in mapping.items():
+                # 如果当前ckpt不存在该key，则跳过
+                if (qkv := state_dict.get(old_key)) is not None:
+                    qkv = torch.chunk(qkv, 3, dim=1)
+                    for i_k, i_v in zip(['q', 'k', 'v'], qkv):
+                        state_dict[new_key.format(i, i_k)] = i_v.T if old_key.endswith('weight') else i_v
+                    state_dict.pop(old_key)
+
+            # hdsz-hdsz的全连接
+            old_key = f'transformer.h.{i}.attn.c_proj.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.o.weight'] = w.T
+                state_dict.pop(old_key)
+
+            # feed forward 第一层
+            old_key = f'transformer.h.{i}.mlp.c_fc.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.feedForward.intermediateDense.weight'] = w.T
+                state_dict.pop(old_key)
+                
+            # feed forward 第二层
+            old_key = f'transformer.h.{i}.mlp.c_proj.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
+                state_dict.pop(old_key)
+
+        return state_dict
+    
+    def variable_mapping(self):
+        """权重映射字典，格式为{new_key: old_key}"""
+        mapping = {
+            'embeddings.word_embeddings.weight': 'transformer.wte.weight',
+            'embeddings.position_embeddings.weight': 'transformer.wpe.weight',
+            'LayerNormFinal.weight': 'transformer.ln_f.weight',
+            'LayerNormFinal.bias': 'transformer.ln_f.bias'
+            }
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'transformer.h.{i}.attn.c_proj.bias',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'transformer.h.{i}.ln_1.weight',
+            f'decoderLayer.{i}.attnLayerNorm.bias': f'transformer.h.{i}.ln_1.bias',
+            f'decoderLayer.{i}.feedForward.intermediateDense.bias': f'transformer.h.{i}.mlp.c_fc.bias',
+            f'decoderLayer.{i}.feedForward.outputDense.bias': f'transformer.h.{i}.mlp.c_proj.bias',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'transformer.h.{i}.ln_2.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.bias': f'transformer.h.{i}.ln_2.bias'
+            })
+        return mapping
+
 
 class GPT2_ML(Decoder):
     """构建GPT2_ML模型；
@@ -52,6 +168,63 @@ class GPT2_ML(Decoder):
                                 'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.prefix = 'gpt2_ml'
+    
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        for i in range(self.num_hidden_layers):
+            # qkv
+            mapping = {
+                f'h.{i}.attn.c_attn.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'h.{i}.attn.c_attn.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+            }
+            for old_key, new_key in mapping.items():
+                # 如果当前ckpt不存在该key，则跳过
+                if (qkv := state_dict.get(old_key)) is None:
+                    continue
+                qkv = torch.chunk(qkv, 3, dim=1)
+                for i_k, i_v in zip(['q', 'k', 'v'], qkv):
+                    state_dict[new_key.format(i, i_k)] = i_v.T if old_key.endswith('weight') else i_v
+                state_dict.pop(old_key)
+            
+            # hdsz-hdsz的全连接
+            old_key = f'h.{i}.attn.c_proj.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.multiHeadAttention.o.weight'] = w.T
+                state_dict.pop(old_key)
+
+            # feed forward 第一层
+            old_key = f'h.{i}.mlp.c_fc.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.feedForward.intermediateDense.weight'] = w.T
+                state_dict.pop(old_key)
+                
+            # feed forward 第二层
+            old_key = f'h.{i}.mlp.c_proj.weight'
+            if (w := state_dict.get(old_key)) is not None:
+                state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
+                state_dict.pop(old_key)
+        return state_dict
+    
+    def variable_mapping(self):
+        """权重映射字典，格式为{new_key: old_key}"""
+        mapping = {
+            'embeddings.word_embeddings.weight': 'wte.weight',
+            'embeddings.position_embeddings.weight': 'wpe.weight',
+            'embeddings.layerNorm.weight': 'emb_norm.weight',
+            'embeddings.layerNorm.bias': 'emb_norm.bias'
+            }
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'h.{i}.attn.c_proj.bias',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'h.{i}.ln_1.weight',
+            f'decoderLayer.{i}.attnLayerNorm.bias': f'h.{i}.ln_1.bias',
+            f'decoderLayer.{i}.feedForward.intermediateDense.bias': f'h.{i}.mlp.c_fc.bias',
+            f'decoderLayer.{i}.feedForward.outputDense.bias': f'h.{i}.mlp.c_proj.bias',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'h.{i}.ln_2.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.bias': f'h.{i}.ln_2.bias'
+            })
+        return mapping
 
     class Gpt2MlLayer(BertLayer):
         '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；

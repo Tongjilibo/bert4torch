@@ -29,7 +29,7 @@ def convert():
     w = torch_weights['transformer.ln_f.weight']
     new_weights[f'{prefix}.LayerNormFinal.weight'] = w
     b = torch_weights['transformer.ln_f.bias']
-    new_weights[f'{prefix}.LayerNormFinal.bias'] = b  
+    new_weights[f'{prefix}.LayerNormFinal.bias'] = b
 
     qkv = ['query', 'key', 'value']
     for i in range(num_hidden_layers):
