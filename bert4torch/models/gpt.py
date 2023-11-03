@@ -20,10 +20,12 @@ class GPT(Decoder):
         self.prefix = 'gpt'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         # CDial-GPT的[CLS]是0、[PAD]是1，不符合一般习惯，所以交换一下
-        w = state_dict['transformer.tokens_embed.weight']
+        old_key = 'transformer.tokens_embed.weight'
+        w = state_dict[old_key]
         state_dict[f'embeddings.word_embeddings.weight'] = torch.cat([w[1:2], w[:1], w[2:]], axis=0)
+        state_dict.pop(old_key)
 
         for i in range(self.num_hidden_layers):
             # qkv
@@ -34,9 +36,10 @@ class GPT(Decoder):
             for old_key, new_key in mapping.items():
                 # 如果当前ckpt不存在该key，则跳过
                 if (qkv := state_dict.get(old_key)) is not None:
-                    qkv = torch.chunk(qkv, 3, dim=1)
+                    is_weight = old_key.endswith('weight')
+                    qkv = torch.chunk(qkv, 3, dim=1 if is_weight else 0)
                     for i_k, i_v in zip(['q', 'k', 'v'], qkv):
-                        state_dict[new_key.format(i, i_k)] = i_v.T if old_key.endswith('weight') else i_v
+                        state_dict[new_key.format(i, i_k)] = i_v.T if is_weight else i_v
                     state_dict.pop(old_key)
 
             # hdsz-hdsz的全连接
@@ -52,7 +55,7 @@ class GPT(Decoder):
                 state_dict.pop(old_key)
                 
             # feed forward 第二层
-            old_key = f'transformer.h.{i}s.mlp.c_proj.weight'
+            old_key = f'transformer.h.{i}.mlp.c_proj.weight'
             if (w := state_dict.get(old_key)) is not None:
                 state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
                 state_dict.pop(old_key)
@@ -96,7 +99,7 @@ class GPT2(Decoder):
         self.prefix = 'gpt2'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         for i in range(self.num_hidden_layers):
             # qkv
             mapping = {
@@ -170,7 +173,7 @@ class GPT2_ML(Decoder):
         self.prefix = 'gpt2_ml'
     
     def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         for i in range(self.num_hidden_layers):
             # qkv
             mapping = {

@@ -10,7 +10,7 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
 config_path = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/bert4torch_pytorch_model.bin'
+checkpoint_path = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/bert4torch_vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

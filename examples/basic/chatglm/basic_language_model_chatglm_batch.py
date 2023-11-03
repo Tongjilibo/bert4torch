@@ -1,5 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：chatglm的batch生成测试, 使用前请先使用转换脚本转一下权重
+# 基本测试：chatglm的batch生成测试
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -12,15 +12,15 @@ choice = 'int4'  # default, int4, int8
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+    checkpoint_path = [dir_path + f'/pytorch_model-0000{i}-of-00008.bin' for i in range(1,9)]
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = dir_path + '/pytorch_model.bin'
 elif choice == 'int8':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = dir_path + '/pytorch_model.bin'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']

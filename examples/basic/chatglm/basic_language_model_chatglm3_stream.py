@@ -1,6 +1,5 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：chatglm3的对话测试, 使用前请先使用转换脚本转一下权重
-# 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_chatglm.py
+# 基本测试：chatglm3的对话测试
 # 官方项目：https://github.com/THUDM/ChatGLM3-6B
 # hf链接：https://huggingface.co/THUDM/chatglm3-6b
 
@@ -15,7 +14,7 @@ choice = 'default'
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm3-6b"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,8)]  # 可加载单个，也可以加载多个
+    checkpoint_path = [dir_path + f'/pytorch_model-0000{i}-of-00007.bin' for i in range(1,8)]
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()

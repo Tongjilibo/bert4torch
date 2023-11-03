@@ -1,5 +1,5 @@
 '''
-基本测试：chatglm的api接口测试, 使用前请先使用转换脚本转一下权重
+基本测试：chatglm的api接口测试
 
 curl -X POST "http://127.0.0.1:8000"  -H "Content-Type: application/json"  -d '{"prompt": "你好", "history": []}'
 '''

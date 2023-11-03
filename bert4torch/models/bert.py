@@ -276,7 +276,7 @@ class BERT(BERT_BASE):
 
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理"""
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         old_new_keys = {}
         for key in state_dict.keys():
             # bert-base-chinese中ln的weight和bias是gamma和beta
@@ -286,7 +286,8 @@ class BERT(BERT_BASE):
                 old_new_keys[key] = key.replace(".beta", ".bias")
         for old_key, new_key in old_new_keys.items():
             state_dict[new_key] = state_dict.pop(old_key)
-        
+        if ('cls.predictions.bias' in state_dict) and ('cls.predictions.decoder.bias' not in state_dict):
+            state_dict['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bias']
         return state_dict    
 
     def load_variable(self, state_dict, name):

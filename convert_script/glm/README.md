@@ -1,0 +1,5 @@
+default:  https://huggingface.co/THUDM/chatglm-6b
+int4:     https://huggingface.co/THUDM/chatglm-6b-int4
+int8:     https://huggingface.co/THUDM/chatglm-6b-int8
+chatglm2: https://huggingface.co/THUDM/chatglm2-6b
+chatglm2-int4: https://huggingface.co/THUDM/chatglm2-6b-int4

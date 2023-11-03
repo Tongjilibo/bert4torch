@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：bloom模型的测试
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_bloom.py
+bert4torch_config.json文件参考readme
 
 bloom-560m: https://huggingface.co/bigscience/bloom-560m
 bloomz-560m:  https://huggingface.co/bigscience/bloomz-560m
@@ -25,7 +25,6 @@ else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
 checkpoint_path = dir_path + '/pytorch_model.bin'  # v3.6.0后（不含）
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

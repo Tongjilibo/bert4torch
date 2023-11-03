@@ -22,7 +22,7 @@ epochs = 10000
 # 模型配置
 root_path = 'E:/pretrain_ckpt/gpt/[thu-coai_torch_base]--CDial-GPT-LCCC-base/'
 config_path = root_path + 'bert4torch_config.json'
-checkpoint_path = root_path + 'bert4torch_pytorch_model.bin'
+checkpoint_path = root_path + 'pytorch_model.bin'
 dict_path = root_path + 'bert4torch_vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

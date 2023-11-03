@@ -14,7 +14,7 @@ class Bloom(Decoder):
         self.prefix = 'bloom'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         for i in range(self.num_hidden_layers):
             mapping = {
                 f'h.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',

@@ -31,7 +31,7 @@ class GLM(Decoder):
         self.prefix = 'transformer'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
@@ -44,7 +44,7 @@ class GLM(Decoder):
                 qkv = torch.split(qkv, 128, 0)
                 q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
                 q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
-                for i_k, i_v in {'q':q, 'k':k, 'v':v}:
+                for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         
@@ -78,12 +78,6 @@ class GLM(Decoder):
                 f'decoderLayer.{i}.attnLayerNorm.bias': prefix_i + 'input_layernorm.bias',
                 f'decoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'post_attention_layernorm.weight',
                 f'decoderLayer.{i}.ffnLayerNorm.bias': prefix_i + 'post_attention_layernorm.bias',
-                f'decoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight',
-                f'decoderLayer.{i}.multiHeadAttention.q.bias': prefix_i + 'attention.self.query.bias',
-                f'decoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attention.self.key.weight',
-                f'decoderLayer.{i}.multiHeadAttention.k.bias': prefix_i + 'attention.self.key.bias',
-                f'decoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'attention.self.value.weight',
-                f'decoderLayer.{i}.multiHeadAttention.v.bias': prefix_i + 'attention.self.value.bias',
                 f'decoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attention.dense.weight',
                 f'decoderLayer.{i}.multiHeadAttention.o.bias': prefix_i + 'attention.dense.bias',
                 f'decoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'mlp.dense_h_to_4h.weight',
@@ -192,7 +186,7 @@ class GLM2(GLM):
         self.prefix = 'transformer.encoder'
    
     def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+        state_dict = torch.load(checkpoint, map_location='cpu')
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
@@ -203,7 +197,7 @@ class GLM2(GLM):
                 if (qkv := state_dict.get(old_key)) is None:
                     continue
                 q, k, v = torch.split(qkv, [4096, 256, 256], 0)
-                for i_k, i_v in {'q':q, 'k':k, 'v':v}:
+                for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         
@@ -229,6 +223,7 @@ class GLM2(GLM):
         for i in range(self.num_hidden_layers):
             prefix_i = f'{self.prefix}.layers.%d.' % i
             mapping.update({
+                f'decoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'self_attention.dense.weight',
                 f'decoderLayer.{i}.multiHeadAttention.o.weight_scale': prefix_i + "self_attention.dense.weight_scale",
                 f'decoderLayer.{i}.feedForward.intermediateDense.weight_scale': prefix_i + "mlp.dense_h_to_4h.weight_scale",
                 f'decoderLayer.{i}.feedForward.outputDense.weight_scale': prefix_i + "mlp.dense_4h_to_h.weight_scale",

@@ -1,6 +1,5 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：deberta_v2的mlm预测
-# 需要先进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_deberta_v2.py
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
@@ -13,7 +12,7 @@ root_model_path = "E:/pretrain_ckpt/deberta/[IDEA-CCNL-torch]--Erlangshen-DeBERT
 
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
-checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 
 # 建立分词器

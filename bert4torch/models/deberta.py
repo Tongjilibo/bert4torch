@@ -64,7 +64,8 @@ class DebertaV2(BERT):
         rep_str = {'query': 'query_proj', 'key': 'key_proj', 'value': 'value_proj'}
         mapping_tmp = {}
         for new_key, old_key in mapping.items():
-            if old_key in rep_str:
-                mapping_tmp[new_key] = rep_str[old_key]
+            for i, k in rep_str.items():
+                if i in old_key:
+                    mapping_tmp[new_key] = old_key.replace(i, k)
         mapping.update(mapping_tmp)
         return mapping
