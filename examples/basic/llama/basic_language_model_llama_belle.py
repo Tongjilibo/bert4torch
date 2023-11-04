@@ -4,7 +4,7 @@
 # LLaMA模型不允许发布调优后的完整模型权重，但是可以发布原始的模型的diff。因此需要先用脚本合并llama官方权重bell_llama的模型diff
 # 模型说明： https://github.com/LianjiaTech/BELLE/tree/main/models
 # belle_llama模型：https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc
-# 使用前需要先使用转换脚本转换下权重：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py
+# bert4torch_config.json见readme
 
 
 import torch
@@ -17,7 +17,7 @@ import os
 
 dir_path = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m'
 config_path = f'{dir_path}/bert4torch_config.json'
-checkpoint_path = f'{dir_path}/bert4torch_pytorch_model.bin'
+checkpoint_path = f'{dir_path}/pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 可使用bert4torch的tokenizer

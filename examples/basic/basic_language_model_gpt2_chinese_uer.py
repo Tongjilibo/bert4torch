@@ -1,10 +1,8 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：uer的gpt2 chinese的效果测试
 # 项目链接：https://huggingface.co/uer/gpt2-chinese-cluecorpussmall
-# 权重需转换后方可加载，转换脚本https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_gpt2_uer-gpt2-chinese.py
 
 ckpt_dir = 'E:/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
-# ckpt_dir = '/Users/lb/Documents/pretrain_ckpt/gpt2/[uer_gpt2_torch_base]--gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 
 # ===============transformers======================
@@ -24,7 +22,7 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import os
 
 config_path = ckpt_dir + 'bert4torch_config.json'
-checkpoint_path = ckpt_dir + 'bert4torch_pytorch_model.bin'
+checkpoint_path = ckpt_dir + 'pytorch_model.bin'
 dict_path = ckpt_dir + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 topk = 50

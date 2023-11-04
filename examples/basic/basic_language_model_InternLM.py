@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 """书生浦语InternLM的测试
 Github: https://github.com/InternLM/InternLM
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_InternLM.py
+bert4torch_config.json见readme
 """
 
 import torch
@@ -21,7 +21,7 @@ else:
 include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [f'{dir_path}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
+checkpoint_path = [f'{dir_path}/pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

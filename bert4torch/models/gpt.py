@@ -109,9 +109,10 @@ class GPT2(Decoder):
             for old_key, new_key in mapping.items():
                 # 如果当前ckpt不存在该key，则跳过
                 if (qkv := state_dict.get(old_key)) is not None:
-                    qkv = torch.chunk(qkv, 3, dim=1)
+                    is_weight = old_key.endswith('weight')
+                    qkv = torch.chunk(qkv, 3, dim=1 if is_weight else 0)
                     for i_k, i_v in zip(['q', 'k', 'v'], qkv):
-                        state_dict[new_key.format(i, i_k)] = i_v.T if old_key.endswith('weight') else i_v
+                        state_dict[new_key.format(i, i_k)] = i_v.T if is_weight else i_v
                     state_dict.pop(old_key)
 
             # hdsz-hdsz的全连接
@@ -184,9 +185,10 @@ class GPT2_ML(Decoder):
                 # 如果当前ckpt不存在该key，则跳过
                 if (qkv := state_dict.get(old_key)) is None:
                     continue
-                qkv = torch.chunk(qkv, 3, dim=1)
+                is_weight = old_key.endswith('weight')
+                qkv = torch.chunk(qkv, 3, dim=1 if is_weight else 0)
                 for i_k, i_v in zip(['q', 'k', 'v'], qkv):
-                    state_dict[new_key.format(i, i_k)] = i_v.T if old_key.endswith('weight') else i_v
+                    state_dict[new_key.format(i, i_k)] = i_v.T if is_weight else i_v
                 state_dict.pop(old_key)
             
             # hdsz-hdsz的全连接

@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 """通义千问Qwen的测试
 阿里云的通义千问: https://github.com/QwenLM/Qwen-7B
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_Qwen.py
+bert4torch_config.json见readme
 """
 
 import torch
@@ -24,9 +24,7 @@ else:
 include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
-# checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'  # 单文件
-# checkpoint_path = [f'{dir_path}/bert4torch_pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
-checkpoint_path = [f'{dir_path}/pytorch_model-0000{i}-of-00008.bin' for i in range(1, 9)]  # 多文件
+checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.bin')]
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

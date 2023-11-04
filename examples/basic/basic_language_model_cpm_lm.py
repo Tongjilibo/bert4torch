@@ -2,7 +2,7 @@
 # 基本测试：清华开源的中文GPT2模型（26亿参数）
 # 项目链接：https://github.com/TsinghuaAI/CPM-Generate
 # 博客介绍：https://kexue.fm/archives/7912
-# 权重需转换后方可加载，转换脚本见convert_script文件夹
+# bert4torch_config.json见readme
 
 import numpy as np
 from bert4torch.models import build_transformer_model
@@ -14,7 +14,7 @@ jieba.initialize()
 
 # 模型路径
 config_path = 'E:/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b/bert4torch_pytorch_model.bin'
+checkpoint_path = 'E:/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b/pytorch_model.bin'
 spm_path = 'E:/pretrain_ckpt/gpt2/[cpm_gpt2_torch]--cpm_lm_2.6b/chinese_vocab.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

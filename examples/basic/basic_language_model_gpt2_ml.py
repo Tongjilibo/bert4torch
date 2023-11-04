@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：gpt2_ml的效果测试
 # 项目链接(tf版本)：https://github.com/imcaspar/gpt2-ml
-# 权重需转换后方可加载，转换脚本见convert_script文件夹
+# bert4torch_config.json见文件夹
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -9,7 +9,7 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
 config_path = 'E:/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/bert4torch_pytorch_model.bin'
+checkpoint_path = 'E:/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/gpt2/[gpt2-ml_torch_15g]/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

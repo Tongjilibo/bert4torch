@@ -22,11 +22,11 @@ if choice == 'falcon-rw-1b':
     include_input = True
 elif choice == 'falcon-7b':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b/'
-    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.startswith('bert4torch') and i.endswith('.bin')]
+    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.endswith('.bin')]
     include_input = True
 elif choice == 'falcon-7b-instruct':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b-instruct/'
-    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.startswith('bert4torch') and i.endswith('.bin')]
+    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.endswith('.bin')]
     include_input = False
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
