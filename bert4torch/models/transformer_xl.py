@@ -169,5 +169,41 @@ class Transformer_XL(BERT):
             raise ValueError('Custom keep_tokens and compound_tokens is not yet supported in Transformer_XL')
         return state_dict[name]
 
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = torch.load(checkpoint, map_location='cpu')
+        for i in range(18):
+            old_key = f'transformer.layers.{i}.dec_attn.qkv_net.weight'
+            qkv_net = state_dict[old_key]
+            for k, v in zip(['q', 'k', 'v'], qkv_net.chunk(3, dim=0)):
+                state_dict[f'encoderLayer.{i}.multiHeadAttention.{k}.weight'] = v
+            state_dict.pop(old_key)
+        return state_dict
+    
     def variable_mapping(self):
-        return {k:k for k, v in self.named_parameters()}
+        mapping = {
+            'embeddings.emb_layers.0.weight': 'transformer.word_emb.emb_layers.0.weight',
+            'embeddings.emb_layers.1.weight': 'transformer.word_emb.emb_layers.1.weight',
+            'embeddings.emb_layers.2.weight': 'transformer.word_emb.emb_layers.2.weight',
+            'embeddings.emb_layers.3.weight': 'transformer.word_emb.emb_layers.3.weight',
+            'embeddings.emb_projs.0': 'transformer.word_emb.emb_projs.0',
+            'embeddings.emb_projs.1': 'transformer.word_emb.emb_projs.1',
+            'embeddings.emb_projs.2': 'transformer.word_emb.emb_projs.2',
+            'embeddings.emb_projs.3': 'transformer.word_emb.emb_projs.3',
+            }
+
+        for i in range(self.num_hidden_layers):
+            mapping.update({
+                f'encoderLayer.{i}.multiHeadAttention.r_r_bias': f'transformer.layers.{i}.dec_attn.r_r_bias',
+                f'encoderLayer.{i}.multiHeadAttention.r_w_bias': f'transformer.layers.{i}.dec_attn.r_w_bias',
+                f'encoderLayer.{i}.multiHeadAttention.o.weight': f'transformer.layers.{i}.dec_attn.o_net.weight',
+                f'encoderLayer.{i}.attnLayerNorm.weight': f'transformer.layers.{i}.dec_attn.layer_norm.weight',
+                f'encoderLayer.{i}.attnLayerNorm.bias': f'transformer.layers.{i}.dec_attn.layer_norm.bias',
+                f'encoderLayer.{i}.multiHeadAttention.r.weight': f'transformer.layers.{i}.dec_attn.r_net.weight',
+                f'encoderLayer.{i}.feedForward.intermediateDense.weight': f'transformer.layers.{i}.pos_ff.CoreNet.0.weight',
+                f'encoderLayer.{i}.feedForward.intermediateDense.bias': f'transformer.layers.{i}.pos_ff.CoreNet.0.bias',
+                f'encoderLayer.{i}.feedForward.outputDense.weight': f'transformer.layers.{i}.pos_ff.CoreNet.3.weight',
+                f'encoderLayer.{i}.feedForward.outputDense.bias': f'transformer.layers.{i}.pos_ff.CoreNet.3.bias',
+                f'encoderLayer.{i}.ffnLayerNorm.weight': f'transformer.layers.{i}.pos_ff.layer_norm.weight',
+                f'encoderLayer.{i}.ffnLayerNorm.bias': f'transformer.layers.{i}.pos_ff.layer_norm.bias',
+            })
+        return mapping

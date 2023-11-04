@@ -21,6 +21,7 @@ from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
 from peft import LoraConfig
+import os
 
 
 # 基本参数
@@ -40,7 +41,7 @@ history_column = None
 # 模型配置
 dir_path = "/tf/libo/pretrain_ckpt/glm/chatglm-6B"
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin', # [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)

@@ -2,7 +2,6 @@
 # 基本测试：中文GPT模型，base版本，CDial-GPT版
 # 项目链接：https://github.com/thu-coai/CDial-GPT
 # 参考项目：https://github.com/bojone/CDial-GPT-tf
-# 权重需转换后方可加载，转换脚本见convert_script文件夹
 
 import torch
 from bert4torch.models import build_transformer_model

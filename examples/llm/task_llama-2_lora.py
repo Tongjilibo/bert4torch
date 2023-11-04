@@ -25,6 +25,7 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 from peft import LoraConfig, prepare_model_for_kbit_training  # 需要pip install git+https://github.com/huggingface/peft.git
+import os
 
 
 # 基本参数
@@ -42,7 +43,7 @@ prefix = ''
 # 模型配置
 dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)

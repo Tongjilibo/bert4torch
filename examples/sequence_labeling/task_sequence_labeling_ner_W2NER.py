@@ -47,7 +47,7 @@ out_dropout = 0.33
 
 # BERT base
 config_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/bert4torch_pytorch_model.bin'
+checkpoint_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

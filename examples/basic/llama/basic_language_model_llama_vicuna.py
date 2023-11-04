@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 基本测试：vicuna的7b模型的测试
-# 使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py
+# bert4torch_config.json文件见readme
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -9,9 +9,10 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 
-config_path = 'E:/pretrain_ckpt/vicuna/7B/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/vicuna/7B/bert4torch_pytorch_model.bin'
-spm_path = 'E:/pretrain_ckpt/vicuna/7B/tokenizer.model'
+
+config_path = 'E:/pretrain_ckpt/llama/vicuna-7b/bert4torch_config.json'
+checkpoint_path = 'E:/pretrain_ckpt/llama/vicuna-7b/pytorch_model.bin'
+spm_path = 'E:/pretrain_ckpt/llama/vicuna-7b/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)

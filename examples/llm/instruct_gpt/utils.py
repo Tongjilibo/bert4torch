@@ -3,18 +3,20 @@ from typing import List, Optional, Dict, Sequence
 from bert4torch.snippets import log_warn
 import torch
 from torch import nn
+import os
+
 
 def get_model_config(model):
     if model == 'bloom':
         model_type = 'bloom'
         dir_path = 'E:/pretrain_ckpt/bloom/bloomz-560m'
         config_path = dir_path + '/bert4torch_config.json'
-        checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+        checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
     elif model == 'llama2':
         model_type = 'llama'
         dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
         config_path = dir_path + '/bert4torch_config.json'
-        checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+        checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
     else:
         raise ValueError(f'illegal model_choice={model}')
     return model_type, dir_path, config_path, checkpoint_path

@@ -18,7 +18,7 @@ from torchinfo import summary
 maxlen = 256
 batch_size = 16
 config_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/bert4torch_pytorch_model.bin'
+checkpoint_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'finetune_all'  # finetune_all finetune_few

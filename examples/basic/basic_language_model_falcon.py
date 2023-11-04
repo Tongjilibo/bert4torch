@@ -18,7 +18,7 @@ import os
 choice = 'falcon-7b-instruct'
 if choice == 'falcon-rw-1b':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = dir_path + '/pytorch_model.bin'
     include_input = True
 elif choice == 'falcon-7b':
     dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b/'
@@ -55,6 +55,8 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use falcon model，type `clear` to clear history，type `stop` to stop program")
             continue
+        # 官方测试用例
+        # query = "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:"
         response = generation.generate(query, topk=10, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nfalcon：{response}")

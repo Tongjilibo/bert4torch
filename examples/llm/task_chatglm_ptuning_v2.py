@@ -1,5 +1,4 @@
 #! -*- coding: utf-8 -*-
-# 权重转换脚本：https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_chatglm.py
 # chatglm的指令微调, 基于ptuning_v2，性能和官方项目给出的指标相当
 # |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
 # | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
@@ -31,6 +30,8 @@ from rouge_chinese import Rouge
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import numpy as np
 from tqdm import tqdm
+import os
+
 
 # 基本参数
 mode = 'train'
@@ -55,15 +56,15 @@ choice = 'int4'  # default, int4, int8
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'int8':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

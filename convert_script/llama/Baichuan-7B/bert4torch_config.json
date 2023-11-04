@@ -1,0 +1,19 @@
+{
+    "bos_token_id": 1,
+    "eos_token_id": 2,
+    "hidden_act": "silu",
+    "hidden_size": 4096,
+    "initializer_range": 0.02,
+    "intermediate_size": 11008,
+    "max_position_embeddings": 4096,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 32,
+    "pad_token_id": 0,
+    "layer_norm_eps": 1e-06,
+    "tie_word_embeddings": false,
+    "torch_dtype": "float32",
+    "vocab_size": 64000,
+    "segment_vocab_size": 0,
+    "rope_rank": "updown",
+    "skip_init": true
+    }

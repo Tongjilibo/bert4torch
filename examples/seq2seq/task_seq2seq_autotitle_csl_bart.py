@@ -24,7 +24,7 @@ steps_per_epoch = None
 
 # bert配置
 config_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/bert4torch_pytorch_model.bin'
+checkpoint_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

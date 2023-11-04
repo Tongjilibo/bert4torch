@@ -2,7 +2,7 @@
 # 基础测试：GAU_alpha的mlm预测，和bert4keras版本比对一致
 # 测试中长文本效果明显高于短文本效果
 # 博客：https://kexue.fm/archives/9052
-# 权重转换脚本：./convert_script/convert_GAU_alpha.py
+# 权重转换脚本：./convert_script/gau/convert_GAU_alpha.py
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer

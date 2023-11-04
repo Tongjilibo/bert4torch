@@ -1,7 +1,6 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：baichuan模型的测试 https://github.com/baichuan-inc/Baichuan-7B
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py
 """
 
 import torch
@@ -12,7 +11,7 @@ from typing import List
 import platform
 import os
 
-choice = 'Baichuan2-7B-Chat'
+choice = 'Baichuan-13B-Chat'
 
 if choice == 'Baichuan-7B':
     dir_path = 'E:\\pretrain_ckpt\\llama\\Baichuan-7B'
@@ -40,7 +39,7 @@ else:
 include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

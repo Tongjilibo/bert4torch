@@ -1,5 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：mlm预测，特别的是guwenbert的padding是1，并且position_ids从2开始，使用时候需要设置custom_position_ids='start_at_padding'
+# 需要先调用进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/bert/convert_guwenbert-base.py
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer

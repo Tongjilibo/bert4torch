@@ -8,24 +8,25 @@ from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
 import re
 import json
+import os
 
 choice = 'default'  # default, int4, int8, v1.1.0
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]  # 可加载单个，也可以加载多个
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'v1.1.0':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/bert4torch_pytorch_model_{i}.bin' for i in range(1,9)]
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'int8':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
     config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+    checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载tokenizer

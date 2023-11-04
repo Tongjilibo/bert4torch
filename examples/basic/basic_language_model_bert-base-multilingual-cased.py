@@ -11,7 +11,7 @@ from torch.nn.functional import softmax
 root_model_path = "E:\\pretrain_ckpt\\bert\\bert-base-multilingual-cased"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
-checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 # ==========================transformer调用==========================
 tokenizer = BertTokenizer.from_pretrained(root_model_path)

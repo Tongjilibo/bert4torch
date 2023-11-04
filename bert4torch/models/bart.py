@@ -1,4 +1,5 @@
 from bert4torch.models.transformer import Transformer
+import torch
 
 
 class BART(Transformer):

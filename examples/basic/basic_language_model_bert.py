@@ -14,7 +14,7 @@ import torch
 root_model_path = "E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
-checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)

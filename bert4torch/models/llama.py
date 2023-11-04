@@ -31,12 +31,12 @@ class LLaMA(Decoder):
         state_dict = torch.load(checkpoint, map_location='cpu')
         # baichuan的qkv权重是合在一起的W_pack, 单独处理
         for i in range(self.num_hidden_layers):
-            mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight'}
+            mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'model.layers.{}.self_attn.{}.weight'}
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
                     continue
                 qkv = torch.split(qkv, [self.hidden_size, self.hidden_size, self.hidden_size], 0)
-                for i_k, i_v in zip(['q','k', 'v'], qkv):
+                for i_k, i_v in zip(['q_proj','k_proj', 'v_proj'], qkv):
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         return state_dict
