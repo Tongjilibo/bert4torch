@@ -88,7 +88,8 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **20231105**：🔥大部分模型文件无需convert
 - **20231022**：增加falcon，layernorm支持torch自带
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
-- [更多历史](https://github.com/Tongjilibo/bert4torch/blob/master/docs/History.md)
+
+[更多历史](https://github.com/Tongjilibo/bert4torch/blob/master/docs/History.md)
 
 ## 6. 预训练权重
 | 模型分类| 权重来源| 权重链接 | 备注(若有)|
