@@ -1,6 +1,6 @@
 {
 	"hidden_size": 4096,
-    "intermediate_size": 11008, 
+	"intermediate_size": 11008, 
 	"num_attention_heads": 32,
 	"num_hidden_layers": 32,
 	"layer_norm_eps": 1e-06,
@@ -8,5 +8,5 @@
 	"vocab_size": 32000,
 	"segment_vocab_size": 0,
 	"skip_init": true,
-    "rope_rank": "updown"
+	"rope_rank": "updown"
 }

@@ -8,5 +8,5 @@
 	"vocab_size": 49954,
 	"segment_vocab_size": 0,
 	"skip_init": true,
-    "rope_rank": "updown"
+	"rope_rank": "updown"
 }

@@ -1,3 +1,3 @@
-- falcon-rw-1b:   https://huggingface.co/tiiuae/falcon-rw-1b
-- falcon-7b:   https://huggingface.co/tiiuae/falcon-7b  测试中
-- falcon-7b-instruct:   https://huggingface.co/tiiuae/falcon-7b-instruct  测试中
+- [falcon-rw-1b](https://huggingface.co/tiiuae/falcon-rw-1b)
+- [falcon-7b](https://huggingface.co/tiiuae/falcon-7b)
+- [falcon-7b-instruct](https://huggingface.co/tiiuae/falcon-7b-instruct)
