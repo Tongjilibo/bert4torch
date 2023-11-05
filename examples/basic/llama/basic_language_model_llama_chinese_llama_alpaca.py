@@ -1,7 +1,6 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：chinese_llama_apaca模型的测试 https://github.com/ymcui/Chinese-LLaMA-Alpaca
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_pth.py
 """
 
 import torch
@@ -12,15 +11,15 @@ import platform
 import os
 
 
-# dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
-# with_prompt = False
+dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+with_prompt = False
 
-dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
-with_prompt = True
+# dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+# with_prompt = True
 
 include_input = not with_prompt
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

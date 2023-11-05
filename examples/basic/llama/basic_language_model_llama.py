@@ -1,7 +1,9 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：原生llama模型的测试 https://github.com/facebookresearch/llama
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_pth.py
+    权重下载：[Github](https://github.com/facebookresearch/llama)
+    [huggingface](https://huggingface.co/huggyllama)
+    [torrent](https://pan.baidu.com/s/1yBaYZK5LHIbJyCCbtFLW3A?pwd=phhd)
 """
 
 import torch
@@ -12,9 +14,9 @@ import platform
 import os
 
 # 原生llama
-dir_path = 'E:/pretrain_ckpt/llama/7B'
+dir_path = 'E:/pretrain_ckpt/llama/7B-hf'
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/bert4torch_pytorch_model.bin'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
