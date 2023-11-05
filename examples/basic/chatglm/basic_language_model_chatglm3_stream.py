@@ -13,9 +13,11 @@ import os
 choice = 'default'
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm3-6b"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/pytorch_model-0000{i}-of-00007.bin' for i in range(1,8)]
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
 
+config_path = dir_path + '/bert4torch_config.json'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()
 clear_command = 'cls' if os_name == 'Windows' else 'clear'

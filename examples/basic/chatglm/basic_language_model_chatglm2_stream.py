@@ -11,20 +11,18 @@ import platform
 import os
 import re
 
-choice = 'default'  # chatglm2, int4, int8
+choice = 'int4'  # chatglm2, int4, int8
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/pytorch_model-0000{i}-of-00007.bin' for i in range(1,8)]
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int4"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/pytorch_model.bin'
 elif choice == 'int8':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int8"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/pytorch_model.bin'
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
 
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
+config_path = dir_path + '/bert4torch_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()
 clear_command = 'cls' if os_name == 'Windows' else 'clear'

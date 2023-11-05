@@ -20,21 +20,17 @@ import re
 choice = 'v1.1.0'  # v1.1.0, default, int4, int8
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/pytorch_model-0000{i}-of-00008.bin' for i in range(1,9)]
 elif choice == 'v1.1.0':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = [dir_path + f'/pytorch_model-0000{i}-of-00008.bin' for i in range(1,9)]
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/pytorch_model.bin'
 elif choice == 'int8':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
-    config_path = dir_path + '/bert4torch_config.json'
-    checkpoint_path = dir_path + '/pytorch_model.bin'
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
 
+config_path = dir_path + '/bert4torch_config.json'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()
 clear_command = 'cls' if os_name == 'Windows' else 'clear'
