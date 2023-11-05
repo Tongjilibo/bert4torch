@@ -8,7 +8,7 @@
     "initializer_range": 0.02,
     "kv_channels": 128,
     "layer_norm_eps": 1e-05,
-    "model_type": "qwen",
+    "model": "qwen",
     "hidden_size": 4096,
     "num_attention_heads": 32,
     "num_hidden_layers": 32,

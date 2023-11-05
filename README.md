@@ -85,13 +85,15 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
-- **20231105**：🔥大部分模型文件无需convert
+- **20231105**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
 - **20231022**：增加falcon，layernorm支持torch自带
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
 
 [更多历史](https://github.com/Tongjilibo/bert4torch/blob/master/docs/History.md)
 
 ## 6. 预训练权重
+- 若无说明则使用权重自带的`pytorch_model.bin`和`config.json`
+
 | 模型分类| 权重来源| 权重链接 | 备注(若有)|
 | ----- | ----- | ----- | ----- |
 | bert| 谷歌原版bert(即bert-base-chinese) | [tf](https://github.com/google-research/bert)，[torch](https://huggingface.co/bert-base-chinese) | [tf转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)，[config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/bert/[google_torch_base]--bert-base-chinese/bert4torch_config.json) |
@@ -132,7 +134,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | llama | facebook| [github](https://github.com/facebookresearch/llama) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
 | llama-2 | facebook| [github](https://github.com/facebookresearch/llama), [7b](https://huggingface.co/meta-llama/Llama-2-7b-hf), [7b-chat](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf), [13b](https://huggingface.co/meta-llama/Llama-2-13b-hf), [13b-chat](https://huggingface.co/meta-llama/Llama-2-13b-chat-hf) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
 |chinese_llama_alpaca|Yiming Cui|[github](https://github.com/ymcui/Chinese-LLaMA-Alpaca) |[config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
-| vicuna | FastChat| [torch](https://huggingface.co/AlekseyKorshuk/vicuna-7b) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
+| vicuna | FastChat| [7b](https://huggingface.co/AlekseyKorshuk/vicuna-7b) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
 | Belle_llama| LianjiaTech| [github](https://github.com/LianjiaTech/BELLE), [7B-2M-enc](https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc) | [合成说明](https://github.com/LianjiaTech/BELLE/tree/main/models)、[config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
 | Ziya | IDEA-CCNL | [v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1), [v1.1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1), [pretrain-v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrain-v1) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama) |
 | Baichuan | baichuan-inc | [github](https://github.com/baichuan-inc/Baichuan), [7B](https://huggingface.co/baichuan-inc/Baichuan-7B), [13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base), [13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama) |

@@ -28,7 +28,7 @@ else:
     tokenizer = SpTokenizer(dir_path+'/tokenizer.model', token_start='<s>', token_end=None, keep_accents=True, remove_space=False)
 print('Loading tokenizer done...')
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
 model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
 # 第一种方式

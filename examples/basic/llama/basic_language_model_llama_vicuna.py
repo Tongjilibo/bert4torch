@@ -17,8 +17,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path,
-                                model='llama').half().quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
+model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
 
 
 # 第一种方式

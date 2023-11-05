@@ -35,13 +35,13 @@ class GLM(Decoder):
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
-                f'transformer.layers.{i}.attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
-                f'transformer.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+                f'{self.prefix}.layers.{i}.attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'{self.prefix}.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
             }
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
                     continue
-                qkv = torch.split(qkv, 128, 0)
+                qkv = torch.split(qkv, self.attention_head_size, 0)
                 q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
                 q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
@@ -50,10 +50,10 @@ class GLM(Decoder):
         
         # int8和int4的weight_scale权重
         for i in range(self.num_hidden_layers):
-            old_key = f'transformer.layers.{i}.attention.query_key_value.weight_scale'
+            old_key = f'{self.prefix}.layers.{i}.attention.query_key_value.weight_scale'
             if (qkv := state_dict.get(old_key)) is None:
                 continue
-            qkv = torch.split(qkv, 128, 0)
+            qkv = torch.split(qkv, self.attention_head_size, 0)
             q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
             q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
             state_dict[f'decoderLayer.{i}.multiHeadAttention.q.weight_scale'] = q
@@ -190,23 +190,25 @@ class GLM2(GLM):
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
-                f'transformer.encoder.layers.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
-                f'transformer.encoder.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+                f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'{self.prefix}.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
             }
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
                     continue
-                q, k, v = torch.split(qkv, [4096, 256, 256], 0)
+                inner_dim = (qkv.shape[0]-self.hidden_size) // 2
+                q, k, v = torch.split(qkv, [self.hidden_size, inner_dim, inner_dim], 0)
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         
         # int8和int4的weight_scale权重
         for i in range(self.num_hidden_layers):
-            old_key = f'transformer.encoder.layers.{i}.self_attention.query_key_value.weight_scale'
+            old_key = f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight_scale'
             if (qkv := state_dict.get(old_key)) is None:
                 continue
-            q, k, v = torch.split(qkv, [4096, 256, 256], 0)
+            inner_dim = (qkv.shape[0]-self.hidden_size) // 2
+            q, k, v = torch.split(qkv, [self.hidden_size, inner_dim, inner_dim], 0)
             state_dict[f'decoderLayer.{i}.multiHeadAttention.q.weight_scale'] = q
             state_dict[f'decoderLayer.{i}.multiHeadAttention.k.weight_scale'] = k
             state_dict[f'decoderLayer.{i}.multiHeadAttention.v.weight_scale'] = v

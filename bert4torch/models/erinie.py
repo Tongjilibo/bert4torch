@@ -1,4 +1,5 @@
 from bert4torch.models.bert import BERT
+import torch
 
 
 class ERNIE(BERT):
@@ -7,6 +8,9 @@ class ERNIE(BERT):
         super(ERNIE, self).__init__(*args, **kwargs)
         self.prefix = 'ernie'
 
+    def load_trans_ckpt(self, checkpoint):
+        return torch.load(checkpoint, map_location='cpu')
+    
     def variable_mapping(self):
         mapping = super(ERNIE, self).variable_mapping()
         mapping.update({'mlmDecoder.weight': f'{self.prefix}.embeddings.word_embeddings.weight',

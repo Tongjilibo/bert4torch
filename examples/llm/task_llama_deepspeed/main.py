@@ -90,7 +90,7 @@ def collate_dev_fn(batch):
 
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama', add_trainer=True).half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True).half()
 
 # 量化
 load_in_nbit = None

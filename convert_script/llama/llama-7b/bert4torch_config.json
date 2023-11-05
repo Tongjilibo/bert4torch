@@ -1,4 +1,5 @@
 {
+	"model": "llama",
 	"hidden_size": 4096,
 	"intermediate_size": 11008, 
 	"num_attention_heads": 32,

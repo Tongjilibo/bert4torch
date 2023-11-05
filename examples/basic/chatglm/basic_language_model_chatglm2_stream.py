@@ -11,7 +11,7 @@ import platform
 import os
 import re
 
-choice = 'int4'  # chatglm2, int4, int8
+choice = 'default'  # chatglm2, int4, int8
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 elif choice == 'int4':
@@ -31,11 +31,11 @@ stop_stream = False
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
 if choice == 'default':
-    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2').half().to(device)
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half().to(device)
     # encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)
 else:
     # 在config中已经写入了量化的配置参数
-    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2').to(device)
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
 
 generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
                            maxlen=2048, default_rtype='logits', use_states=True)

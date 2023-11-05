@@ -27,7 +27,7 @@
     "init_std": 0.02,
     "layer_norm_epsilon": 1e-05,
     "mem_len": 1600,
-    "model_type": "transfo-xl",
+    "model": "transfo-xl",
     "num_attention_heads": 16,
     "num_hidden_layers": 18,
     "pre_layernorm": false,

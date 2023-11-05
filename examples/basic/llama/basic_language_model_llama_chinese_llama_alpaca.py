@@ -11,11 +11,11 @@ import platform
 import os
 
 
-dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
-with_prompt = False
+# dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+# with_prompt = False
 
-# dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
-# with_prompt = True
+dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+with_prompt = True
 
 include_input = not with_prompt
 config_path = dir_path + '/bert4torch_config.json'
@@ -24,7 +24,7 @@ spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama').half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 

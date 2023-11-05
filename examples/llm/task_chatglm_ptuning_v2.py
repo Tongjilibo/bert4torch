@@ -166,12 +166,12 @@ class Model(BaseModel):
         super().__init__(*args, **kwargs)
         # 建立模型，加载权重
         if choice == 'default':
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').half()
+            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
             self.encoder = self.encoder.quantize(quantization_method='cpm_kernels', quantization_bit=4, 
                                                  target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)
         else:
             # 在config中已经写入了量化的配置参数
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm').to(device)
+            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
         self.config = self.encoder.configs
         self.config.pre_seq_len = 128
         self.config.prefix_projection = False

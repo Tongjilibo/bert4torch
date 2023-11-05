@@ -1,4 +1,5 @@
 {
+    "model": "glm",
     "hidden_act": "gelu_new", 
     "bos_token_id": 130004,
     "eos_token_id": 130005,

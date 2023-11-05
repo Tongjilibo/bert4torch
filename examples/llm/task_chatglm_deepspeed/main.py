@@ -113,7 +113,7 @@ peft_config = LoraConfig(
         target_modules=['q', 'k', 'v']
     )
 
-net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm',
+net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path,
                                 pad_token_id=tokenizer.pad_token_id, add_trainer=True).half()
 
 net = net.get_peft_model(peft_config)

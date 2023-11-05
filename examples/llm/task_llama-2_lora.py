@@ -97,7 +97,7 @@ train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/Llama2-Chinese/tr
 dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='llama', add_trainer=True).half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True).half()
 
 # 量化
 load_in_nbit = None

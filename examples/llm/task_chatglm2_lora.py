@@ -110,7 +110,7 @@ train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/trai
 dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='glm2', add_trainer=True, 
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True, 
                                 tie_emb_prj_weight=True, # 绑定embedding和dense/lm_head的权重，transformers中有绑定
                                 ).half()
 
