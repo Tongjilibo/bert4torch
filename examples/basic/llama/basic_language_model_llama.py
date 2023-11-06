@@ -14,7 +14,8 @@ import platform
 import os
 
 # 原生llama
-dir_path = 'E:/pretrain_ckpt/llama/7B-hf'
+dir_path = 'E:/pretrain_ckpt/llama/llama-7b'
+# dir_path = 'E:/pretrain_ckpt/llama/llama-13b'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 spm_path = dir_path + '/tokenizer.model'

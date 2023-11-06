@@ -9,7 +9,7 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-config_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/bert_config.json'
+config_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

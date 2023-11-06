@@ -3,9 +3,13 @@
 """
 import os
 import json
+import shutil
 
+def replace_file(local_path, convert_path, replace=False):
+    if replace:
+        shutil.copy(convert_path, local_path)
 
-def main(local_dir, convert_dir):
+def main(local_dir, convert_dir, replace=False):
     file_list = os.walk(local_dir)
     for dir, sub_dir, files in file_list:
         for file in files:
@@ -26,6 +30,7 @@ def main(local_dir, convert_dir):
             for local_k, local_v in local_config.items():
                 if (local_k not in convert_config) or (local_v != convert_config[local_k]):
                     print(local_path, convert_path, local_k, local_v)
+                    replace_file(local_path, convert_path, replace=replace)
                     break_tag = True
                     break
                 else:
@@ -35,8 +40,10 @@ def main(local_dir, convert_dir):
             else:
                 if len(convert_config) != 0:
                     print(local_path, convert_path, convert_config)
+                    replace_file(local_path, convert_path, replace=replace)
+    print('done...')
 
 if __name__ == '__main__':
     local_dir = 'E:\pretrain_ckpt'
-    convert_dir = 'D:\Project\\bert4torch\convert_script'
-    main(local_dir, convert_dir)
+    convert_dir = 'E:\Github\\bert4torch\convert_script'
+    main(local_dir, convert_dir, replace=False)

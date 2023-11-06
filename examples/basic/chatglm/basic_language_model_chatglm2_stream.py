@@ -26,7 +26,6 @@ config_path = dir_path + '/bert4torch_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()
 clear_command = 'cls' if os_name == 'Windows' else 'clear'
-stop_stream = False
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
@@ -46,10 +45,6 @@ def build_prompt(history):
         prompt += f"\n\n用户：{query}"
         prompt += f"\n\nChatGLM-6B：{response}"
     return prompt
-
-def signal_handler(signal, frame):
-    global stop_stream
-    stop_stream = True
 
 def process_response(response):
     response = response.strip()

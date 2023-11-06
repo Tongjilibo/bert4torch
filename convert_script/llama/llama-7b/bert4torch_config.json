@@ -1,5 +1,7 @@
 {
 	"model": "llama",
+	"bos_token_id": 1,
+	"eos_token_id": 2,
 	"hidden_size": 4096,
 	"intermediate_size": 11008, 
 	"num_attention_heads": 32,

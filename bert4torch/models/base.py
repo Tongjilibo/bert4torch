@@ -11,6 +11,7 @@ import warnings
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
+import copy
 
 
 class BERT_BASE(nn.Module):
@@ -352,16 +353,20 @@ class BERT_BASE(nn.Module):
             print("Already quantized.")
             return self
         
+        new_kwargs = copy.deepcopy(kwargs)
+        if 'model' in new_kwargs:
+            new_kwargs.pop('model')
+
         # chatglm的量化方式
         if quantization_method == 'cpm_kernels':
             from bert4torch.quantization import quantize_cpm_kernels
-            self = quantize_cpm_kernels(self, **kwargs)
+            self = quantize_cpm_kernels(self, **new_kwargs)
         # load_in_8bit, load_in_4bit
         elif quantization_method in {'load_in_8bit', 'load_in_4bit'}:
             from bert4torch.quantization import quantize_load_in_kbit
             load_in_8bit = True if quantization_method == 'load_in_8bit' else False
             load_in_4bit = True if quantization_method == 'load_in_4bit' else False
-            self = quantize_load_in_kbit(self, load_in_8bit=load_in_8bit, load_in_4bit=load_in_4bit, **kwargs)
+            self = quantize_load_in_kbit(self, load_in_8bit=load_in_8bit, load_in_4bit=load_in_4bit, **new_kwargs)
         else:
             raise ValueError('Please check args `quantization_method`')
 

@@ -11,7 +11,7 @@ jieba.initialize()
 # bert配置
 # pretrain_model = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_small]--chinese_t5_pegasus_small/'
 pretrain_model = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_base]--chinese_t5_pegasus_base/'
-config_path = pretrain_model + 'config.json'
+config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 dict_path = pretrain_model + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

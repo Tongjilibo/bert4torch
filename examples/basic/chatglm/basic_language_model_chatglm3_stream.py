@@ -21,7 +21,6 @@ checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()
 clear_command = 'cls' if os_name == 'Windows' else 'clear'
-stop_stream = False
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重

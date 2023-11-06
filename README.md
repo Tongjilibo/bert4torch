@@ -78,6 +78,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch版本 | torch4keras版本 | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20231106| 0.3.7          | 0.1.5     |大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中|
 |20231022| 0.3.6          | 0.1.5     |增加falcon，layernorm支持torch自带|
 |20230912| 0.3.5.post2    | 0.1.4.post2     |修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers|
 |20230902| 0.3.4          | 0.1.3     |修复gradient_checkpoint在低版本torch时仅支持位置参数的问题, 增加trainer.py, 增加PPOTrainerTrl以及相应的三阶段rlhf训练+dpo训练|
@@ -85,7 +86,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
-- **20231105**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
+- **20231106**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
 - **20231022**：增加falcon，layernorm支持torch自带
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
 

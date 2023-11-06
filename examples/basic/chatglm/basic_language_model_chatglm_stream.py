@@ -12,12 +12,10 @@ from transformers import AutoTokenizer
 from bert4torch.generation import SeqGeneration
 import platform
 import os
-import signal
 import re
 
 
-
-choice = 'v1.1.0'  # v1.1.0, default, int4, int8
+choice = 'default'  # v1.1.0, default, int4, int8
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
 elif choice == 'v1.1.0':
@@ -34,7 +32,6 @@ checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 os_name = platform.system()
 clear_command = 'cls' if os_name == 'Windows' else 'clear'
-stop_stream = False
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
@@ -54,10 +51,6 @@ def build_prompt(history):
         prompt += f"\n\n用户：{query}"
         prompt += f"\n\nChatGLM-6B：{response}"
     return prompt
-
-def signal_handler(signal, frame):
-    global stop_stream
-    stop_stream = True
 
 def process_response(response):
     response = response.strip()
@@ -91,7 +84,6 @@ def chat(query, history=[]):
 
 def main():
     history = []
-    global stop_stream
     print("欢迎使用 ChatGLM-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序")
     while True:
         query = input("\n用户：")
@@ -102,17 +94,9 @@ def main():
             os.system(clear_command)
             print("欢迎使用 ChatGLM-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序")
             continue
-        count = 0
         for response, history in chat(query, history=history):
-            if stop_stream:
-                stop_stream = False
-                break
-            else:
-                count += 1
-                if count % 8 == 0:
-                    os.system(clear_command)
-                    print(build_prompt(history), flush=True)
-                    signal.signal(signal.SIGINT, signal_handler)
+            os.system(clear_command)
+            print(build_prompt(history), flush=True)
         os.system(clear_command)
         print(build_prompt(history), flush=True)
         torch.cuda.empty_cache()  # 清理显存
