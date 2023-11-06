@@ -1,7 +1,6 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：falcon模型的测试
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_falcon.py
 
 falcon-rw-1b:   https://huggingface.co/tiiuae/falcon-rw-1b
 falcon-7b:   https://huggingface.co/tiiuae/falcon-7b

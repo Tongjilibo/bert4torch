@@ -1,7 +1,6 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：原生llama模型的测试 https://github.com/facebookresearch/llama
-使用前需要进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/convert_llama_hf.py
 """
 
 import torch
