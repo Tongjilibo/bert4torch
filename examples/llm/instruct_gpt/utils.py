@@ -14,7 +14,7 @@ def get_model_config(model):
         checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
     elif model == 'llama2':
         model_type = 'llama'
-        dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
+        dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b-chat'
         config_path = dir_path + '/bert4torch_config.json'
         checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
     else:

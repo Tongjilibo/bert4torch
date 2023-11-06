@@ -1,4 +1,6 @@
 {
+    "model": "gpt2_ml", 
+    "segment_vocab_size": 0,
     "vocab_size": 21130,
     "hidden_size": 1536,
     "attention_probs_dropout_prob": 0.1,

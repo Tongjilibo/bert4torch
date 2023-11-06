@@ -19,7 +19,7 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/bert_config.json'
+config_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
 
@@ -69,7 +69,7 @@ test_dataloader = DataLoader(MyDataset(['E:/data/corpus/sentence_classification/
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='gau_alpha')
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 

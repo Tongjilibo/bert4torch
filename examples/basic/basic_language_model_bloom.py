@@ -29,7 +29,7 @@ checkpoint_path = dir_path + '/pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='bloom')
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 

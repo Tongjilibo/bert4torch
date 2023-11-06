@@ -2,8 +2,8 @@
 # 权重地址：https://github.com/fastnlp/CPT
 
 # 选择v1还是v2
-# ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/"  # v1.0
-ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base_v2.0]/"  # v2.0
+ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/"  # v1.0
+# ckpt_dir = "E:/pretrain_ckpt/bart/[FudanNLP_torch_base_v2.0]/"  # v2.0
 texts = ["北京是[MASK]的首都", "今天的天气是[MASK]，可以正常出海"]
 
 # ==============================transformers=====================================
@@ -32,7 +32,7 @@ topk = 5
 mode = 'beam_search'
 maxlen = 20
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, model='bart', segment_vocab_size=0).to(device)
+model = build_transformer_model(config_path, checkpoint_path).to(device)
 
 print('==============自定义单条样本================')
 class AutoTitle(AutoRegressiveDecoder):

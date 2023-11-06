@@ -77,8 +77,6 @@ test_dataset = MyDataset('E:/data/corpus/seq2seq/summary/csl_title_public/csl_ti
 model = build_transformer_model(
     config_path,
     checkpoint_path,
-    model='mt5.1.1',
-    segment_vocab_size=0,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
     pad_token_id=pad_token_id,  # 也可以指定custom_attention_mask并传入attention_mask来实现
     add_trainer=True

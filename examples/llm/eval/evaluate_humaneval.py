@@ -17,8 +17,7 @@ def load_models_tokenizer(args):
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_path, trust_remote_code=True)
     config_path = args.checkpoint_path + '/bert4torch_config.json'
     checkpoint_path = [args.checkpoint_path + '/' + i for i in os.listdir(args.checkpoint_path) if i.startswith('bert4torch') and i.endswith('.bin')]
-    model_type = JsonConfig(config_path)['model']
-    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_type, add_trainer=True)
+    model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True)
     return model, tokenizer
 
 

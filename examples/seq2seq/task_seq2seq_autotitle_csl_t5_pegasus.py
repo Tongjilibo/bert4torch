@@ -74,13 +74,7 @@ train_dataloader = DataLoader(MyDataset('E:/data/corpus/seq2seq/summary/csl_titl
 valid_dataset = MyDataset('E:/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
 test_dataset = MyDataset('E:/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
 
-model = build_transformer_model(
-    config_path,
-    checkpoint_path,
-    model='mt5.1.1',
-    segment_vocab_size=0,
-    add_trainer=True
-).to(device)
+model = build_transformer_model(config_path, checkpoint_path, add_trainer=True).to(device)
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

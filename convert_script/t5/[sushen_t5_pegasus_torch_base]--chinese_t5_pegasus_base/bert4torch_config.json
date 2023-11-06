@@ -1,4 +1,6 @@
 {
+    "model": "mt5.1.1",
+    "segment_vocab_size": 0,
     "hidden_act": "gelu",
     "hidden_dropout_prob": 0.1,
     "hidden_size": 768,

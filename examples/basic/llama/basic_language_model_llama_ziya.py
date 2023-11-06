@@ -17,13 +17,13 @@ import os
 
 choice = 'Ziya-LLaMA-13B_v1.1'
 if choice == 'Ziya-LLaMA-13B_v1.1':
-    dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1'
+    dir_path = 'E:/pretrain_ckpt/llama/Ziya-LLaMA-13B-v1.1'
     with_prompt = True
 elif choice == 'Ziya-LLaMA-13B_v1':
-    dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1'
+    dir_path = 'E:/pretrain_ckpt/llama/Ziya-LLaMA-13B-v1'
     with_prompt = True
 elif choice == 'Ziya-LLaMA-13B_pretrain':
-    dir_path = 'E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B_pretrain'
+    dir_path = 'E:/pretrain_ckpt/llama/Ziya-LLaMA-13B_pretrain'
     with_prompt = False
 else:
     raise ValueError(f'{choice} not in pre maintained choices')

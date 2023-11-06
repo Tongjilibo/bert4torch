@@ -25,12 +25,7 @@ from bert4torch.models import build_transformer_model
 config_path = f'{pretrained_model}/bert4torch_config.json'
 checkpoint_path = f'{pretrained_model}/pytorch_model.bin'
 
-model = build_transformer_model(
-    config_path,
-    checkpoint_path=checkpoint_path,
-    model='transformer_xl',
-    segment_vocab_size=0,
-)
+model = build_transformer_model(config_path, checkpoint_path=checkpoint_path)
 
 print('bert4torch last_hidden_state: \n', model.predict([inputs['input_ids']]))
 # tensor([[[ 0.1027,  0.0604, -0.2585,  ...,  0.3137, -0.2679,  0.1036],

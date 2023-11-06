@@ -13,16 +13,16 @@ import os
 
 choice = 'llama-2-7b-chat'
 if choice == 'llama-2-7b':
-    dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b'
+    dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b'
     with_prompt = False
 elif choice == 'llama-2-7b-chat':
-    dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
+    dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b-chat'
     with_prompt = True
 elif choice == 'llama-2-13b':
-    dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-13b'
+    dir_path = 'E:/pretrain_ckpt/llama/llama-2-13b'
     with_prompt = False
 elif choice == 'llama-2-13b-chat':
-    dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-13b-chat'
+    dir_path = 'E:/pretrain_ckpt/llama/llama-2-13b-chat'
     with_prompt = True        
 else:
     raise ValueError(f'{choice} not in pre maintained choices')

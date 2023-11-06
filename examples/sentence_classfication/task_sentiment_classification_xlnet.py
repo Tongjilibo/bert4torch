@@ -70,7 +70,7 @@ test_dataloader = DataLoader(MyDataset(['E:/data/corpus/sentence_classification/
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='xlnet', 
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path,
                                             pad_token_id=tokenizer._token_pad_id, segment_vocab_size=0)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(768, 2)

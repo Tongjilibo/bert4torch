@@ -23,12 +23,7 @@ tokenizer = Tokenizer(
     pre_tokenize=lambda s: jieba.cut(s, HMM=False)
 )
 
-model = build_transformer_model(
-    config_path,
-    checkpoint_path,
-    model='mt5.1.1',
-    segment_vocab_size=0
-).to(device)
+model = build_transformer_model(config_path, checkpoint_path).to(device)
 
 
 # 第一种自定义方式

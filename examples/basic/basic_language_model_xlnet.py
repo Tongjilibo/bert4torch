@@ -17,8 +17,7 @@ checkpoint_path = f'{pretrained_model}/pytorch_model.bin'
 
 model = build_transformer_model(
     config_path,
-    checkpoint_path=checkpoint_path,
-    model='xlnet',
+    checkpoint_path,
     # with_lm=True
     pad_token_id=tokenizer.pad_token_id,
 )

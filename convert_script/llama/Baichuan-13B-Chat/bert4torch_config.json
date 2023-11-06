@@ -15,6 +15,7 @@
     "torch_dtype": "bfloat16",
     "vocab_size": 64000,
     "segment_vocab_size": 0,
+    "rope_rank": "updown",
     "p_bias": "alibi",
     "skip_init": true
     }

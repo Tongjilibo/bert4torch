@@ -26,12 +26,7 @@ token_dict = load_vocab(
 )
 tokenizer = Tokenizer(token_dict, do_lower_case=True)
 
-model = build_transformer_model(
-    config_path,
-    checkpoint_path,
-    model='t5.1.0',
-    segment_vocab_size=0
-).to(device)
+model = build_transformer_model(config_path, checkpoint_path).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

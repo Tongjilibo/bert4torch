@@ -74,8 +74,6 @@ test_dataset = MyDataset('E:/data/corpus/seq2seq/summary/csl_title_public/csl_ti
 model = build_transformer_model(
     config_path,
     checkpoint_path,
-    model='t5.1.0',
-    segment_vocab_size=0,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
     add_trainer=True
 ).to(device)

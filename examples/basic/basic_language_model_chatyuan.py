@@ -17,14 +17,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 加载并精简词表，建立分词器
 tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>', keep_accents=True)
 
-encoder = build_transformer_model(
-    config_path,
-    checkpoint_path,
-    model='mt5.1.1',
-    segment_vocab_size=0,
-    logit_scale=False,
-    pad_token_id=-1,  # 为了不和decoder_start_ids=0冲突
-).to(device)
+encoder = build_transformer_model(config_path, checkpoint_path, pad_token_id=-1).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

@@ -41,7 +41,7 @@ epochs = 1
 prefix = ''
 
 # 模型配置
-dir_path = 'E:/pretrain_ckpt/llama-2/llama-2-7b-chat'
+dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b-chat'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

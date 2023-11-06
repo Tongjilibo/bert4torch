@@ -35,9 +35,7 @@ tokenizer = SpTokenizer(
     token_translate={u'\u2583': '<cls>'}  # '\n'替换成<cls>
 )  # 建立分词器
 
-model = build_transformer_model(
-    config_path=config_path, checkpoint_path=checkpoint_path, model='gpt2', segment_vocab_size=0
-).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path).to(device)  # 建立模型，加载权重
 
 
 class TextExpansion(AutoRegressiveDecoder):

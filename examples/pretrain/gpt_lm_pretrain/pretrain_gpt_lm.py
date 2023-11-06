@@ -49,12 +49,7 @@ def collate_fn(batch):
 train_dataloader = DataLoader(ListDataset(glob.glob('E:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
-encoder = build_transformer_model(
-    config_path=config_path,
-    checkpoint_path=checkpoint_path,
-    model='gpt',
-    add_trainer=True
-).to(device)  # 建立模型，加载权重
+encoder = build_transformer_model(config_path, checkpoint_path, add_trainer=True).to(device)  # 建立模型，加载权重
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):

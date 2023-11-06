@@ -30,7 +30,7 @@ end_id = 50256  # 50256:open-end generation, 511:表示句号
 mode = 'random_sample'
 
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='gpt2', segment_vocab_size=0).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path).to(device)  # 建立模型，加载权重
 
 print('==============自定义单条样本================')
 class ArticleCompletion(AutoRegressiveDecoder):

@@ -1,4 +1,5 @@
 {
+    "model": "qwen",
     "hidden_act": "silu",
     "bias_dropout_fusion": true,
     "bos_token_id": 151643,
@@ -8,7 +9,6 @@
     "initializer_range": 0.02,
     "kv_channels": 128,
     "layer_norm_eps": 1e-05,
-    "model": "qwen",
     "hidden_size": 4096,
     "num_attention_heads": 32,
     "num_hidden_layers": 32,
@@ -26,7 +26,6 @@
     "use_logn_attn": true,
     "segment_vocab_size": 0,
     "skip_init": true,
-    "model": "qwen",
     "rope_rank": "updown",
     "max_position": 2048
 }

@@ -18,7 +18,7 @@ from bert4torch.snippets import sequence_padding, ListDataset
 from bert4torch.callbacks import Callback
 
 # 配置
-pretrain_model = './pt_clueAI-PromptCLUE-base-v1-5/'
+pretrain_model = 'E:/pretrain_ckpt/t5/[ClueAi_t5_torch_base]--PromptCLUE-base-v1-5/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'
@@ -38,9 +38,6 @@ tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>', keep_accen
 model = build_transformer_model(
     config_path,
     checkpoint_path,
-    model='mt5.1.1',
-    segment_vocab_size=0,
-    logit_scale=False,
     pad_token_id=pad_token_id,  # 为了不和decoder_start_ids=0冲突
     add_trainer=True
 ).to(device)
