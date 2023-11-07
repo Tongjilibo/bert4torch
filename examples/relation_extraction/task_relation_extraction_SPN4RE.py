@@ -34,7 +34,7 @@ decoder_lr = 2e-5
 
 maxlen = 128
 batch_size = 8
-config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

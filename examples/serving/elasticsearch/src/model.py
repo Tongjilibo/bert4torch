@@ -11,7 +11,7 @@ from tqdm import tqdm
 # 加载模型，请更换成自己的路径
 root_model_path = "E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12"
 vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert_config.json"
+config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

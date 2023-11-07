@@ -28,7 +28,7 @@ steps_per_epoch = None
 
 # bert配置
 pretrain_model = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_base]--chinese_t5_pegasus_base/'
-config_path = pretrain_model + 'config.json'
+config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 dict_path = pretrain_model + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -80,7 +80,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, outputs, y_true):
-        _, _, y_pred = outputs
+        y_pred = outputs[-1]
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-4))

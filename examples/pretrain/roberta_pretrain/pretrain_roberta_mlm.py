@@ -26,7 +26,7 @@ task_name = 'roberta'
 # 其他配置
 maxlen = 512
 batch_size = 7
-config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'  # 如果从零训练，就设为None
 learning_rate = 0.00176
 weight_decay_rate = 0.01  # 权重衰减

@@ -17,7 +17,7 @@ from bert4torch.callbacks import Callback
 from bert4torch.tokenizers import Tokenizer
 
 # 一些基础配置
-base_path = './pt_nezha_gpt_dialog'
+base_path = 'E:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog'
 config_path = os.path.join(base_path, 'config.json')
 checkpoint_path = os.path.join(base_path, 'pytorch_model.bin')
 dict_path = os.path.join(base_path, 'vocab.txt')
@@ -79,7 +79,7 @@ class MyDataset(ListDataset):
     def load_data(filename):
         d = []
 
-        with open(filename, 'r') as fr:
+        with open(filename, 'r', encoding='utf-8') as fr:
             for l in fr:
                 l = json.loads(l)
                 d.append(l)
@@ -151,7 +151,7 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
 
-    train_dataloader = DataLoader(MyDataset('../datasets/LCCD-large-shuf.json'),
+    train_dataloader = DataLoader(MyDataset('../datasets/LCCD-large-shuf.jsonl'),
                                   batch_size=batch_size,
                                   shuffle=True,
                                   collate_fn=collate_fn)

@@ -82,7 +82,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     def forward(self, outputs, y_true):
-        _, _, y_pred = outputs
+        y_pred = outputs[-1]
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
 model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-4))

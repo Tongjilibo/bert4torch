@@ -7,7 +7,7 @@ from bert4torch.tokenizers import Tokenizer
 
 root_model_path = "E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12"
 vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert_config.json"
+config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器

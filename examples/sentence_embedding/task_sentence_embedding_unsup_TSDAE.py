@@ -54,7 +54,7 @@ model_dir = {
     'SimBERT': 'E:/pretrain_ckpt/simbert/[sushen_torch_base]--simbert_chinese_base',
 }[model_type]
 
-config_path = f'{model_dir}/bert_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
+config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
 data_path = 'E:/data/corpus/sentence_embedding/'

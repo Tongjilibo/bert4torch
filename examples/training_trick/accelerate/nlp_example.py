@@ -45,7 +45,7 @@ if batch_size > MAX_GPU_BATCH_SIZE:
 
 seed_everything(seed)
 
-config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 

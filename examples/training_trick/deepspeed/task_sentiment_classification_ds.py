@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 
 
 maxlen = 256
-config_path = '/mnt/e/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert_config.json'
+config_path = '/mnt/e/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert4torch_config.json'
 checkpoint_path = '/mnt/e/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = '/mnt/e/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt'
 choice = 'train'  # train表示训练，infer表示推理

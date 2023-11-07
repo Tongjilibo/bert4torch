@@ -49,7 +49,7 @@ class CrossEntropyLoss(nn.CrossEntropyLoss):
         super().__init__(**kwargs)
 
     def forward(self, outputs, y_true):
-        _, _, y_pred = outputs
+        y_pred = outputs[-1]
         y_pred = y_pred.reshape(-1, y_pred.shape[-1])
         return super().forward(y_pred, y_true)
 
