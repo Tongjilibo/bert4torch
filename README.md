@@ -97,7 +97,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 | 模型分类| 权重来源| 权重链接 | 备注(若有)|
 | ----- | ----- | ----- | ----- |
-| bert| 谷歌原版bert(即bert-base-chinese) | [tf](https://github.com/google-research/bert)，[torch](https://huggingface.co/bert-base-chinese) | [tf转pytorch命令](https://huggingface.co/docs/transformers/converting_tensorflow_models)，[config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/bert/[google_torch_base]--bert-base-chinese/bert4torch_config.json) |
+| bert| 谷歌, tf版为chinese_L-12_H-768_A-12, torch版为bert-base-chinese | [github](https://github.com/google-research/bert)，[tf](https://storage.googleapis.com/bert_models/2018_11_03/chinese_L-12_H-768_A-12.zip), [torch](https://huggingface.co/bert-base-chinese) | [config_tf](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert4torch_config.json)，[config_torch](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/bert/[google_torch_base]--bert-base-chinese/bert4torch_config.json) |
 | bert| 哈工大chinese-bert-wwm-ext| [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-bert-wwm-ext)| |
 | bert-base-multilingual-cased| huggingface | [torch](https://huggingface.co/bert-base-multilingual-cased) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/bert/[google_torch_base]--bert-base-chinese/bert4torch_config.json) |
 | macbert | 哈工大chinese-macbert-base/large| [tf/torch](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base) | |
