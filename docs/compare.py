@@ -18,7 +18,8 @@ def main(local_dir, convert_dir, replace=False):
             local_path = os.path.join(dir, file)
             convert_path = local_path.replace(local_dir, convert_dir)
             if not os.path.exists(convert_path):
-                print('[WARNING]', convert_path)
+                print(convert_path, 'not exist')
+                continue
             
             # 加载两边的config
             with open(local_path, 'r', encoding='utf-8') as f:
@@ -47,3 +48,4 @@ if __name__ == '__main__':
     local_dir = 'E:\pretrain_ckpt'
     convert_dir = 'E:\Github\\bert4torch\convert_script'
     main(local_dir, convert_dir, replace=False)
+    main(convert_dir, local_dir, replace=False)
