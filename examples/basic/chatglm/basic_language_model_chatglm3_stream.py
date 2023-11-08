@@ -2,6 +2,8 @@
 # 基本测试：chatglm3的对话测试
 # 官方项目：https://github.com/THUDM/ChatGLM3-6B
 # hf链接：https://huggingface.co/THUDM/chatglm3-6b
+# hf链接：https://huggingface.co/THUDM/chatglm3-6b-32k
+
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -13,6 +15,8 @@ import os
 choice = 'default'
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm3-6b"
+elif choice == '32k':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm3-6B-32k"
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
@@ -24,7 +28,7 @@ clear_command = 'cls' if os_name == 'Windows' else 'clear'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
-if choice == 'default':
+if choice in {'default', '32k'}:
     model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half().to(device)
     # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)
 else:

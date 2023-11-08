@@ -86,6 +86,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
+- **20231108**：支持chatglm 32k的rope_ratio
 - **20231106**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
 - **20231022**：增加falcon，layernorm支持torch自带
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
@@ -130,8 +131,8 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | chatyuan v1&v2| clue-ai | [torch](https://github.com/clue-ai/ChatYuan) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/t5/[ClueAI_t5_torch_large]--ClueAI-ChatYuan-large-v1)|
 | PromptCLUE| clue-ai | [torch](https://github.com/clue-ai/PromptCLUE) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/t5/[ClueAI_t5_torch_large]--ClueAI-ChatYuan-large-v1)|
 | chatglm-6b | THUDM | [github](https://github.com/THUDM/ChatGLM-6B), [v0.1.0](https://huggingface.co/THUDM/chatglm-6b/tree/v0.1.0), [v1.1.0](https://huggingface.co/THUDM/chatglm-6b/tree/v1.1.0), [int8](https://huggingface.co/THUDM/chatglm-6b-int8), [int4](https://huggingface.co/THUDM/chatglm-6b-int4) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/glm) |
-| chatglm2-6b | THUDM | [github](https://github.com/THUDM/ChatGLM2-6B), [v2](https://huggingface.co/THUDM/chatglm2-6b), [int4](https://huggingface.co/THUDM/chatglm2-6b-int4) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/glm) |
-| chatglm3-6b | THUDM | [github](https://github.com/THUDM/ChatGLM3), [v3](https://huggingface.co/THUDM/chatglm3-6b) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/glm) |
+| chatglm2-6b | THUDM | [github](https://github.com/THUDM/ChatGLM2-6B), [v2](https://huggingface.co/THUDM/chatglm2-6b), [int4](https://huggingface.co/THUDM/chatglm2-6b-int4), [32k](https://huggingface.co/THUDM/chatglm2-6b-32k) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/glm) |
+| chatglm3-6b | THUDM | [github](https://github.com/THUDM/ChatGLM3), [v3](https://huggingface.co/THUDM/chatglm3-6b), [32k](https://huggingface.co/THUDM/chatglm3-6b-32k) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/glm) |
 | llama | facebook| [github](https://github.com/facebookresearch/llama) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
 | llama-2 | facebook| [github](https://github.com/facebookresearch/llama), [7b](https://huggingface.co/meta-llama/Llama-2-7b-hf), [7b-chat](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf), [13b](https://huggingface.co/meta-llama/Llama-2-13b-hf), [13b-chat](https://huggingface.co/meta-llama/Llama-2-13b-chat-hf) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|
 |chinese_llama_alpaca|Yiming Cui|[github](https://github.com/ymcui/Chinese-LLaMA-Alpaca) |[config](https://github.com/Tongjilibo/bert4torch/blob/master/convert_script/llama)|

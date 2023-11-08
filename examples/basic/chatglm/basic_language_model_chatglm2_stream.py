@@ -11,13 +11,13 @@ import platform
 import os
 import re
 
-choice = 'default'  # chatglm2, int4, int8
+choice = 'default'  # default, int4, 32k
 if choice == 'default':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int4"
-elif choice == 'int8':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int8"
+elif choice == '32k':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B-32k"
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
@@ -29,7 +29,7 @@ clear_command = 'cls' if os_name == 'Windows' else 'clear'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 # 建立模型，加载权重
-if choice == 'default':
+if choice in {'default', '32k'}:
     encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half().to(device)
     # encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)
 else:

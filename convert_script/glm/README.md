@@ -1,6 +1,7 @@
 - [chatglm-6b](https://huggingface.co/THUDM/chatglm-6b)
 - [chatglm-6b-int4](https://huggingface.co/THUDM/chatglm-6b-int4)
-- [chatglm-6bint8](https://huggingface.co/THUDM/chatglm-6b-int8)
+- [chatglm-6b-int8](https://huggingface.co/THUDM/chatglm-6b-int8)
 - [chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b)
 - [chatglm2-6b-int4](https://huggingface.co/THUDM/chatglm2-6b-int4)
+- [chatglm2-6b-32k](https://huggingface.co/THUDM/chatglm2-6b-32k)
 - [chatglm3-6b](https://huggingface.co/THUDM/chatglm3-6b)

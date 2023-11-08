@@ -60,7 +60,8 @@ class MultiHeadAttentionLayer(nn.Module):
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d or self.position_encoding_2d_v2 else self.attention_head_size
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, 
                                                                     rope_rank=kwargs.get('rope_rank', 'adjacent'), 
-                                                                    ntk_alpha=kwargs.get('ntk_alpha', 1.0))
+                                                                    ntk_alpha=kwargs.get('ntk_alpha', 1.0),
+                                                                    rope_ratio=kwargs.get('rope_ratio', 1.0))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
@@ -283,7 +284,7 @@ class MultiHeadAttentionLayer(nn.Module):
     def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
         ''' 执行rotary相对位置编码 '''
         if self.use_dynamic_ntk:
-            # rotary的ntk，其实仅仅在step=1时候还会触发
+            # rotary的ntk，其实仅仅在step=1时候会触发
             kv_seq_len = key_layer.shape[2] + 0 if past_key_value is None else past_key_value[0].shape[2]
             if kv_seq_len == query_layer.shape[-2]:
                 context_value = math.log(kv_seq_len / self.max_position, 2) + 1
