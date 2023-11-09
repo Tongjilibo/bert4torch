@@ -281,7 +281,7 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
     return model
 
 
-def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in_fp32_modules=[], llm_int8_skip_modules=[], quantization_config=None, **kwargs):
+def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in_fp32_modules=None, llm_int8_skip_modules=None, quantization_config=None, **kwargs):
     '''transformer的load_in_8bit, 源自transformer源代码'''
     from transformers.utils.bitsandbytes import replace_with_bnb_linear, set_module_quantized_tensor_to_device
     from transformers.utils.quantization_config import BitsAndBytesConfig
@@ -309,8 +309,8 @@ def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in
     if not isinstance(modules_to_not_convert, list):
         modules_to_not_convert = [modules_to_not_convert]
 
-    modules_to_not_convert.extend(keep_in_fp32_modules)
-    modules_to_not_convert.extend(llm_int8_skip_modules)
+    modules_to_not_convert.extend([] if keep_in_fp32_modules is None else keep_in_fp32_modules)
+    modules_to_not_convert.extend([] if llm_int8_skip_modules is None else llm_int8_skip_modules)
 
     state_dict = model.state_dict()
     model = replace_with_bnb_linear(model, modules_to_not_convert=modules_to_not_convert, quantization_config=quantization_config)
