@@ -1,7 +1,7 @@
 #! -*- coding:utf-8 -*-
 # 情感分类任务，加载GAU-alpha权重
 # 博客：https://kexue.fm/archives/9052
-# 权重转换脚本：./convert_script/gau
+# 权重转换脚本：./examples/basic/gau
 # valid_acc: 95.25, test_acc: 94.46
 
 
