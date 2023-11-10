@@ -1,56 +1,110 @@
 # example简介
 
-## 基础测试
+## 1. 基础测试
+#### albert
+- [basic_language_model_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/albert/basic_language_model_albert.py): 测试[albert_chinese](https://github.com/brightmart/albert_zh)模型。
 
-- [basic_test_tokenizer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_test_tokenizer.py): 测试tokenizer和transformers包的结果一致。
-- [basic_test_parallel_apply.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_test_parallel_apply.py): 测试parallel_apply的效果。
-- [basic_extract_features.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_extract_features.py)：测试BERT对句子的编码序列。
-- [basic_gibbs_sampling_via_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_gibbs_sampling_via_mlm.py)：利用BERT+Gibbs采样进行文本随机生成，参考[这里](https://kexue.fm/archives/8119)。
-- [basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gen_gpt.py)：测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
-- [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_make_uncased_model_cased.py)：通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
-- [basic_language_model_bert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_bert.py)：测试BERT的MLM模型效果。
-- [basic_language_model_roberta_small.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_small.py)：测试Roberta-small的MLM模型效果。
-- [basic_language_model_roberta_english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roberta_english.py)：测试英文版Roberta的MLM模型效果。
-- [basic_language_model_ernie.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_ernie.py)：测试百度文心ERNIE的MLM模型效果。
-- [basic_language_model_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_GAU_alpha.py)：测试[GAU-alpha](https://github.com/ZhuiyiTechnology/GAU-alpha)的MLM模型效果。
-- [basic_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_roformer.py)：测试roformer的MLM模型效果。
-- [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_CDial_GPT.py)：测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
-- [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_ml.py)：测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
-- [basic_language_model_gpt2_chinese_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_gpt2_chinese_uer.py)：测试[uer-gpt2-chinese](https://huggingface.co/uer/gpt2-chinese-cluecorpussmall)的的生成效果。
-- [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_cpm_lm.py)：测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
-- [basic_language_model_t5_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5_uer.py)：测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)和[uer-t5-base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)的生成效果。
-- [basic_language_model_t5_pegasus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_t5_pegasus.py)：测试[t5_pegasus](https://github.com/ZhuiyiTechnology/t5-pegasus)的生成效果。
-- [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_simbert.py)：测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
-- [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
-- [basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_xlnet.py): 测试xlnet模型。
-- [basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
-- [basic_language_model_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_bart.py): 测试bart模型。
-- [basic_language_model_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_deberta_v2.py): 测试deberta_v2模型。
-- [basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_guwenbert.py): 测试[古文bert](https://huggingface.co/ethanyt/guwenbert-base)模型。
-- [basic_language_model_wobert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_wobert.py): 测试wobert模型。
-- [basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_chatyuan.py): 测试[ChatYuan](https://github.com/clue-ai/ChatYuan)模型。
-- [basic_language_model_PromptCLUE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_PromptCLUE.py): 测试[PromptCLUE](https://github.com/clue-ai/PromptCLUE)模型。
-- [basic_language_model_albert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_albert.py): 测试[albert_chinese](https://github.com/brightmart/albert_zh)模型。
-- [basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
-- [basic_language_model_llama-2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama-2.py): 测试[llama-2](https://github.com/facebookresearch/llama)模型。
-- [basic_language_model_llama_vicuna.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_vicuna.py): 测试[vicuna](https://huggingface.co/AlekseyKorshuk/vicuna-7b)模型。
+#### bart
+- [basic_language_model_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bart/basic_language_model_bart.py): 测试bart模型。
+
+#### bert
+- [basic_extract_features.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_extract_features.py)：测试BERT对句子的编码序列。
+- [basic_gibbs_sampling_via_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_gibbs_sampling_via_mlm.py)：利用BERT+Gibbs采样进行文本随机生成，参考[这里](https://kexue.fm/archives/8119)。
+- [basic_language_model_bert-base-multilingual-cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_language_model_bert-base-multilingual-cased.py)：[bert-base-multilingual-cased](https://huggingface.co/bert-base-multilingual-cased)
+- [basic_language_model_bert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_language_model_bert.py)：测试BERT的MLM模型效果。
+- [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_make_uncased_model_cased.py)：通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
+
+#### bloom
+- [basic_language_model_bloom.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bloom/basic_language_model_bloom.py)：测试[bloom](https://huggingface.co/bigscience)。
+
+#### deberta
+- [basic_language_model_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/deberta/basic_language_model_deberta_v2.py): 测试deberta_v2模型。
+
+#### embedding
+- [basic_text2vec-base-chinese.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/embedding/basic_text2vec-base-chinese.py): [text2vec-base-chinese](https://huggingface.co/shibing624/text2vec-base-chinese)。
+
+#### ernie
+- [basic_language_model_ernie.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/ernie/basic_language_model_ernie.py)：测试百度文心ERNIE的MLM模型效果。
+
+#### falcon
+- [basic_language_model_falcon.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/falcon/basic_language_model_falcon.py): 测试[falcon](https://huggingface.co/tiiuae)模型。
+
+#### gau
+- [basic_language_model_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gau/basic_language_model_GAU_alpha.py)：测试[GAU-alpha](https://github.com/ZhuiyiTechnology/GAU-alpha)的MLM模型效果。
+
+#### glm
+- [basic_language_model_chatglm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型。
+- [basic_language_model_chatglm_api.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm_api.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, api形式。
+- [basic_language_model_chatglm_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm_stream.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, stream方式输出。
+- [basic_language_model_chatglm_stream_multigpus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm_stream_multigpus.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, stream方式输出(多卡加载)。
+- [basic_language_model_chatglm_webdemo.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm_webdemo.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, web方式输出。
+- [basic_language_model_chatglm_batch.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm_batch.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, batch方式输出。
+- [basic_language_model_chatglm2_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm/basic_language_model_chatglm2_stream.py): 测试[chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)模型, stream方式输出。
+
+#### gpt
+- [basic_language_model_CDial_GPT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gpt/basic_language_model_CDial_GPT.py)：测试[CDial_GPT](https://github.com/thu-coai/CDial-GPT)的对话生成效果。
+
+#### gpt2
+- [basic_language_model_cpm_lm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gpt2/basic_language_model_cpm_lm.py)：测试[CPM-Generate](https://github.com/TsinghuaAI/CPM-Generate)的的生成效果。
+- [basic_language_model_gpt2_chinese_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gpt2/basic_language_model_gpt2_chinese_uer.py)：测试[uer-gpt2-chinese](https://huggingface.co/uer/gpt2-chinese-cluecorpussmall)的的生成效果。
+- [basic_language_model_gpt2_ml.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gpt2/basic_language_model_gpt2_ml.py)：测试[gpt2-ml](https://github.com/imcaspar/gpt2-ml)的的生成效果。
+
+#### internlm
+- [basic_language_model_InternLM.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/internlm/basic_language_model_InternLM.py)：测试[InternLM](https://github.com/InternLM/InternLM)的的生成效果。
+
+#### llama
+- [basic_language_model_llama_baichuan_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_baichuan_stream.py): 测试[baichuan](https://github.com/baichuan-inc/Baichuan-7B)模型, stream形式。
+- [basic_language_model_llama_baichuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_baichuan.py): 测试[baichuan](https://github.com/baichuan-inc/Baichuan-7B)模型。
 - [basic_language_model_llama_belle.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_belle.py): 测试[belle](https://huggingface.co/BelleGroup/BELLE-LLAMA-7B-2M)模型。
 - [basic_language_model_llama_chinese_llama_alpaca.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_chinese_llama_alpaca.py): 测试[chinese_llama_alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)模型。
+- [basic_language_model_llama_vicuna.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_vicuna.py): 测试[vicuna](https://huggingface.co/AlekseyKorshuk/vicuna-7b)模型。
 - [basic_language_model_llama_ziya.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_ziya.py): 测试[ziya](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1)模型。
-- [basic_language_model_llama_baichuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_baichuan.py): 测试[baichuan](https://github.com/baichuan-inc/Baichuan-7B)模型。
-- [basic_language_model_llama_baichuan_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_baichuan_stream.py): 测试[baichuan](https://github.com/baichuan-inc/Baichuan-7B)模型, stream形式。
-- [basic_language_model_chatglm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型。
-- [basic_language_model_chatglm_api.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm_api.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, api形式。
-- [basic_language_model_chatglm_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm_stream.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, stream方式输出。
-- [basic_language_model_chatglm_stream_multigpus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm_stream_multigpus.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, stream方式输出(多卡加载)。
-- [basic_language_model_chatglm_webdemo.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm_webdemo.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, web方式输出。
-- [basic_language_model_chatglm_batch.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm_batch.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, batch方式输出。
-- [basic_language_model_chatglm2_stream.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/chatglm/basic_language_model_chatglm2_stream.py): 测试[chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)模型, stream方式输出。
-- [basic_language_model_moss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_moss.py): 测试[moss](https://github.com/OpenLMLab/MOSS)模型, int4和int8低成本部署。
-- [basic_language_model_Qwen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_Qwen.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型。
-- [basic_language_model_falcon.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_falcon.py): 测试[falcon](https://huggingface.co/tiiuae)模型。
+- [basic_language_model_llama-2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama-2.py): 测试[llama-2](https://github.com/facebookresearch/llama)模型。
+- [basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
 
-## LLM
+#### macbert
+- [basic_language_model_macbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/macbert/basic_language_model_macbert.py)：测试macbert的MLM模型效果。
+
+#### nezha
+- [basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/nezha/basic_language_model_nezha_gen_gpt.py)：测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
+- [basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/nezha/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
+
+#### others
+- [basic_language_model_moss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_language_model_moss.py): 测试[moss](https://github.com/OpenLMLab/MOSS)模型, int4和int8低成本部署。
+- [basic_test_parallel_apply.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_test_parallel_apply.py): 测试parallel_apply的效果。
+- [basic_test_tokenizer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_test_tokenizer.py): 测试tokenizer和transformers包的结果一致。
+
+#### Qwen
+- [basic_language_model_Qwen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen/basic_language_model_Qwen.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型。
+
+#### roberta
+- [basic_language_model_roberta_small.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta_small.py)：测试Roberta-small的MLM模型效果。
+- [basic_language_model_roberta_english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta_english.py)：测试英文版Roberta的MLM模型效果。
+- [basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_guwenbert.py): 测试[古文bert](https://huggingface.co/ethanyt/guwenbert-base)模型。
+
+#### roformer
+- [basic_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roformer/basic_language_model_roformer.py)：测试roformer的MLM模型效果。
+
+#### simbert
+- [basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/simbert/basic_language_model_simbert.py)：测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
+
+#### t5
+- [basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_chatyuan.py): 测试[ChatYuan](https://github.com/clue-ai/ChatYuan)模型。
+- [basic_language_model_PromptCLUE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_PromptCLUE.py): 测试[PromptCLUE](https://github.com/clue-ai/PromptCLUE)模型。
+- [basic_language_model_t5_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_t5_uer.py)：测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)和[uer-t5-base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)的生成效果。
+- [basic_language_model_t5_pegasus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_t5_pegasus.py)：测试[t5_pegasus](https://github.com/ZhuiyiTechnology/t5-pegasus)的生成效果。
+
+#### transformer_xl
+- [basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/transformer_xl/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
+
+#### wobert
+- [basic_language_model_wobert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/wobert/basic_language_model_wobert.py): 测试wobert模型。
+
+#### xlnet
+- [basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/basic_language_model_xlnet.py): 测试xlnet模型。
+
+
+## 2. LLM
 - [task_chatglm_ptuning_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_ptuning_v2.py): [chatglm-6b](https://github.com/THUDM/ChatGLM-6B)的ptuning_v2微调。
 - [task_chatglm_lora.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_lora.py): [chatglm-6b](https://github.com/THUDM/ChatGLM-6B)的lora微调(基于peft)。
 - [task_chatglm2_ptuning_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm2_ptuning_v2.py): [chatglm2-6b](https://github.com/THUDM/ChatGLM2-6B)的ptuning_v2微调。
@@ -62,7 +116,7 @@
 - [instruct_gpt](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/instruct_gpt): [instruct_gpt](https://arxiv.org/abs/2203.02155)的复现
 - [eval](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/eval): 大模型的评估eval
 
-## 文本分类
+## 3. 文本分类
 
 - [task_sentence_similarity_lcqmc.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentence_similarity_lcqmc.py)：句子对分类任务。
 - [task_sentiment_classification.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/task_sentiment_classification.py)：情感分类任务，bert做简单文本分类
@@ -81,7 +135,7 @@
 - [Sohu_2022_ABSA](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/Sohu_2022_ABSA)：搜狐2022实体情感分类Top1方案复现和自己的baseline
 - [Tianchi_News_Classification](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication/Tianchi_News_Classification)：天池零基础入门NLP-新闻分类Top1方案复现
 
-## 序列标注
+## 4. 序列标注
 
 - [task_sequence_labeling_ner_efficient_global_pointer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_efficient_global_pointer.py)：ner例子，efficient_global_pointer的pytorch实现
 - [task_sequence_labeling_ner_global_pointer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_global_pointer.py)：ner例子，global_pointer的pytorch实现
@@ -98,7 +152,7 @@
 - [task_sequence_labeling_ner_lear.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_ner_lear.py)：ner例子，[LEAR](https://github.com/Akeepers/LEAR)
 - [task_sequence_labeling_cws_crf.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling/task_sequence_labeling_cws_crf.py)：crf分词例子
 
-## 文本表示
+## 5. 文本表示
 
 - [task_sentence_embedding_unsup_bert_whitening.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsup_bert_whitening.py)：参考[bert_whitening](https://github.com/bojone/BERT-whitening)
 - [task_sentence_embedding_unsup_CT.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_unsup_CT.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
@@ -117,7 +171,7 @@
 - [task_sentence_embedding_model_distillation.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/task_sentence_embedding_model_distillation.py)：参考[SentenceTransformer](https://www.sbert.net/index.html)
 - [FinanceFAQ](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_embedding/FinanceFAQ)：金融领域FAQ两阶段(召回+排序)pipline
 
-## 关系提取
+## 6. 关系提取
 
 - [task_relation_extraction_CasRel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_CasRel.py)：结合BERT以及自行设计的“半指针-半标注”结构来做[关系抽取](https://kexue.fm/archives/7161)。
 - [task_relation_extraction_gplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_gplinker.py)：结合GlobalPointer做关系抽取[GPLinker](https://kexue.fm/archives/8888)。
@@ -126,7 +180,7 @@
 - [task_relation_extraction_SPN4RE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_SPN4RE.py)：[SPN4RE](https://github.com/DianboWork/SPN4RE)来做关系提取。
 - [task_relation_extraction_PRGC.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction/task_relation_extraction_PRGC.py)：[PRGC](https://github.com/hy-struggle/PRGC)来做关系提取。
 
-## 文本生成
+## 7. 文本生成
 
 - [task_seq2seq_autotitle_csl_unilm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl_unilm.py)：通过[UniLM](https://kexue.fm/archives/6933)式的Seq2Seq模型来做新闻标题生成。
 - [task_seq2seq_autotitle_csl_bart.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_seq2seq_autotitle_csl_bart.py)：通过BART来做新闻标题生成
@@ -142,7 +196,7 @@
 - [task_dialogpt_finetune.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_dialogpt_finetune.py)：基于dialogpt的微调,同时提供微调数据格式, 参考[博客](https://kexue.fm/archives/8802)
 - [task_promptclue_finetune.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq/task_promptclue_finetune.py)：基于promptclue-base-v1.5的微调
 
-## 训练Trick
+## 8. 训练Trick
 - [task_sentiment_adapters.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_adapters.py)：基于adapter的插拔式训练
 - [task_sentiment_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_adversarial_training.py)：通过对抗训练，虚拟对抗训练，梯度惩罚等措施来提升分类效果。
 - [task_sentiment_virtual_adversarial_training.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_sentiment_virtual_adversarial_training.py)：通过半监督的虚拟对抗训练等措施来提升分类效果。
@@ -157,13 +211,13 @@
 - [task_distributed_data_parallel.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/task_distributed_data_parallel.py)：DistributedDataParallel模式的多GPU训练方式
 - [accelerate](https://github.com/Tongjilibo/bert4torch/blob/master/examples/training_trick/accelerate)：配合accelerate包使用
 
-## 预训练
+## 9. 预训练
 
 - [roberta_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roberta_pretrain)：roberta的mlm预训练，数据生成代码和训练代码
 - [simbert_v2_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain)：相似问生成，数据增广，三个步骤：1-[弱监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_stage1.py)，2-[蒸馏](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_stage2.py)，3-[有监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_supervised.py)，参考[SimBERT-V2](https://kexue.fm/archives/8454)
 - [gpt_lm_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/gpt_lm_pretrain)：gpt的lm预训练
 
-## 模型部署
+## 10. 模型部署
 
 - [basic_simple_web_serving_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/basic_simple_web_serving_simbert.py): 测试自带的WebServing（将模型转化为Web接口）。
 - [task_bert_cls_onnx.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/task_bert_cls_onnx.py)：ONNX转换bert权重
@@ -172,7 +226,7 @@
 - [elasticsearch](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/elasticsearch)：elasticsearch部署
 - [triton](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/triton)：triton部署
 
-## 其他
+## 11. 其他
 
 - [task_conditional_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_conditional_language_model.py)：结合BERT+[ConditionalLayerNormalization](https://kexue.fm/archives/7124)做条件语言模型。
 - [task_language_model.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model.py)：加载BERT的预训练权重做无条件语言模型，效果上等价于GPT。
@@ -181,7 +235,7 @@
 - [task_nl2sql_baseline.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_nl2sql_baseline.py)：[追一科技2019年NL2SQL挑战赛的一个Baseline](https://kexue.fm/archives/6771)
 - [task_event_extraction_gplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_event_extraction_gplinker.py)：gplinker来做事件提取
 
-## 教程
+## 12. 教程
 
 - [Tutorials](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/Tutorials)：教程说明文档。
 - [tutorials_custom_fit_progress.py](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_custom_fit_progress.py)：教程，自定义训练过程fit函数（集成了训练进度条展示），可用于满足如半精度，梯度裁剪等高阶需求。
