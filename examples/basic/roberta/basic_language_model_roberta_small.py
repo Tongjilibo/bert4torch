@@ -1,5 +1,4 @@
 # 基础测试：苏神 or UER  roberta-small/tiny mlm预测
-# 使用的时候需要with_pool=False, 否则会有warnings, CLS的输出直接按last_hidden_state[:, 0]取得
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -7,9 +6,9 @@ from bert4torch.tokenizers import Tokenizer
 
 
 # 加载模型，
-base_path = './pt_chinese_roberta_L-6_H-512'
+base_path = 'E:/pretrain_ckpt/roberta/sushen@chinese_roberta_L-6_H-384_A-12'
 dict_path = base_path + '/vocab.txt'
-config_path = base_path + '/config.json'
+config_path = base_path + '/bert_config.json'
 checkpoint_path = base_path + '/pytorch_model.bin'
 
 # 分词器

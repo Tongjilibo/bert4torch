@@ -1,7 +1,7 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：英文mlm预测
 # 权重下载链接：https://huggingface.co/roberta-base
-# 需要先调用进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-base.py
+# 需要先调用进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-base-english.py
 
 from bert4torch.models import build_transformer_model
 import torch
@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, RobertaForMaskedLM
 from torch.nn.functional import softmax
 
 # 加载模型，请更换成自己的路径
-root_model_path = "E:/pretrain_ckpt/roberta/huggingface@roberta-base"
+root_model_path = "E:/pretrain_ckpt/roberta/huggingface@roberta-base-english"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
 

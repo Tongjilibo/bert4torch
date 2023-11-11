@@ -24,7 +24,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-pretrain_model = 'E:/pretrain_ckpt/xlnet/hit@chinese-xlnet-base'
+pretrain_model = 'E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base'
 config_path = pretrain_model + '/bert4torch_config.json'
 checkpoint_path = pretrain_model + '/pytorch_model.bin'
 data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'

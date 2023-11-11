@@ -49,7 +49,7 @@ lambda_weight = 0.05  # electra部分loss权重
 # bert配置
 model_dir = {
     'BERT': 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
-    'RoBERTa': 'E:/pretrain_ckpt/roberta/hit@chinese-roberta-wwm-ext-base',
+    'RoBERTa': 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
     'NEZHA': 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
     'RoFormer': 'E:/pretrain_ckpt/roformer/sushen@roformer_v1_base',
     'SimBERT': 'E:/pretrain_ckpt/simbert/sushen@simbert_chinese_base',

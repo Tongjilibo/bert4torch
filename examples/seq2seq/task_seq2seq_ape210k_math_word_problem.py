@@ -24,9 +24,9 @@ batch_size = 16
 epochs = 100
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/bert/hit@chinese-bert-wwm-ext/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/hit@chinese-bert-wwm-ext/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bert/hit@chinese-bert-wwm-ext/vocab.txt'
+config_path = 'E:/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器

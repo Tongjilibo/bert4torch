@@ -3,7 +3,7 @@
 
 import torch
 
-dir_path = 'E:/pretrain_ckpt/roberta/huggingface@roberta-base/'
+dir_path = 'E:/pretrain_ckpt/roberta/huggingface@roberta-base-english/'
 state_dict = torch.load(dir_path + 'pytorch_model.bin')
 
 mapping = {

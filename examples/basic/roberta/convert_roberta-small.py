@@ -10,9 +10,9 @@ import torch
 import tensorflow as tf
 import json
 
-tf_dir = './tf_chinese_roberta_L-6_H-384-384_A-12/'
+tf_dir = 'E:/pretrain_ckpt/roberta/sushen@chinese_roberta_L-6_H-384_A-12/'
 tf_path = tf_dir + 'bert_model.ckpt'
-torch_path = './pt_chinese_roberta_L-6_H-384-384_A-12/pytorch_model.bin'
+torch_path = tf_dir + 'pytorch_model.bin'
 
 
 with open(tf_dir + 'bert_config.json', 'r') as f:

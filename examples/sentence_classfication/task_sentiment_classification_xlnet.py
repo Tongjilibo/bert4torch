@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 maxlen = 256
 batch_size = 16
-pretrain_model = 'E:/pretrain_ckpt/xlnet/hit@chinese-xlnet-base/'
+pretrain_model = 'E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'

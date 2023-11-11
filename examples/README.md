@@ -46,7 +46,7 @@
 | Qwen |[basic_language_model_Qwen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen/basic_language_model_Qwen.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型。
 |roberta|[basic_language_model_chinese-roberta-wwm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_chinese-roberta-wwm.py)：测试HIT的chinese-roberta-wwm的MLM模型效果。
 |      |[basic_language_model_roberta_small.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta_small.py)：测试Roberta-small的MLM模型效果。
-|      |[basic_language_model_roberta-base.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta-base.py)：测试英文版roberta-base的MLM模型效果。
+|      |[basic_language_model_roberta-base-english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta-base-english.py)：测试英文版roberta-base的MLM模型效果。
 |roformer|[basic_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roformer/basic_language_model_roformer.py)：测试roformer的MLM模型效果。
 |simbert|[basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/simbert/basic_language_model_simbert.py)：测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 |  t5 |[basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_chatyuan.py): 测试[ChatYuan](https://github.com/clue-ai/ChatYuan)模型。
@@ -68,7 +68,6 @@
 - [task_llama_deepspeed.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_llama_deepspeed.py): [llama-2](https://github.com/facebookresearch/llama)的lora微调(peft+deepspeed)。
 - [task_chatglm_nbce.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_nbce.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, 使用朴素贝叶斯增加LLM的Context处理长度。
 - [instruct_gpt](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/instruct_gpt): [instruct_gpt](https://arxiv.org/abs/2203.02155)的复现
-- [eval](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/eval): 大模型的评估eval
 
 ## 3. 文本分类
 

@@ -99,19 +99,19 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | 模型分类| 模型名称 | 权重来源| 权重链接 | 备注(若有)|
 | ----- | ----- | ----- | ----- | ----- |
 | bert| chinese_L-12_H-768_A-12/bert-base-chinese| 谷歌 | [github](https://github.com/google-research/bert)，[tf](https://storage.googleapis.com/bert_models/2018_11_03/chinese_L-12_H-768_A-12.zip), [torch](https://huggingface.co/bert-base-chinese) | [config_tf](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json)，[config_torch](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) |
-|     | chinese-bert-wwm-ext| 哈工大 | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-bert-wwm-ext)| |
+|     | chinese-bert-wwm-ext| HFL | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-bert-wwm-ext)| |
 |     | bert-base-multilingual-cased| huggingface | [torch](https://huggingface.co/bert-base-multilingual-cased) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) |
-|     | macbert | 哈工大| [tf/torch](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base) | |
+|     | macbert | HFL| [tf/torch](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base) | |
 |     | wobert| 追一科技| [tf](https://github.com/ZhuiyiTechnology/WoBERT)，[torch_base](https://huggingface.co/junnyu/wobert_chinese_base)，[torch_plus_base](https://huggingface.co/junnyu/wobert_chinese_plus_base) | |
 |     | guwenbert| ethanyt |[torch](https://huggingface.co/ethanyt/guwenbert-base) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/convert_guwenbert-base.py)|
-|roberta|chinese-roberta-wwm-ext | 哈工大 | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-roberta-wwm-ext) | |
+|roberta|chinese-roberta-wwm-ext | HFL | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-roberta-wwm-ext) | |
 |     |roberta-small/tiny| 追一科技 & UER| [tf](https://github.com/ZhuiyiTechnology/pretrained-models)，[torch](https://huggingface.co/uer) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-small.py) |
-|     |roberta-base (english)| huggingface | [torch](https://huggingface.co/roberta-base) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-base.py) |
+|     |roberta-base-english| huggingface | [torch](https://huggingface.co/roberta-base) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-base-english.py) |
 | albert|albert| brightmart| [tf](https://github.com/brightmart/albert_zh)，[torch](https://huggingface.co/voidful)，[torch](https://github.com/lonePatient/albert_pytorch) | |
 | nezha|NEZHA | 华为| [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[torch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | |
-| xlnet|chinese-xlnet | 哈工大 | [tf/torch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/hit@chinese-xlnet-base)|
+| xlnet|chinese-xlnet | HFL | [tf/torch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/hfl@chinese-xlnet-base)|
 |deberta| Erlangshen-DeBERTa-v2| IDEA | [torch](https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese/tree/main) | |
-| electra|Chinese-ELECTRA | 哈工大 | [tf](https://github.com/ymcui/Chinese-ELECTRA)，[torch](https://huggingface.co/hfl/chinese-electra-base-discriminator) | |
+| electra|Chinese-ELECTRA | HFL | [tf](https://github.com/ymcui/Chinese-ELECTRA)，[torch](https://huggingface.co/hfl/chinese-electra-base-discriminator) | |
 | ernie|ernie | 百度文心| [paddle](https://github.com/PaddlePaddle/ERNIE)，[torch](https://huggingface.co/nghuyong)| |
 | roformer|roformer| 追一科技| [tf](https://github.com/ZhuiyiTechnology/roformer)，[torch](https://huggingface.co/junnyu/roformer_chinese_base) | |
 |         |roformer_v2 | 追一科技| [tf](https://github.com/ZhuiyiTechnology/roformer-v2)，[torch](https://huggingface.co/junnyu/roformer_v2_chinese_char_base)| |
@@ -133,7 +133,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 |       |chatglm3-6b | THUDM | [github](https://github.com/THUDM/ChatGLM3), [v3](https://huggingface.co/THUDM/chatglm3-6b), [32k](https://huggingface.co/THUDM/chatglm3-6b-32k) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/glm) |
 | llama | llama | facebook| [github](https://github.com/facebookresearch/llama) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
 |       | llama-2 | facebook| [github](https://github.com/facebookresearch/llama), [7b](https://huggingface.co/meta-llama/Llama-2-7b-hf), [7b-chat](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf), [13b](https://huggingface.co/meta-llama/Llama-2-13b-hf), [13b-chat](https://huggingface.co/meta-llama/Llama-2-13b-chat-hf) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
-|       | chinese_llama_alpaca|Yiming Cui|[github](https://github.com/ymcui/Chinese-LLaMA-Alpaca) |[config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
+|       | chinese_llama_alpaca|HFL|[github](https://github.com/ymcui/Chinese-LLaMA-Alpaca) |[config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
 |       | Belle_llama| LianjiaTech| [github](https://github.com/LianjiaTech/BELLE), [7B-2M-enc](https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc) | [合成说明](https://github.com/LianjiaTech/BELLE/tree/main/models)、[config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
 |       | Ziya | IDEA-CCNL | [v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1), [v1.1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1), [pretrain-v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrain-v1) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama) |
 |       | Baichuan | baichuan-inc | [github](https://github.com/baichuan-inc/Baichuan), [7B](https://huggingface.co/baichuan-inc/Baichuan-7B), [13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base), [13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama) |
@@ -144,8 +144,6 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 | InternLM|InternLM | 上海人工智能实验室 | [github](https://github.com/InternLM/InternLM), [7B-Chat](https://huggingface.co/internlm/internlm-chat-7b), [7B](https://huggingface.co/internlm/internlm-7b) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/internlm) |
 | Falcon|Falcon | tiiuae | [hf](https://huggingface.co/tiiuae), [RW-1B](https://huggingface.co/tiiuae/falcon-rw-1b), [7B](https://huggingface.co/tiiuae/falcon-7b), [7B-Instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/falcon) |
 | embedding| text2vec-base-chinese |shibing624| [torch](https://huggingface.co/shibing624/text2vec-base-chinese) | |
-|          | m3e |moka-ai| [torch](https://huggingface.co/moka-ai) | |
-|          | bge |BAAI| [torch](https://hf-mirror.com/BAAI) | |
 
 ## 7. 鸣谢
 
