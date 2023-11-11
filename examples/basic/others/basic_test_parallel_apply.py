@@ -6,7 +6,7 @@ import numpy as np
 from bert4torch.snippets import parallel_apply
 import time
 
-dict_path = 'E:/pretrain_ckpt/bert/[google_torch_base]--bert-base-chinese/vocab.txt'
+dict_path = 'E:/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 categories = {'LOC':2, 'PER':3, 'ORG':4}
 

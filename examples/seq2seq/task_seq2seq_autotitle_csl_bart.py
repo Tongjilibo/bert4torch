@@ -23,9 +23,9 @@ epochs = 50
 steps_per_epoch = None
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bart/[FudanNLP_torch_base]/vocab.txt'
+config_path = 'E:/pretrain_ckpt/bart/fnlp@bart-base-chinese/bert4torch_config.json'
+checkpoint_path = 'E:/pretrain_ckpt/bart/fnlp@bart-base-chinese/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/bart/fnlp@bart-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 seed_everything(42)

@@ -4,7 +4,7 @@ import torch
 import tensorflow as tf
 import json
 
-tf_path = 'E:/pretrain_ckpt/gau/[sushen-tf]--chinese_GAU-alpha-char_L-24_H-768/bert_model.ckpt'
+tf_path = 'E:/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_tf/bert_model.ckpt'
 torch_state_dict = {}
 
 ts = tf.train.load_variable(tf_path, 'bert/embeddings/word_embeddings')
@@ -27,5 +27,5 @@ for i in range(24):
     ts = torch.stack([torch.from_numpy(ts1), torch.from_numpy(ts2)], dim=0)
     torch_state_dict[f'encoderLayer.{i}.gau.offsetscale.gamma'] = ts
 
-dir_path = 'E:/pretrain_ckpt/gau/[sushen-torch]--chinese_GAU-alpha-char_L-24_H-768/'
+dir_path = 'E:/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/'
 torch.save(torch_state_dict, dir_path + 'pytorch_model.bin')

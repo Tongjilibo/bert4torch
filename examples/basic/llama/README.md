@@ -28,8 +28,8 @@
 ```python
 python3 -m apply_delta 
     --base E:/pretrain_ckpt/llama/13B-hf 
-    --target E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1 
-    --delta E:/pretrain_ckpt/llama/[IDEA-CCNL]--Ziya-LLaMA-13B-v1.1-delta
+    --target E:/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1 
+    --delta E:/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1-delta
 ```
 
 ## [Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)

@@ -3,7 +3,7 @@
 # 由于key和框架的key没有完全对齐，主要里面用的都是roberta前缀来保存权重和偏置
 
 import torch
-state_dict = torch.load('E:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/pytorch_model.bin')
+state_dict = torch.load('E:/pretrain_ckpt/roberta/ethanyt@guwenbert-base/pytorch_model.bin')
 
 mapping = {
             'lm_head.dense.weight': 'cls.predictions.transform.dense.weight',
@@ -22,4 +22,4 @@ for k, v in state_dict.items():
     else:
         state_dict_new[mapping[k]] = v
 
-torch.save(state_dict_new, 'E:/pretrain_ckpt/roberta/[guwen_hf_torch_base]--ethanyt-guwenbert-base/bert4torch_pytorch_model.bin')
+torch.save(state_dict_new, 'E:/pretrain_ckpt/roberta/ethanyt@guwenbert-base/bert4torch_pytorch_model.bin')

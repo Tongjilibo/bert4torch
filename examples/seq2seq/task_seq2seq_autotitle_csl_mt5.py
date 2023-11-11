@@ -28,11 +28,11 @@ steps_per_epoch = None
 pad_token_id = -100
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/t5/[google_mt5_torch_base]/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/t5/[google_mt5_torch_base]/pytorch_model.bin'
+config_path = 'E:/pretrain_ckpt/t5/google@mt5_torch_base/bert4torch_config.json'
+checkpoint_path = 'E:/pretrain_ckpt/t5/google@mt5_torch_base/pytorch_model.bin'
 # 下面两个config是从bert4keras中拿的，项目连接https://github.com/bojone/t5_in_bert4keras
-spm_path = 'E:/pretrain_ckpt/t5/[google_mt5_bert4keras]/sentencepiece_cn.model'
-keep_tokens_path = 'E:/pretrain_ckpt/t5/[google_mt5_bert4keras]/sentencepiece_cn_keep_tokens.json'
+spm_path = 'E:/pretrain_ckpt/t5/google@mt5_bert4keras/sentencepiece_cn.model'
+keep_tokens_path = 'E:/pretrain_ckpt/t5/google@mt5_bert4keras/sentencepiece_cn_keep_tokens.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 

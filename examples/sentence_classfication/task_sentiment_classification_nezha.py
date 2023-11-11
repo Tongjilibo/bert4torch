@@ -17,9 +17,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/pretrain_ckpt/nezha/[huawei_noah_torch_base]--nezha-cn-base/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/nezha/[huawei_noah_torch_base]--nezha-cn-base/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/nezha/[huawei_noah_torch_base]--nezha-cn-base/vocab.txt'
+config_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

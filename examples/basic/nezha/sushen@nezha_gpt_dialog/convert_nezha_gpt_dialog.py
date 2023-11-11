@@ -6,7 +6,7 @@ import torch
 import tensorflow as tf
 import json
 
-ckpt_dir = 'E:/pretrain_ckpt/nezha/[sushen_tf_base]--nezha_gpt_dialog/'
+ckpt_dir = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/'
 tf_path = ckpt_dir + 'model.ckpt'
 torch_state_dict = {}
 

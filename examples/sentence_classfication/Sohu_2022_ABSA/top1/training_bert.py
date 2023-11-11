@@ -22,9 +22,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-config_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/roberta/[hit_torch_base]--chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = 'E:/pretrain_ckpt/roberta/hit@chinese-roberta-wwm-ext-base/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/roberta/hit@chinese-roberta-wwm-ext-base/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/roberta/hit@chinese-roberta-wwm-ext-base/vocab.txt'
 data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
 
 choice = 'train'

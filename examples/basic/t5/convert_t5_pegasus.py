@@ -7,12 +7,12 @@ import json
 choice = 'small'
 
 if choice == 'small':
-    ckpt_dir = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_small]--chinese_t5_pegasus_small/'
-    tf_dir = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_tf_small]--chinese_t5_pegasus_small/'
+    ckpt_dir = 'E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/'
+    tf_dir = 'E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_tf/'
     torch_path = ckpt_dir + 'pytorch_model.bin'
 elif choice == 'base':
-    ckpt_dir = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_torch_base]--chinese_t5_pegasus_base/'
-    tf_dir = 'E:/pretrain_ckpt/t5/[sushen_t5_pegasus_tf_base]--chinese_t5_pegasus_base/'
+    ckpt_dir = 'E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_torch/'
+    tf_dir = 'E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_tf/'
     torch_path = ckpt_dir + 'pytorch_model.bin'
 else:
     raise ValueError(f'{choice} not in pre maintained choices')

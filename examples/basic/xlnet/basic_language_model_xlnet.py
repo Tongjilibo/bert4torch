@@ -1,6 +1,6 @@
 from transformers import XLNetTokenizer, XLNetModel
 
-pretrained_model = "E:/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base"
+pretrained_model = "E:/pretrain_ckpt/xlnet/hit@chinese-xlnet-base"
 tokenizer = XLNetTokenizer.from_pretrained(pretrained_model)
 model = XLNetModel.from_pretrained(pretrained_model)
 

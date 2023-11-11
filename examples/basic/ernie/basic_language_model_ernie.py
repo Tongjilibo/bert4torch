@@ -6,8 +6,8 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-root_model_path = "E:/pretrain_ckpt/ernie/[baidu_torch_base]--ernie-1-base-zh"
-# root_model_path = "E:/pretrain_ckpt/ernie/[baidu_torch_base]--ernie-3-base-zh"
+root_model_path = "E:/pretrain_ckpt/ernie/baidu@ernie-1-base-zh"
+# root_model_path = "E:/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"
 
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"

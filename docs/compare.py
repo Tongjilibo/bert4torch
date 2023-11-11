@@ -46,6 +46,6 @@ def main(local_dir, convert_dir, replace=False):
 
 if __name__ == '__main__':
     local_dir = 'E:\pretrain_ckpt'
-    convert_dir = 'E:\Github\\bert4torch\convert_script'
+    convert_dir = 'E:\Github\\bert4torch\\examples\\basic'
     main(local_dir, convert_dir, replace=False)
     main(convert_dir, local_dir, replace=False)

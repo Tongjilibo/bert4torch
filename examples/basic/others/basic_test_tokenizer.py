@@ -6,13 +6,13 @@ from tqdm import tqdm
 choice = 1
 if choice:
     print('Test BertTokenizer')
-    tokenizer_transformers = BertTokenizer.from_pretrained("E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12")
-    tokenizer_bert4torch = Tokenizer('E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/vocab.txt', do_lower_case=True, do_tokenize_unk=True)
+    tokenizer_transformers = BertTokenizer.from_pretrained("E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12")
+    tokenizer_bert4torch = Tokenizer('E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt', do_lower_case=True, do_tokenize_unk=True)
 else:
     print('Test SpTokenizer')
-    tokenizer_transformers = XLNetTokenizer.from_pretrained("E:/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base")
-    # tokenizer_transformers = XLNetTokenizerFast.from_pretrained("E:/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base")  # fast版本有些许不一样
-    tokenizer_bert4torch = tokenizer = SpTokenizer('E:/pretrain_ckpt/xlnet/[hit_torch_base]--chinese-xlnet-base/spiece.model', token_start=None, token_end=None)
+    tokenizer_transformers = XLNetTokenizer.from_pretrained("E:/pretrain_ckpt/xlnet/hit@chinese-xlnet-base")
+    # tokenizer_transformers = XLNetTokenizerFast.from_pretrained("E:/pretrain_ckpt/xlnet/hit@chinese-xlnet-base")  # fast版本有些许不一样
+    tokenizer_bert4torch = tokenizer = SpTokenizer('E:/pretrain_ckpt/xlnet/hit@chinese-xlnet-base/spiece.model', token_start=None, token_end=None)
 
 with open('E:/data/corpus/sentence_classification/sentiment/sentiment.train.data', 'r', encoding='utf-8') as f:
     for l in tqdm(f):

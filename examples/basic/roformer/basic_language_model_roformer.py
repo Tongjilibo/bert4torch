@@ -7,10 +7,10 @@ import torch
 
 choice = 'roformer_v2'  # roformer roformer_v2
 if choice == 'roformer':
-    args_model_path = "E:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v1_base/"
+    args_model_path = "E:/pretrain_ckpt/roformer/sushen@roformer_v1_base/"
     args_model = 'roformer'
 else:
-    args_model_path = "E:/pretrain_ckpt/roformer/[sushen_torch_base]--roformer_v2_char_base/"
+    args_model_path = "E:/pretrain_ckpt/roformer/sushen@roformer_v2_char_base/"
     args_model = 'roformer_v2'
     
 # 加载模型，请更换成自己的路径

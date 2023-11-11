@@ -26,7 +26,7 @@ print('train_embeddings done, start model distillation...')
 class NewModel(Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        config_path = 'E:/pretrain_ckpt/bert/[google_tf_base]--chinese_L-12_H-768_A-12/bert4torch_config.json'
+        config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
         self.bert = build_transformer_model(config_path=config_path, with_pool=True, segment_vocab_size=0, keep_hidden_layers=[1,4,7])
 
     def forward(self, token_ids):
