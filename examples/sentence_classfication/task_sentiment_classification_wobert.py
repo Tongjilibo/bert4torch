@@ -14,9 +14,9 @@ import jieba
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/pretrain_ckpt/wobert/sushen@wobert_chinese_plus_base/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/wobert/sushen@wobert_chinese_plus_base/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/wobert/sushen@wobert_chinese_plus_base/vocab.txt'
+config_path = 'E:/pretrain_ckpt/bert/sushen@wobert_chinese_plus_base/config.json'
+checkpoint_path = 'E:/pretrain_ckpt/bert/sushen@wobert_chinese_plus_base/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/bert/sushen@wobert_chinese_plus_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'train'  # train表示训练，infer表示推理
 
