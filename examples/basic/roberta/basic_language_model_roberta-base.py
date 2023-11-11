@@ -5,7 +5,7 @@
 
 from bert4torch.models import build_transformer_model
 import torch
-from transformers import RobertaTokenizer, RobertaForMaskedLM
+from transformers import AutoTokenizer, RobertaForMaskedLM
 from torch.nn.functional import softmax
 
 # 加载模型，请更换成自己的路径
@@ -14,7 +14,7 @@ config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
 
 # 建立分词器
-tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+tokenizer = AutoTokenizer.from_pretrained(root_model_path)
 input_text = "The goal of life is <mask>."
 
 
