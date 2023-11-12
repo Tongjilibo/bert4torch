@@ -1,7 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 基础测试：英文mlm预测
 # 权重下载链接：https://huggingface.co/roberta-base
-# 需要先调用进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-base-english.py
 
 from bert4torch.models import build_transformer_model
 import torch
@@ -10,8 +9,8 @@ from torch.nn.functional import softmax
 
 # 加载模型，请更换成自己的路径
 root_model_path = "E:/pretrain_ckpt/roberta/huggingface@roberta-base-english"
-config_path = root_model_path + "/config.json"
-checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
+config_path = root_model_path + "/bert4torch_config.json"
+checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 # 建立分词器
 tokenizer = AutoTokenizer.from_pretrained(root_model_path)
@@ -31,7 +30,7 @@ print(predicted_token, logit_prob[predicted_index])
 
 
 # ==========================bert4torch调用==========================
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax', pad_token_id=1, custom_position_ids='start_at_padding')
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
 token_ids = tokenizer.encode(input_text)
 segments_ids = [0] * len(token_ids)

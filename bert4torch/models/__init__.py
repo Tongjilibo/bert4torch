@@ -177,8 +177,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     # 权重加载
     checkpoint_path = checkpoint_path or configs.get('checkpoint_path')
     if checkpoint_path is not None:
-        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, skip_init=skip_init, device_map=device_map, 
-                                                          torch_dtype=torch_dtype, verbose=verbose)
+        transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, mapping=configs.get('mapping'), skip_init=skip_init, 
+                                                          device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
     
     # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
     transformer.tie_weights()

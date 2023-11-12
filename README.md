@@ -86,7 +86,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
-- **20231108**：支持chatglm 32k的rope_ratio
+- **20231112**：支持chatglm 32k的rope_ratio，config中可以指定mapping
 - **20231106**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
 - **20231022**：增加falcon，layernorm支持torch自带
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
@@ -103,10 +103,10 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 |     | bert-base-multilingual-cased| huggingface | [torch](https://huggingface.co/bert-base-multilingual-cased) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) |
 |     | macbert | HFL| [tf/torch](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base) | |
 |     | wobert| 追一科技| [tf](https://github.com/ZhuiyiTechnology/WoBERT)，[torch_base](https://huggingface.co/junnyu/wobert_chinese_base)，[torch_plus_base](https://huggingface.co/junnyu/wobert_chinese_plus_base) | |
-|     | guwenbert| ethanyt |[torch](https://huggingface.co/ethanyt/guwenbert-base) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/convert_guwenbert-base.py)|
+|     | guwenbert| ethanyt |[torch](https://huggingface.co/ethanyt/guwenbert-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/ethanyt@guwenbert-base/bert4torch_config.json)|
 |roberta|chinese-roberta-wwm-ext | HFL | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-roberta-wwm-ext) | |
 |     |roberta-small/tiny| 追一科技 & UER| [tf](https://github.com/ZhuiyiTechnology/pretrained-models)，[torch](https://huggingface.co/uer) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-small.py) |
-|     |roberta-base-english| huggingface | [torch](https://huggingface.co/roberta-base) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-base-english.py) |
+|     |roberta-base-english| huggingface | [torch](https://huggingface.co/roberta-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/huggingface@roberta-base-english/bert4torch_config.json) |
 | albert|albert| brightmart| [tf](https://github.com/brightmart/albert_zh)，[torch](https://huggingface.co/voidful)，[torch](https://github.com/lonePatient/albert_pytorch) | |
 | nezha|NEZHA | 华为| [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[torch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | |
 | xlnet|chinese-xlnet | HFL | [tf/torch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/hfl@chinese-xlnet-base)|

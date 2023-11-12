@@ -1,21 +1,20 @@
 #! -*- coding: utf-8 -*-
-# 基础测试：mlm预测，特别的是guwenbert的padding是1，并且position_ids从2开始，使用时候需要设置custom_position_ids='start_at_padding'
-# 需要先调用进行权重转换 https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/convert_guwenbert-base.py
+# 基础测试：mlm预测，特别的是guwenbert的padding是1，并且position_ids从2开始
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-root_model_path = "E:/pretrain_ckpt/roberta/ethanyt@guwenbert-base"
+root_model_path = "E:/pretrain_ckpt/bert/ethanyt@guwenbert-base"
 vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/config.json"
-checkpoint_path = root_model_path + '/bert4torch_pytorch_model.bin'
+config_path = root_model_path + "/bert4torch_config.json"
+checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax', pad_token_id=1, custom_position_ids='start_at_padding')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
 
 token_ids, segments_ids = tokenizer.encode("晋太元中，武陵人捕鱼为业。")
 token_ids[1] = tokenizer._token_mask_id
