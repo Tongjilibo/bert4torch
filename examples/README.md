@@ -14,6 +14,8 @@
 |bloom | [basic_language_model_bloom.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bloom/basic_language_model_bloom.py)：测试[bloom](https://huggingface.co/bigscience)。
 |deberta|[basic_language_model_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/deberta/basic_language_model_deberta_v2.py): 测试deberta_v2模型。
 |embedding|[basic_text2vec-base-chinese.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/embedding/basic_text2vec-base-chinese.py): [text2vec-base-chinese](https://huggingface.co/shibing624/text2vec-base-chinese)。
+|      |[basic_m3e.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/embedding/basic_m3e.py): [m3e](https://huggingface.co/moka-ai/m3e-base)。
+|      |[basic_bge.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/embedding/basic_bge.py): [bge](https://huggingface.co/BAAI)。
 |ernie |[basic_language_model_ernie.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/ernie/basic_language_model_ernie.py)：测试百度文心ERNIE的MLM模型效果。
 |falcon|[basic_language_model_falcon.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/falcon/basic_language_model_falcon.py): 测试[falcon](https://huggingface.co/tiiuae)模型。
 | gau  |[basic_language_model_GAU_alpha.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gau/basic_language_model_GAU_alpha.py)：测试[GAU-alpha](https://github.com/ZhuiyiTechnology/GAU-alpha)的MLM模型效果。
