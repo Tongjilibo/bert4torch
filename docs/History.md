@@ -1,5 +1,6 @@
 ## 更新历史
 
+- **20231112**：支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge
 - **20231106**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
 - **20231022**：增加falcon，layernorm支持torch自带
 - **20230912**：修复generation（既可初始化传参，也可以generate传参），decoder架构、encoder-decoder架构的增加generate系列方法直接推理, 增加internlm/baichuan2模型，训练时会默认自动把dataloader转移到model.device上, 增加xformers
