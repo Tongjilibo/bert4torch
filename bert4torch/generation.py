@@ -668,8 +668,8 @@ class SeqGeneration(AutoRegressiveDecoder):
                 states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
                 del states['input_attention_mask']
 
-            # shape和size不一致: step=1时候，beam_search的btz=束宽
-            if (self.mode == 'beam_search') and (self.step == 1):
+            # shape和size不一致: step=1时候，beam_search的btz=束宽, 或者要返回多个结果
+            if (self.mode == 'beam_search' or self.n > 1) and (self.step == 1):
                 btz = len(self.flag)
                 if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
                     repeat_size = btz // states['past_key_values'][0][0].shape[0]
