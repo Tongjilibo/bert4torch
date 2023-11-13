@@ -33,7 +33,7 @@ python3 -m apply_delta
 ```
 
 ## [Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
-- [chinese_llama_plus_7b](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
+- [hfl@chinese_llama_plus_7b](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
 1. 用transformer脚本转换facebook的llama模型, 如直接下载的是hf版的llama则此步骤忽略；
 ```python
 python D:/ProgramData/Anaconda3/Lib/site-packages/transformers/models/llama/convert_llama_weights_to_hf.py  
@@ -45,20 +45,20 @@ python D:/ProgramData/Anaconda3/Lib/site-packages/transformers/models/llama/conv
 ```python
 python scripts/merge_llama_with_chinese_lora.py 
     --base_model E:/pretrain_ckpt/llama/7B-hf  
-    --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b  
+    --lora_model E:/pretrain_ckpt/llama/chinese-llama/hfl@chinese_llama_plus_lora_7b  
     --output_type huggingface
-    --output_dir E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b 
+    --output_dir E:/pretrain_ckpt/llama/chinese-llama/hfl@chinese_llama_plus_7b 
 ```
 
 
-- chinese_alpaca_plus_7b](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
+- [hfl@chinese_alpaca_plus_7b](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
 转换同上，只是合并lora权重需要合并多个lora权重
 ```python
 python scripts/merge_llama_with_chinese_lora.py 
     --base_model E:/pretrain_ckpt/llama/7B-hf 
-    --lora_model E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_lora_7b,E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_lora_7b  
+    --lora_model E:/pretrain_ckpt/llama/hfl@chinese_llama_plus_lora_7b,E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_lora_7b  
     --output_type huggingface 
-    --output_dir E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b 
+    --output_dir E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b 
 ```
 
 ## [belle-llama](https://github.com/LianjiaTech/BELLE/tree/main/models)
@@ -67,3 +67,4 @@ python scripts/merge_llama_with_chinese_lora.py
 
 ## [llama_vicuna模型](https://github.com/lm-sys/FastChat)
 - [vicuna-7b](https://huggingface.co/AlekseyKorshuk/vicuna-7b)
+- [lmsys@vicuna-7b-v1.5](https://hf-mirror.com/lmsys/vicuna-7b-v1.5)

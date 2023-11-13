@@ -11,10 +11,10 @@ import platform
 import os
 
 
-# dir_path = 'E:/pretrain_ckpt/llama/chinese-llama/chinese_llama_plus_7b'
+# dir_path = 'E:/pretrain_ckpt/llama/hfl@chinese_llama_plus_7b'
 # with_prompt = False
 
-dir_path = 'E:/pretrain_ckpt/llama/chinese-alpaca/chinese_alpaca_plus_7b'
+dir_path = 'E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b'
 with_prompt = True
 
 include_input = not with_prompt

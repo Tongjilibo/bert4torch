@@ -10,9 +10,10 @@ import platform
 import os
 
 
-config_path = 'E:/pretrain_ckpt/llama/vicuna-7b/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/llama/vicuna-7b/pytorch_model.bin'
-spm_path = 'E:/pretrain_ckpt/llama/vicuna-7b/tokenizer.model'
+dir_path = 'E:/pretrain_ckpt/llama/lmsys@vicuna-7b-v1.5/'
+config_path = dir_path + 'bert4torch_config.json'
+checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
+spm_path = dir_path + 'tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
@@ -58,6 +59,6 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use vicuna-7b model，type `clear` to clear history，type `stop` to stop program")
             continue
-        response = article_completion.generate(query)
+        response = article_completion.generate(query, include_input=True)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nvicuna-7b：{response}")
