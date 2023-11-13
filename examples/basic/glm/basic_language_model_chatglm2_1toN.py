@@ -13,7 +13,7 @@ import re
 
 choice = 'default'  # default, int4, 32k
 if choice == 'default':
-    dir_path = "/llm/chatglm/chatglm2-model"
+    dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 elif choice == 'int4':
     dir_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int4"
 elif choice == '32k':
@@ -68,7 +68,7 @@ def chat(query, history=[]):
         prompt += "[Round {}]\n\n问：{}\n\n答：{}\n".format(i+1, old_query, response)
     prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history)+1, query)
 
-    response = generation.generate(prompt, temperature=1, n=10)
+    response = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95, n=5)
     if isinstance(response, list):
         response = [process_response(i) for i in response]
     else:
@@ -78,7 +78,7 @@ def chat(query, history=[]):
 
 if __name__ == '__main__':
     history = []
-    response = chat('你是谁？', history=history)
+    response = chat('如何查询天气？', history=history)
     if isinstance(response, str):
         print(response)
     else:
