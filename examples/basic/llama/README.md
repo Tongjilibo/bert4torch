@@ -68,3 +68,7 @@ python scripts/merge_llama_with_chinese_lora.py
 ## [llama_vicuna模型](https://github.com/lm-sys/FastChat)
 - [vicuna-7b](https://huggingface.co/AlekseyKorshuk/vicuna-7b)
 - [lmsys@vicuna-7b-v1.5](https://hf-mirror.com/lmsys/vicuna-7b-v1.5)
+
+## [Yi](https://github.com/01-ai/Yi)
+- [6B](https://huggingface.co/01-ai/Yi-6B)
+- [6B-200K](https://huggingface.co/01-ai/Yi-6B-200K)

@@ -61,7 +61,8 @@ class MultiHeadAttentionLayer(nn.Module):
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, 
                                                                     rope_rank=kwargs.get('rope_rank', 'adjacent'), 
                                                                     ntk_alpha=kwargs.get('ntk_alpha', 1.0),
-                                                                    rope_ratio=kwargs.get('rope_ratio', 1.0))
+                                                                    rope_ratio=kwargs.get('rope_ratio', 1.0),
+                                                                    sinusoid_base=kwargs.get('sinusoid_base', 10000.0))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 

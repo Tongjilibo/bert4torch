@@ -171,7 +171,7 @@ class RoPEPositionEncoding(nn.Module):
     :param rope_rank: 排序的方式，目前支持'adjacent', 'updown'两种
     :param ntk_alpha: ntk外推的alpha
     """
-    def __init__(self, embedding_size, rope_rank='adjacent', ntk_alpha=1.0, rope_ratio=1.0, **kwargs):
+    def __init__(self, embedding_size, rope_rank='adjacent', ntk_alpha=1.0, rope_ratio=1.0, sinusoid_base=10000.0, **kwargs):
         super(RoPEPositionEncoding, self).__init__()
         self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
@@ -180,6 +180,7 @@ class RoPEPositionEncoding(nn.Module):
         self.rope_rank = rope_rank
         self.ntk_alpha = ntk_alpha  # ntk外推
         self.rope_ratio = rope_ratio  # chatglm中32k的插值
+        self.sinusoid_base = sinusoid_base
     
     def reset_ntk_alpha(self, ntk_alpha):
         if ntk_alpha != self.ntk_alpha:
@@ -187,8 +188,8 @@ class RoPEPositionEncoding(nn.Module):
             self.max_seq_len_cache = -1
         
     def initialize(self, max_position):
-        position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size, ntk_alpha=self.ntk_alpha, 
-                                                          rope_ratio=self.rope_ratio)  # [seq_len, hdsz]
+        position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size, base=self.sinusoid_base,
+                                                          ntk_alpha=self.ntk_alpha, rope_ratio=self.rope_ratio)  # [seq_len, hdsz]
 
         if self.rope_rank == 'adjacent':
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
