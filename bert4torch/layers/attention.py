@@ -31,7 +31,17 @@ class MultiHeadAttentionLayer(nn.Module):
         self.bias = bias
         self.p_bias = p_bias
         self.use_dynamic_ntk = use_dynamic_ntk
-        self.flash_attention = self._get_flash_attention(flash_attention)
+        # 获取flash_attention的配置项
+        self.flash_attention = None
+        if (flash_attention in {True, 'sdpa'}) and (int(torch.__version__.split('.')[0]) < 2):
+            log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
+        elif (flash_attention == 'xformers') and (importlib.util.find_spec("xformers") is None):
+            log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
+        elif (flash_attention == 'flash_attn_2') and (importlib.util.find_spec("flash_attn") is None):
+            log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
+        else:
+            self.flash_attention = flash_attention
+        
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
@@ -170,7 +180,7 @@ class MultiHeadAttentionLayer(nn.Module):
             context_layer = context_layer.reshape(*new_context_layer_shape)
             attention_scores = None
         else:
-            context_layer, attention_scores = self.get_context_layer(query_layer, key_layer, value_layer, attention_mask)
+            context_layer, attention_scores = self.old_attention_forward(query_layer, key_layer, value_layer, attention_mask)
 
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
@@ -204,7 +214,7 @@ class MultiHeadAttentionLayer(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
     
-    def get_context_layer(self, query_layer, key_layer, value_layer, attention_mask):
+    def old_attention_forward(self, query_layer, key_layer, value_layer, attention_mask):
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
@@ -239,7 +249,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
             rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
             relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
-            rel_att = self.disentangled_attention_bias(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
+            rel_att = self.apply_deberta_pos_emb(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
             attention_scores = attention_scores + rel_att
 
         if self.attention_scale:
@@ -328,8 +338,8 @@ class MultiHeadAttentionLayer(nn.Module):
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         return query_layer, key_layer, value_layer
 
-    def disentangled_attention_bias(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
-        '''deberta_v2使用，和原版区别是query_layer是4维'''
+    def apply_deberta_pos_emb(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
+        '''deberta_v2使用，和原版区别是query_layer是4维, 原disentangled_attention_bias'''
         btz, n_head, q_len, d_head = query_layer.size()
         k_len = key_layer.size(-2)
         if relative_pos is None:
@@ -377,29 +387,39 @@ class MultiHeadAttentionLayer(nn.Module):
             score += p2c_att / scale.to(dtype=p2c_att.dtype)
         return score
     
-    @staticmethod
-    def _get_flash_attention(flash_attention):
-        ''' 获取flash_attention的配置项 '''
-        if (flash_attention == True) or (flash_attention == 'sdpa'):
-            if int(torch.__version__.split('.')[0]) < 2:
-                log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-                return False
-            return 'sdpa'
-        elif flash_attention == 'xformers':
-            if importlib.util.find_spec("xformers") is None:
-                log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-                return False
-            return flash_attention
-        elif flash_attention == 'flash_attn_2':
-            if importlib.util.find_spec("flash_attn") is None:
-                log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention.")
-                return False
-            return flash_attention
-        return False
-
     def flash_attention_forward(self, query_states, key_states, value_states, attention_mask, query_length, dropout=0.0, softmax_scale=None):
         """ flash_attn，参考transformers中的调用
         """
+        def _get_unpad_data(attention_mask):
+            seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+            indices = torch.nonzero(attention_mask.flatten(), as_tuple=False).flatten()
+            max_seqlen_in_batch = seqlens_in_batch.max().item()
+            cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.torch.int32), (1, 0))
+            return indices, cu_seqlens, max_seqlen_in_batch
+
+        def _upad_input(self, query_layer, key_layer, value_layer, attention_mask, query_length):       
+            indices_k, cu_seqlens_k, max_seqlen_in_batch_k = _get_unpad_data(attention_mask)
+            batch_size, kv_seq_len, num_key_value_heads, head_dim = key_layer.shape
+
+            key_layer = index_first_axis(key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
+            value_layer = index_first_axis(value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
+            if query_length == kv_seq_len:
+                query_layer = index_first_axis(query_layer.reshape(batch_size * kv_seq_len, self.num_heads, head_dim), indices_k)
+                cu_seqlens_q = cu_seqlens_k
+                max_seqlen_in_batch_q = max_seqlen_in_batch_k
+                indices_q = indices_k
+            elif query_length == 1:
+                max_seqlen_in_batch_q = 1
+                cu_seqlens_q = torch.arange(batch_size + 1, dtype=torch.int32, device=query_layer.device)  # There is a memcpy here, that is very bad.
+                indices_q = cu_seqlens_q[:-1]
+                query_layer = query_layer.squeeze(1)
+            else:
+                # The -q_len: slice assumes left padding.
+                attention_mask = attention_mask[:, -query_length:]
+                query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
+
+            return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
+
         query_states = query_states.transpose(1,2)  # [batch_size, query_len, num_attention_heads, attention_head_size]
         key_states = key_states.transpose(1,2)
         value_states = value_states.transpose(1,2)
@@ -408,8 +428,8 @@ class MultiHeadAttentionLayer(nn.Module):
         if attention_mask is not None:
             attention_mask = attention_mask.transpose(1,2)
             batch_size = query_states.shape[0]
-            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = self._upad_input(
-                query_states, key_states, value_states, attention_mask, query_length)
+            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
+                self, query_states, key_states, value_states, attention_mask, query_length)
 
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
@@ -421,37 +441,6 @@ class MultiHeadAttentionLayer(nn.Module):
             attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=self.is_causal)
 
         return attn_output.transpose(1,2)
-
-    def _upad_input(self, query_layer, key_layer, value_layer, attention_mask, query_length):
-        def _get_unpad_data(attention_mask):
-            seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-            indices = torch.nonzero(attention_mask.flatten(), as_tuple=False).flatten()
-            max_seqlen_in_batch = seqlens_in_batch.max().item()
-            cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.torch.int32), (1, 0))
-            return indices, cu_seqlens, max_seqlen_in_batch
-        
-        indices_k, cu_seqlens_k, max_seqlen_in_batch_k = _get_unpad_data(attention_mask)
-        batch_size, kv_seq_len, num_key_value_heads, head_dim = key_layer.shape
-
-        key_layer = index_first_axis(key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
-        value_layer = index_first_axis(value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
-        if query_length == kv_seq_len:
-            query_layer = index_first_axis(query_layer.reshape(batch_size * kv_seq_len, self.num_heads, head_dim), indices_k)
-            cu_seqlens_q = cu_seqlens_k
-            max_seqlen_in_batch_q = max_seqlen_in_batch_k
-            indices_q = indices_k
-        elif query_length == 1:
-            max_seqlen_in_batch_q = 1
-            cu_seqlens_q = torch.arange(batch_size + 1, dtype=torch.int32, device=query_layer.device)  # There is a memcpy here, that is very bad.
-            indices_q = cu_seqlens_q[:-1]
-            query_layer = query_layer.squeeze(1)
-        else:
-            # The -q_len: slice assumes left padding.
-            attention_mask = attention_mask[:, -query_length:]
-            query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
-
-        return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
-
 
 class GatedAttentionUnit(nn.Module):
     '''门控注意力单元
