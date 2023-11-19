@@ -24,6 +24,7 @@ class MultiHeadAttentionLayer(nn.Module):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
+        self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.is_decoder = kwargs.get('is_decoder', False)
         self.is_causal = kwargs.get('is_causal', self.is_decoder)
         self.attention_scale = attention_scale
@@ -170,7 +171,8 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.flash_attention == 'flash_attn_2':
             # flash_attn
             attn_mask = None if self.is_causal else attention_mask.bool()
-            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, attn_mask, hidden_states.shape[1], dropout=0.0)
+            dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
+            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, attn_mask, hidden_states.shape[1], dropout=dropout)
         else:
             context_layer = None
 
