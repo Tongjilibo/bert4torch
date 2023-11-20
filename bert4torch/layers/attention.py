@@ -406,7 +406,7 @@ class MultiHeadAttentionLayer(nn.Module):
             key_layer = index_first_axis(key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
             value_layer = index_first_axis(value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
             if query_length == kv_seq_len:
-                query_layer = index_first_axis(query_layer.reshape(batch_size * kv_seq_len, self.num_heads, head_dim), indices_k)
+                query_layer = index_first_axis(query_layer.reshape(batch_size * kv_seq_len, self.num_attention_heads, head_dim), indices_k)
                 cu_seqlens_q = cu_seqlens_k
                 max_seqlen_in_batch_q = max_seqlen_in_batch_k
                 indices_q = indices_k
