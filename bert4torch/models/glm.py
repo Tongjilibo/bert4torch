@@ -20,6 +20,7 @@ class GLM(Decoder):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})
+        kwargs['is_causal'] = kwargs.get('is_causal', False)
         super().__init__(*args, **kwargs)
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs.get('bos_token_id'), kwargs.get('mask_token_id'), kwargs.get('gmask_token_id')
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
@@ -180,7 +181,7 @@ class GLM2(GLM):
              3) multi_query_attention
     """
     def __init__(self, *args, **kwargs):
-        kwargs.update({'norm_mode': 'rmsnorm', 'pre_layernorm': True})
+        kwargs.update({'norm_mode': 'rmsnorm', 'pre_layernorm': True, 'is_causal': True})
         super().__init__(*args, **kwargs)
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-5), norm_mode='rmsnorm', bias=False)
         self.prefix = 'transformer.encoder'

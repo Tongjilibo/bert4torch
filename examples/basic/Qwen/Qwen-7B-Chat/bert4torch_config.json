@@ -20,7 +20,7 @@
     "seq_length": 2048,
     "tie_word_embeddings": false,
     "use_cache": true,
-    "use_flash_attn": true,
+    "flash_attention": "flash_attn_2",
     "vocab_size": 151936,
     "use_dynamic_ntk": true,
     "use_logn_attn": true,
