@@ -42,6 +42,7 @@ class MultiHeadAttentionLayer(nn.Module):
             log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
         else:
             self.flash_attention = flash_attention
+            self.flash_attention_config = kwargs.get('flash_attention_config', None)
         
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = max_position = kwargs.get('max_position')
@@ -165,9 +166,14 @@ class MultiHeadAttentionLayer(nn.Module):
             # xformers
             context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
         elif self.flash_attention == 'sdpa':
-            # SDPA
-            kwargs = {'is_causal': True} if self.is_causal else {'attn_mask': attention_mask.bool()}
-            context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, **kwargs)
+            # SDPA: 目前falcon和baichuan中均以attn_mask传入，如果仅传入is_casual=Ture结果不对
+            if self.flash_attention_config is None:
+                # 默认方式
+                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+            else:
+                # 自定义
+                with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
+                    context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
         elif self.flash_attention == 'flash_attn_2':
             # flash_attn
             attn_mask = None if self.is_causal else attention_mask.bool()
