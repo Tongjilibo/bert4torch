@@ -55,6 +55,9 @@ class AutoRegressiveDecoder(object):
     :param temperature: 温度参数，默认为1
     :param repetition_penalty: 重复的惩罚系数
     :param min_ends: int, 最小的end_id的个数
+    :param return_last_token: bool, 在stream_generate模式下，是否仅输出last_token, 默认为False表示输出解码出来的历史token
+        1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
+        2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     """
     @model_inference_mode()
     def __init__(self, start_id=None, end_id=-1, maxlen=64, minlen=1, pad_id=0, pad_mode='post', device='cpu', 
@@ -73,6 +76,7 @@ class AutoRegressiveDecoder(object):
         self.temperature = temperature
         self.repetition_penalty = repetition_penalty
         self.min_ends = min_ends
+        self.return_last_token = False
         # 参数别名：兼容transformers的参数设置
         self.alias = {'bos_token_id': 'start_id',
                       'eos_token_id': 'end_id',
@@ -380,7 +384,10 @@ class AutoRegressiveDecoder(object):
         results = []
         for step in range(self.maxlen):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
-            yield [output_ids[output_scores.argmax()]]
+            if self.return_last_token:
+                yield [output_ids[output_scores.argmax()][-1:]]  # 仅yield最后一个token
+            else:
+                yield [output_ids[output_scores.argmax()]]
             inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
             if break_tag:
                 break 
@@ -504,7 +511,10 @@ class AutoRegressiveDecoder(object):
         results = []
         for step in range(self.maxlen):
             inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
-            yield output_ids
+            if self.return_last_token:
+                yield output_ids[:, -1:]  # 仅yield最后一个token
+            else:
+                yield output_ids
             inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results)
             if break_tag:
                 break
@@ -537,6 +547,10 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param temperature: 温度参数，默认为1
     :param repetition_penalty: 重复的惩罚系数
     :param min_ends: int, 最小的end_id的个数
+    :param include_input: int, 输出是否包含输入
+    :param return_last_token: bool, 在stream_generate模式下，是否仅输出last_token, 默认为False表示输出解码出来的历史token
+        1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
+        2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
     def __init__(self, model, tokenizer=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
                  mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **generation_config):
