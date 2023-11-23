@@ -178,26 +178,20 @@ class MultiHeadAttentionLayer(nn.Module):
                     context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
         # flash_attn
         elif self.flash_attention == 'flash_attn_2':
-            attn_mask = None if self.is_causal else attention_mask.bool()
-            dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
-            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, attn_mask, hidden_states.shape[1], dropout=dropout)
+            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, attention_mask, hidden_states.shape[1])
         # torch原生实现
         else:
             context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
-        context_layer = self._rotate_context_layer(context_layer)
         
-        # 是否返回attention scores
-        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
-        return outputs + (past_key_value,) if self.is_decoder else outputs
-    
-    @staticmethod
-    def _rotate_context_layer(context_layer):
         # context_layer shape: [batch_size, query_len, num_attention_heads, attention_head_size]
         context_layer = context_layer.permute(0, 2, 1, 3)
         new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
         context_layer = context_layer.reshape(*new_context_layer_shape)
-        return context_layer
-    
+
+        # 是否返回attention scores
+        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+        return outputs + (past_key_value,) if self.is_decoder else outputs
+        
     def repeat_kv(self, hidden_states):
         if hasattr(self, 'multi_query_group_num'):
             hidden_states = hidden_states.unsqueeze(2)
@@ -393,7 +387,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
         return context_layer, attention_scores
     
-    def flash_attention_forward(self, query_states, key_states, value_states, attention_mask, query_length, dropout=0.0, softmax_scale=None):
+    def flash_attention_forward(self, query_states, key_states, value_states, attention_mask, query_length, softmax_scale=None):
         """ flash_attn，参考transformers中的调用
         """
         def _get_unpad_data(attention_mask):
@@ -426,25 +420,27 @@ class MultiHeadAttentionLayer(nn.Module):
 
             return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
 
+        dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
         query_states = query_states.transpose(1,2)  # [batch_size, query_len, num_attention_heads, attention_head_size]
         key_states = key_states.transpose(1,2)
         value_states = value_states.transpose(1,2)
-
+        
         # Contains at least one padding token in the sequence
-        if attention_mask is not None:
-            attention_mask = attention_mask.transpose(1,2)
+        if not self.is_causal and (0 in attention_mask):
+            assert attention_mask.shape[1:3] == torch.Size([1,1]), 'Only support key_padding_mask'
+            attn_mask = attention_mask[:,0,0,:]
             batch_size = query_states.shape[0]
             query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
-                self, query_states, key_states, value_states, attention_mask, query_length)
+                self, query_states, key_states, value_states, attn_mask, query_length)
 
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
             attn_output_unpad = flash_attn_varlen_func(
                 query_states, key_states, value_states, cu_seqlens_q=cu_seqlens_q, cu_seqlens_k=cu_seqlens_k, max_seqlen_q=max_seqlen_in_batch_q,
-                max_seqlen_k=max_seqlen_in_batch_k, dropout_p=dropout, softmax_scale=softmax_scale, causal=self.is_causal)
+                max_seqlen_k=max_seqlen_in_batch_k, dropout_p=dropout, softmax_scale=softmax_scale, causal=False)
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
         else:
-            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=self.is_causal)
+            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True)
 
         return attn_output.transpose(1,2)
 
