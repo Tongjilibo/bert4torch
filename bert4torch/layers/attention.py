@@ -161,12 +161,14 @@ class MultiHeadAttentionLayer(nn.Module):
             pre_attention_mask = torch.ones(size_).to(attention_mask)
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
-        # 是否使用flash_attention加速
+        # ====================================是否使用flash_attention加速====================================
+        # xformers
+        attention_scores = None
         if (self.flash_attention == 'xformers') and self.training:
-            # xformers
             context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
+        # SDPA
         elif self.flash_attention == 'sdpa':
-            # SDPA: 目前falcon和baichuan中均以attn_mask传入，如果仅传入is_casual=Ture结果不对
+            # 目前falcon和baichuan中均以attn_mask传入，如果仅传入is_casual=Ture结果不对
             if self.flash_attention_config is None:
                 # 默认方式
                 context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
@@ -174,26 +176,28 @@ class MultiHeadAttentionLayer(nn.Module):
                 # 自定义
                 with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
                     context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+        # flash_attn
         elif self.flash_attention == 'flash_attn_2':
-            # flash_attn
             attn_mask = None if self.is_causal else attention_mask.bool()
             dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
             context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, attn_mask, hidden_states.shape[1], dropout=dropout)
+        # torch原生实现
         else:
-            context_layer = None
-
-        if context_layer is not None:
-            context_layer = context_layer.permute(0, 2, 1, 3)
-            new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-            context_layer = context_layer.reshape(*new_context_layer_shape)
-            attention_scores = None
-        else:
-            context_layer, attention_scores = self.old_attention_forward(query_layer, key_layer, value_layer, attention_mask)
-
+            context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
+        context_layer = self._rotate_context_layer(context_layer)
+        
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
         return outputs + (past_key_value,) if self.is_decoder else outputs
-
+    
+    @staticmethod
+    def _rotate_context_layer(context_layer):
+        # context_layer shape: [batch_size, query_len, num_attention_heads, attention_head_size]
+        context_layer = context_layer.permute(0, 2, 1, 3)
+        new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
+        context_layer = context_layer.reshape(*new_context_layer_shape)
+        return context_layer
+    
     def repeat_kv(self, hidden_states):
         if hasattr(self, 'multi_query_group_num'):
             hidden_states = hidden_states.unsqueeze(2)
@@ -221,86 +225,6 @@ class MultiHeadAttentionLayer(nn.Module):
             new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
-    
-    def old_attention_forward(self, query_layer, key_layer, value_layer, attention_mask):
-        # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
-
-        # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
-        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== nezha相对位置编码 ====================
-            relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
-            # 旧实现，方便读者理解维度转换
-            # query_layer_t = query_layer.permute(2, 0, 1, 3)
-            # query_layer_r = query_layer_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
-            # key_position_scores = torch.matmul(query_layer_r, relations_keys.permute(0, 2, 1))
-            # key_position_scores_r = key_position_scores.view(from_seq_length, batch_size, num_attention_heads, from_seq_length)
-            # key_position_scores_r_t = key_position_scores_r.permute(1, 2, 0, 3)
-            # 新实现
-            key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
-            attention_scores = attention_scores + key_position_scores_r_t
-        elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== t5相对位置编码 ====================
-            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
-            key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
-            attention_scores = attention_scores + key_position_scores_r_t
-        elif (self.p_bias == 'deberta_v2') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== deberta_v2相对位置编码 ====================
-            self.attention_scale = False  # deberta_v2使用自己的attention_scale
-            scale_factor = 1
-            if "c2p" in self.pos_att_type:
-                scale_factor += 1
-            if "p2c" in self.pos_att_type:
-                scale_factor += 1
-            scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
-            attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
-
-            rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
-            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
-            rel_att = self.apply_deberta_pos_emb(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
-            attention_scores = attention_scores + rel_att
-
-        if self.attention_scale:
-            # 是否进行attention scale
-            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
-        
-        # ==================== alibi相对位置编码 ====================
-        attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
-
-        # 执行attention mask，对于mask为0部分的attention mask，
-        # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
-        if attention_mask is not None:
-            # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
-            # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
-            attention_mask = (1.0 - attention_mask) * -10000.0  # 所以传入的mask的非padding部分为1, padding部分为0
-            attention_scores = attention_scores + attention_mask
-
-        # 将attention score 归一化到0-1
-        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_layer.dtype)
-        attention_probs = self.dropout(attention_probs)
-        context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
-
-        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== nezha相对位置编码 ====================
-            relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
-            # 旧实现，方便读者理解维度转换
-            # attention_probs_t = attention_probs.permute(2, 0, 1, 3)
-            # attentions_probs_r = attention_probs_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, to_seq_length)
-            # value_position_scores = torch.matmul(attentions_probs_r, relations_values)
-            # value_position_scores_r = value_position_scores.view(from_seq_length, batch_size, num_attention_heads, self.attention_head_size)
-            # value_position_scores_r_t = value_position_scores_r.permute(1, 2, 0, 3)
-            # 新实现
-            value_position_scores_r_t = torch.einsum('bnij,ijh->bnih', attention_probs, relations_values)
-            context_layer = context_layer + value_position_scores_r_t
-
-        # context_layer shape: [batch_size, query_len, num_attention_heads, attention_head_size]
-        # transpose、permute等维度变换操作后，tensor在内存中不再是连续存储的，而view操作要求tensor的内存连续存储，
-        # 所以在调用view之前，需要contiguous来返回一个contiguous copy；
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-
-        new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-        context_layer = context_layer.view(*new_context_layer_shape)
-        return context_layer, attention_scores
 
     def apply_alibi_pos_emb(self, attention_scores, key_layer):
         ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
@@ -394,6 +318,80 @@ class MultiHeadAttentionLayer(nn.Module):
             p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand([btz, n_head, k_len, k_len])).transpose(-1, -2)
             score += p2c_att / scale.to(dtype=p2c_att.dtype)
         return score
+    
+    def torch_attention_forward(self, query_layer, key_layer, value_layer, attention_mask):
+        '''qkv attention: torch原生实现'''
+        # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+
+        # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
+        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
+            # ==================== nezha相对位置编码 ====================
+            relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
+            # 旧实现，方便读者理解维度转换
+            # query_layer_t = query_layer.permute(2, 0, 1, 3)
+            # query_layer_r = query_layer_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
+            # key_position_scores = torch.matmul(query_layer_r, relations_keys.permute(0, 2, 1))
+            # key_position_scores_r = key_position_scores.view(from_seq_length, batch_size, num_attention_heads, from_seq_length)
+            # key_position_scores_r_t = key_position_scores_r.permute(1, 2, 0, 3)
+            # 新实现
+            key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
+            attention_scores = attention_scores + key_position_scores_r_t
+        elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
+            # ==================== t5相对位置编码 ====================
+            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
+            key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
+            attention_scores = attention_scores + key_position_scores_r_t
+        elif (self.p_bias == 'deberta_v2') and hasattr(self, 'relative_positions_encoding'):
+            # ==================== deberta_v2相对位置编码 ====================
+            self.attention_scale = False  # deberta_v2使用自己的attention_scale
+            scale_factor = 1
+            if "c2p" in self.pos_att_type:
+                scale_factor += 1
+            if "p2c" in self.pos_att_type:
+                scale_factor += 1
+            scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
+            attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
+
+            rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
+            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
+            rel_att = self.apply_deberta_pos_emb(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
+            attention_scores = attention_scores + rel_att
+
+        if self.attention_scale:
+            # 是否进行attention scale
+            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        
+        # ==================== alibi相对位置编码 ====================
+        attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
+
+        # 执行attention mask，对于mask为0部分的attention mask，
+        # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
+        if attention_mask is not None:
+            # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
+            # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
+            attention_mask = (1.0 - attention_mask) * -10000.0  # 所以传入的mask的非padding部分为1, padding部分为0
+            attention_scores = attention_scores + attention_mask
+
+        # 将attention score 归一化到0-1
+        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_layer.dtype)
+        attention_probs = self.dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+
+        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
+            # ==================== nezha相对位置编码 ====================
+            relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
+            # 旧实现，方便读者理解维度转换
+            # attention_probs_t = attention_probs.permute(2, 0, 1, 3)
+            # attentions_probs_r = attention_probs_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, to_seq_length)
+            # value_position_scores = torch.matmul(attentions_probs_r, relations_values)
+            # value_position_scores_r = value_position_scores.view(from_seq_length, batch_size, num_attention_heads, self.attention_head_size)
+            # value_position_scores_r_t = value_position_scores_r.permute(1, 2, 0, 3)
+            # 新实现
+            value_position_scores_r_t = torch.einsum('bnij,ijh->bnih', attention_probs, relations_values)
+            context_layer = context_layer + value_position_scores_r_t
+
+        return context_layer, attention_scores
     
     def flash_attention_forward(self, query_states, key_states, value_states, attention_mask, query_length, dropout=0.0, softmax_scale=None):
         """ flash_attn，参考transformers中的调用
