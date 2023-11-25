@@ -425,24 +425,23 @@ class MultiHeadAttentionLayer(nn.Module):
         key_states = key_layer.transpose(1,2)
         value_states = value_layer.transpose(1,2)
         
-        if not self.is_causal:
-            # flash attention目前仅支持key_padding_mask, 如果4维的attention_mask
-            if attention_mask.shape[1:3] == torch.Size([1,1]):  # 将4维的attention_mask降低为2维
-                attn_mask = attention_mask[:,0,0,:]
-                batch_size = query_states.shape[0]
-                query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
-                    self, query_states, key_states, value_states, attn_mask, query_length)
+        if (not self.is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
+            # flash attention目前仅支持key_padding_mask
+            attn_mask = attention_mask[:,0,0,:]  # 将4维的attention_mask降低为2维
+            batch_size = query_states.shape[0]
+            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
+                self, query_states, key_states, value_states, attn_mask, query_length)
 
-                cu_seqlens_q, cu_seqlens_k = cu_seq_lens
-                max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
-                attn_output_unpad = flash_attn_varlen_func(
-                    query_states, key_states, value_states, cu_seqlens_q=cu_seqlens_q, cu_seqlens_k=cu_seqlens_k, max_seqlen_q=max_seqlen_in_batch_q,
-                    max_seqlen_k=max_seqlen_in_batch_k, dropout_p=dropout, softmax_scale=softmax_scale, causal=False)
-                attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
-            else:
-                # 使用torch的attention计算
-                log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
-                attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
+            cu_seqlens_q, cu_seqlens_k = cu_seq_lens
+            max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
+            attn_output_unpad = flash_attn_varlen_func(
+                query_states, key_states, value_states, cu_seqlens_q=cu_seqlens_q, cu_seqlens_k=cu_seqlens_k, max_seqlen_q=max_seqlen_in_batch_q,
+                max_seqlen_k=max_seqlen_in_batch_k, dropout_p=dropout, softmax_scale=softmax_scale, causal=False)
+            attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
+        elif not self.is_causal:
+            # 使用torch的attention计算
+            log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
+            attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
         else:
             attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True)
 

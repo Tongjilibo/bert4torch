@@ -13,6 +13,6 @@ build/
 dist/
 .DS_Store
 bert4torch_test.py
-test/
+test_local/
 *.ckpt
 .vscode
