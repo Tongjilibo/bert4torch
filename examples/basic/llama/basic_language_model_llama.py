@@ -26,8 +26,8 @@ model = build_transformer_model(config_path=config_path, checkpoint_path=checkpo
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-tokenizer_config = {'skip_special_tokens': True}
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample', tokenizer_config=tokenizer_config,
+article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, 
+                                   mode='random_sample', tokenizer_config={'skip_special_tokens': True},
                                    maxlen=256, default_rtype='logits', use_states=True)
 
 
