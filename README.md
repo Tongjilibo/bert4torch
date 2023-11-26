@@ -78,7 +78,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
-|20231119| 0.4.0          | 0.1.5     |修复flash_attn的bug, stream_generate支持仅输出last_token|
+|20231126| 0.4.0          | 0.1.5     |修复flash_attn的bug, stream_generate支持仅输出last_token|
 |20231119| 0.3.9          | 0.1.5     |修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn|
 |20231112| 0.3.8          | 0.1.5     |支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge|
 |20231106| 0.3.7          | 0.1.5     |大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中|

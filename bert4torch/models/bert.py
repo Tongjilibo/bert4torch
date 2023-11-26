@@ -101,8 +101,9 @@ class BERT(BERT_BASE):
         :return: List[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
         """
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
-
+        
         # ========================= token_ids =========================
+        index_ = 0
         if model_kwargs.get('input_ids') is not None:
             token_ids = model_kwargs['input_ids']
         elif model_kwargs.get('token_ids') is not None:
@@ -114,6 +115,8 @@ class BERT(BERT_BASE):
         # ========================= segment_ids =========================
         if model_kwargs.get('segment_ids') is not None:
             segment_ids = model_kwargs['segment_ids']
+        elif model_kwargs.get('token_type_ids') is not None:
+            segment_ids = model_kwargs['token_type_ids']
         elif self.segment_vocab_size > 0:
             segment_ids = inputs[index_]
             index_ += 1
