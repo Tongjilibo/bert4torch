@@ -76,7 +76,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 ## 4. 版本历史
 
-|更新日期| bert4torch版本 | torch4keras版本 | 版本说明 |
+|更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
 |20231119| 0.4.0          | 0.1.5     |修复flash_attn的bug, stream_generate支持仅输出last_token|
 |20231119| 0.3.9          | 0.1.5     |修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn|
