@@ -442,6 +442,8 @@ class MultiHeadAttentionLayer(nn.Module):
             # 使用torch的attention计算
             log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
             attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
+            self.flash_attention = None
+            return attn_output
         else:
             attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True)
 
