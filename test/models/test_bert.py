@@ -30,7 +30,7 @@ def test_bert_output(model_dir):
     model.eval()
     model_hf.eval()
 
-    inputs = tokenizer('语言模型', return_tensors='pt').to(device)
+    inputs = tokenizer('语言模型', padding=True, return_tensors='pt').to(device)
     sequence_output = model(**inputs)
     sequence_output_hf = model_hf(**inputs).last_hidden_state
     print(f"Output mean diff: {(sequence_output - sequence_output_hf).abs().mean().item()}")

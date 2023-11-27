@@ -9,10 +9,11 @@ import logging
 from typing import Any
 import unicodedata
 from io import open
-from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize
+from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize, sequence_padding
 import re
 import six
 from collections import OrderedDict
+import torch
 
 
 logger = logging.getLogger(__name__)
@@ -166,10 +167,11 @@ class TokenizerBase(object):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.encode(*args, **kwds)
         
-    def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False):
+    def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False, 
+               return_tensors=None, return_dict=False):
         '''可以处理多条或者单条
         '''
-        return_list = False if isinstance(first_texts, str) else True
+        return_list = False if isinstance(first_texts, str) else True  # 输入为str时候默认不加btz维度
         first_texts = [first_texts] if isinstance(first_texts, str) else first_texts
         second_texts = [second_texts] if isinstance(second_texts, str) else second_texts
 
@@ -186,13 +188,27 @@ class TokenizerBase(object):
             if len(outputs) >= 3:
                 offsets.append(outputs[2])
 
-        encode_outputs = [first_token_ids, first_segment_ids]
+        encode_outputs = OrderedDict()
+        encode_outputs['input_ids'] = first_token_ids
+        encode_outputs['token_type_ids'] = first_segment_ids
         if return_offsets:
-            encode_outputs.append(offsets)
+            encode_outputs['offset'] = offsets
 
-        if not return_list:  # 如果输入是string
-            encode_outputs = [item[0] for item in encode_outputs]
-        return encode_outputs
+        if return_tensors in {True, 'pt', 'np'}:
+            # 转为tensor
+            for key, value in encode_outputs.items():
+                if key in {'input_ids', 'token_type_ids'}:
+                    encode_outputs[key] = sequence_padding(value, value=self.pad_token_id)
+                    if return_tensors == 'pt':
+                        encode_outputs[key] = torch.tensor(encode_outputs[key], dtype=torch.long)
+        elif not return_list:  # 如果输入是string, 则解胞
+            encode_outputs = OrderedDict({key:item[0] for key, item in encode_outputs.items()})
+        
+        # 是否以字典形式输出
+        if return_dict:
+            return dict(encode_outputs)
+        else:
+            return [value for value in encode_outputs.values()]
 
     def id_to_token(self, i):
         """id序列为对应的token
