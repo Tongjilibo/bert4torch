@@ -46,7 +46,6 @@
 |      |[basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/nezha/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
 |others|[basic_language_model_moss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_language_model_moss.py): 测试[moss](https://github.com/OpenLMLab/MOSS)模型, int4和int8低成本部署。
 |      |[basic_test_parallel_apply.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_test_parallel_apply.py): 测试parallel_apply的效果。
-|      |[basic_test_tokenizer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_test_tokenizer.py): 测试tokenizer和transformers包的结果一致。
 | Qwen |[basic_language_model_Qwen.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen/basic_language_model_Qwen.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型。
 |      |[basic_language_model_Qwen_batch.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen/basic_language_model_Qwen.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型, batch推理。
 |      |[basic_language_model_Qwen_1toN.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen/basic_language_model_Qwen_1toN.py): 测试[Qwen](https://github.com/QwenLM/Qwen-7B)模型, 一次输出N条记录。
