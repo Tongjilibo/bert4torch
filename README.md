@@ -167,7 +167,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 ## 9. 其他
 
-- Wechat Discussions
+- Wechat & Star History Chart
 
 <table border="0">
   <tbody>
@@ -177,22 +177,13 @@ pip install git+https://github.com/Tongjilibo/bert4torch
          <a href="https://github.com/Tongjilibo">微信号</a> 
       </td>
       <td>
-         <a href="https://github.com/Tongjilibo"><img width="200" height="300" src="./docs/pics/wechat_group.jpg" alt="pic"></a><br>
+         <a href="https://github.com/Tongjilibo"><img width="190" height="250" src="./docs/pics/wechat_group.jpg" alt="pic"></a><br>
          <a href="https://github.com/Tongjilibo">微信群</a> 
       </td>
-    </tr>
-  </tbody>
-</table>
-
-- Star History Chart
-
-<table border="0">
-  <tbody>
-    <tr align="center" >
       <td>
          <a href="https://star-history.com/#Tongjilibo/bert4torch&Date"><img width="400" height="250" src="https://api.star-history.com/svg?repos=Tongjilibo/bert4torch&type=Date" alt="pic"></a><br>
          <a href="https://star-history.com/#Tongjilibo/bert4torch&Date">Star History Chart</a> 
-      </td>
-    </tr>
+      </td>    
+      </tr>
   </tbody>
 </table>
