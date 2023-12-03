@@ -199,6 +199,24 @@ class MultiHeadAttentionLayer(nn.Module):
             hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
         return hidden_states
 
+    def longlora_shift(self, query_states, key_states, value_states, group_size, num_group):
+        '''longlora中对qkv和mask进行修改: https://github.com/dvlab-research/LongLoRA'''
+        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+
+        def shift(qkv, bsz, q_len, group_size, num_heads, head_dim):
+            qkv[:, num_heads // 2:] = qkv[:, num_heads // 2:].roll(-group_size // 2, dims=2)
+            qkv = qkv.transpose(1, 2).reshape(bsz * (q_len // group_size), group_size, num_heads, head_dim).transpose(1, 2)
+            return qkv
+
+        bsz, _, q_len, _ = query_states.shape
+        query_states = shift(query_states, bsz, q_len, group_size, self.num_attention_heads, self.attention_head_size)
+        key_states = shift(key_states, bsz, q_len, group_size, self.num_attention_heads, self.attention_head_size)
+        value_states = shift(value_states, bsz, q_len, group_size, self.num_attention_heads, self.attention_head_size)
+        attention_mask = attention_mask[:, :, :group_size, :group_size].repeat(num_group, 1, 1, 1)
+        return query_states, key_states, value_states, attention_mask
+
     def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
         x = x.view(*new_x_shape)
