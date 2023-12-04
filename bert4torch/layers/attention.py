@@ -60,6 +60,10 @@ class MultiHeadAttentionLayer(nn.Module):
             k_inner_dim_tmp = self.attention_head_size * self.multi_query_group_num
             v_inner_dim_tmp = k_inner_dim_tmp
 
+        # longlora
+        if kwargs.get('longlora_group_size') is not None:
+            self.longlora_group_size = kwargs.get('longlora_group_size')
+
         self.q = nn.Linear(hidden_size, q_inner_dim, bias=bias)
         self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else k_inner_dim, bias=bias)
         self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else v_inner_dim, bias=bias)
@@ -161,6 +165,10 @@ class MultiHeadAttentionLayer(nn.Module):
             pre_attention_mask = torch.ones(size_).to(attention_mask)
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
+        # longlora
+        if hasattr(self, 'longlora_group_size'):
+            query_layer, key_layer, value_layer, attention_mask = self.longlora_shift(query_layer, key_layer, value_layer, attention_mask)
+
         # ====================================是否使用flash_attention加速====================================
         # xformers
         attention_scores = None
@@ -199,7 +207,7 @@ class MultiHeadAttentionLayer(nn.Module):
             hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
         return hidden_states
 
-    def longlora_shift(self, query_states, key_states, value_states, group_size, num_group):
+    def longlora_shift(self, query_states, key_states, value_states, attention_mask):
         '''longlora中对qkv和mask进行修改: https://github.com/dvlab-research/LongLoRA'''
         # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
         # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
@@ -211,10 +219,11 @@ class MultiHeadAttentionLayer(nn.Module):
             return qkv
 
         bsz, _, q_len, _ = query_states.shape
-        query_states = shift(query_states, bsz, q_len, group_size, self.num_attention_heads, self.attention_head_size)
-        key_states = shift(key_states, bsz, q_len, group_size, self.num_attention_heads, self.attention_head_size)
-        value_states = shift(value_states, bsz, q_len, group_size, self.num_attention_heads, self.attention_head_size)
-        attention_mask = attention_mask[:, :, :group_size, :group_size].repeat(num_group, 1, 1, 1)
+        num_group = q_len // self.longlora_group_size
+        query_states = shift(query_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
+        key_states = shift(key_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
+        value_states = shift(value_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
+        attention_mask = attention_mask[:, :, :self.longlora_group_size, :self.longlora_group_size].repeat(num_group, 1, 1, 1)
         return query_states, key_states, value_states, attention_mask
 
     def transpose_for_q_scores(self, x):
