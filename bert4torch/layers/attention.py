@@ -191,10 +191,18 @@ class MultiHeadAttentionLayer(nn.Module):
         else:
             context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
         
-        # context_layer shape: [batch_size, query_len, num_attention_heads, attention_head_size]
-        context_layer = context_layer.permute(0, 2, 1, 3)
-        new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-        context_layer = context_layer.reshape(*new_context_layer_shape)
+        if hasattr(self, 'longlora_group_size'):
+            bsz, q_len = hidden_states.shape[:2]
+            attn_output = attn_output.transpose(1, 2).contiguous()
+            attn_output = attn_output.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
+            # shift back
+            attn_output[:, :, self.num_attention_heads//2:] = attn_output[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
+            attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+        else:
+            # context_layer shape: [batch_size, query_len, num_attention_heads, attention_head_size]
+            context_layer = context_layer.permute(0, 2, 1, 3)
+            new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
+            context_layer = context_layer.reshape(*new_context_layer_shape)
 
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
