@@ -191,15 +191,15 @@ class MultiHeadAttentionLayer(nn.Module):
         else:
             context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
         
-        if hasattr(self, 'longlora_group_size'):
+        if hasattr(self, 'longlora_group_size'):  # context_layer: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
             bsz, q_len = hidden_states.shape[:2]
-            attn_output = attn_output.transpose(1, 2).contiguous()
-            attn_output = attn_output.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
+            context_layer = context_layer.transpose(1, 2).contiguous()
+            context_layer = context_layer.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
             # shift back
-            attn_output[:, :, self.num_attention_heads//2:] = attn_output[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
-            attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+            context_layer[:, :, self.num_attention_heads//2:] = context_layer[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
+            context_layer = context_layer.reshape(bsz, q_len, self.hidden_size)
         else:
-            # context_layer shape: [batch_size, query_len, num_attention_heads, attention_head_size]
+            # context_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
             context_layer = context_layer.permute(0, 2, 1, 3)
             new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
             context_layer = context_layer.reshape(*new_context_layer_shape)
@@ -232,6 +232,7 @@ class MultiHeadAttentionLayer(nn.Module):
         key_states = shift(key_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
         value_states = shift(value_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
         attention_mask = attention_mask[:, :, :self.longlora_group_size, :self.longlora_group_size].repeat(num_group, 1, 1, 1)
+        # qkv: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
         return query_states, key_states, value_states, attention_mask
 
     def transpose_for_q_scores(self, x):
