@@ -192,6 +192,7 @@
 - [task_language_model_chinese_chess.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_language_model_chinese_chess.py)：用GPT的方式下中国象棋，过程请参考[博客](https://kexue.fm/archives/7877)。
 - [task_nl2sql_baseline.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_nl2sql_baseline.py)：[追一科技2019年NL2SQL挑战赛的一个Baseline](https://kexue.fm/archives/6771)
 - [task_event_extraction_gplinker.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_event_extraction_gplinker.py)：gplinker来做事件提取
+- [task_nlu_intent_entity.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/others/task_nlu_intent_entity.py)：用多阶段模型实现对话NLU中的意图分类、实体抽取训练任务
 
 ## 12. 教程
 

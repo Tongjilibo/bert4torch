@@ -1,0 +1,66 @@
+version: "3.0"
+nlu:
+  - intent: auto/openapp
+    examples: |
+      - [打开](open)[百度地图](app)
+      - [使用](open)[百度地图](app)
+      - [打开](open)[网易云音乐](app)
+      - [打开](open)[高德地图](app)
+      - [启动](open)[高德地图](app)
+      - [开启](open)[腾讯导航](app)
+      - [使用](open)[喜马拉雅](app)
+      - [激活](open)[QQ音乐](app)
+      - [切换到](open)[Apple Music](app)
+      - [开启](open)[Spotify](app)
+
+  - intent: auto/navigation
+    examples: |
+      - [导航去](navigate)[新浪总部](destination)
+      - [开车去](navigate)[工体](destination)
+      - [带我去](navigate)[颐和园南门](destination)
+      - [导航到](navigate)[天安门广场](destination)
+      - [前往](navigate)[首都机场](destination)
+      - [驾车前往](navigate)[故宫博物院](destination)
+      - [行驶至](navigate)[长城](destination)
+      - [导航前往](navigate)[天坛公园](destination)
+      - [开往](navigate)[798艺术区](destination)
+      - [去](navigate)[北京南站](destination)
+
+  - intent: auto/control_window
+    examples: |
+      - [打开](open)[车窗](window)
+      - [关闭](close)[车窗](window)
+      - [降下](down)[车窗](window)
+      - [升起](up)[车窗](window)
+      - [开启一半](half_open)[车窗](window)
+      - [稍微开下](slightly_open)[车窗](window)
+      - [全部打开](open_all)[车窗](window)
+      - [全部关闭](close_all)[车窗](window)
+      - [调整](adjust)[车窗](window)到一半
+      - [微开](tiny_open)[车窗](window)
+
+  - intent: auto/control_ac
+    examples: |
+      - [打开](turn_on)[空调](ac)
+      - [关闭](turn_off)[空调](ac)
+      - [调高](increase)[空调温度](ac)
+      - [调低](decrease)[空调温度](ac)
+      - [设定](set)[空调温度](ac)到22度
+      - [增加](increase)[空调风速](ac)
+      - [减少](decrease)[空调风速](ac)
+      - [调节](adjust)[空调模式](ac)
+      - [切换到](switch)[制热模式](ac)
+      - [切换到](switch)[制冷模式](ac)
+
+  - intent: auto/control_lights
+    examples: |
+      - [开启](turn_on)[车灯](lights)
+      - [关闭](turn_off)[车灯](lights)
+      - [调亮](brighten)[车灯](lights)
+      - [调暗](dim)[车灯](lights)
+      - [切换到](switch)[远光灯](lights)
+      - [切换到](switch)[近光灯](lights)
+      - [激活](activate)[雾灯](lights)
+      - [关闭](turn_off)[雾灯](lights)
+      - [开启](turn_on)[转向灯](lights)
+      - [关闭](turn_off)[转向灯](lights)
