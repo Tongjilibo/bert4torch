@@ -78,6 +78,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20231207| 0.4.1          | 0.1.6     |增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题)|
 |20231126| 0.4.0          | 0.1.5     |修复flash_attn的bug, stream_generate支持仅输出last_token|
 |20231119| 0.3.9          | 0.1.5     |修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn|
 |20231112| 0.3.8          | 0.1.5     |支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge|
@@ -86,6 +87,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
+- **20231207**：增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题)
 - **20231126**：修复flash_attn的bug, stream_generate支持仅输出last_token
 - **20231119**：修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn
 - **20231112**：支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge
