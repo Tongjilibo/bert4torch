@@ -6,6 +6,7 @@ import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
 from torch4keras.snippets import log_warn, log_warn_once
+
 import importlib
 if importlib.util.find_spec("uvicorn") is not None:
     import uvicorn
@@ -18,6 +19,7 @@ if importlib.util.find_spec("sse_starlette") is not None:
     from sse_starlette.sse import ServerSentEvent, EventSourceResponse
 if importlib.util.find_spec("sseclient") is not None:
     import sseclient
+
 
 class Chat:
     '''聊天类'''
@@ -41,37 +43,58 @@ class Chat:
         model = model.half()
         model = model.to(self.device)
         return model
+    
+    def process_response(self, response):
+        return response
 
-    def chat(self, query, history, stream=True):
-        prompt = self.build_prompt(query, history)
-        if stream:
-            for response in self.model.stream_generate(prompt, **self.generation_config):
-                new_history = history + [(query, response)]
-                yield response, new_history
-        else:
-            return self.model.generate(prompt, **self.generation_config)
 
 class ChatCliDemo(Chat):
-    '''在terminal中交互的demo'''
-    def cli_chat(self, stream=True):
+    '''在命令行中交互的demo'''
+    def __init__(self, *args, **generation_config):
+        super().__init__(*args, **generation_config)
+        self.init_str = "输入内容进行对话，clear清空对话历史，stop终止程序"
+        self.history_maxlen = 3
+
+    def build_cli_text(self, history):
+        prompt = self.init_str
+        for query, response in history:
+            prompt += f"\n\nUser：{query}"
+            prompt += f"\n\nAssistant：{response}"
+        return prompt
+
+    def run(self, stream=True):
         import platform
         os_name = platform.system()
-        history = []
-        print("输入内容进行对话，clear清空对话历史，stop终止程序")
+        previous_history, history = [], []
+        clear_command = 'cls' if os_name == 'Windows' else 'clear'
+        print(self.init_str)
         while True:
-            query = input("\nUser")
+            query = input("\nUser: ")
             if query.strip() == "stop":
                 break
             if query.strip() == "clear":
                 history = []
-                command = 'cls' if os_name == 'Windows' else 'clear'
-                os.system(command)
-                print("输入内容进行对话，clear清空对话历史，stop终止程序")
+                os.system(clear_command)
+                print(self.init_str)
                 continue
-            for response, history in self.chat(query, history=history, stream=stream):
-                print(self.build_prompt(history), flush=True)
-
-            print(self.build_prompt(history), flush=True)
+            
+            prompt = self.build_prompt(query, history)
+            if stream:
+                for response in self.model.stream_generate(prompt, **self.generation_config):
+                    response = self.process_response(response)
+                    new_history = history + [(query, response)]
+                    os.system(clear_command)
+                    print(self.build_cli_text(previous_history + new_history), flush=True)
+            else:
+                response = self.model.generate(prompt, **self.generation_config)
+                response = self.process_response(response)
+                new_history = history + [(query, response)]
+            
+            os.system(clear_command)
+            print(self.build_cli_text(previous_history + new_history), flush=True)
+            history = new_history[-self.history_maxlen:]
+            if len(new_history) > self.history_maxlen:
+                previous_history += new_history[:-self.history_maxlen]
             torch.cuda.empty_cache()
 
 
@@ -96,15 +119,14 @@ class ChatWebDemo(Chat):
         self.generation_config['top_p'] = top_p
         self.generation_config['temperature'] = temperature
         
-        for response, history in self.chat(input_text, stream=self.stream):
+        for response in self.chat(input_text, stream=self.stream):
             chatbot[-1] = (input, response)       
-
-            yield chatbot, history
+            yield chatbot
         torch.cuda.empty_cache()  # 清理显存
 
-    def init_demo(self):
+    def run(self):
         with self.gr.Blocks() as demo:
-            self.gr.HTML("""<h1 align="center">ChatGLM</h1>""")
+            self.gr.HTML("""<h1 align="center">Chabot Web Demo</h1>""")
 
             chatbot = self.gr.Chatbot()
             with self.gr.Row():

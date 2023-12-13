@@ -275,8 +275,9 @@ class BERT_BASE(nn.Module):
         """逐个ckpt加载"""
         # 文件夹，则默认加载所有以.bin结尾的权重
         if isinstance(checkpoints, str) and os.path.isdir(checkpoints):
+            ckpt_names = [i for i in os.listdir(checkpoints) if i.endswith('.bin')]
+            log_info(f"Load model weights from {ckpt_names}")
             checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith('.bin')]
-            log_info(f'Load model weights from {checkpoints}')
 
         # 单个权重文件
         if isinstance(checkpoints, str):
