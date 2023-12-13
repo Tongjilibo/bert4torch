@@ -87,6 +87,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
+- **20231213**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于发布demo/api
 - **20231210**：增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)
 - **20231126**：修复flash_attn的bug, stream_generate支持仅输出last_token
 - **20231119**：修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn

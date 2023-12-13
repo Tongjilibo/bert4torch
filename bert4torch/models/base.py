@@ -273,9 +273,16 @@ class BERT_BASE(nn.Module):
     def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, device_map=None, 
                                               torch_dtype=None, verbose=1):
         """逐个ckpt加载"""
+        # 文件夹，则默认加载所有以.bin结尾的权重
+        if isinstance(checkpoints, str) and os.path.isdir(checkpoints):
+            checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith('.bin')]
+            log_info(f'Load model weights from {checkpoints}')
+
+        # 单个权重文件
         if isinstance(checkpoints, str):
             self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, 
                                                       device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+        # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
             all_missing_keys, all_over_keys = [], []
             for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
