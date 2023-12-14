@@ -108,6 +108,7 @@ class ChatWebDemo(Chat):
     def reset_user_input(self):
         return self.gr.update(value='')
 
+    @staticmethod
     def reset_state():
         return [], []
 
@@ -152,14 +153,13 @@ class ChatWebDemo(Chat):
                         submitBtn = self.gr.Button("Submit", variant="primary")
                 with self.gr.Column(scale=1):
                     emptyBtn = self.gr.Button("Clear History")
-                    stream = self.gr.Switch("Use Stream Mode")
                     max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="Maximum length", interactive=True)
                     top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="Top P", interactive=True)
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="Temperature", interactive=True)
 
             history = self.gr.State([])
             self.set_generation_config(max_length, top_p, temperature)
-            if stream:
+            if True:
                 submitBtn.click(self.__stream_predict, [user_input, chatbot, history], [chatbot, history], show_progress=True)
             else:
                 submitBtn.click(self.__predict, [user_input, chatbot, history], [chatbot, history], show_progress=True)
