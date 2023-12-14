@@ -280,7 +280,7 @@ class ChatOpenaiApi(Chat):
             }
             ''')
         
-    def run(self, host: str = "127.0.0.1", port: int = 8000, **kwargs):
+    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs):
         uvicorn.run(self.app, host=host, port=port, **kwargs)
 
     async def list_models(self):
