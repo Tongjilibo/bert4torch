@@ -5,6 +5,7 @@ import json
 import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
+from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_info, log_warn, log_warn_once, cuda_empty_cache, AnyClass
 
 FastAPI, BaseModel, Field= object, object, AnyClass
@@ -18,7 +19,7 @@ if importlib.util.find_spec("pydantic") is not None:
 
 class Chat:
     '''聊天类'''
-    def __init__(self, model_path, **generation_config):
+    def __init__(self, model_path, use_half=True, quantization_config=None, **generation_config):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_path = model_path
         self.checkpoint_path = model_path
@@ -27,19 +28,29 @@ class Chat:
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
         self.generation_config['tokenizer'] = self.tokenizer
+        self.use_half = use_half
+        self.quantization_config = quantization_config
         self.model = self.build_model()
 
     def build_prompt(self, query, history) -> str:
+        '''对query和history进行处理，生成进入模型的text
+        :param query: str, 最近的一次user的input
+        :param history: List, 历史对话记录，格式为[(input1, response1), (input2, response2)]
+        '''
         raise NotImplementedError
 
     def build_model(self):
-        from bert4torch.models import build_transformer_model
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
-        model = model.half()
-        model = model.to(self.device)
-        return model
+        # 半精度
+        if self.use_half:
+            model = model.half()
+        # 量化
+        if self.quantization_config is not None:
+            model = model.quantize(**self.quantization_config)
+        return model.to(self.device)
     
     def process_response(self, response):
+        '''对response进行后处理，可自行继承后来自定义'''
         return response
 
 
@@ -181,7 +192,7 @@ async def lifespan(app: FastAPI): # collects GPU memory
     cuda_empty_cache()
 
 
-class ModelCard(BaseModel):
+class _ModelCard(BaseModel):
     id: str
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -191,46 +202,46 @@ class ModelCard(BaseModel):
     permission: Optional[list] = None
 
 
-class ModelList(BaseModel):
+class _ModelList(BaseModel):
     object: str = "list"
-    data: List[ModelCard] = []
+    data: List[_ModelCard] = []
 
 
-class ChatMessage(BaseModel):
+class _ChatMessage(BaseModel):
     role: str
     content: str
 
 
-class DeltaMessage(BaseModel):
+class _DeltaMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
 
 
-class ChatCompletionRequest(BaseModel):
+class _ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[ChatMessage]
+    messages: List[_ChatMessage]
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     max_length: Optional[int] = None
     stream: Optional[bool] = False
 
 
-class ChatCompletionResponseChoice(BaseModel):
+class _ChatCompletionResponseChoice(BaseModel):
     index: int
-    message: ChatMessage
+    message: _ChatMessage
     finish_reason: Literal["stop", "length"]
 
 
-class ChatCompletionResponseStreamChoice(BaseModel):
+class _ChatCompletionResponseStreamChoice(BaseModel):
     index: int
-    delta: DeltaMessage
+    delta: _DeltaMessage
     finish_reason: Optional[Literal["stop", "length"]]
 
 
-class ChatCompletionResponse(BaseModel):
+class _ChatCompletionResponse(BaseModel):
     model: str
     object: Literal["chat.completion", "chat.completion.chunk"]
-    choices: List[Union[ChatCompletionResponseChoice, ChatCompletionResponseStreamChoice]]
+    choices: List[Union[_ChatCompletionResponseChoice, _ChatCompletionResponseStreamChoice]]
     created: Optional[int] = Field(default_factory=lambda: int(time.time()))
 
 
@@ -263,8 +274,8 @@ class ChatOpenaiApi(Chat):
 
         # 添加路由
         router = APIRouter()
-        router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=ModelList)
-        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=ChatCompletionResponse)
+        router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=_ModelList)
+        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse)
         self.app.include_router(router)
 
         log_info('''The request post format should be 
@@ -284,10 +295,10 @@ class ChatOpenaiApi(Chat):
         uvicorn.run(self.app, host=host, port=port, **kwargs)
 
     async def list_models(self):
-        model_card = ModelCard(id=self.name)
-        return ModelList(data=[model_card])
+        model_card = _ModelCard(id=self.name)
+        return _ModelList(data=[model_card])
 
-    async def create_chat_completion(self, request: ChatCompletionRequest):
+    async def create_chat_completion(self, request: _ChatCompletionRequest):
         if request.messages[-1].role != self.role_user:
             raise HTTPException(status_code=400, detail="Invalid request")
         query = request.messages[-1].content
@@ -317,21 +328,21 @@ class ChatOpenaiApi(Chat):
         # 非流式输出
         else:
             response = self.model.generate(input_text, **self.generation_config)
-            choice_data = ChatCompletionResponseChoice(
+            choice_data = _ChatCompletionResponseChoice(
                 index=0,
-                message=ChatMessage(role=self.role_assistant, content=response),
+                message=_ChatMessage(role=self.role_assistant, content=response),
                 finish_reason="stop"
             )
 
-            return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
+            return _ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
 
     async def predict(self, query: str, model_id: str):
-        choice_data = ChatCompletionResponseStreamChoice(
+        choice_data = _ChatCompletionResponseStreamChoice(
             index=0,
-            delta=DeltaMessage(role=self.role_assistant),
+            delta=_DeltaMessage(role=self.role_assistant),
             finish_reason=None
         )
-        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+        chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
 
         current_length = 0
@@ -343,21 +354,21 @@ class ChatOpenaiApi(Chat):
             new_text = new_response[current_length:]
             current_length = len(new_response)
 
-            choice_data = ChatCompletionResponseStreamChoice(
+            choice_data = _ChatCompletionResponseStreamChoice(
                 index=0,
-                delta=DeltaMessage(content=new_text),
+                delta=_DeltaMessage(content=new_text),
                 finish_reason=None
             )
-            chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+            chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
             yield "{}".format(chunk.model_dump_json(exclude_unset=True))
 
 
-        choice_data = ChatCompletionResponseStreamChoice(
+        choice_data = _ChatCompletionResponseStreamChoice(
             index=0,
-            delta=DeltaMessage(),
+            delta=_DeltaMessage(),
             finish_reason="stop"
         )
-        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+        chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
         yield '[DONE]'
 

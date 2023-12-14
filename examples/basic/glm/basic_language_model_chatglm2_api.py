@@ -1,7 +1,6 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：chatglm2的对话测试
-# 官方项目：https://github.com/THUDM/ChatGLM2-6B
-# hf链接：https://huggingface.co/THUDM/chatglm2-6b
+# 基本测试：chatglm2的对话测试, openai格式的api
+
 
 import re
 from bert4torch.chat import ChatOpenaiApi
