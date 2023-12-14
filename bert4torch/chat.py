@@ -5,19 +5,15 @@ import json
 import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
-from bert4torch.snippets import log_info, log_warn, log_warn_once, cuda_empty_cache
+from bert4torch.snippets import log_info, log_warn, log_warn_once, cuda_empty_cache, AnyClass
+
+FastAPI, BaseModel, Field= object, object, AnyClass
 import importlib
-if importlib.util.find_spec("uvicorn") is not None:
-    import uvicorn
-if importlib.util.find_spec("pydantic") is not None:
-    from pydantic import BaseModel, Field
 if importlib.util.find_spec("fastapi") is not None:
     from fastapi import FastAPI, HTTPException, APIRouter
     from fastapi.middleware.cors import CORSMiddleware
-if importlib.util.find_spec("sse_starlette") is not None:
-    from sse_starlette.sse import ServerSentEvent, EventSourceResponse
-if importlib.util.find_spec("sseclient") is not None:
-    import sseclient
+if importlib.util.find_spec("pydantic") is not None:
+    from pydantic import BaseModel, Field
 
 
 class Chat:
@@ -249,6 +245,9 @@ class ChatOpenaiApi(Chat):
     """
     def __init__(self, model_path, name='default_model', route_api='/chat', route_models='/models', **generation_config):
         super().__init__(model_path, **generation_config)
+        assert importlib.util.find_spec("fastapi") is not None, "No module found, use `pip install fastapi`"
+        from sse_starlette.sse import ServerSentEvent, EventSourceResponse
+        self.EventSourceResponse = EventSourceResponse
         self.name = name
         self.role_user = 'user'
         self.role_assistant = 'assistant'
@@ -280,7 +279,8 @@ class ChatOpenaiApi(Chat):
             }
             ''')
         
-    def run(self, host: str = "127.0.0.1", port: int = 8000, **kwargs):
+    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs):
+        import uvicorn
         uvicorn.run(self.app, host=host, port=port, **kwargs)
 
     async def list_models(self):
@@ -312,7 +312,7 @@ class ChatOpenaiApi(Chat):
         # 流式输出
         if request.stream:
             generate = self.predict(input_text, request.model)
-            return EventSourceResponse(generate, media_type="text/event-stream")
+            return self.EventSourceResponse(generate, media_type="text/event-stream")
         
         # 非流式输出
         else:
@@ -369,6 +369,8 @@ class ChatOpenaiClient:
         self.url = url
         if importlib.util.find_spec("sseclient") is None:
             raise ImportError('No module found, you may `pip install sseclient-py`')
+        import sseclient
+        self.sseclient = sseclient
         log_info('''The body format should be 
             {
                 "messages": [
@@ -381,14 +383,24 @@ class ChatOpenaiClient:
             }
             ''')
    
-    def post(self, body, verbose=1):
+    def post(self, body):
+        '''接口调用'''
         reqHeaders = {'Accept': 'text/event-stream'}
         request = requests.post(self.url, stream=True, headers=reqHeaders, json=body)
-        client = sseclient.SSEClient(request)
+        client = self.sseclient.SSEClient(request)
         for event in client.events():
             if event.data != '[DONE]':
                 data = json.loads(event.data)['choices'][0]['delta']
                 if 'content' in data:
-                    if verbose:
-                        print(data['content'], end="", flush=True)
                     yield data['content']
+
+    def post_test(self, body):
+        '''简单测试在命令行打印'''
+        reqHeaders = {'Accept': 'text/event-stream'}
+        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body)
+        client = self.sseclient.SSEClient(request)
+        for event in client.events():
+            if event.data != '[DONE]':
+                data = json.loads(event.data)['choices'][0]['delta']
+                if 'content' in data:
+                    print(data['content'], end="", flush=True)

@@ -226,3 +226,8 @@ class WebServing(object):
         """启动服务"""
         self.bottle.run(host=self.host, port=self.port, server=self.server)
 
+
+class AnyClass:
+    '''主要用于import某个包不存在时候，作为类的替代'''
+    def __init__(self, *args, **kwargs) -> None:
+        pass
