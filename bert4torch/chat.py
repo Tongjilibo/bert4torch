@@ -72,7 +72,7 @@ class ChatCliDemo(Chat):
             if query.strip() == "stop":
                 break
             if query.strip() == "clear":
-                history = []
+                previous_history, history = [], []
                 os.system(clear_command)
                 print(self.init_str)
                 continue
@@ -100,7 +100,7 @@ class ChatCliDemo(Chat):
 class ChatWebDemo(Chat):
     '''gradio实现的网页交互的demo'''
     def __init__(self, *args, max_length=4096, **generation_config):
-        super().__init__(args, **generation_config)
+        super().__init__(*args, **generation_config)
         import gradio as gr
         self.gr = gr
         self.max_length = max_length
@@ -263,7 +263,24 @@ class ChatOpenaiApi(Chat):
         router.add_api_route(route_models, endpoint=self.list_models, response_model=ModelList)
         self.app.include_router(router)
         router.add_api_route(route_api, endpoint=self.create_chat_completion, response_model=ChatCompletionResponse)
-
+        log_warn_once('''The request post format should be 
+            "messages": [{
+                    "content": "你好",
+                    "role": "user"
+                },
+                {
+                    "content": "你好，我是法律大模型",
+                    "role": "assistant"
+                },
+                {
+                    "content": "基金从业可以购买股票吗",
+                    "role": "user"
+                }
+            ],
+            "model": "default",
+            "stream": True
+            ''')
+        
     def run(self, host: str = "127.0.0.1", port: int = 8000, **kwargs):
         uvicorn.run(self.app, host=host, port=port, **kwargs)
 
