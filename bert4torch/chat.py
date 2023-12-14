@@ -5,7 +5,7 @@ import json
 import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
-from bert4torch.snippets import log_warn, log_warn_once, cuda_empty_cache
+from bert4torch.snippets import log_info, log_warn, log_warn_once, cuda_empty_cache
 import importlib
 if importlib.util.find_spec("uvicorn") is not None:
     import uvicorn
@@ -247,15 +247,13 @@ class ChatOpenaiApi(Chat):
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     """
-    def __init__(self, model_path, generation_config=None, name='default', route_api='/chat', route_models='/models') -> None:
-        super().__init__(model_path, generation_config or dict())
+    def __init__(self, model_path, name='default_model', route_api='/chat', route_models='/models', **generation_config):
+        super().__init__(model_path, **generation_config)
         self.name = name
         self.role_user = 'user'
         self.role_assistant = 'assistant'
         self.role_system = 'system'
-        router = APIRouter()
         self.app = FastAPI(lifespan=lifespan)
-
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -263,57 +261,53 @@ class ChatOpenaiApi(Chat):
             allow_methods=["*"],
             allow_headers=["*"],
         )
-        router.add_api_route(route_models, endpoint=self.list_models, response_model=ModelList)
+
+        # 添加路由
+        router = APIRouter()
+        router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=ModelList)
+        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=ChatCompletionResponse)
         self.app.include_router(router)
-        router.add_api_route(route_api, endpoint=self.create_chat_completion, response_model=ChatCompletionResponse)
-        log_warn_once('''The request post format should be 
-            "messages": [{
-                    "content": "你好",
-                    "role": "user"
-                },
-                {
-                    "content": "你好，我是法律大模型",
-                    "role": "assistant"
-                },
-                {
-                    "content": "基金从业可以购买股票吗",
-                    "role": "user"
-                }
-            ],
-            "model": "default",
-            "stream": True
+
+        log_info('''The request post format should be 
+            {
+                "messages": [
+                    {"content": "你好", "role": "user"},
+                    {"content": "你好，我是法律大模型", "role": "assistant"},
+                    {"content": "基金从业可以购买股票吗", "role": "user"}
+                    ],
+                "model": "default",
+                "stream": True
+            }
             ''')
         
     def run(self, host: str = "127.0.0.1", port: int = 8000, **kwargs):
         uvicorn.run(self.app, host=host, port=port, **kwargs)
-
-    def build_prompt(self, messages):
-        log_warn_once('Different Models have different prompt progress, You should custom define for each model.')
-        if messages[-1].role != self.role_user:
-            raise HTTPException(status_code=400, detail="Invalid request")
-        query = messages[-1].content
-
-        prev_messages = messages[:-1]
-        if len(prev_messages) > 0 and prev_messages[0].role == self.role_system:
-            query = prev_messages.pop(0).content + query
-
-        if len(prev_messages) % 2 == 0:
-            for i in range(0, len(prev_messages), 2):
-                if prev_messages[i].role == self.role_user and prev_messages[i+1].role == self.role_assistant:
-                    raise HTTPException(status_code=400, detail=f'Arg `messages` do not follow {self.role_user}, {self.role_assistant} format')
-        messages = prev_messages + [{'role': i.role, 'content': i.content}]
-        
-        input_text = ''
-        for msg in messages:
-            input_text += msg['role'] + msg['content']
-        return input_text
 
     async def list_models(self):
         model_card = ModelCard(id=self.name)
         return ModelList(data=[model_card])
 
     async def create_chat_completion(self, request: ChatCompletionRequest):
-        input_text = self.build_prompt(request.messages)
+        if request.messages[-1].role != self.role_user:
+            raise HTTPException(status_code=400, detail="Invalid request")
+        query = request.messages[-1].content
+
+        prev_messages = request.messages[:-1]
+        if len(prev_messages) > 0 and prev_messages[0].role == self.role_system:
+            query = prev_messages.pop(0).content + query
+
+        history = []
+        if len(prev_messages) % 2 == 0:
+            for i in range(0, len(prev_messages), 2):
+                if prev_messages[i].role == self.role_user and prev_messages[i+1].role == self.role_assistant:
+                    history.append((prev_messages[i].content, prev_messages[i+1].content))
+                else:
+                    raise HTTPException(status_code=400, detail=f'Arg `messages` do not follow {self.role_user}, \
+                                        {self.role_assistant} format.')
+        else:
+            log_warn(f'prev_messages={len(prev_messages)}%2 != 0, use current query without history instead.')
+        
+        input_text = self.build_prompt(query, history)
 
         # 流式输出
         if request.stream:
@@ -369,29 +363,22 @@ class ChatOpenaiApi(Chat):
 
 
 class ChatOpenaiClient:
-    '''调用openai接口的client
+    '''调用openai接口的client, 流式请求
     '''
     def __init__(self, url) -> None:
         self.url = url
         if importlib.util.find_spec("sseclient") is None:
             raise ImportError('No module found, you may `pip install sseclient-py`')
-        log_warn_once('''The body format should be 
-            `reqBody = {
-            "messages": [{
-                    "content": "你好",
-                    "role": "user"
-                },
-                {
-                    "content": "你好，我是法律大模型",
-                    "role": "assistant"
-                },
-                {
-                    "content": "基金从业可以购买股票吗",
-                    "role": "user"
-                }
-            ],
-            "model": "default",
-            "stream": True`
+        log_info('''The body format should be 
+            {
+                "messages": [
+                    {"content": "你好", "role": "user"},
+                    {"content": "你好，我是法律大模型", "role": "assistant"},
+                    {"content": "基金从业可以购买股票吗", "role": "user"}
+                    ],
+                "model": "default",
+                "stream": True
+            }
             ''')
    
     def post(self, body, verbose=1):
