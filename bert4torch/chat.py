@@ -6,7 +6,6 @@ import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
 from torch4keras.snippets import log_warn, log_warn_once
-
 import importlib
 if importlib.util.find_spec("uvicorn") is not None:
     import uvicorn
@@ -100,11 +99,11 @@ class ChatCliDemo(Chat):
 
 class ChatWebDemo(Chat):
     '''gradio实现的网页交互的demo'''
-    def __init__(self, *args, stream=True, **generation_config):
+    def __init__(self, *args, max_length=4096, **generation_config):
         super().__init__(args, **generation_config)
         import gradio as gr
         self.gr = gr
-        self.stream = stream
+        self.max_length = max_length
 
     def reset_user_input(self):
         return self.gr.update(value='')
@@ -112,17 +111,33 @@ class ChatWebDemo(Chat):
     def reset_state():
         return [], []
 
-    def predict(self, input, chatbot, max_length, top_p, temperature, history):
-        chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history)
+    def set_generation_config(self, max_length, top_p, temperature):
+        '''根据web界面的参数修改生成参数'''
         self.generation_config['max_length'] = max_length
         self.generation_config['top_p'] = top_p
         self.generation_config['temperature'] = temperature
-        
-        for response in self.chat(input_text, stream=self.stream):
-            chatbot[-1] = (input, response)       
-            yield chatbot
+
+    def __stream_predict(self, input, chatbot, history):
+        '''流式生成'''
+        chatbot.append((input, ""))
+        input_text = self.build_prompt(input, history)
+        for response in self.model.stream_generate(input_text, **self.generation_config):
+            response = self.process_response(response)
+            chatbot[-1] = (input, response)
+            new_history = history + [(input, response)]
+            yield chatbot, new_history
         torch.cuda.empty_cache()  # 清理显存
+
+    def __predict(self, input, chatbot, history):
+        '''一次性生成'''
+        chatbot.append((input, ""))
+        input_text = self.build_prompt(input, history)
+        response = self.model.generate(input_text, **self.generation_config)
+        response = self.process_response(response)
+        chatbot[-1] = (input, response)
+        new_history = history + [(input, response)]
+        torch.cuda.empty_cache()  # 清理显存
+        return chatbot, new_history
 
     def run(self):
         with self.gr.Blocks() as demo:
@@ -132,22 +147,24 @@ class ChatWebDemo(Chat):
             with self.gr.Row():
                 with self.gr.Column(scale=4):
                     with self.gr.Column(scale=12):
-                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10).style(
-                            container=False)
+                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10).style(container=False)
                     with self.gr.Column(min_width=32, scale=1):
                         submitBtn = self.gr.Button("Submit", variant="primary")
                 with self.gr.Column(scale=1):
                     emptyBtn = self.gr.Button("Clear History")
-                    max_length = self.gr.Slider(0, 4096, value=2048, step=1.0, label="Maximum length", interactive=True)
+                    stream = self.gr.Switch("Use Stream Mode")
+                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="Maximum length", interactive=True)
                     top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="Top P", interactive=True)
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="Temperature", interactive=True)
 
             history = self.gr.State([])
+            self.set_generation_config(max_length, top_p, temperature)
+            if stream:
+                submitBtn.click(self.__stream_predict, [user_input, chatbot, history], [chatbot, history], show_progress=True)
+            else:
+                submitBtn.click(self.__predict, [user_input, chatbot, history], [chatbot, history], show_progress=True)
 
-            submitBtn.click(self.predict, [user_input, chatbot, max_length, top_p, temperature, history], [chatbot, history],
-                            show_progress=True)
             submitBtn.click(self.reset_user_input, [], [user_input])
-
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
 
         demo.queue().launch(share=True, inbrowser=True)
