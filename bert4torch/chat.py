@@ -5,7 +5,7 @@ import json
 import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
-from torch4keras.snippets import log_warn, log_warn_once
+from bert4torch.snippets import log_warn, log_warn_once, cuda_empty_cache
 import importlib
 if importlib.util.find_spec("uvicorn") is not None:
     import uvicorn
@@ -94,16 +94,20 @@ class ChatCliDemo(Chat):
             history = new_history[-self.history_maxlen:]
             if len(new_history) > self.history_maxlen:
                 previous_history += new_history[:-self.history_maxlen]
-            torch.cuda.empty_cache()
+            cuda_empty_cache()
 
 
 class ChatWebDemo(Chat):
-    '''gradio实现的网页交互的demo'''
+    '''gradio实现的网页交互的demo
+    默认是stream输出，默认history不会删除，需手动清理
+    '''
     def __init__(self, *args, max_length=4096, **generation_config):
         super().__init__(*args, **generation_config)
         import gradio as gr
         self.gr = gr
         self.max_length = max_length
+        self.stream = True  # 一般都是流式，因此未放在页面配置项
+        log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
 
     def reset_user_input(self):
         return self.gr.update(value='')
@@ -118,8 +122,9 @@ class ChatWebDemo(Chat):
         self.generation_config['top_p'] = top_p
         self.generation_config['temperature'] = temperature
 
-    def __stream_predict(self, input, chatbot, history):
+    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature):
         '''流式生成'''
+        self.set_generation_config(max_length, top_p, temperature)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
         for response in self.model.stream_generate(input_text, **self.generation_config):
@@ -127,20 +132,21 @@ class ChatWebDemo(Chat):
             chatbot[-1] = (input, response)
             new_history = history + [(input, response)]
             yield chatbot, new_history
-        torch.cuda.empty_cache()  # 清理显存
+        cuda_empty_cache()  # 清理显存
 
-    def __predict(self, input, chatbot, history):
+    def __predict(self, input, chatbot, history, max_length, top_p, temperature):
         '''一次性生成'''
+        self.set_generation_config(max_length, top_p, temperature)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response(response)
         chatbot[-1] = (input, response)
         new_history = history + [(input, response)]
-        torch.cuda.empty_cache()  # 清理显存
+        cuda_empty_cache()  # 清理显存
         return chatbot, new_history
 
-    def run(self):
+    def run(self, **launch_configs):
         with self.gr.Blocks() as demo:
             self.gr.HTML("""<h1 align="center">Chabot Web Demo</h1>""")
 
@@ -148,7 +154,7 @@ class ChatWebDemo(Chat):
             with self.gr.Row():
                 with self.gr.Column(scale=4):
                     with self.gr.Column(scale=12):
-                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10).style(container=False)
+                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10) # .style(container=False)
                     with self.gr.Column(min_width=32, scale=1):
                         submitBtn = self.gr.Button("Submit", variant="primary")
                 with self.gr.Column(scale=1):
@@ -158,16 +164,15 @@ class ChatWebDemo(Chat):
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="Temperature", interactive=True)
 
             history = self.gr.State([])
-            self.set_generation_config(max_length, top_p, temperature)
-            if True:
-                submitBtn.click(self.__stream_predict, [user_input, chatbot, history], [chatbot, history], show_progress=True)
+            if self.stream:
+                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature], [chatbot, history], show_progress=True)
             else:
-                submitBtn.click(self.__predict, [user_input, chatbot, history], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature], [chatbot, history], show_progress=True)
 
             submitBtn.click(self.reset_user_input, [], [user_input])
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
 
-        demo.queue().launch(share=True, inbrowser=True)
+        demo.queue().launch(**launch_configs)
 
 
 # Implements API for LLM in OpenAI's format. (https://platform.openai.com/docs/api-reference/chat)
@@ -177,9 +182,7 @@ class ChatWebDemo(Chat):
 @asynccontextmanager
 async def lifespan(app: FastAPI): # collects GPU memory
     yield
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+    cuda_empty_cache()
 
 
 class ModelCard(BaseModel):

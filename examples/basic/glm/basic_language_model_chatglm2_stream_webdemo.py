@@ -37,5 +37,5 @@ class ChatGLM2Demo(ChatWebDemo):
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
         return response
 
-chat = ChatWebDemo(model_path, **generation_config)
-chat.run()
+chat = ChatGLM2Demo(model_path, **generation_config)
+chat.run(share=True, inbrowser=True)

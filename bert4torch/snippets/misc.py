@@ -154,6 +154,13 @@ def old_checkpoint(function, model_kwargs):
         return outputs
 
 
+def cuda_empty_cache():
+    '''清理gpu显存'''
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
+
 class WebServing(object):
     """简单的Web接口，基于bottlepy简单封装，仅作为临时测试使用，不保证性能。
 
