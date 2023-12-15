@@ -19,12 +19,12 @@ if importlib.util.find_spec("pydantic") is not None:
 
 class Chat:
     '''聊天类'''
-    def __init__(self, model_path, use_half=True, quantization_config=None, **generation_config):
+    def __init__(self, model_path, use_half=True, quantization_config=None, generation_config=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_path = model_path
         self.checkpoint_path = model_path
         self.config_path = os.path.join(model_path, 'bert4torch_config.json')
-        self.generation_config = generation_config
+        self.generation_config = generation_config if generation_config is not None else kwargs
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
         self.generation_config['tokenizer'] = self.tokenizer
@@ -56,8 +56,8 @@ class Chat:
 
 class ChatCliDemo(Chat):
     '''在命令行中交互的demo'''
-    def __init__(self, *args, **generation_config):
-        super().__init__(*args, **generation_config)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.init_str = "输入内容进行对话，clear清空对话历史，stop终止程序"
         self.history_maxlen = 3
 
@@ -108,8 +108,8 @@ class ChatWebDemo(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
     '''
-    def __init__(self, *args, max_length=4096, **generation_config):
-        super().__init__(*args, **generation_config)
+    def __init__(self, *args, max_length=4096, **kwargs):
+        super().__init__(*args, **kwargs)
         import gradio as gr
         self.gr = gr
         self.max_length = max_length
@@ -254,8 +254,8 @@ class ChatOpenaiApi(Chat):
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     """
-    def __init__(self, model_path, name='default_model', route_api='/chat', route_models='/models', **generation_config):
-        super().__init__(model_path, **generation_config)
+    def __init__(self, model_path, name='default_model', route_api='/chat', route_models='/models', **kwargs):
+        super().__init__(model_path, **kwargs)
         assert importlib.util.find_spec("fastapi") is not None, "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
         self.EventSourceResponse = EventSourceResponse

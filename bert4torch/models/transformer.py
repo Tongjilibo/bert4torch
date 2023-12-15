@@ -118,24 +118,24 @@ class Decoder(LM_Mask, BERT):
             mapping.update({'lm_head.weight': f'{self.prefix}.lm_head.weight'})
         return mapping
 
-    def _prepare_generation(self, **generation_config):
+    def _prepare_generation(self, **kwargs):
         if not hasattr(self, 'generation'):
-            self.generation = SeqGeneration(self, **generation_config)
+            self.generation = SeqGeneration(self, **kwargs)
 
-    def generate(self, text:str, **generation_config):
+    def generate(self, text:str, **kwargs):
         '''单条样本生成'''
-        self._prepare_generation(**generation_config)
-        return self.generation.generate(text, **generation_config)
+        self._prepare_generation(**kwargs)
+        return self.generation.generate(text, **kwargs)
 
-    def batch_generate(self, text_list:list, **generation_config):
+    def batch_generate(self, text_list:list, **kwargs):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
-        self._prepare_generation(**generation_config)
-        return self.generation.batch_generate(text_list, **generation_config)
+        self._prepare_generation(**kwargs)
+        return self.generation.batch_generate(text_list, **kwargs)
 
-    def stream_generate(self, text:str, **generation_config):
+    def stream_generate(self, text:str, **kwargs):
         '''单条样本stream输出预测的结果'''
-        self._prepare_generation(**generation_config)
-        for response in self.generation.stream_generate(text, **generation_config):
+        self._prepare_generation(**kwargs)
+        for response in self.generation.stream_generate(text, **kwargs):
             yield response
 
 

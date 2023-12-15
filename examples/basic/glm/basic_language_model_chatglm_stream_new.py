@@ -51,5 +51,5 @@ class Demo(ChatCliDemo):
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
         return response
 
-demo = Demo(dir_path, **generation_config)
+demo = Demo(dir_path, generation_config=generation_config)
 demo.run()

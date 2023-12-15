@@ -94,7 +94,9 @@ class AutoRegressiveDecoder(object):
         else:
             self.first_output_ids = torch.tensor([[self.start_id]], device=device)
 
-    def set_generation_config(self, generation_config):
+    def set_generation_config(self, kwargs):
+        generation_config = kwargs.get('generation_config', kwargs)
+
         for key, value in generation_config.items():
             if key in self.alias:  # 兼容transformers的参数设置
                 setattr(self, self.alias[key], value)
@@ -533,7 +535,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param use_states: str, 是否使用cache
     :param device: str, 默认为None，因为可以直接使用传入的model.device
 
-    > generation_config
+    > generation_config: 接受两种传参方式，1）接受两种传参方式，generation_config={'topk':50}; 2) topk=50, topp=0.9, ...
     :param start_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
     :param end_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到maxlen）
     :param maxlen: int, 最大解码长度
@@ -553,9 +555,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
     def __init__(self, model, tokenizer=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
-                 mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **generation_config):
-        generation_config = self._default_generation_config(tokenizer, model, generation_config)  # 对部分参数进行默认设置
-        super().__init__(**generation_config)
+                 mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **kwrags):
+        kwrags = self._default_generation_config(tokenizer, model, kwrags)  # 对部分参数进行默认设置
+        super().__init__(**kwrags)
 
         self.encoder = None
         self.decoder = model
@@ -582,7 +584,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         EmptyCacheDecorators.optimize_cuda_cache = optimize_cuda_cache
     
     @staticmethod
-    def _default_generation_config(tokenizer, model, generation_config):
+    def _default_generation_config(tokenizer, model, kwargs):
+        generation_config = kwargs.get('generation_config', kwargs)
+
         ''' genration的默认参数设置 '''
         if generation_config.get('pad_id') is not None:  # 用户自行设置
             pass
@@ -605,7 +609,12 @@ class SeqGeneration(AutoRegressiveDecoder):
             generation_config['end_id'] = generation_config['pad_id']
             log_info(f'Arg `end_id` has been set to `pad_id`:{generation_config["pad_id"]}')
         generation_config['device'] = generation_config.get('device') or next(model.parameters()).device
-        return generation_config
+
+        if 'generation_config' in kwargs:
+            kwargs['generation_config'] = generation_config
+            return kwargs
+        else:
+            return generation_config
 
     def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
@@ -776,9 +785,9 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:str, **generation_config):
+    def generate(self, text:str, **kwargs):
         '''单条样本生成'''
-        self.set_generation_config(generation_config)
+        self.set_generation_config(kwargs)
         self.use_batch = False
         inputs = self.pre_process(text)
         output_ids = self._generate(inputs)
@@ -786,11 +795,14 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def batch_generate(self, text_list:list, **generation_config):
+    def batch_generate(self, text_list:list, **kwargs):
         '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
         # 参数设定
-        generation_config['n'] = 1
-        self.set_generation_config(generation_config)
+        if 'generation_config' in kwargs:
+            kwargs['generation_config']['n'] = 1
+        else:
+            kwargs['n'] = 1
+        self.set_generation_config(kwargs)
         self.use_batch = True
         if self.use_states and (self.pad_mode in {'post', 'right'}):
             self.pad_mode = 'pre'
@@ -803,9 +815,9 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def stream_generate(self, text:str, **generation_config):
+    def stream_generate(self, text:str, **kwargs):
         '''单条样本stream输出预测的结果'''
-        self.set_generation_config(generation_config)
+        self.set_generation_config(kwargs)
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
@@ -836,8 +848,8 @@ class Seq2SeqGeneration(SeqGeneration):
     
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:str, **generation_config):
-        self.set_generation_config(generation_config)
+    def generate(self, text:str, **kwargs):
+        self.set_generation_config(kwargs)
         self.use_batch = False
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
@@ -847,11 +859,14 @@ class Seq2SeqGeneration(SeqGeneration):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def batch_generate(self, text_list:list, **generation_config):
+    def batch_generate(self, text_list:list, **kwargs):
         '''batch样本生成'''
         # 参数设定
-        generation_config['n'] = 1
-        self.set_generation_config(generation_config)
+        if 'generation_config' in kwargs:
+            kwargs['generation_config']['n'] = 1
+        else:
+            kwargs['n'] = 1
+        self.set_generation_config(kwargs)
         self.use_batch = True
         inputs = self.pre_process(text_list)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
@@ -861,9 +876,9 @@ class Seq2SeqGeneration(SeqGeneration):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def stream_generate(self, text:str, **generation_config):
+    def stream_generate(self, text:str, **kwargs):
         '''stream输出t预测的结果'''
-        self.set_generation_config(generation_config)
+        self.set_generation_config(kwargs)
 
         self.use_batch = False
         inputs = self.pre_process(text)
