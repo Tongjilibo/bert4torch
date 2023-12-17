@@ -170,7 +170,7 @@ class Transformer_XL(BERT):
         return state_dict[name]
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
             old_key = f'transformer.layers.{i}.dec_attn.qkv_net.weight'
             qkv_net = state_dict[old_key]

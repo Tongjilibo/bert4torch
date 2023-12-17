@@ -15,7 +15,7 @@ class Qwen(InternLM):
             layer.multiHeadAttention.o.register_parameter('bias', None)
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
             mapping = {
                 'transformer.h.%s.attn.c_attn.weight' % i: 'decoderLayer.{}.multiHeadAttention.{}.weight',

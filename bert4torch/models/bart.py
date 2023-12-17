@@ -24,7 +24,7 @@ class BART(Transformer):
             return variable
     
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         state_dict_new = {}
         for k, v in state_dict.items():
             # V2.0: 这两个权重丢弃，因为一个为0，一个和decoder的embedding一样

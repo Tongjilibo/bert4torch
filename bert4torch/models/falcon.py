@@ -30,7 +30,7 @@ class Falcon(Decoder):
             self.LayerNormFinal.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
             mapping = {
                 f'transformer.h.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',

@@ -20,7 +20,7 @@ class GPT(Decoder):
         self.prefix = 'gpt'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         # CDial-GPT的[CLS]是0、[PAD]是1，不符合一般习惯，所以交换一下
         old_key = 'transformer.tokens_embed.weight'
         w = state_dict[old_key]
@@ -99,7 +99,7 @@ class GPT2(Decoder):
         self.prefix = 'gpt2'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
             # qkv
             mapping = {
@@ -174,7 +174,7 @@ class GPT2_ML(Decoder):
         self.prefix = 'gpt2_ml'
     
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
             # qkv
             mapping = {

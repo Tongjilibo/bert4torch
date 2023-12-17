@@ -209,7 +209,7 @@ class BERT_BASE(nn.Module):
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理"""
         if checkpoint.endswith(".safetensors"):
-            # Check format of the archive
+            # 加载safetensors格式
             with safe_open(checkpoint, framework="pt") as f:
                 metadata = f.metadata()
             if metadata.get("format") not in ["pt", "tf", "flax"]:
@@ -223,6 +223,7 @@ class BERT_BASE(nn.Module):
                 )
             return safe_load_file(checkpoint)
         elif isinstance(checkpoint, str):
+            # 正常加载pytorch_model.bin
             return torch.load(checkpoint, map_location='cpu')
         raise ValueError('Args `checkpoint_path` only support `str` format')
 

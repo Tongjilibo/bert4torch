@@ -28,7 +28,7 @@ class LLaMA(Decoder):
             self.lm_head = NormHead(self.hidden_size, self.vocab_size)
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         # baichuan的qkv权重是合在一起的W_pack, 单独处理
         for i in range(self.num_hidden_layers):
             mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'model.layers.{}.self_attn.{}.weight'}

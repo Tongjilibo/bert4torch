@@ -7,9 +7,6 @@ class ERNIE(BERT):
     def __init__(self, *args, **kwargs):
         super(ERNIE, self).__init__(*args, **kwargs)
         self.prefix = 'ernie'
-
-    def load_trans_ckpt(self, checkpoint):
-        return torch.load(checkpoint, map_location='cpu')
     
     def variable_mapping(self):
         mapping = super(ERNIE, self).variable_mapping()

@@ -87,7 +87,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
-- **20231217**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api
+- **20231217**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`
 - **20231210**：增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)
 - **20231126**：修复flash_attn的bug, stream_generate支持仅输出last_token
 - **20231119**：修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn
@@ -145,7 +145,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 |       | vicuna | lmsys| [7b-v1.5](https://huggingface.co/lmsys/vicuna-7b-v1.5) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
 |       | Yi | 01-ai| [github](https://github.com/01-ai/Yi), [6B](https://huggingface.co/01-ai/Yi-6B), [6B-200K](https://huggingface.co/01-ai/Yi-6B-200K) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama)|
 | bloom |bloom | bigscience | [bloom-560m](https://huggingface.co/bigscience/bloom-560m), [bloomz-560m](https://huggingface.co/bigscience/bloomz-560m) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bloom) |
-| Qwen  |Qwen | 阿里云 | [github](https://github.com/QwenLM/Qwen-7B), [7B](https://huggingface.co/Qwen/Qwen-7B), [7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen) |
+| Qwen  |Qwen | 阿里云 | [github](https://github.com/QwenLM/Qwen-7B), [1.8B](https://huggingface.co/Qwen/Qwen-1_8B), [1.8B-Chat](https://huggingface.co/Qwen/Qwen-1_8B-Chat), [7B](https://huggingface.co/Qwen/Qwen-7B), [7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/Qwen) |
 | InternLM|InternLM | 上海人工智能实验室 | [github](https://github.com/InternLM/InternLM), [7B-Chat](https://huggingface.co/internlm/internlm-chat-7b), [7B](https://huggingface.co/internlm/internlm-7b) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/internlm) |
 | Falcon|Falcon | tiiuae | [hf](https://huggingface.co/tiiuae), [RW-1B](https://huggingface.co/tiiuae/falcon-rw-1b), [7B](https://huggingface.co/tiiuae/falcon-7b), [7B-Instruct](https://huggingface.co/tiiuae/falcon-7b-instruct) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/falcon) |
 | embedding| text2vec-base-chinese |shibing624| [torch](https://huggingface.co/shibing624/text2vec-base-chinese) | |

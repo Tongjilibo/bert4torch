@@ -32,7 +32,7 @@ class GLM(Decoder):
         self.prefix = 'transformer'
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
@@ -187,7 +187,7 @@ class GLM2(GLM):
         self.prefix = 'transformer.encoder'
    
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = super().load_trans_ckpt(checkpoint)
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
