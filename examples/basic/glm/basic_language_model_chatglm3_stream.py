@@ -11,6 +11,8 @@ from transformers import AutoTokenizer
 import platform
 import os
 
+'''
+# 旧实现
 
 choice = 'default'
 if choice == 'default':
@@ -76,8 +78,6 @@ def process_response(output, history):
             history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
             if history[0]["role"] == "system" and "tools" in history[0]:
                 content = "\n".join(content.split("\n")[1:-1])
-                def tool_call(**kwargs):
-                    return kwargs
                 parameters = eval(content)
                 content = {"name": metadata.strip(), "parameters": parameters}
             else:
@@ -111,3 +111,72 @@ def main():
 
 if __name__ == '__main__':
     main()
+'''
+
+# 新实现
+from bert4torch.chat import ChatCliDemo
+from transformers import AutoTokenizer
+
+
+choice = 'default'
+model_path = "E:/pretrain_ckpt/glm/chatglm3-6b"
+# model_path = "E:/pretrain_ckpt/glm/chatglm3-6B-32k"
+
+tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+generation_kwargs = {"maxlen": 2048, 
+              "topk": 50, 
+              "topp": 0.7, 
+              "temperature": 0.95,
+              "start_id": None,
+              "end_id": [tokenizer.eos_token_id, tokenizer.get_command("<|user|>"), 
+                         tokenizer.get_command("<|observation|>")],
+              "mode": 'random_sample',
+              "default_rtype": 'logits',
+              "use_states": True}
+
+class Demo(ChatCliDemo):
+    def build_prompt(self, query, history=[]):
+        # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
+        if (len(history) > 0) and isinstance(history[-1], tuple):
+            history.pop()
+        history.append({"role": "user", "content": query})
+        history.append({"role": "assistant", "content": ""})
+        input_ids = tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
+        return input_ids
+
+    def build_cli_text(self, history):
+        '''构建命令行终端显示的text'''
+        prompt = self.init_str
+        for hist in history[:-1]:  # 去除ChatCliDemo添加的当前回复的记录
+            if hist['role'] == 'user':
+                query = hist['content']
+                prompt += f"\n\nUser：{query}"
+            elif hist['role'] == 'assistant':
+                response = hist['content']
+                prompt += f"\n\nAssistant：{response}"
+        return prompt
+    
+    def process_response(self, response, history):
+        if (not response) or (response[-1] == "�"):
+            return response, history
+
+        content = ""
+        for response in response.split("<|assistant|>"):
+            metadata, content = response.split("\n", maxsplit=1)
+            if not metadata.strip():
+                content = content.strip()
+                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                content = content.replace("[[训练时间]]", "2023年")
+            else:
+                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                if history[0]["role"] == "system" and "tools" in history[0]:
+                    content = "\n".join(content.split("\n")[1:-1])
+                    parameters = eval(content)
+                    content = {"name": metadata.strip(), "parameters": parameters}
+                else:
+                    content = {"name": metadata.strip(), "content": content}
+        return content
+    
+
+demo = Demo(model_path, **generation_kwargs)
+demo.run()

@@ -22,7 +22,7 @@ class ChatGLM2Demo(ChatWebDemo):
         prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history)+1, query)
         return prompt
     
-    def process_response(self, response):
+    def process_response(self, response, *args):
         response = response.strip()
         response = response.replace("[[训练时间]]", "2023年")
         punkts = [

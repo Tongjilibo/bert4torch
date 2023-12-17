@@ -6,6 +6,7 @@
 # fp16半精度下显存占用14G
 # 20230406 官方项目对20000个和图像相关的进行的裁剪，因此本项目之前裁剪及tokenize的作废，使用最新的tokenize不需要进行offset
 
+# 旧实现
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
@@ -103,3 +104,59 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+'''
+# 新实现
+from bert4torch.chat import ChatCliDemo
+import re
+
+choice = 'default'  # v1.1.0, default, int4, int8
+quantization_config = None
+if choice == 'default':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
+    # quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
+elif choice == 'v1.1.0':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0"
+    # quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
+elif choice == 'int4':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
+elif choice == 'int8':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
+
+generation_config = {'mode': 'random_sample',
+                     'maxlen': 2048, 
+                     'default_rtype':'logits', 
+                     'use_states':True}
+
+class Demo(ChatCliDemo):
+    def build_prompt(self, query, history) -> str:
+        if not history:
+            prompt = query
+        else:
+            prompt = ""
+            for i, (old_query, response) in enumerate(history):
+                prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, response)
+            prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
+        return prompt
+    
+    def process_response(self, response, *args):
+        response = response.strip()
+        response = response.replace("[[训练时间]]", "2023年")
+        punkts = [
+            [",", "，"],
+            ["!", "！"],
+            [":", "："],
+            [";", "；"],
+            ["\?", "？"],
+        ]
+        for item in punkts:
+            response = re.sub(r"([\u4e00-\u9fff])%s" % item[0], r"\1%s" % item[1], response)
+            response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
+        return response
+
+demo = Demo(dir_path, generation_config=generation_config, quantization_config=quantization_config)
+demo.run()
+'''

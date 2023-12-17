@@ -747,9 +747,15 @@ class SeqGeneration(AutoRegressiveDecoder):
     def pre_process(self, text):
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
+        # 传入的时候text已经是token_ids
         if self.tokenizer is None:
             return text
-        
+        elif isinstance(text, torch.Tensor):
+            return text
+        elif isinstance(text, (tuple, list)) and all([isinstance(i, (torch.Tensor, int)) for i in text]):
+            return text
+
+        # 传入的是text或者list(text)
         if self.tokenizer_type == 'b4t':
             # bert4torch的tokenizer
             inputs = self.tokenizer.encode(text, **self.tokenizer_encode_config)

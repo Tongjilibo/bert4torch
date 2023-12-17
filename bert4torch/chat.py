@@ -19,7 +19,7 @@ if importlib.util.find_spec("pydantic") is not None:
 
 class Chat:
     '''聊天类'''
-    def __init__(self, model_path, use_half=True, quantization_config=None, generation_config=None, **kwargs):
+    def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_path = model_path
         self.checkpoint_path = model_path
@@ -28,7 +28,7 @@ class Chat:
         from transformers import AutoTokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
         self.generation_config['tokenizer'] = self.tokenizer
-        self.use_half = use_half
+        self.half = half
         self.quantization_config = quantization_config
         self.model = self.build_model()
 
@@ -42,14 +42,14 @@ class Chat:
     def build_model(self):
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
         # 半精度
-        if self.use_half:
+        if self.half:
             model = model.half()
         # 量化
         if self.quantization_config is not None:
             model = model.quantize(**self.quantization_config)
         return model.to(self.device)
     
-    def process_response(self, response):
+    def process_response(self, response, history=None):
         '''对response进行后处理，可自行继承后来自定义'''
         return response
 
@@ -62,6 +62,7 @@ class ChatCliDemo(Chat):
         self.history_maxlen = 3
 
     def build_cli_text(self, history):
+        '''构建命令行终端显示的text'''
         prompt = self.init_str
         for query, response in history:
             prompt += f"\n\nUser：{query}"
@@ -87,13 +88,13 @@ class ChatCliDemo(Chat):
             prompt = self.build_prompt(query, history)
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
-                    response = self.process_response(response)
+                    response = self.process_response(response, history)
                     new_history = history + [(query, response)]
                     os.system(clear_command)
                     print(self.build_cli_text(previous_history + new_history), flush=True)
             else:
                 response = self.model.generate(prompt, **self.generation_config)
-                response = self.process_response(response)
+                response = self.process_response(response, history)
                 new_history = history + [(query, response)]
             
             os.system(clear_command)
@@ -135,7 +136,7 @@ class ChatWebDemo(Chat):
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
         for response in self.model.stream_generate(input_text, **self.generation_config):
-            response = self.process_response(response)
+            response = self.process_response(response, history)
             chatbot[-1] = (input, response)
             new_history = history + [(input, response)]
             yield chatbot, new_history
@@ -147,7 +148,7 @@ class ChatWebDemo(Chat):
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
         response = self.model.generate(input_text, **self.generation_config)
-        response = self.process_response(response)
+        response = self.process_response(response, history)
         chatbot[-1] = (input, response)
         new_history = history + [(input, response)]
         cuda_empty_cache()  # 清理显存

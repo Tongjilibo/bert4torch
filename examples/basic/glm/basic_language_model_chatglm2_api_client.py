@@ -5,7 +5,7 @@
 from bert4torch.chat import ChatOpenaiClient
 
 
-url = 'http://10.16.38.1:8090/chat'
+url = 'http://127.0.0.1:8000/chat'
 body = {
                 "messages": [
                     {"content": "你好",

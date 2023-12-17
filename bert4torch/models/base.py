@@ -12,6 +12,11 @@ from torch4keras.model import *
 from tqdm import tqdm
 import gc
 import copy
+import importlib
+if importlib.util.find_spec("safetensors") is not None:
+    from safetensors import safe_open
+    from safetensors.torch import load_file as safe_load_file
+    from safetensors.torch import save_file as safe_save_file
 
 
 class BERT_BASE(nn.Module):
@@ -203,7 +208,21 @@ class BERT_BASE(nn.Module):
 
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理"""
-        if isinstance(checkpoint, str):
+        if checkpoint.endswith(".safetensors"):
+            # Check format of the archive
+            with safe_open(checkpoint, framework="pt") as f:
+                metadata = f.metadata()
+            if metadata.get("format") not in ["pt", "tf", "flax"]:
+                raise OSError(
+                    f"The safetensors archive passed at {checkpoint} does not contain the valid metadata. Make sure "
+                    "you save your model with the `save_pretrained` method."
+                )
+            elif metadata["format"] != "pt":
+                raise NotImplementedError(
+                    f"Conversion from a {metadata['format']} safetensors archive to PyTorch is not implemented yet."
+                )
+            return safe_load_file(checkpoint)
+        elif isinstance(checkpoint, str):
             return torch.load(checkpoint, map_location='cpu')
         raise ValueError('Args `checkpoint_path` only support `str` format')
 
