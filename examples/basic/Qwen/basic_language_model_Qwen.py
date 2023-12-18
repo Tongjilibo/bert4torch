@@ -12,18 +12,15 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-choice = 'Qwen-7B-Chat'
+choice = 'Qwen-1_8B-Chat'
 if choice == 'Qwen-7B-Chat':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B-Chat'
-    checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.bin')]
     with_prompt = True
 elif choice == 'Qwen-7B':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B'
-    checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.bin')]
     with_prompt = False
 elif choice == 'Qwen-1_8B-Chat':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'
-    checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.safetensors')]
     with_prompt = True
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
@@ -33,7 +30,7 @@ config_path = dir_path + '/bert4torch_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
+model = build_transformer_model(config_path=config_path, checkpoint_path=dir_path).half()
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)  # 解开注释使用量化
 model = model.to(device)
 

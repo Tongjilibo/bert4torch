@@ -295,9 +295,13 @@ class BERT_BASE(nn.Module):
         """逐个ckpt加载"""
         # 文件夹，则默认加载所有以.bin结尾的权重
         if isinstance(checkpoints, str) and os.path.isdir(checkpoints):
-            ckpt_names = [i for i in os.listdir(checkpoints) if i.endswith('.bin')]
-            log_info(f"Load model weights from {ckpt_names}")
-            checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith('.bin')]
+            for postfix in ['.bin', '.safetensors']:  # 优先查找bin格式权重
+                ckpt_names = [i for i in os.listdir(checkpoints) if i.endswith(postfix)]
+                if len(ckpt_names) > 0:
+                    checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith(postfix)]
+                    break
+            if len(ckpt_names) == 0:
+                raise FileNotFoundError(f'No weights found in {checkpoints}')
 
         # 单个权重文件
         if isinstance(checkpoints, str):
@@ -305,6 +309,8 @@ class BERT_BASE(nn.Module):
                                                       device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
+            if verbose:
+                log_info(f"Load model weights from {ckpt_names}")
             all_missing_keys, all_over_keys = [], []
             for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
                 missing_keys, over_keys, needed_keys = \
