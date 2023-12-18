@@ -12,22 +12,24 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-choice = 'Qwen-1_8B-Chat'
+choice = 'Qwen-7B-Chat'
 if choice == 'Qwen-7B-Chat':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B-Chat'
+    checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.bin')]
     with_prompt = True
 elif choice == 'Qwen-7B':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B'
+    checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.bin')]
     with_prompt = False
 elif choice == 'Qwen-1_8B-Chat':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'
+    checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.safetensors')]
     with_prompt = True
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 include_input = not with_prompt
 
 config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [f'{dir_path}/{i}' for i in os.listdir(dir_path) if i.endswith('.safetensors')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
