@@ -1,5 +1,6 @@
 ## 更新历史
 
+- **20231219**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`, `meta`的device提示报错
 - **20231126**：修复flash_attn的bug, stream_generate支持仅输出last_token
 - **20231119**：修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn
 - **20231112**：支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge

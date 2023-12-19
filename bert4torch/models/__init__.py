@@ -179,6 +179,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     if checkpoint_path is not None:
         transformer.load_weights_from_pytorch_checkpoints(checkpoint_path, mapping=configs.get('mapping'), skip_init=skip_init, 
                                                           device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+    
     # meta device则报错
     meta_names = []
     for name_, para_ in transformer.named_parameters():

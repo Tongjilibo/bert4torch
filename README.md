@@ -78,21 +78,16 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20231219| 0.4.2          | 0.1.7|参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`, `meta`的device提示报错|
 |20231210| 0.4.1          | 0.1.6.post2|增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)|
 |20231126| 0.4.0          | 0.1.5     |修复flash_attn的bug, stream_generate支持仅输出last_token|
-|20231119| 0.3.9          | 0.1.5     |修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn|
-|20231112| 0.3.8          | 0.1.5     |支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge|
-|20231106| 0.3.7          | 0.1.5     |大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中|
 
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
-- **20231217**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`
+- **20231219**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`, `meta`的device提示报错
 - **20231210**：增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)
 - **20231126**：修复flash_attn的bug, stream_generate支持仅输出last_token
-- **20231119**：修复random_sample采样n>1, 新增Yi-6B, 支持flash_attn
-- **20231112**：支持chatglm 32k的rope_ratio，config中可以指定mapping, 增加m3e和bge
-- **20231106**：🔥大部分模型文件无需convert，修复multi_query_group_num在int4/int8下bug, 简化`build_transformer_model`中配置到`config`中
 
 [更多历史](https://github.com/Tongjilibo/bert4torch/blob/master/docs/History.md)
 

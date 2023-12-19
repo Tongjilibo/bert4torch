@@ -302,6 +302,9 @@ class BERT_BASE(nn.Module):
                     break
             if len(ckpt_names) == 0:
                 raise FileNotFoundError(f'No weights found in {checkpoints}')
+            if verbose:
+                # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
+                log_info(f"Load model weights from {ckpt_names}")
 
         # 单个权重文件
         if isinstance(checkpoints, str):
@@ -309,16 +312,18 @@ class BERT_BASE(nn.Module):
                                                       device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
-            if verbose:
-                log_info(f"Load model weights from {ckpt_names}")
             all_missing_keys, all_over_keys = [], []
-            for checkpoint in tqdm(checkpoints, desc='Loading checkpoint shards'):
+            tqdm_checkpoints = tqdm(checkpoints)
+            for checkpoint in tqdm_checkpoints:
+                tqdm_checkpoints.set_description(f'Loading {os.path.basename(checkpoint)}')
                 missing_keys, over_keys, needed_keys = \
                     self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, 
                                                               device_map=device_map, torch_dtype=torch_dtype, verbose=0)
                 all_missing_keys.extend(missing_keys)
                 all_over_keys.extend(over_keys)
-
+                if checkpoint == checkpoints[-1]:
+                    tqdm_checkpoints.set_description('Loading checkpoint shards')
+                                             
             # 打印mixmatch keys
             all_missing_keys = set(all_missing_keys).difference(set(needed_keys))
             all_over_keys = set(all_over_keys).difference(set(needed_keys))
