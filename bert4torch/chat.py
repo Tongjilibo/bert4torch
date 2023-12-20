@@ -18,7 +18,12 @@ if is_pydantic_available():
 
 
 class Chat:
-    '''聊天类'''
+    '''聊天类
+    :param model_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
+    :param half: bool, 是否半精度
+    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
+    :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'maxlen':2048, 'default_rtype':'logits', 'use_states':True}
+    '''
     def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_path = model_path
@@ -52,6 +57,20 @@ class Chat:
     def process_response(self, response, history=None):
         '''对response进行后处理，可自行继承后来自定义'''
         return response
+
+    def generate(self, text:str, **kwargs):
+        self.generation_config.update(kwargs)
+        return self.model.generate(text, **self.generation_config)
+
+    def batch_generate(self, text:str, **kwargs):
+        self.generation_config.update(kwargs)
+        return self.model.batch_generate(text, **self.generation_config)
+    
+    def stream_generate(self, text:str, **kwargs):
+        '''单条样本stream输出预测的结果'''
+        self.generation_config.update(kwargs)
+        for response in self.model.stream_generate(text, **self.generation_config):
+            yield response
 
 
 class ChatCliDemo(Chat):
