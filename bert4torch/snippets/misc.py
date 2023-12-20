@@ -5,16 +5,9 @@
 import json
 import torch
 import gc
-import importlib
 import inspect
-from packaging import version
 from torch4keras.snippets import *
 from torch.utils.checkpoint import CheckpointFunction
-import sys
-if sys.version_info < (3, 8):
-    import importlib_metadata
-else:
-    import importlib.metadata as importlib_metadata
 
 
 def insert_arguments(**arguments):
@@ -85,17 +78,6 @@ def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dty
     dtype_orig = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
     return dtype, dtype_orig
-
-
-def is_accelerate_available(check_partial_state=False):
-    accelerate_available = importlib.util.find_spec("accelerate") is not None
-    if accelerate_available:
-        if check_partial_state:
-            return version.parse(importlib_metadata.version("accelerate")) >= version.parse("0.17.0")
-        else:
-            return True
-    else:
-        return False
 
 
 def load_state_dict_into_meta_model(model, state_dict, device_map=None, torch_dtype=None):

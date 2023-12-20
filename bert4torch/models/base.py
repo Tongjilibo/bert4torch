@@ -6,14 +6,15 @@ import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model
-from bert4torch.snippets import take_along_dim, get_parameter_device
+from bert4torch.snippets import take_along_dim, get_parameter_device, is_safetensors_available
 import warnings
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
 import copy
-import importlib
-if importlib.util.find_spec("safetensors") is not None:
+
+
+if is_safetensors_available():
     from safetensors import safe_open
     from safetensors.torch import load_file as safe_load_file
     from safetensors.torch import save_file as safe_save_file

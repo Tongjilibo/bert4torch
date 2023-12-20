@@ -5,13 +5,14 @@ import numpy as np
 import torch.nn.functional as F
 from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
-from torch4keras.snippets import log_warn_once
-import importlib.util
+from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
 
-if importlib.util.find_spec("xformers") is not None:
+
+if is_xformers_available():
     from xformers import ops as xops
 
-if importlib.util.find_spec("flash_attn") is not None:
+
+if is_flash_attn_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
 
@@ -36,9 +37,9 @@ class MultiHeadAttentionLayer(nn.Module):
         self.flash_attention = None
         if (flash_attention in {True, 'sdpa'}) and (int(torch.__version__.split('.')[0]) < 2):
             log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-        elif (flash_attention == 'xformers') and (importlib.util.find_spec("xformers") is None):
+        elif (flash_attention == 'xformers') and (not is_xformers_available()):
             log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-        elif (flash_attention == 'flash_attn_2') and (importlib.util.find_spec("flash_attn") is None):
+        elif (flash_attention == 'flash_attn_2') and (not is_flash_attn_available()):
             log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
         else:
             self.flash_attention = flash_attention

@@ -7,13 +7,13 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_info, log_warn, log_warn_once, cuda_empty_cache, AnyClass
+from bert4torch.snippets import is_fastapi_available, is_pydantic_available, is_sseclient_available
 
 FastAPI, BaseModel, Field= object, object, AnyClass
-import importlib
-if importlib.util.find_spec("fastapi") is not None:
+if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter
     from fastapi.middleware.cors import CORSMiddleware
-if importlib.util.find_spec("pydantic") is not None:
+if is_pydantic_available():
     from pydantic import BaseModel, Field
 
 
@@ -257,7 +257,7 @@ class ChatOpenaiApi(Chat):
     """
     def __init__(self, model_path, name='default_model', route_api='/chat', route_models='/models', **kwargs):
         super().__init__(model_path, **kwargs)
-        assert importlib.util.find_spec("fastapi") is not None, "No module found, use `pip install fastapi`"
+        assert is_fastapi_available(), "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
         self.EventSourceResponse = EventSourceResponse
         self.name = name
@@ -379,9 +379,11 @@ class ChatOpenaiClient:
     '''
     def __init__(self, url) -> None:
         self.url = url
-        if importlib.util.find_spec("sseclient") is None:
+        if is_sseclient_available():
+            import sseclient
+        else:
             raise ImportError('No module found, you may `pip install sseclient-py`')
-        import sseclient
+        
         self.sseclient = sseclient
         log_info('''The body format should be 
             {

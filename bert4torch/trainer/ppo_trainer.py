@@ -5,8 +5,9 @@ from torch import nn
 from torch4keras.trainer import Trainer
 from bert4torch.models import BaseModel
 from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
-from torch4keras.snippets import DottableDict
-import importlib
+from bert4torch.snippets import DottableDict, is_trl_available
+
+
 try:
     import trl
     trl.trainer.ppo_trainer.SUPPORTED_ARCHITECTURES = (BaseModel, )
@@ -24,8 +25,8 @@ class PPOTrainer(PPOTrainerTrl, Trainer):
     :param reward_tokenizer: 奖励模型的tokenizer
     '''
     def __init__(self, *args, generation_kwargs=None, reward_model=None, reward_tokenizer=None, **kwargs):
-        if not importlib.util.find_spec("trl"):
-            raise ValueError('Please install trl by running `pip install trl`')
+        if not is_trl_available():
+            raise ImportError('Please install trl by running `pip install trl`')
         Trainer.__init__(self)
         PPOTrainerTrl.__init__(self, *args, **kwargs)
         self.reward_model = reward_model
