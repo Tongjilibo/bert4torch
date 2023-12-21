@@ -1,7 +1,7 @@
 import re
-from bert4torch.chat.base import Chat, ChatCliDemo
+from bert4torch.chat.base import Chat
 from bert4torch.chat.base import extend_with_chat_cli_demo, extend_with_chat_web_demo
-from bert4torch.chat.api import extend_with_chat_openai_api, ChatOpenaiApi
+from bert4torch.chat.api import extend_with_chat_openai_api
 
 
 class ChatChatglm(Chat):
@@ -100,9 +100,12 @@ class ChatChatglm3(Chat):
         return content
 
 
-ChatChatglmCliDemo = extend_with_chat_cli_demo(ChatChatglm)
-ChatChatglm2CliDemo = extend_with_chat_cli_demo(ChatChatglm2)
-ChatChatglm3CliDemo = extend_with_chat_cli_demo(ChatChatglm3)
-ChatChatglmWebDemo = extend_with_chat_web_demo(ChatChatglm)
-ChatChatglm2WebDemo = extend_with_chat_web_demo(ChatChatglm2)
-ChatChatglm3WebDemo = extend_with_chat_web_demo(ChatChatglm3)
+ChatCliDemoChatglm = extend_with_chat_cli_demo(ChatChatglm)
+ChatCliDemoChatglm2 = extend_with_chat_cli_demo(ChatChatglm2)
+ChatCliDemoChatglm3 = extend_with_chat_cli_demo(ChatChatglm3)
+ChatWebDemoChatglm = extend_with_chat_web_demo(ChatChatglm)
+ChatWebDemoChatglm2 = extend_with_chat_web_demo(ChatChatglm2)
+ChatWebDemoChatglm3 = extend_with_chat_web_demo(ChatChatglm3)
+ChatOpenaiApiChatglm = extend_with_chat_openai_api(ChatChatglm)
+ChatOpenaiApiChatglm2 = extend_with_chat_openai_api(ChatChatglm2)
+ChatOpenaiApiChatglm3 = extend_with_chat_openai_api(ChatChatglm3)
