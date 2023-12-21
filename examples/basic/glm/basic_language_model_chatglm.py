@@ -7,6 +7,9 @@
 # fp16半精度下显存占用14G
 # 20230406 官方项目对20000个和图像相关的进行的裁剪，因此本项目之前裁剪及tokenize的作废，使用最新的tokenize不需要进行offset
 
+
+'''
+# 旧实现
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
@@ -39,21 +42,6 @@ else:
     # 在config中已经写入了量化的配置参数
     encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
 
-# 第一种方式: 自定义解码
-# class Chat(AutoRegressiveDecoder):
-#     @AutoRegressiveDecoder.wraps(default_rtype='logits')
-#     def predict(self, inputs, output_ids, states):
-#         token_ids = torch.cat([inputs[0], output_ids], 1)
-#         logits = encoder.predict([token_ids])
-#         return logits[:, -1, :]
-
-#     def generate(self, text, n=1, topk=50, topp=0.7, temperature=0.95):
-#         token_ids = tokenizer.encode(text)
-#         results = self.random_sample([token_ids], n=n, topk=topk, topp=topp,  temperature=temperature)  # 基于随机采样
-#         return tokenizer.decode(results[0].cpu().numpy())
-# generation = Chat(start_id=None, end_id=tokenizer.eos_token_id, maxlen=2048, device=device)
-
-# 第二种方式：调用封装好的接口，可使用cache
 generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
                            maxlen=2048, default_rtype='logits', use_states=True)
 
@@ -104,4 +92,33 @@ if __name__ == '__main__':
         response, history = chat(query, history=history)
         print(f"ChatGLM-6B：{response}")
         torch.cuda.empty_cache()  # 清理显存
+'''
 
+# 新实现
+from bert4torch.chat import ChatChatglmCliDemo
+
+choice = 'default'  # v1.1.0, default, int4, int8
+quantization_config = None
+if choice == 'default':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
+    # quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
+elif choice == 'v1.1.0':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0"
+    # quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
+elif choice == 'int4':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
+elif choice == 'int8':
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
+else:
+    raise ValueError(f'{choice} not in pre maintained choices')
+
+generation_config = {'mode': 'random_sample',
+                     'maxlen': 2048, 
+                     'default_rtype':'logits', 
+                     'use_states':True}
+
+demo = ChatChatglmCliDemo(dir_path, generation_config=generation_config, quantization_config=quantization_config)
+
+
+if __name__ == '__main__':
+    demo.run(stream=True)

@@ -84,6 +84,8 @@ class MyDataset(ListDataset):
                 if spoes:
                     D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
                               'segment_ids': segment_ids, 'spoes': spoes})
+                if len(D) > 1000:
+                    break
         return D
 
 def collate_fn(batch):

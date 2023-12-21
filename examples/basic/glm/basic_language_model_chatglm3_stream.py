@@ -141,7 +141,7 @@ class Demo(ChatCliDemo):
             history.pop()
         history.append({"role": "user", "content": query})
         history.append({"role": "assistant", "content": ""})
-        input_ids = tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
+        input_ids = self.tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
         return input_ids
 
     def build_cli_text(self, history):

@@ -5,7 +5,7 @@ curl -X POST "http://127.0.0.1:8000"  -H "Content-Type: application/json"  -d '{
 '''
 
 from fastapi import FastAPI, Request
-from basic_language_model_chatglm import chat
+from basic_language_model_chatglm import demo
 import uvicorn, json, datetime
 import torch
 
@@ -31,7 +31,8 @@ async def create_item(request: Request):
     json_post_list = json.loads(json_post)
     prompt = json_post_list.get('prompt')
     history = json_post_list.get('history')
-    response, history = chat(prompt, history=history)
+    response, history = demo.generate(prompt, history=history)
+    history.append((prompt, response))
     now = datetime.datetime.now()
     time = now.strftime("%Y-%m-%d %H:%M:%S")
     answer = {
