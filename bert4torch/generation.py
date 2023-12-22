@@ -166,11 +166,17 @@ class AutoRegressiveDecoder(object):
         raise NotImplementedError
 
     def _prepare_raw_inputs(self, inputs_raw) -> list:
-        '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]'''
-        # 传入的Tensor直接[]后返回
+        '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]
+        :param inputs_raw: tensor/list(tensor)/list(list)/list(int)
+        '''
         if isinstance(inputs_raw, torch.Tensor):
+            # 传入的Tensor直接[]后返回
             self.input_seqlen = torch.ones(inputs_raw.shape[0], dtype=torch.long).to(self.device) * inputs_raw.shape[1]
             return [inputs_raw.to(self.device)]
+        elif isinstance(inputs_raw, (tuple,list)) and all([isinstance(i, int) for i in inputs_raw]):
+            # list(int)
+            inputs_raw = [inputs_raw]
+        
         inputs = []
         for input_ in inputs_raw:
             # encoder-decoder传入的encoder_hidden_states和encoder_attention_mask
@@ -188,7 +194,7 @@ class AutoRegressiveDecoder(object):
                     max_len = input_new.shape[1]
                     self.input_seqlen = torch.tensor([max_len]*len(input_new), dtype=torch.long).to(self.device)
             else:
-                raise ValueError('Beam search inputs ele only support tensor、array、list、tuple')
+                raise TypeError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_new)
         return inputs
 
@@ -750,10 +756,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         # 传入的时候text已经是token_ids
         if self.tokenizer is None:
             return text
-        elif isinstance(text, torch.Tensor):
+        elif isinstance(text, torch.Tensor):  # tensor
             return text
-        elif isinstance(text, (tuple, list)) and all([isinstance(i, (torch.Tensor, int)) for i in text]):
+        elif isinstance(text, (tuple, list)) and all([isinstance(i, torch.Tensor) for i in text]):  # list(tensor)
             return text
+        elif isinstance(text, (tuple, list)) and all([isinstance(i, int) for i in text]):  # list(int)
+            return [text]
 
         # 传入的是text或者list(text)
         if self.tokenizer_type == 'b4t':

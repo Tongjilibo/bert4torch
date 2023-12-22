@@ -112,8 +112,8 @@ OpenaiApiChatglm3 = extend_with_chat_openai_api(Chatglm3)
 class InternLM(Chat):
     def build_prompt(self, query, history=[]):
         prompt = ""
-        for record in history:
-            prompt += f"""<s><|User|>:{record[0]}<eoh>\n<|Bot|>:{record[1]}<eoa>\n"""
+        for user, bot in history:
+            prompt += f"""<s><|User|>:{user}<eoh>\n<|Bot|>:{bot}<eoa>\n"""
         if len(prompt) == 0:
             prompt += "<s>"
         if query is not None:
@@ -193,8 +193,8 @@ OpenaiApiLLaMA2 = extend_with_chat_openai_api(LLaMA2)
 class Ziya(Chat):
     def build_prompt(self, query, history) -> str:
         prompt = ''
-        for item in history:
-            prompt += f"<human>:{item[0]}\n<bot>:{item[1]}\n"
+        for human, bot in history:
+            prompt += f"<human>:{human}\n<bot>:{bot}\n"
         prompt += f"<human>:{query.strip()}\n<bot>:"
         return prompt
 CliDemoZiya = extend_with_cli_demo(Ziya)
@@ -215,8 +215,8 @@ class ChineseAlphaLLaMA(Chat):
 
     def build_prompt(self, query, history) -> str:
         prompt = ''
-        for item in history:
-            prompt += f"### Instruction:\n\n{item[0]}\n\n### Response:\n\n{item[1]}\n\n"
+        for inst, resp in history:
+            prompt += f"### Instruction:\n\n{inst}\n\n### Response:\n\n{resp}\n\n"
         prompt += f"### Instruction:\n\n{query}\n\n### Response:\n\n"
         prompt = self.system +prompt
         return prompt
@@ -242,8 +242,19 @@ OpenaiApiBelle = extend_with_chat_openai_api(Belle)
 
 
 class Baichuan(Chat):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user_token_id = 195
+        self.assistant_token_id = 196
+
     def build_prompt(self, query, history) -> str:
-        return super().build_prompt(query, history)
+        total_input = []
+        for user, assistant in history:
+            total_input += [self.user_token_id] + self.tokenizer.encode(user)  
+            total_input += [self.assistant_token_id] + self.tokenizer.encode(assistant) + [self.tokenizer.eos_token_id]
+        total_input += [self.user_token_id] + self.tokenizer.encode(query)
+        total_input.append(self.assistant_token_id)
+        return total_input
 CliDemoBaichuan = extend_with_cli_demo(Baichuan)
 WebDemoBaichuan = extend_with_web_demo(Baichuan)
 OpenaiApiBaichuan = extend_with_chat_openai_api(Baichuan)
