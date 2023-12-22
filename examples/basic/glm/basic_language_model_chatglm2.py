@@ -102,8 +102,7 @@ if __name__ == '__main__':
 '''
 
 # 新实现
-import re
-from bert4torch.chat import ChatCliDemoChatglm2
+from bert4torch.chat import CliDemoChatglm2
 
 model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 # model_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int4"
@@ -115,5 +114,5 @@ generation_config  = {'mode':'random_sample',
                       'use_states':True
                       }
 
-chat = ChatCliDemoChatglm2(model_path, **generation_config)
-chat.run()
+chat = CliDemoChatglm2(model_path, **generation_config)
+chat.run(stream=True)

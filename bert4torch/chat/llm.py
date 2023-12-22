@@ -1,10 +1,10 @@
 import re
 from bert4torch.chat.base import Chat
-from bert4torch.chat.base import extend_with_chat_cli_demo, extend_with_chat_web_demo
+from bert4torch.chat.base import extend_with_cli_demo, extend_with_web_demo
 from bert4torch.chat.api import extend_with_chat_openai_api
 
 
-class ChatChatglm(Chat):
+class Chatglm(Chat):
     def build_prompt(self, query, history) -> str:
         if not history:
             prompt = query
@@ -31,7 +31,7 @@ class ChatChatglm(Chat):
         return response
 
 
-class ChatChatglm2(Chat):
+class Chatglm2(Chat):
     def build_prompt(self, query, history=[]):
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
         prompt = ""
@@ -56,7 +56,7 @@ class ChatChatglm2(Chat):
         return response
 
 
-class ChatChatglm3(Chat):
+class Chatglm3(Chat):
     def build_prompt(self, query, history=[]):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         if (len(history) > 0) and isinstance(history[-1], tuple):
@@ -100,12 +100,12 @@ class ChatChatglm3(Chat):
         return content
 
 
-ChatCliDemoChatglm = extend_with_chat_cli_demo(ChatChatglm)
-ChatCliDemoChatglm2 = extend_with_chat_cli_demo(ChatChatglm2)
-ChatCliDemoChatglm3 = extend_with_chat_cli_demo(ChatChatglm3)
-ChatWebDemoChatglm = extend_with_chat_web_demo(ChatChatglm)
-ChatWebDemoChatglm2 = extend_with_chat_web_demo(ChatChatglm2)
-ChatWebDemoChatglm3 = extend_with_chat_web_demo(ChatChatglm3)
-ChatOpenaiApiChatglm = extend_with_chat_openai_api(ChatChatglm)
-ChatOpenaiApiChatglm2 = extend_with_chat_openai_api(ChatChatglm2)
-ChatOpenaiApiChatglm3 = extend_with_chat_openai_api(ChatChatglm3)
+CliDemoChatglm = extend_with_cli_demo(Chatglm)
+CliDemoChatglm2 = extend_with_cli_demo(Chatglm2)
+CliDemoChatglm3 = extend_with_cli_demo(Chatglm3)
+WebDemoChatglm = extend_with_web_demo(Chatglm)
+WebDemoChatglm2 = extend_with_web_demo(Chatglm2)
+WebDemoChatglm3 = extend_with_web_demo(Chatglm3)
+OpenaiApiChatglm = extend_with_chat_openai_api(Chatglm)
+OpenaiApiChatglm2 = extend_with_chat_openai_api(Chatglm2)
+OpenaiApiChatglm3 = extend_with_chat_openai_api(Chatglm3)

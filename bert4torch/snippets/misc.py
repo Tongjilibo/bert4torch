@@ -136,11 +136,16 @@ def old_checkpoint(function, model_kwargs):
         return outputs
 
 
-def cuda_empty_cache():
+def cuda_empty_cache(device=None):
     '''清理gpu显存'''
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if device is None:
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+            return
+        with torch.cuda.device(device):
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
 
 class WebServing(object):

@@ -57,7 +57,7 @@ class Chat:
             yield response
 
 
-class ChatCliDemo(Chat):
+class CliDemo(Chat):
     '''在命令行中交互的demo'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -108,7 +108,7 @@ class ChatCliDemo(Chat):
             cuda_empty_cache()
 
 
-class ChatWebDemo(Chat):
+class WebDemo(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
     '''
@@ -186,15 +186,15 @@ class ChatWebDemo(Chat):
         demo.queue().launch(**launch_configs)
 
 
-def extend_with_chat_cli_demo(InputModel):
+def extend_with_cli_demo(InputModel):
     """添加ChatCliDemo"""
-    class ChatDemo(InputModel, ChatCliDemo):
+    class ChatDemo(InputModel, CliDemo):
         pass
     return ChatDemo
 
 
-def extend_with_chat_web_demo(InputModel):
+def extend_with_web_demo(InputModel):
     """添加ChatWebDemo"""
-    class ChatDemo(InputModel, ChatWebDemo):
+    class ChatDemo(InputModel, WebDemo):
         pass
     return ChatDemo

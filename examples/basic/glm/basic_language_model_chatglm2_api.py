@@ -2,7 +2,7 @@
 # 基本测试：chatglm2的对话测试, openai格式的api
 
 
-from bert4torch.chat import ChatOpenaiApiChatglm2
+from bert4torch.chat import OpenaiApiChatglm2
 
 model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 generation_config  = {'mode':'random_sample',
@@ -11,7 +11,7 @@ generation_config  = {'mode':'random_sample',
                       'use_states':True
                       }
 
-chat = ChatOpenaiApiChatglm2(model_path, **generation_config)
+chat = OpenaiApiChatglm2(model_path, **generation_config)
 chat.run()
 
 

@@ -3,6 +3,10 @@
 # 官方项目：https://github.com/THUDM/ChatGLM2-6B
 # hf链接：https://huggingface.co/THUDM/chatglm2-6b
 
+
+'''
+# 旧实现
+
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
@@ -38,13 +42,6 @@ else:
 
 generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample',
                            maxlen=2048, default_rtype='logits', use_states=True)
-
-def build_prompt(history):
-    prompt = "欢迎使用 ChatGLM2-6B 模型，输入内容即可进行对话，clear 清空对话历史，stop 终止程序"
-    for query, response in history:
-        prompt += f"\n\n用户：{query}"
-        prompt += f"\n\nChatGLM-6B：{response}"
-    return prompt
 
 def process_response(response):
     response = response.strip()
@@ -83,4 +80,29 @@ if __name__ == '__main__':
         print(response)
     else:
         for i in response:
+            print(''.center(60, '='))
             print(i)
+'''
+
+# 新实现
+from bert4torch.chat import Chatglm2
+model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+# model_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int4"
+# model_path = "E:/pretrain_ckpt/glm/chatglm2-6B-32k"
+
+generation_config  = {'mode':'random_sample',
+                      'maxlen':2048, 
+                      'default_rtype':'logits', 
+                      'use_states':True,
+                      'n': 5
+                      }
+
+chat = Chatglm2(model_path, **generation_config)
+response = chat.generate('如何查询天气？')
+
+if isinstance(response, str):
+    print(response)
+else:
+    for i in response:
+        print(''.center(60, '='))
+        print(i)

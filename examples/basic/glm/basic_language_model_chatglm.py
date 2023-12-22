@@ -95,7 +95,7 @@ if __name__ == '__main__':
 '''
 
 # 新实现
-from bert4torch.chat import ChatCliDemoChatglm
+from bert4torch.chat import CliDemoChatglm
 
 choice = 'default'  # v1.1.0, default, int4, int8
 quantization_config = None
@@ -117,8 +117,8 @@ generation_config = {'mode': 'random_sample',
                      'default_rtype':'logits', 
                      'use_states':True}
 
-demo = ChatCliDemoChatglm(dir_path, generation_config=generation_config, quantization_config=quantization_config)
+cli_demo = CliDemoChatglm(dir_path, generation_config=generation_config, quantization_config=quantization_config)
 
 
 if __name__ == '__main__':
-    demo.run(stream=True)
+    cli_demo.run(stream=True)

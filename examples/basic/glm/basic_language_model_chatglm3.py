@@ -114,7 +114,7 @@ if __name__ == '__main__':
 '''
 
 # 新实现
-from bert4torch.chat import ChatCliDemoChatglm3
+from bert4torch.chat import CliDemoChatglm3
 from transformers import AutoTokenizer
 
 
@@ -133,7 +133,7 @@ generation_kwargs = {"maxlen": 2048,
               "mode": 'random_sample',
               "default_rtype": 'logits',
               "use_states": True}
-demo = ChatCliDemoChatglm3(model_path, **generation_kwargs)
+demo = CliDemoChatglm3(model_path, **generation_kwargs)
 
 
 if __name__ == '__main__':
