@@ -23,7 +23,6 @@ else:
 include_input = not with_prompt
 
 
-# 新实现
 from bert4torch.chat import CliDemoZiya
 tokenizer_config = {'skip_special_tokens': True}
 generation_config = {

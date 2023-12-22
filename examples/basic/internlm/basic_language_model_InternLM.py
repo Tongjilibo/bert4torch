@@ -5,7 +5,6 @@ bert4torch_config.json见readme
 """
 
 
-# 新实现
 from bert4torch.chat import CliDemoInternLM
 from transformers import AutoTokenizer
 

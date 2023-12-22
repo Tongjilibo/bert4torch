@@ -3,8 +3,8 @@
 # 官方项目：https://github.com/THUDM/ChatGLM2-6B
 # hf链接：https://huggingface.co/THUDM/chatglm2-6b
 
-# 新实现
 from bert4torch.chat import CliDemoChatglm2
+
 
 model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 # model_path = "E:/pretrain_ckpt/glm/chatglm2-6B-int4"
@@ -16,5 +16,16 @@ generation_config  = {'mode':'random_sample',
                       'use_states':True
                       }
 
-chat = CliDemoChatglm2(model_path, **generation_config)
-chat.run(stream=True)
+demo = CliDemoChatglm2(model_path, **generation_config)
+
+if __name__ == '__main__':
+    choice = 'gen_1toN'  # cli, gen_1toN
+
+    if choice == 'cli':
+        # 命令行demo
+        demo.run(stream=True)
+    elif choice == 'gen_1toN':
+        # 一次性输出N条记录
+        demo.generation_config['n'] = 5
+        res = demo.batch_generate('如何查询天气？')
+        print(res)

@@ -5,7 +5,6 @@
 # hf链接：https://huggingface.co/THUDM/chatglm3-6b-32k
 
 
-# 新实现
 from bert4torch.chat import CliDemoChatglm3
 from transformers import AutoTokenizer
 

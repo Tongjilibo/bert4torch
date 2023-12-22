@@ -11,7 +11,6 @@ with_prompt = True
 include_input = not with_prompt
 
 
-# 新实现
 from bert4torch.chat import CliDemoChineseAlphaLLaMA
 generation_config = {
     'end_id': 2, 

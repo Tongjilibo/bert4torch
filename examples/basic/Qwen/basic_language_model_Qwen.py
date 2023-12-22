@@ -21,7 +21,6 @@ batch_generate = False
 gen_1toN = True
 
 
-# 新实现
 from transformers import AutoTokenizer
 from bert4torch.chat import CliDemoQwen
 
