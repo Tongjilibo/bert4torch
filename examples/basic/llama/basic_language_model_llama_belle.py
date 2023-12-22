@@ -7,6 +7,13 @@
 # bert4torch_config.json见readme
 
 
+
+dir_path = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m'
+config_path = f'{dir_path}/bert4torch_config.json'
+checkpoint_path = f'{dir_path}/pytorch_model.bin'
+
+'''
+# 旧实现
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
@@ -15,12 +22,8 @@ from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import platform
 import os
 
-dir_path = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m'
-config_path = f'{dir_path}/bert4torch_config.json'
-checkpoint_path = f'{dir_path}/pytorch_model.bin'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 # 可使用bert4torch的tokenizer
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 use_hf_tokenize = False
 if use_hf_tokenize:
     tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
@@ -82,3 +85,23 @@ if __name__ == '__main__':
         response = generation.generate(query, topk=30, topp=0.85, temperature=0.5)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nBelle：{response}")
+'''
+
+from bert4torch.chat import CliDemoBelle
+generation_config = {
+    'end_id': 2, 
+    'mode': 'random_sample',
+    'maxlen': 512, 
+    'default_rtype': 'logits', 
+    'use_states': True
+}
+
+
+cli_demo = CliDemoBelle(
+    dir_path, generation_config=generation_config,
+    quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+    )
+
+
+if __name__ == '__main__':
+    cli_demo.run()

@@ -18,11 +18,10 @@ class Chat:
         self.checkpoint_path = model_path
         self.config_path = os.path.join(model_path, 'bert4torch_config.json')
         self.generation_config = generation_config if generation_config is not None else kwargs
-        from transformers import AutoTokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
-        self.generation_config['tokenizer'] = self.tokenizer
         self.half = half
         self.quantization_config = quantization_config
+        self.tokenizer = self.build_tokenizer()
+        self.generation_config['tokenizer'] = self.tokenizer
         self.model = self.build_model()
 
     def build_prompt(self, query, history) -> str:
@@ -31,6 +30,10 @@ class Chat:
         :param history: List, 历史对话记录，格式为[(input1, response1), (input2, response2)]
         '''
         raise NotImplementedError
+    
+    def build_tokenizer(self):
+        from transformers import AutoTokenizer
+        return AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
 
     def build_model(self):
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)

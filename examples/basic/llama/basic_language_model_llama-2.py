@@ -3,14 +3,8 @@
 基本测试：原生llama模型的测试 https://github.com/facebookresearch/llama
 """
 
-import torch
-from bert4torch.models import build_transformer_model
-from bert4torch.generation import SeqGeneration
-from transformers import AutoTokenizer, LlamaTokenizer
-import platform
-import os
 
-choice = 'llama-2-7b-chat'
+choice = 'llama-2-7b'
 if choice == 'llama-2-7b':
     dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b'
     with_prompt = False
@@ -25,12 +19,20 @@ elif choice == 'llama-2-13b-chat':
     with_prompt = True        
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
-
 include_input = not with_prompt
+
+'''
+# 旧实现
+
+import torch
+from bert4torch.models import build_transformer_model
+from bert4torch.generation import SeqGeneration
+from transformers import AutoTokenizer, LlamaTokenizer
+import platform
+import os
 
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
-spm_path = dir_path + '/tokenizer.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
@@ -73,3 +75,29 @@ if __name__ == '__main__':
         response = article_completion.generate(query, topp=0.95, temperature=0.3, repetition_penalty=1.3, include_input=include_input)
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nllama：{response}")
+'''
+
+from bert4torch.chat import CliDemoLLaMA2
+generation_config = {
+    'tokenizer_config':  {'skip_special_tokens': True, 'add_special_tokens': False},
+    'end_id': 2,
+    'mode': 'random_sample', 
+    'maxlen': 512, 
+    'default_rtype': 'logits', 
+    'use_states': True,
+    'include_input': include_input
+}
+
+
+cli_demo = CliDemoLLaMA2(dir_path, generation_config=generation_config)
+
+if __name__ == '__main__':
+    if with_prompt:
+        # chat模型
+        cli_demo.run()
+    else:
+        # 预训练模型
+        while True:
+            query = input('\n输入:')
+            response = cli_demo.model.generate(query, **generation_config)
+            print(f'续写: {response}')

@@ -162,7 +162,88 @@ class Qwen(Chat):
         raw_text += f"\n{im_start}user\n{query}{im_end}\n{im_start}assistant\n"
 
         return raw_text
-
 CliDemoQwen = extend_with_cli_demo(Qwen)
 WebDemoQwen = extend_with_web_demo(Qwen)
 OpenaiApiQwen = extend_with_chat_openai_api(Qwen)
+
+
+class LLaMA2(Chat):
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if system is None:
+            self.system = """\
+You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+
+If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.\
+"""
+        else:
+            self.system = system
+
+    def build_prompt(self, query, history) -> str:
+        texts = [f'[INST] <<SYS>>\n{self.system}\n<</SYS>>\n\n']
+        for user_input, response in history:
+            texts.append(f'{user_input.strip()} [/INST] {response.strip()} </s><s> [INST] ')
+        texts.append(f'{query.strip()} [/INST]')
+        return ''.join(texts)
+CliDemoLLaMA2 = extend_with_cli_demo(LLaMA2)
+WebDemoLLaMA2 = extend_with_web_demo(LLaMA2)
+OpenaiApiLLaMA2 = extend_with_chat_openai_api(LLaMA2)
+
+
+class Ziya(Chat):
+    def build_prompt(self, query, history) -> str:
+        prompt = ''
+        for item in history:
+            prompt += f"<human>:{item[0]}\n<bot>:{item[1]}\n"
+        prompt += f"<human>:{query.strip()}\n<bot>:"
+        return prompt
+CliDemoZiya = extend_with_cli_demo(Ziya)
+WebDemoZiya = extend_with_web_demo(Ziya)
+OpenaiApiZiya = extend_with_chat_openai_api(Ziya)
+
+
+class ChineseAlphaLLaMA(Chat):
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if system is None:
+            self.system = \
+("Below is an instruction that describes a task. "
+"Write a response that appropriately completes the request.\n\n"
+)
+        else:
+            self.system = system
+
+    def build_prompt(self, query, history) -> str:
+        prompt = ''
+        for item in history:
+            prompt += f"### Instruction:\n\n{item[0]}\n\n### Response:\n\n{item[1]}\n\n"
+        prompt += f"### Instruction:\n\n{query}\n\n### Response:\n\n"
+        prompt = self.system +prompt
+        return prompt
+CliDemoChineseAlphaLLaMA = extend_with_cli_demo(ChineseAlphaLLaMA)
+WebDemoChineseAlphaLLaMA = extend_with_web_demo(ChineseAlphaLLaMA)
+OpenaiApiChineseAlphaLLaMA = extend_with_chat_openai_api(ChineseAlphaLLaMA)
+
+
+class Belle(Chat):
+    def build_tokenizer(self):
+        from transformers import AutoTokenizer
+        return AutoTokenizer.from_pretrained(self.model_path, use_fast=False)
+    
+    def build_prompt(self, query, history) -> str:
+        prompt = ''
+        for item in history:
+            prompt += f"Human: {item[0]} \n\nAssistant: {item[1]}\n\n"
+        prompt += f"Human: {query} \n\nAssistant: "
+        return prompt
+CliDemoBelle = extend_with_cli_demo(Belle)
+WebDemoBelle = extend_with_web_demo(Belle)
+OpenaiApiBelle = extend_with_chat_openai_api(Belle)
+
+
+class Baichuan(Chat):
+    def build_prompt(self, query, history) -> str:
+        return super().build_prompt(query, history)
+CliDemoBaichuan = extend_with_cli_demo(Baichuan)
+WebDemoBaichuan = extend_with_web_demo(Baichuan)
+OpenaiApiBaichuan = extend_with_chat_openai_api(Baichuan)
