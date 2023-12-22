@@ -11,16 +11,13 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.generation import SeqGeneration
 from transformers import AutoTokenizer
-import platform
-import os
+
 
 choice = 'bloom-560m'
 if choice == 'bloom-560m':
     dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
-    include_input = True
 elif choice == 'bloomz-560m':
     dir_path = 'E:/pretrain_ckpt/bloom/bloomz-560m'
-    include_input = False
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
@@ -39,17 +36,7 @@ generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos
 
 
 if __name__ == '__main__':
-    os_name = platform.system()
-    print("Welcome to use bloom model，type `clear` to clear history，type `stop` to stop program")
     while True:
-        query = input("\nUser：")
-        if query == "stop":
-            break
-        if query == "clear":
-            command = 'cls' if os_name == 'Windows' else 'clear'
-            os.system(command)
-            print("Welcome to use bloom model，type `clear` to clear history，type `stop` to stop program")
-            continue
-        response = generation.generate(query, topk=1, include_input=include_input)      
-        torch.cuda.empty_cache()  # 清理显存
-        print(f"\nbloom：{response}")
+        query = input("\n输入：")
+        response = generation.generate(query, topk=1, include_input=True)      
+        print(f"续写:{response}")

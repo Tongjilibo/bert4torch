@@ -49,7 +49,11 @@ class Chat:
     def generate(self, query:str, history=[]):
         prompt = self.build_prompt(query, history)
         return self.model.generate(prompt, **self.generation_config)
-    
+
+    def batch_generate(self, query:list, history=[]):
+        prompts = [self.build_prompt(q, history) for q in query]
+        return self.model.batch_generate(prompts, **self.generation_config)
+
     def stream_generate(self, query:str, history=[]):
         '''单条样本stream输出预测的结果'''
         prompt = self.build_prompt(query, history)

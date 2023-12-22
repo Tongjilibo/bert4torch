@@ -4,14 +4,6 @@
 bert4torch_config.json见readme
 """
 
-import torch
-from bert4torch.models import build_transformer_model
-from typing import Tuple, List, Union, Iterable
-from bert4torch.generation import SeqGeneration
-from transformers import AutoTokenizer
-import platform
-import os
-
 choice = 'Qwen-1_8B-Chat'
 if choice == 'Qwen-7B-Chat':
     dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B-Chat'
@@ -25,6 +17,18 @@ elif choice == 'Qwen-1_8B-Chat':
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 include_input = not with_prompt
+batch_generate = False
+gen_1toN = True
+
+'''
+# 旧实现
+import torch
+from bert4torch.models import build_transformer_model
+from typing import Tuple, List, Union, Iterable
+from bert4torch.generation import SeqGeneration
+from transformers import AutoTokenizer
+import platform
+import os
 
 config_path = dir_path + '/bert4torch_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -113,3 +117,46 @@ if __name__ == '__main__':
         if with_prompt:
             history.append((query_input, response))
         torch.cuda.empty_cache()  # 清理显存
+'''
+
+# 新实现
+from transformers import AutoTokenizer
+from bert4torch.chat import CliDemoQwen
+
+tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
+tokenizer_decode_config = {'skip_special_tokens': True}
+end_id = [tokenizer.im_start_id, tokenizer.im_end_id] if with_prompt else tokenizer.encode("<|endoftext|>", **tokenizer_encode_config)
+generation_config = {
+    'end_id': end_id, 
+    'mode': 'random_sample', 
+    'tokenizer_encode_config': tokenizer_encode_config, 
+    'tokenizer_decode_config': tokenizer_decode_config,
+    'maxlen': 256, 
+    'default_rtype': 'logits', 
+    'use_states': True,
+    'include_input': include_input
+}
+
+cli_demo = CliDemoQwen(dir_path, system='You are a helpful assistant.', generation_config=generation_config)
+
+if __name__ == '__main__':
+    if batch_generate:
+        # chat模型，batch_generate的示例
+        res = cli_demo.batch_generate(['你好', '你是谁'])
+        print(res)
+    elif gen_1toN:
+        # 一条输出N跳回复
+        cli_demo.generation_config['n'] = 5
+        res = cli_demo.batch_generate('你是谁？')
+        print(res)
+    elif with_prompt:
+        # chat模型
+        cli_demo.run()
+    else:
+        # 预训练模型
+        while True:
+            query = input('\n输入:')
+            response = cli_demo.model.generate(query, **generation_config)
+            print(f'续写: {response}')
+    

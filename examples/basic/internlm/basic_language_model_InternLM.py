@@ -4,6 +4,9 @@ Github: https://github.com/InternLM/InternLM
 bert4torch_config.json见readme
 """
 
+'''
+# 旧实现
+
 import torch
 from bert4torch.models import build_transformer_model
 from typing import Tuple, List, Union, Iterable
@@ -79,3 +82,25 @@ if __name__ == '__main__':
         if with_prompt:
             history.append((query_input, response))
         torch.cuda.empty_cache()  # 清理显存
+'''
+
+# 新实现
+from bert4torch.chat import CliDemoInternLM
+from transformers import AutoTokenizer
+
+dir_path = 'E:/pretrain_ckpt/internlm/internlm-chat-7b'
+tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+
+generation_config = {
+    'tokenizer_config': {'skip_special_tokens': True},
+    'end_id': [tokenizer.eos_token_id, tokenizer.encode('<eoa>')[-1]], 
+    'mode': 'random_sample', 
+    'maxlen': 1024, 
+    'default_rtype': 'logits',
+    'use_states': True,
+    'topp': 0.8, 
+    'temperature': 0.8
+}
+
+cli_demo = CliDemoInternLM(dir_path, generation_config=generation_config)
+cli_demo.run(stream=True)
