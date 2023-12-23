@@ -95,9 +95,11 @@ class AutoRegressiveDecoder(object):
             self.first_output_ids = torch.tensor([[self.start_id]], device=device)
 
     def set_generation_config(self, kwargs):
-        generation_config = kwargs.get('generation_config', kwargs)
-
-        for key, value in generation_config.items():
+        if kwargs.get('generation_config'):
+            generation_config = kwargs.pop('generation_config')
+            kwargs.update(**generation_config)
+    
+        for key, value in kwargs.items():
             if key in self.alias:  # 兼容transformers的参数设置
                 setattr(self, self.alias[key], value)
             elif hasattr(self, key):
@@ -592,36 +594,34 @@ class SeqGeneration(AutoRegressiveDecoder):
     @staticmethod
     def _default_generation_config(tokenizer, model, kwargs):
         # 可以直接以generation_config方式传参，也可以topp=0.9, topk=50方式传参
-        generation_config = kwargs.get('generation_config', kwargs)
+        if kwargs.get('generation_config'):
+            generation_config = kwargs.pop('generation_config')
+            kwargs.update(**generation_config)
 
         ''' genration的默认参数设置 '''
-        if generation_config.get('pad_id') is not None:  # 用户自行设置
+        if kwargs.get('pad_id') is not None:  # 用户自行设置
             pass
-        elif generation_config.get('pad_token_id') is not None:  # 用户自行设置（别名）
+        elif kwargs.get('pad_token_id') is not None:  # 用户自行设置（别名）
             pass
         elif (tokenizer is not None) and (tokenizer.pad_token_id is not None):
-            generation_config['pad_id'] = tokenizer.pad_token_id
+            kwargs['pad_id'] = tokenizer.pad_token_id
         else:
-            generation_config['pad_id'] = 0
+            kwargs['pad_id'] = 0
             log_info(f'Arg `pad_id` has been set to default value 0')
         
-        if generation_config.get('end_id') is not None:  # 用户自行设置
+        if kwargs.get('end_id') is not None:  # 用户自行设置
             pass
-        elif generation_config.get('eos_token_id') is not None:  # 用户自行设置（别名）
+        elif kwargs.get('eos_token_id') is not None:  # 用户自行设置（别名）
             pass
         elif (tokenizer is not None) and hasattr(tokenizer, 'eos_token_id') and (tokenizer.eos_token_id is not None):
-            generation_config['end_id'] = tokenizer.eos_token_id
+            kwargs['end_id'] = tokenizer.eos_token_id
             log_info(f'Arg `end_id` has been set to tokenizer.eos_token_id:{tokenizer.eos_token_id}')
         else:
-            generation_config['end_id'] = generation_config['pad_id']
-            log_info(f'Arg `end_id` has been set to `pad_id`:{generation_config["pad_id"]}')
-        generation_config['device'] = generation_config.get('device') or next(model.parameters()).device
+            kwargs['end_id'] = kwargs['pad_id']
+            log_info(f'Arg `end_id` has been set to `pad_id`:{kwargs["pad_id"]}')
+        kwargs['device'] = kwargs.get('device') or next(model.parameters()).device
 
-        if 'generation_config' in kwargs:
-            kwargs['generation_config'] = generation_config
-            return kwargs
-        else:
-            return generation_config
+        return kwargs
 
     def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
