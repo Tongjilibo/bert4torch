@@ -10,6 +10,7 @@
 
 from bert4torch.chat import CliDemoChatglm
 
+
 choice = 'default'  # v1.1.0, default, int4, int8
 quantization_config = None
 if choice == 'default':

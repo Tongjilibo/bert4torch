@@ -124,6 +124,7 @@ class WebDemo(Chat):
         import gradio as gr
         self.gr = gr
         self.max_length = max_length
+        self.max_repetition_penalty = 10
         self.stream = True  # 一般都是流式，因此未放在页面配置项
         log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
 
@@ -134,15 +135,16 @@ class WebDemo(Chat):
     def reset_state():
         return [], []
 
-    def set_generation_config(self, max_length, top_p, temperature):
+    def set_generation_config(self, max_length, top_p, temperature, repetition_penalty):
         '''根据web界面的参数修改生成参数'''
         self.generation_config['max_length'] = max_length
         self.generation_config['top_p'] = top_p
         self.generation_config['temperature'] = temperature
+        self.generation_config['repetition_penalty'] = repetition_penalty
 
-    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature):
+    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
         '''流式生成'''
-        self.set_generation_config(max_length, top_p, temperature)
+        self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
         for response in self.model.stream_generate(input_text, **self.generation_config):
@@ -152,9 +154,9 @@ class WebDemo(Chat):
             yield chatbot, new_history
         cuda_empty_cache()  # 清理显存
 
-    def __predict(self, input, chatbot, history, max_length, top_p, temperature):
+    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
         '''一次性生成'''
-        self.set_generation_config(max_length, top_p, temperature)
+        self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
         response = self.model.generate(input_text, **self.generation_config)
@@ -180,12 +182,13 @@ class WebDemo(Chat):
                     max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="Maximum length", interactive=True)
                     top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="Top P", interactive=True)
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="Temperature", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1, step=0.1, label="Repetition penalty", interactive=True)
 
             history = self.gr.State([])
             if self.stream:
-                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
             else:
-                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
 
             submitBtn.click(self.reset_user_input, [], [user_input])
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)

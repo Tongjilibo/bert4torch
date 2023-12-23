@@ -591,6 +591,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     
     @staticmethod
     def _default_generation_config(tokenizer, model, kwargs):
+        # 可以直接以generation_config方式传参，也可以topp=0.9, topk=50方式传参
         generation_config = kwargs.get('generation_config', kwargs)
 
         ''' genration的默认参数设置 '''
