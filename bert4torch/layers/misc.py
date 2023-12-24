@@ -381,12 +381,12 @@ def add_adapter(model, adapter_method='bottleneck', bottlenect_size=64):
         except:
             layers = model.decoderLayer
         
-        # TODO: 这里需要测试一下前面layers赋值是否真的对原始的layers修改了
+        # TODO: 这里需要测试
         for layer_id in range(model.num_hidden_layers):
             transformer_layer = layers[layer_id].multiHeadAttention.o
             out_featuers = transformer_layer.out_features
             adapter1 = BottleneckAdapterLayer(out_featuers, bottleneck_size=bottlenect_size)
-            layers[layer_id].dropout1 = nn.Sequential(transformer_layer, adapter1)
+            layers[layer_id].multiHeadAttention.o = nn.Sequential(transformer_layer, adapter1)
 
             transformer_layer = layers[layer_id].feedForward
             out_featuers = transformer_layer.outputDense.out_features
