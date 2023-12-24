@@ -563,9 +563,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
     def __init__(self, model, tokenizer=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
-                 mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **kwrags):
-        kwrags = self._default_generation_config(tokenizer, model, kwrags)  # 对部分参数进行默认设置
-        super().__init__(**kwrags)
+                 mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **kwargs):
+        kwargs = self._default_generation_config(tokenizer, model, kwargs)  # 对部分参数进行默认设置
+        super().__init__(**kwargs)
 
         self.encoder = None
         self.decoder = model
@@ -580,6 +580,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         if self.tokenizer is not None:
             self.tokenizer_encode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode), **tokenizer_encode_config}
             self.tokenizer_decode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode), **tokenizer_decode_config}
+        else:
+            self.tokenizer_encode_config = dict()
+            self.tokenizer_decode_config = dict()
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
@@ -590,6 +593,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.include_input = False  # 输出是否包含输入
         self.input_text = ''
         EmptyCacheDecorators.optimize_cuda_cache = optimize_cuda_cache
+        self.set_generation_config(kwargs)
     
     @staticmethod
     def _default_generation_config(tokenizer, model, kwargs):

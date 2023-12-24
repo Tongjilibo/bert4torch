@@ -17,8 +17,6 @@ elif choice == 'Qwen-1_8B-Chat':
 else:
     raise ValueError(f'{choice} not in pre maintained choices')
 include_input = not with_prompt
-batch_generate = False
-gen_1toN = True
 
 
 from transformers import AutoTokenizer
@@ -42,6 +40,9 @@ generation_config = {
 cli_demo = CliDemoQwen(dir_path, system='You are a helpful assistant.', generation_config=generation_config)
 
 if __name__ == '__main__':
+    batch_generate = False
+    gen_1toN = False
+
     if batch_generate:
         # chat模型，batch_generate的示例
         res = cli_demo.batch_generate(['你好', '你是谁'])
