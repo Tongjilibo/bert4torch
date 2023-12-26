@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 maxlen = 256
 batch_size = 16
+bio_tags = 3  # BIO tags的个数
 categories = ['LOC', 'PER', 'ORG']
 
 # BERT base
@@ -97,9 +98,9 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        self.dense1 = nn.Linear(768, len(categories))
+        self.dense1 = nn.Linear(768, bio_tags)
         self.dense2 = nn.Linear(768, len(categories)+1)  # 包含padding
-        self.crf = CRF(len(categories))
+        self.crf = CRF(bio_tags)
 
     def forward(self, *inputs):
         # 一阶段的输出
