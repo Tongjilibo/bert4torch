@@ -10,17 +10,33 @@ from tqdm.autonotebook import trange
 
 class Text2Vec:
     '''句向量'''
-    def __init__(self, model_path=None, vocab_path=None, config_path=None, checkpoint_path=None, device='cpu', model_config=None) -> None:
-        if model_path is not None:
-            vocab_path = vocab_path or os.path.join(model_path, 'vocab.txt')
-            config_path = config_path or os.path.join(model_path, 'config.json')
-            checkpoint_path = checkpoint_path or [os.path.join(model_path, i) for i in os.listdir(model_path) if i.endswith('.bin')]
-        self.tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-        model_config = model_config or dict()
-        self.model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **model_config).to(device)
-        self.model.eval()
+    def __init__(self, model_path, device='cpu', model_config=None) -> None:
+        self.model_path = model_path
         self.device = device
+        self.tokenizer = self.build_tokenizer()
+        self.model = self.build_model(model_config)
     
+    def build_tokenizer(self):
+        vocab_path = os.path.join(self.model_path, 'vocab.txt')
+        if os.path.exists(vocab_path):
+            tokenizer = Tokenizer(vocab_path, do_lower_case=True)
+        else:
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer(self.model_path)
+        return tokenizer
+
+    def build_model(self, model_config):
+        config_path = os.path.join(self.model_path, 'bert4torch_config.json')
+        if not os.path.exists(config_path):
+            config_path = os.path.join(self.model_path, 'config.json')
+ 
+        checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
+        checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path
+        model_config = model_config or dict()
+        model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **model_config).to(self.device)
+        model.eval()
+        return model
+        
     @torch.inference_mode()
     def encode(
             self,
@@ -31,7 +47,7 @@ class Text2Vec:
             custom_layer=None,
             convert_to_numpy: bool = True,
             convert_to_tensor: bool = False,
-            normalize_embeddings: bool = True,
+            normalize_embeddings: bool = False,
             max_seq_length: int = None
             ):
         
@@ -54,7 +70,12 @@ class Text2Vec:
 
             last_hidden_state = output.get('last_hidden_state')
             pooler = output.get('pooled_output')
-            attention_mask = (last_hidden_state != self.tokenizer._token_pad_id).long()
+            if isinstance(batch_input, list):
+                attention_mask = (batch_input[0] != self.tokenizer._token_pad_id).long()
+            elif isinstance(batch_input, torch.Tensor):
+                attention_mask = (batch_input != self.tokenizer._token_pad_id).long()
+            else:
+                raise TypeError('Args `batch_input` only support list(tensor)/tensor format')
             embs = get_pool_emb(last_hidden_state, pooler, attention_mask, pool_strategy, custom_layer)
             if normalize_embeddings:
                 embs = torch.nn.functional.normalize(embs, p=2, dim=1)

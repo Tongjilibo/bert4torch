@@ -13,38 +13,11 @@ sentences = [
 embeddings = model.encode(sentences)
 
 #Print the embeddings
-for sentence, embedding in zip(sentences, embeddings):
-    print("Sentence:", sentence)
-    print("Embedding:", embedding)
-    print("---------------------------------")
+print(embeddings)
 
 
 print('=========================================bert4torch====================================')
-from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, get_pool_emb
-from bert4torch.tokenizers import Tokenizer
-import torch
-
-# 加载模型，请更换成自己的路径
-vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert4torch_config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
-
-
-# 建立分词器
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
-
-token_ids, segments_ids = tokenizer.encode(sentences)
-tokens_ids_tensor = torch.tensor(sequence_padding(token_ids))
-segment_ids_tensor = torch.tensor(sequence_padding(segments_ids))
-
-model.eval()
-with torch.no_grad():
-    hidden_states, pooling = model([tokens_ids_tensor, segment_ids_tensor])
-    sentence_embeddings = get_pool_emb(hidden_states, pooling, tokens_ids_tensor.gt(0).long(), 'mean')
-
-    for sentence, embedding in zip(sentences, sentence_embeddings):
-        print("Sentence:", sentence)
-        print("Embedding:", embedding)
-        print("---------------------------------")
+from bert4torch.pipelines import Text2Vec
+text2vec = Text2Vec(root_model_path, device='cuda')
+embeddings = text2vec.encode(sentences, pool_strategy='mean')
+print(embeddings)
