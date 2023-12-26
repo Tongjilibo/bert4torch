@@ -11,7 +11,7 @@ with_prompt = True
 include_input = not with_prompt
 
 
-from bert4torch.chat import CliDemoChineseAlphaLLaMA
+from bert4torch.pipelines import ChatChineseAlphaLLaMACli
 generation_config = {
     'end_id': 2, 
     'mode': 'random_sample', 
@@ -27,7 +27,7 @@ generation_config = {
 }
 
 
-cli_demo = CliDemoChineseAlphaLLaMA(
+cli_demo = ChatChineseAlphaLLaMACli(
     dir_path, generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )

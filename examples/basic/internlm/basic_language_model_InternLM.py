@@ -5,7 +5,7 @@ bert4torch_config.json见readme
 """
 
 
-from bert4torch.chat import CliDemoInternLM
+from bert4torch.pipelines import ChatInternLMCli
 from transformers import AutoTokenizer
 
 dir_path = 'E:/pretrain_ckpt/internlm/internlm-chat-7b'
@@ -22,5 +22,5 @@ generation_config = {
     'temperature': 0.8
 }
 
-cli_demo = CliDemoInternLM(dir_path, generation_config=generation_config)
+cli_demo = ChatInternLMCli(dir_path, generation_config=generation_config)
 cli_demo.run(stream=True)

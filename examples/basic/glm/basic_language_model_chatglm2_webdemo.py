@@ -3,7 +3,7 @@
 # 官方项目：https://github.com/THUDM/ChatGLM2-6B
 # hf链接：https://huggingface.co/THUDM/chatglm2-6b
 
-from bert4torch.chat import WebDemoChatglm2
+from bert4torch.pipelines import ChatGlm2Web
 
 model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 generation_config  = {'mode':'random_sample',
@@ -11,7 +11,7 @@ generation_config  = {'mode':'random_sample',
                       'default_rtype':'logits', 
                       'use_states':True
                       }
-chat = WebDemoChatglm2(model_path, **generation_config)
+chat = ChatGlm2Web(model_path, **generation_config)
 
 if __name__ == '__main__':
     chat.run(share=True, inbrowser=True)

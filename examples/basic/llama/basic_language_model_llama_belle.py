@@ -13,7 +13,7 @@ config_path = f'{dir_path}/bert4torch_config.json'
 checkpoint_path = f'{dir_path}/pytorch_model.bin'
 
 
-from bert4torch.chat import CliDemoBelle
+from bert4torch.pipelines import ChatBelleCli
 generation_config = {
     'end_id': 2, 
     'mode': 'random_sample',
@@ -23,7 +23,7 @@ generation_config = {
 }
 
 
-cli_demo = CliDemoBelle(
+cli_demo = ChatBelleCli(
     dir_path, generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )

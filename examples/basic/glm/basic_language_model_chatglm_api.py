@@ -43,7 +43,7 @@ if choice == 'simple':
     # curl -X POST "http://127.0.0.1:8000"  -H "Content-Type: application/json"  -d '{"prompt": "你好", "history": []}'
 
 elif choice == 'stream':
-    from bert4torch.chat import OpenaiApiChatglm
+    from bert4torch.pipelines import ChatGlmOpenaiApi
 
     dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
 
@@ -52,5 +52,5 @@ elif choice == 'stream':
                         'default_rtype':'logits', 
                         'use_states':True}
 
-    cli_demo = OpenaiApiChatglm(dir_path, generation_config=generation_config)
+    cli_demo = ChatGlmOpenaiApi(dir_path, generation_config=generation_config)
     cli_demo.run()

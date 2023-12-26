@@ -5,7 +5,7 @@
 # hf链接：https://huggingface.co/THUDM/chatglm3-6b-32k
 
 
-from bert4torch.chat import CliDemoChatglm3
+from bert4torch.pipelines import ChatGlm3Cli
 from transformers import AutoTokenizer
 
 
@@ -24,7 +24,7 @@ generation_kwargs = {"maxlen": 2048,
               "mode": 'random_sample',
               "default_rtype": 'logits',
               "use_states": True}
-demo = CliDemoChatglm3(model_path, **generation_kwargs)
+demo = ChatGlm3Cli(model_path, **generation_kwargs)
 
 
 if __name__ == '__main__':

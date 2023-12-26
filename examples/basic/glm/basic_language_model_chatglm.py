@@ -8,7 +8,7 @@
 # 20230406 官方项目对20000个和图像相关的进行的裁剪，因此本项目之前裁剪及tokenize的作废，使用最新的tokenize不需要进行offset
 
 
-from bert4torch.chat import CliDemoChatglm
+from bert4torch.pipelines import ChatGlmCli
 
 
 choice = 'default'  # v1.1.0, default, int4, int8
@@ -31,7 +31,7 @@ generation_config = {'mode': 'random_sample',
                      'default_rtype':'logits', 
                      'use_states':True}
 
-cli_demo = CliDemoChatglm(dir_path, generation_config=generation_config, quantization_config=quantization_config)
+cli_demo = ChatGlmCli(dir_path, generation_config=generation_config, quantization_config=quantization_config)
 
 
 if __name__ == '__main__':

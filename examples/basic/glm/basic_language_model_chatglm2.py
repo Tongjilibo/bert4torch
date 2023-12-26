@@ -3,7 +3,7 @@
 # 官方项目：https://github.com/THUDM/ChatGLM2-6B
 # hf链接：https://huggingface.co/THUDM/chatglm2-6b
 
-from bert4torch.chat import CliDemoChatglm2
+from bert4torch.pipelines import ChatGlm2Cli
 
 
 model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
@@ -16,7 +16,7 @@ generation_config  = {'mode':'random_sample',
                       'use_states':True
                       }
 
-demo = CliDemoChatglm2(model_path, **generation_config)
+demo = ChatGlm2Cli(model_path, **generation_config)
 
 if __name__ == '__main__':
     choice = 'gen_1toN'  # cli, gen_1toN

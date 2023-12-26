@@ -6,7 +6,7 @@
 # fp16半精度下显存占用14G
 # 20230406 官方项目对20000个和图像相关的进行的裁剪，因此本项目之前裁剪及tokenize的作废，使用最新的tokenize不需要进行offset
 
-from bert4torch.chat import WebDemoChatglm
+from bert4torch.pipelines import ChatGlmWeb
 
 
 choice = 'default'  # default, int4, int8
@@ -25,7 +25,7 @@ generation_config  = {'mode':'random_sample',
                       'default_rtype':'logits', 
                       'use_states':True
                       }
-chat = WebDemoChatglm(dir_path, **generation_config)
+chat = ChatGlmWeb(dir_path, **generation_config)
 
 
 if __name__ == '__main__':

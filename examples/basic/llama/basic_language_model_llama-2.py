@@ -22,7 +22,7 @@ else:
 include_input = not with_prompt
 
 
-from bert4torch.chat import CliDemoLLaMA2
+from bert4torch.pipelines import ChatLLaMA2Cli
 generation_config = {
     'tokenizer_config':  {'skip_special_tokens': True, 'add_special_tokens': False},
     'end_id': 2,
@@ -34,7 +34,7 @@ generation_config = {
 }
 
 
-cli_demo = CliDemoLLaMA2(dir_path, generation_config=generation_config)
+cli_demo = ChatLLaMA2Cli(dir_path, generation_config=generation_config)
 
 if __name__ == '__main__':
     if with_prompt:

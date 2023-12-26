@@ -6,10 +6,10 @@ ckpt_dir = 'E:/pretrain_ckpt/gpt2/uer@gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 
 # ===============transformers======================
-from transformers import BertTokenizer, GPT2LMHeadModel, TextGenerationPipeline
+from transformers import BertTokenizer, GPT2LMHeadModel, TextGeneration
 tokenizer = BertTokenizer.from_pretrained(ckpt_dir)
 model = GPT2LMHeadModel.from_pretrained(ckpt_dir)
-text_generator = TextGenerationPipeline(model, tokenizer)   
+text_generator = TextGeneration(model, tokenizer)   
 output = text_generator(texts, max_length=100, do_sample=True)
 print('====transformers结果====')
 print(output)

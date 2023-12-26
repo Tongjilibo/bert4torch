@@ -20,7 +20,7 @@ include_input = not with_prompt
 
 
 from transformers import AutoTokenizer
-from bert4torch.chat import CliDemoQwen
+from bert4torch.pipelines import ChatQwenCli
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
@@ -37,7 +37,7 @@ generation_config = {
     'include_input': include_input
 }
 
-cli_demo = CliDemoQwen(dir_path, system='You are a helpful assistant.', generation_config=generation_config)
+cli_demo = ChatQwenCli(dir_path, system='You are a helpful assistant.', generation_config=generation_config)
 
 if __name__ == '__main__':
     batch_generate = False
