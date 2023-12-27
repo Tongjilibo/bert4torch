@@ -9,8 +9,12 @@ from tqdm.autonotebook import trange
 
 
 class Text2Vec:
-    '''句向量'''
-    def __init__(self, model_path, device='cpu', model_config=None) -> None:
+    '''句向量, 目前支持m3e, bge, simbert, text2vec-base-chinese
+    :param model_path: str, 模型所在文件夹地址
+    :param device: str, cpu/cuda
+    :param model_config: dict, build_transformer_model时候用到的一些参数
+    '''
+    def __init__(self, model_path, device='cpu', **model_config) -> None:
         self.model_path = model_path
         self.device = device
         self.tokenizer = self.build_tokenizer()
@@ -32,7 +36,6 @@ class Text2Vec:
  
         checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
         checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path
-        model_config = model_config or dict()
         model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **model_config).to(self.device)
         model.eval()
         return model
