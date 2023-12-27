@@ -18,6 +18,6 @@ print(embeddings)
 
 print('=========================================bert4torch====================================')
 from bert4torch.pipelines import Text2Vec
-text2vec = Text2Vec(root_model_path, device='cuda')
-embeddings = text2vec.encode(sentences, pool_strategy='mean')
+text2vec = Text2Vec(root_model_path, device='cpu')
+embeddings = text2vec.encode(sentences)
 print(embeddings)

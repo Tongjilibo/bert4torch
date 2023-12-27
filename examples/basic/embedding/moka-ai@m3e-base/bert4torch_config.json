@@ -17,6 +17,7 @@
   "type_vocab_size": 2,
   "vocab_size": 21128,
   "with_pool": true,
+  "pool_strategy": "mean",
   "mapping": {
       "embeddings.word_embeddings.weight": "embeddings.word_embeddings.weight",
       "embeddings.position_embeddings.weight": "embeddings.position_embeddings.weight",

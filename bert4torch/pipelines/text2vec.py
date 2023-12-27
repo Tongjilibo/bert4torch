@@ -3,7 +3,7 @@ import numpy as np
 import os
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import get_pool_emb, sequence_padding
+from bert4torch.snippets import get_pool_emb, sequence_padding, JsonConfig
 from bert4torch.tokenizers import Tokenizer
 from tqdm.autonotebook import trange
 
@@ -14,11 +14,12 @@ class Text2Vec:
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
     '''
-    def __init__(self, model_path, device='cpu', **model_config) -> None:
+    def __init__(self, model_path, device='cpu', **kwargs) -> None:
         self.model_path = model_path
         self.device = device
         self.tokenizer = self.build_tokenizer()
-        self.model = self.build_model(model_config)
+        self.model = self.build_model(kwargs)
+        self.pool_strategy = self.config.get('pool_strategy', 'cls')
     
     def build_tokenizer(self):
         vocab_path = os.path.join(self.model_path, 'vocab.txt')
@@ -33,7 +34,8 @@ class Text2Vec:
         config_path = os.path.join(self.model_path, 'bert4torch_config.json')
         if not os.path.exists(config_path):
             config_path = os.path.join(self.model_path, 'config.json')
- 
+        self.config = JsonConfig(config_path)
+
         checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
         checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path
         model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **model_config).to(self.device)
@@ -46,7 +48,7 @@ class Text2Vec:
             sentences: Union[str, List[str]],
             batch_size: int = 8,
             show_progress_bar: bool = False,
-            pool_strategy='cls',
+            pool_strategy=None,
             custom_layer=None,
             convert_to_numpy: bool = True,
             convert_to_tensor: bool = False,
@@ -79,6 +81,7 @@ class Text2Vec:
                 attention_mask = (batch_input != self.tokenizer._token_pad_id).long()
             else:
                 raise TypeError('Args `batch_input` only support list(tensor)/tensor format')
+            pool_strategy = pool_strategy or self.pool_strategy
             embs = get_pool_emb(last_hidden_state, pooler, attention_mask, pool_strategy, custom_layer)
             if normalize_embeddings:
                 embs = torch.nn.functional.normalize(embs, p=2, dim=1)

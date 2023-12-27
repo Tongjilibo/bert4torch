@@ -9,5 +9,5 @@ root_model_path = "E:/pretrain_ckpt/embedding/shibing624@text2vec-base-chinese"
 sentences = ['如何更换花呗绑定银行卡', '花呗更改绑定银行卡']
 
 text2vec = Text2Vec(root_model_path)
-sentence_embeddings = text2vec.encode(sentences, pool_strategy='mean')
+sentence_embeddings = text2vec.encode(sentences)
 print(sentence_embeddings)
