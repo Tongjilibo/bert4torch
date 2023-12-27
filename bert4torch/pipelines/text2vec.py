@@ -31,9 +31,14 @@ class Text2Vec:
         return tokenizer
 
     def build_model(self, model_config):
-        config_path = os.path.join(self.model_path, 'bert4torch_config.json')
-        if not os.path.exists(config_path):
-            config_path = os.path.join(self.model_path, 'config.json')
+        config_path = None
+        for _config in ['bert4torch_config.json', 'config.json']:
+            config_path = os.path.join(self.model_path, _config)
+            if os.path.exists(config_path):
+                break
+        if config_path is None:
+            raise FileNotFoundError('Config file not found')
+
         self.config = JsonConfig(config_path)
 
         checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]

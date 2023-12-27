@@ -402,5 +402,3 @@ def snapshot_download(
         if os.path.exists(path + ".lock"):
             os.remove(path + ".lock")
     return storage_folder
-
-snapshot_download("WangZeJun/roformer-sim-base-chinese")
