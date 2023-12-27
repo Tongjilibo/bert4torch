@@ -15,5 +15,6 @@
   "vocab_size": 12000,
   "is_decoder": true,
   "eos_token_id": 102,
-  "pooler_activation": "linear"
+  "with_pool": "linear",
+  "pool_strategy": "pooler"
 }

@@ -305,17 +305,17 @@ def parallel_apply(func, iterable, workers, max_queue_size, callback=None, dummy
             callback(d)
 
 
-def get_pool_emb(hidden_state=None, pooler=None, attention_mask=None, pool_strategy='cls', custom_layer=None):
+def get_pool_emb(hidden_state=None, pooled_output=None, attention_mask=None, pool_strategy='cls', custom_layer=None):
     ''' 获取句向量
 
     :param hidden_state: torch.Tensor/List(torch.Tensor)，last_hidden_state/all_encoded_layers
-    :param pooler: torch.Tensor, bert的pool_output输出
+    :param pooled_output: torch.Tensor, bert的pool_output输出
     :param attention_mask: torch.Tensor
     :param pool_strategy: str, ('cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom')
     :param custom_layer: int/List[int]，指定对某几层做average pooling
     '''
     if pool_strategy == 'pooler':
-        return pooler
+        return pooled_output
     elif pool_strategy == 'cls':
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]

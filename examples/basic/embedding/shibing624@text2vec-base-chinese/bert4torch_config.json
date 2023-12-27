@@ -20,5 +20,6 @@
   "torch_dtype": "float32",
   "type_vocab_size": 2,
   "vocab_size": 21128,
+  "with_pool": true,
   "pool_strategy":"mean"
 }

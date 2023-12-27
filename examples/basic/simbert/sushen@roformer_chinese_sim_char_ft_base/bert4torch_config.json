@@ -15,5 +15,7 @@
   "type_vocab_size": 2,
   "vocab_size": 12000,
   "eos_token_id": 102,
-  "model": "roformer"
+  "model": "roformer",
+  "with_pool": "linear",
+  "pool_strategy": "pooler"
 }
