@@ -19,7 +19,7 @@ generation_config  = {'mode':'random_sample',
 demo = ChatGlm2Cli(model_path, **generation_config)
 
 if __name__ == '__main__':
-    choice = 'gen_1toN'  # cli, gen_1toN
+    choice = 'cli'  # cli, gen_1toN
 
     if choice == 'cli':
         # 命令行demo

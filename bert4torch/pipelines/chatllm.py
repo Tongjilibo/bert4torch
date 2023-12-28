@@ -227,6 +227,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
 from bert4torch.snippets import log_info, log_warn, cuda_empty_cache, AnyClass
 from bert4torch.snippets import is_fastapi_available, is_pydantic_available, is_sseclient_available
+from packaging import version
 
 FastAPI, BaseModel, Field= object, object, AnyClass
 if is_fastapi_available():
@@ -308,6 +309,9 @@ class ChatOpenaiApi(Chat):
         super().__init__(model_path, **kwargs)
         assert is_fastapi_available(), "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
+        import sse_starlette
+        if version.parse(sse_starlette.__version__) > version.parse('1.8'):
+            log_warn('Module `sse_starlette` above 1.8 not support stream output')
         self.EventSourceResponse = EventSourceResponse
         self.name = name
         self.role_user = 'user'

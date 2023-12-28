@@ -78,6 +78,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20231228| 0.4.4          | 0.1.7|新增`pipelines`模块，把`chat`整理进去，并新增`Text2Vec`模块用于向量生成，新增`snapshot_download`用于hf模型下载|
 |20231224| 0.4.3          | 0.1.7|在`chat`中增加常见chat模型, 简化大模型调用的代码逻辑|
 |20231219| 0.4.2          | 0.1.7|参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`, `meta`的device提示报错|
 |20231210| 0.4.1          | 0.1.6.post2|增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)|
@@ -86,6 +87,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
 ## 5. 更新历史：
+- **20231228**：新增`pipelines`模块，把`chat`整理进去，并新增`Text2Vec`模块用于向量生成，新增`snapshot_download`用于hf模型下载
 - **20231224**：在`chat`中增加常见chat模型, 简化大模型调用的代码逻辑
 - **20231219**：参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`, `meta`的device提示报错
 - **20231210**：增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)

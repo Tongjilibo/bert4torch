@@ -69,4 +69,4 @@ def is_trl_available():
 
 
 def is_sseclient_available():
-    return is_package_available("sseclient")
+    return importlib.util.find_spec("sseclient")

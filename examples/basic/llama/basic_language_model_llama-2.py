@@ -4,7 +4,7 @@
 """
 
 
-choice = 'llama-2-7b'
+choice = 'llama-2-7b-chat'
 if choice == 'llama-2-7b':
     dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b'
     with_prompt = False
