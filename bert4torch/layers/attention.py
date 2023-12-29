@@ -153,7 +153,7 @@ class MultiHeadAttentionLayer(nn.Module):
             query_layer *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_layer.dtype)
 
         # past_key_values
-        if self.is_decoder:
+        if self.is_decoder and (not self.training):  # 仅推理是记录
             past_key_value = (key_layer, value_layer)
 
         # multi_query_attention
