@@ -370,7 +370,7 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_scores = attention_scores + key_position_scores_r_t
         elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== t5相对位置编码 ====================
-            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
+            relations_keys = self.relative_positions(attention_scores.shape[-2], attention_scores.shape[-1])
             key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
             attention_scores = attention_scores + key_position_scores_r_t
         elif (self.p_bias == 'deberta_v2') and hasattr(self, 'relative_positions_encoding'):
@@ -385,7 +385,7 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
 
             rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
-            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])
+            relations_keys = self.relative_positions(attention_scores.shape[-2], attention_scores.shape[-1])
             rel_att = self.apply_deberta_pos_emb(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
             attention_scores = attention_scores + rel_att
 

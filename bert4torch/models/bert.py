@@ -95,10 +95,11 @@ class BERT(BERT_BASE):
             return layer(**model_kwargs)
 
     def apply_embeddings(self, *inputs, **model_kwargs):
-        """BERT的embedding是token、position、segment三者embedding之和
+        """BERT的embedding，可接受"位置参数/关键字参数"形式
 
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有), additional_input(若有)]
-        :return: List[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
+        :param model_kwargs: Dict[torch.Tensor], 字典输入项，和inputs是二选一的
+        :return: Dict[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
         """
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
         
@@ -110,7 +111,7 @@ class BERT(BERT_BASE):
             token_ids = model_kwargs['token_ids']
         else:
             token_ids = inputs[0]
-            index_ = 1
+            index_ += 1
         
         # ========================= segment_ids =========================
         if model_kwargs.get('segment_ids') is not None:
@@ -203,8 +204,8 @@ class BERT(BERT_BASE):
         """BERT的主体是基于Self-Attention的模块；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
         
-        :param inputs: List[torch.Tensor], 默认顺序为[hidden_states, attention_mask, conditional_emb]
-        :return: List[torch.Tensor], 默认顺序为[encoded_layers, conditional_emb]
+        :param model_kwargs: Dict[torch.Tensor], 包含hidden_states, attention_mask, conditional_emb等
+        :return: Dict[torch.Tensor], [encoded_layers, conditional_emb]
         """
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
         for l_i, layer_module in enumerate(self.encoderLayer):
@@ -224,8 +225,8 @@ class BERT(BERT_BASE):
     def apply_final_layers(self, **model_kwargs):
         """根据剩余参数决定输出
 
-        :param inputs: List[torch.Tensor], 默认顺序为[encoded_layers, conditional_emb]
-        :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
+        :param model_kwargs: Dict[torch.Tensor], 包含encoded_layers, conditional_emb等
+        :return: List[torch.Tensor]|torch.Tensor|Dict[torch.Tensor], 模型输出，包含last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)
         """
         # 获取最后一层隐藏层的输出
         encoded_layers, conditional_emb = model_kwargs['encoded_layers'], model_kwargs.get('conditional_emb', None)

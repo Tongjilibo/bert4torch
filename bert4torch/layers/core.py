@@ -72,7 +72,7 @@ class LayerNorm(nn.Module):
 
 class BertEmbeddings(nn.Module):
     """embeddings层
-       构造word, position and token_type embeddings.
+       构造word, position and token_type embeddings, 一般是token、position、segment三者embedding之和
     """
     def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, 
                  pad_token_id=0, **kwargs):
