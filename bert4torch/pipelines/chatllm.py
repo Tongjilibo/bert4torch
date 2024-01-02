@@ -272,9 +272,11 @@ class _ChatCompletionRequest(BaseModel):
     model: str
     messages: List[_ChatMessage]
     temperature: Optional[float] = None
+    top_k: Optional[int] = None
     top_p: Optional[float] = None
     max_length: Optional[int] = None
     stream: Optional[bool] = False
+    repetition_penalty: Optional[int] = None
 
 
 class _ChatCompletionResponseChoice(BaseModel):
@@ -353,6 +355,17 @@ class ChatOpenaiApi(Chat):
         return _ModelList(data=[model_card])
 
     async def create_chat_completion(self, request: _ChatCompletionRequest):
+        if request.temperature:
+            self.generation_config['temperature'] = request.temperature
+        if request.top_p:
+            self.generation_config['top_p'] = request.top_p
+        if request.top_k:
+            self.generation_config['top_k'] = request.top_k
+        if request.max_length:
+            self.generation_config['max_length'] = request.max_length
+        if request.repetition_penalty:
+            self.generation_config['repetition_penalty'] = request.repetition_penalty
+
         if request.messages[-1].role != self.role_user:
             raise HTTPException(status_code=400, detail="Invalid request")
         query = request.messages[-1].content
@@ -428,6 +441,44 @@ class ChatOpenaiApi(Chat):
 
 
 class ChatOpenaiClient:
+    '''使用openai来调用'''
+    def __init__(self, base_url) -> None:
+        from openai import OpenAI
+        self.client = OpenAI(base_url=base_url)
+    
+    def post(self, messages, use_stream=True, max_length=None, temperature=None, top_p=None, repetition_penalty=None):
+        '''
+        messages = [
+            {
+                "role": "system",
+                "content": "You are ChatGLM3, a large language model trained by Zhipu.AI. Follow the user's instructions carefully. Respond using markdown.",
+            },
+            {
+                "role": "user",
+                "content": "你好，请你用生动的话语给我讲一个小故事吧"
+            }
+        ]
+        '''
+        response = self.client.chat.completions.create(
+            messages=messages,
+            stream=use_stream,
+            max_tokens=max_length,
+            temperature=temperature,
+            repetition_penalty=repetition_penalty,
+            top_p=top_p)
+        
+        if response:
+            if use_stream:
+                for chunk in response:
+                    print(chunk.choices[0].delta.content)
+            else:
+                content = response.choices[0].message.content
+                print(content)
+        else:
+            print("Error:", response.status_code)
+
+
+class ChatOpenaiClientSseclient:
     '''调用openai接口的client, 流式请求
     '''
     def __init__(self, url) -> None:
