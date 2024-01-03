@@ -94,7 +94,7 @@ class ChatOpenaiApi(Chat):
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     """
-    def __init__(self, model_path, name='default_model', route_api='/chat', route_models='/models', **kwargs):
+    def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', **kwargs):
         super().__init__(model_path, **kwargs)
         assert is_fastapi_available(), "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
@@ -231,38 +231,40 @@ class ChatOpenaiClient:
     '''使用openai来调用'''
     def __init__(self, base_url) -> None:
         from openai import OpenAI
-        self.client = OpenAI(base_url=base_url)
+        self.client = OpenAI(base_url=base_url, api_key="EMPTY")
     
-    def post(self, messages, use_stream=True, max_length=None, temperature=None, top_p=None, repetition_penalty=None):
-        '''
-        messages = [
-            {
-                "role": "system",
-                "content": "You are ChatGLM3, a large language model trained by Zhipu.AI. Follow the user's instructions carefully. Respond using markdown.",
-            },
-            {
-                "role": "user",
-                "content": "你好，请你用生动的话语给我讲一个小故事吧"
-            }
-        ]
-        '''
+    def stream_chat(self, messages, max_length=None, temperature=None, top_p=None):
+        '''流式返回'''
         response = self.client.chat.completions.create(
+            model='default',
             messages=messages,
-            stream=use_stream,
+            stream=True,
             max_tokens=max_length,
             temperature=temperature,
-            repetition_penalty=repetition_penalty,
-            top_p=top_p)
-        
-        if response:
-            if use_stream:
-                for chunk in response:
-                    print(chunk.choices[0].delta.content)
-            else:
-                content = response.choices[0].message.content
-                print(content)
-        else:
-            print("Error:", response.status_code)
+            top_p=top_p
+            )
+
+        for chunk in response:
+            content = chunk.choices[0].delta.content
+            if content is not None:
+                yield content
+
+    def chat(self, messages, max_length=None, temperature=None, top_p=None):
+        '''一次性返回'''
+        response = self.client.chat.completions.create(
+            model='default',
+            messages=messages,
+            stream=False,
+            max_tokens=max_length,
+            temperature=temperature,
+            top_p=top_p
+            )
+        content = response.choices[0].message.content
+        return content
+    
+    def stream_chat_cli(self, *args, **kwargs):
+        for token in self.stream_chat(*args, **kwargs):
+            print(token, end='', flush=True)
 
 
 class ChatOpenaiClientSseclient:
@@ -288,7 +290,7 @@ class ChatOpenaiClientSseclient:
             }
             ''')
    
-    def post(self, body):
+    def stream_chat(self, body):
         '''接口调用'''
         reqHeaders = {'Accept': 'text/event-stream'}
         request = requests.post(self.url, stream=True, headers=reqHeaders, json=body)
@@ -299,16 +301,10 @@ class ChatOpenaiClientSseclient:
                 if 'content' in data:
                     yield data['content']
 
-    def post_test(self, body):
+    def stream_chat_cli(self, body):
         '''简单测试在命令行打印'''
-        reqHeaders = {'Accept': 'text/event-stream'}
-        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body)
-        client = self.sseclient.SSEClient(request)
-        for event in client.events():
-            if event.data != '[DONE]':
-                data = json.loads(event.data)['choices'][0]['delta']
-                if 'content' in data:
-                    print(data['content'], end="", flush=True)
+        for token in self.stream_chat(body):
+            print(token, end='', flush=True)
 
 
 def extend_with_chat_openai_api(InputModel):
