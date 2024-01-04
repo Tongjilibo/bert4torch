@@ -22,6 +22,7 @@ class Text2Vec:
         self.device = device
         self.tokenizer = self.build_tokenizer()
         self.model = self.build_model(kwargs)
+        self.config = self.model.config
         self.pool_strategy = self.config.get('pool_strategy', 'cls')
     
     def build_tokenizer(self):
@@ -41,8 +42,6 @@ class Text2Vec:
                 break
         if config_path is None:
             raise FileNotFoundError('Config file not found')
-
-        self.config = JsonConfig(config_path)
 
         checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
         checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path

@@ -401,7 +401,7 @@ class MultiHeadAttentionLayer(nn.Module):
         if attention_mask is not None:
             # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
             # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
-            attention_mask = (1.0 - attention_mask) * -10000.0  # 可替换为torch.finfo(query_layer.dtype).min，所以传入的mask的非padding部分为1, padding部分为0
+            attention_mask = (1.0 - attention_mask) * torch.finfo(query_layer.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
             attention_scores = attention_scores + attention_mask
 
         # 将attention score 归一化到0-1

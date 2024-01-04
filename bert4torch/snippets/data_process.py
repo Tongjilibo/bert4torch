@@ -332,8 +332,8 @@ def get_pool_emb(hidden_state=None, pooled_output=None, attention_mask=None, poo
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
         assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
-        hid = hidden_state * attention_mask[:, :, None]
-        return torch.max(hid, dim=1)
+        hid = torch.masked_fill(hidden_state, (1-attention_mask[:, :, None]).bool(), torch.finfo(hidden_state.dtype).min)
+        return torch.max(hid, dim=1).values
     elif pool_strategy == 'first-last-avg':
         assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
         hid = torch.sum(hidden_state[1] * attention_mask[:, :, None], dim=1) # 这里不取0
