@@ -27,5 +27,5 @@ if __name__ == '__main__':
     elif choice == 'gen_1toN':
         # 一次性输出N条记录
         demo.generation_config['n'] = 5
-        res = demo.batch_generate('如何查询天气？')
+        res = demo.batch_chat('如何查询天气？')
         print(res)

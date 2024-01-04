@@ -48,15 +48,15 @@ class Chat:
         '''对response进行后处理，可自行继承后来自定义'''
         return response
 
-    def generate(self, query:str, history=[]):
+    def chat(self, query:str, history=[]):
         prompt = self.build_prompt(query, history)
         return self.model.generate(prompt, **self.generation_config)
 
-    def batch_generate(self, query:list, history=[]):
+    def batch_chat(self, query:list, history=[]):
         prompts = [self.build_prompt(q, history) for q in query]
         return self.model.batch_generate(prompts, **self.generation_config)
 
-    def stream_generate(self, query:str, history=[]):
+    def stream_chat(self, query:str, history=[]):
         '''单条样本stream输出预测的结果'''
         prompt = self.build_prompt(query, history)
         for response in self.model.stream_generate(prompt, **self.generation_config):
@@ -240,12 +240,11 @@ class ChatWebStreamlit(Chat):
             self.st.rerun()
 
         for i, message in enumerate(self.st.session_state.history):
-            if message["role"] == "user":
-                with self.st.chat_message(name="user", avatar="user"):
-                    self.st.markdown(message["content"])
-            else:
-                with self.st.chat_message(name="assistant", avatar="assistant"):
-                    self.st.markdown(message["content"])
+            with self.st.chat_message(name="user", avatar="user"):
+                self.st.markdown(message[0])
+
+            with self.st.chat_message(name="assistant", avatar="assistant"):
+                self.st.markdown(message[1])
 
         with self.st.chat_message(name="user", avatar="user"):
             input_placeholder = self.st.empty()

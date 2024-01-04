@@ -840,10 +840,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
-            for output_ids in  self.stream_random_sample(inputs):  # stream随机采样
+            for output_ids in self.stream_random_sample(inputs):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in  self.stream_beam_search(inputs):  # stream随机采样
+            for output_ids in self.stream_beam_search(inputs):  # stream随机采样
                 yield self.post_process(output_ids)
 
 
@@ -904,8 +904,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
-            for output_ids in  self.stream_random_sample(encoder_output):  # stream随机采样
+            for output_ids in self.stream_random_sample(encoder_output):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in  self.stream_beam_search(encoder_output):  # stream随机采样
+            for output_ids in self.stream_beam_search(encoder_output):  # stream随机采样
                 yield self.post_process(output_ids)

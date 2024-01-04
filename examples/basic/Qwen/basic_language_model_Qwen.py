@@ -45,12 +45,12 @@ if __name__ == '__main__':
 
     if batch_generate:
         # chat模型，batch_generate的示例
-        res = cli_demo.batch_generate(['你好', '你是谁'])
+        res = cli_demo.batch_chat(['你好', '你是谁'])
         print(res)
     elif gen_1toN:
         # 一条输出N跳回复
         cli_demo.generation_config['n'] = 5
-        res = cli_demo.batch_generate('你是谁？')
+        res = cli_demo.batch_chat('你是谁？')
         print(res)
     elif with_prompt:
         # chat模型
