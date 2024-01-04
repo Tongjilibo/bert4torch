@@ -5,7 +5,7 @@
 '''
 
 import re
-from .base import Chat, extend_with_cli, extend_with_web_gradio
+from .base import Chat, extend_with_cli, extend_with_web_gradio, extend_with_web_streamlit
 from .openai_api import extend_with_chat_openai_api
 
 
@@ -36,6 +36,7 @@ class ChatGlm(Chat):
         return response
 ChatGlmCli = extend_with_cli(ChatGlm)
 ChatGlmWebGradio = extend_with_web_gradio(ChatGlm)
+ChatGlmWebStreamlit = extend_with_web_streamlit(ChatGlm)
 ChatGlmOpenaiApi = extend_with_chat_openai_api(ChatGlm)
 
 
@@ -64,6 +65,7 @@ class ChatGlm2(Chat):
         return response
 ChatGlm2Cli = extend_with_cli(ChatGlm2)
 ChatGlm2WebGradio = extend_with_web_gradio(ChatGlm2)
+ChatGlm2WebStreamlit = extend_with_web_streamlit(ChatGlm2)
 ChatGlm2OpenaiApi = extend_with_chat_openai_api(ChatGlm2)
 
 
@@ -111,6 +113,7 @@ class ChatGlm3(Chat):
         return content
 ChatGlm3Cli = extend_with_cli(ChatGlm3)
 ChatGlm3WebGradio = extend_with_web_gradio(ChatGlm3)
+ChatGlm3WebStreamlit = extend_with_web_streamlit(ChatGlm3)
 ChatGlm3OpenaiApi = extend_with_chat_openai_api(ChatGlm3)
 
 
@@ -132,6 +135,7 @@ class ChatInternLM(Chat):
         return response
 ChatInternLMCli = extend_with_cli(ChatInternLM)
 ChatInternLMWebGradio = extend_with_web_gradio(ChatInternLM)
+ChatInternLMWebStreamlit = extend_with_web_streamlit(ChatInternLM)
 ChatInternLMOpenaiApi = extend_with_chat_openai_api(ChatInternLM)
 
 
@@ -169,6 +173,7 @@ class ChatQwen(Chat):
         return raw_text
 ChatQwenCli = extend_with_cli(ChatQwen)
 ChatQwenWebGradio = extend_with_web_gradio(ChatQwen)
+ChatQwenWebStreamlit = extend_with_web_streamlit(ChatQwen)
 ChatQwenOpenaiApi = extend_with_chat_openai_api(ChatQwen)
 
 
@@ -192,6 +197,7 @@ If a question does not make any sense, or is not factually coherent, explain why
         return ''.join(texts)
 ChatLLaMA2Cli = extend_with_cli(ChatLLaMA2)
 ChatLLaMA2WebGradio = extend_with_web_gradio(ChatLLaMA2)
+ChatLLaMA2WebStreamlit = extend_with_web_streamlit(ChatLLaMA2)
 ChatLLaMA2OpenaiApi = extend_with_chat_openai_api(ChatLLaMA2)
 
 
@@ -204,6 +210,7 @@ class ChatZiya(Chat):
         return prompt
 ChatZiyaCli = extend_with_cli(ChatZiya)
 ChatZiyaWebGradio = extend_with_web_gradio(ChatZiya)
+ChatZiyaWebStreamlit = extend_with_web_streamlit(ChatZiya)
 ChatZiyaOpenaiApi = extend_with_chat_openai_api(ChatZiya)
 
 
@@ -227,6 +234,7 @@ class ChatChineseAlphaLLaMA(Chat):
         return prompt
 ChatChineseAlphaLLaMACli = extend_with_cli(ChatChineseAlphaLLaMA)
 ChatChineseAlphaLLaMAWebGradio = extend_with_web_gradio(ChatChineseAlphaLLaMA)
+ChatChineseAlphaLLaMAWebStreamlit = extend_with_web_streamlit(ChatChineseAlphaLLaMA)
 ChatChineseAlphaLLaMAOpenaiApi = extend_with_chat_openai_api(ChatChineseAlphaLLaMA)
 
 
@@ -243,6 +251,7 @@ class ChatBelle(Chat):
         return prompt
 ChatBelleCli = extend_with_cli(ChatBelle)
 ChatBelleWebGradio = extend_with_web_gradio(ChatBelle)
+ChatBelleWebStreamlit = extend_with_web_streamlit(ChatBelle)
 ChatBelleOpenaiApi = extend_with_chat_openai_api(ChatBelle)
 
 
@@ -262,4 +271,5 @@ class ChatBaichuan(Chat):
         return total_input
 ChatBaichuanCli = extend_with_cli(ChatBaichuan)
 ChatBaichuanWebGradio = extend_with_web_gradio(ChatBaichuan)
+ChatBaichuanWebStreamlit = extend_with_web_streamlit(ChatBaichuan)
 ChatBaichuanOpenaiApi = extend_with_chat_openai_api(ChatBaichuan)

@@ -114,6 +114,13 @@ class ChatCli(Chat):
             cuda_empty_cache()
 
 
+def extend_with_cli(InputModel):
+    """添加ChatCliDemo"""
+    class ChatDemo(InputModel, ChatCli):
+        pass
+    return ChatDemo
+
+
 class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
@@ -195,15 +202,74 @@ class ChatWebGradio(Chat):
         demo.queue().launch(**launch_configs)
 
 
-def extend_with_cli(InputModel):
-    """添加ChatCliDemo"""
-    class ChatDemo(InputModel, ChatCli):
+def extend_with_web_gradio(InputModel):
+    """添加ChatWebDemo"""
+    class ChatDemo(InputModel, ChatWebGradio):
         pass
     return ChatDemo
 
 
-def extend_with_web_gradio(InputModel):
+class ChatWebStreamlit(Chat):
+    def __init__(self, *args, max_length=4096, **kwargs):
+        super().__init__(*args, **kwargs)
+        import streamlit as st
+        self.st = st
+        self.max_length = max_length
+
+        st.set_page_config(
+            page_title="Chabot Web Demo",
+            page_icon=":robot:",
+            layout="wide"
+        )
+
+    def run(self):
+        if "history" not in self.st.session_state:
+            self.st.session_state.history = []
+        if "past_key_values" not in self.st.session_state:
+            self.st.session_state.past_key_values = None
+
+        max_length = self.st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
+        top_p = self.st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
+        temperature = self.st.sidebar.slider("temperature", 0.0, 1.0, 0.6, step=0.01)
+
+        buttonClean = self.st.sidebar.button("清理会话历史", key="clean")
+        if buttonClean:
+            self.st.session_state.history = []
+            self.st.session_state.past_key_values = None
+            cuda_empty_cache()
+            self.st.rerun()
+
+        for i, message in enumerate(self.st.session_state.history):
+            if message["role"] == "user":
+                with self.st.chat_message(name="user", avatar="user"):
+                    self.st.markdown(message["content"])
+            else:
+                with self.st.chat_message(name="assistant", avatar="assistant"):
+                    self.st.markdown(message["content"])
+
+        with self.st.chat_message(name="user", avatar="user"):
+            input_placeholder = self.st.empty()
+        with self.st.chat_message(name="assistant", avatar="assistant"):
+            message_placeholder = self.st.empty()
+
+        prompt_text = self.st.chat_input("请输入您的问题")
+        if prompt_text:
+            input_placeholder.markdown(prompt_text)
+            history = self.st.session_state.history
+            past_key_values = self.st.session_state.past_key_values
+            self.generation_config['max_length'] = max_length
+            self.generation_config['top_p'] = top_p
+            self.generation_config['temperature'] = temperature
+
+            input_text = self.build_prompt(prompt_text, history)
+            for response in self.model.stream_generate(input_text, **self.generation_config):
+                message_placeholder.markdown(response)
+            self.st.session_state.history = history + [(prompt_text, response)]
+            self.st.session_state.past_key_values = past_key_values
+
+
+def extend_with_web_streamlit(InputModel):
     """添加ChatWebDemo"""
-    class ChatDemo(InputModel, ChatWebGradio):
+    class ChatDemo(InputModel, ChatWebStreamlit):
         pass
     return ChatDemo
