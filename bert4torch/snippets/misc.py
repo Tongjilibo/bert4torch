@@ -74,9 +74,10 @@ def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dty
 
     if not dtype.is_floating_point:
         raise ValueError(f"Can't instantiate {model_name} under dtype={dtype} since it is not a floating point dtype")
-    log_info(f"Instantiating {model_name} under default dtype {dtype}.")
     dtype_orig = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
+    if dtype_orig != dtype:
+        log_info(f"Instantiating {model_name} under default dtype {dtype}.")
     return dtype, dtype_orig
 
 

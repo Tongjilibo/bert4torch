@@ -14,12 +14,15 @@ class Text2Vec:
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
     '''
-    def __init__(self, model_path, device='cpu', **kwargs) -> None:
+    def __init__(self, model_path, device=None, **kwargs) -> None:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f'model_path: {model_path} does not exists')
         
         self.model_path = model_path
-        self.device = device
+        if device is None:
+            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        else:
+            self.device = device
         self.tokenizer = self.build_tokenizer()
         self.model = self.build_model(kwargs)
         self.config = self.model.config
@@ -41,7 +44,7 @@ class Text2Vec:
             if os.path.exists(config_path):
                 break
         if config_path is None:
-            raise FileNotFoundError('Config file not found')
+            raise FileNotFoundError('bert4torch_config.json or config.json not found')
 
         checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
         checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path

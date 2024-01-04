@@ -1,7 +1,11 @@
 import os
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import log_warn_once, cuda_empty_cache
+from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available
+
+
+if is_streamlit_available():
+    import streamlit as st
 
 
 class Chat:
@@ -211,51 +215,56 @@ def extend_with_web_gradio(InputModel):
 
 class ChatWebStreamlit(Chat):
     def __init__(self, *args, max_length=4096, **kwargs):
-        super().__init__(*args, **kwargs)
-        import streamlit as st
-        self.st = st
-        self.max_length = max_length
-
         st.set_page_config(
             page_title="Chabot Web Demo",
             page_icon=":robot:",
             layout="wide"
         )
+        super().__init__(*args, **kwargs)
+        self.max_length = max_length
 
+    @st.cache_resource
+    def build_model(_self):
+        return super().build_model()
+    
+    @st.cache_resource
+    def build_tokenizer(_self):
+        return super().build_tokenizer()
+    
     def run(self):
-        if "history" not in self.st.session_state:
-            self.st.session_state.history = []
-        if "past_key_values" not in self.st.session_state:
-            self.st.session_state.past_key_values = None
+        if "history" not in st.session_state:
+            st.session_state.history = []
+        if "past_key_values" not in st.session_state:
+            st.session_state.past_key_values = None
 
-        max_length = self.st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
-        top_p = self.st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
-        temperature = self.st.sidebar.slider("temperature", 0.0, 1.0, 0.6, step=0.01)
+        max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
+        top_p = st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
+        temperature = st.sidebar.slider("temperature", 0.0, 1.0, 0.6, step=0.01)
 
-        buttonClean = self.st.sidebar.button("清理会话历史", key="clean")
+        buttonClean = st.sidebar.button("清理会话历史", key="clean")
         if buttonClean:
-            self.st.session_state.history = []
-            self.st.session_state.past_key_values = None
+            st.session_state.history = []
+            st.session_state.past_key_values = None
             cuda_empty_cache()
-            self.st.rerun()
+            st.rerun()
 
-        for i, message in enumerate(self.st.session_state.history):
-            with self.st.chat_message(name="user", avatar="user"):
-                self.st.markdown(message[0])
+        for i, message in enumerate(st.session_state.history):
+            with st.chat_message(name="user", avatar="user"):
+                st.markdown(message[0])
 
-            with self.st.chat_message(name="assistant", avatar="assistant"):
-                self.st.markdown(message[1])
+            with st.chat_message(name="assistant", avatar="assistant"):
+                st.markdown(message[1])
 
-        with self.st.chat_message(name="user", avatar="user"):
-            input_placeholder = self.st.empty()
-        with self.st.chat_message(name="assistant", avatar="assistant"):
-            message_placeholder = self.st.empty()
+        with st.chat_message(name="user", avatar="user"):
+            input_placeholder = st.empty()
+        with st.chat_message(name="assistant", avatar="assistant"):
+            message_placeholder = st.empty()
 
-        prompt_text = self.st.chat_input("请输入您的问题")
+        prompt_text = st.chat_input("请输入您的问题")
         if prompt_text:
             input_placeholder.markdown(prompt_text)
-            history = self.st.session_state.history
-            past_key_values = self.st.session_state.past_key_values
+            history = st.session_state.history
+            past_key_values = st.session_state.past_key_values
             self.generation_config['max_length'] = max_length
             self.generation_config['top_p'] = top_p
             self.generation_config['temperature'] = temperature
@@ -263,8 +272,8 @@ class ChatWebStreamlit(Chat):
             input_text = self.build_prompt(prompt_text, history)
             for response in self.model.stream_generate(input_text, **self.generation_config):
                 message_placeholder.markdown(response)
-            self.st.session_state.history = history + [(prompt_text, response)]
-            self.st.session_state.past_key_values = past_key_values
+            st.session_state.history = history + [(prompt_text, response)]
+            st.session_state.past_key_values = past_key_values
 
 
 def extend_with_web_streamlit(InputModel):

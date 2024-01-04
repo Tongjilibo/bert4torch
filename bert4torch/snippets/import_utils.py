@@ -70,3 +70,7 @@ def is_trl_available():
 
 def is_sseclient_available():
     return importlib.util.find_spec("sseclient")
+
+
+def is_streamlit_available():
+    return is_package_available('streamlit')
