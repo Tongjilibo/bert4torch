@@ -58,6 +58,8 @@ class AutoRegressiveDecoder(object):
     :param return_last_token: bool, 在stream_generate模式下，是否仅输出last_token, 默认为False表示输出解码出来的历史token
         1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
+    :param return_past_key_values: bool, 是否返回past_key_values，主要是有history模式下，返回past_key_values有利于加速
+
     """
     @model_inference_mode()
     def __init__(self, start_id=None, end_id=-1, maxlen=64, minlen=1, pad_id=0, pad_mode='post', device='cpu', 
@@ -77,6 +79,7 @@ class AutoRegressiveDecoder(object):
         self.repetition_penalty = repetition_penalty
         self.min_ends = min_ends
         self.return_last_token = False
+        self.return_past_key_values = False
         # 参数别名：兼容transformers的参数设置
         self.alias = {'bos_token_id': 'start_id',
                       'eos_token_id': 'end_id',
@@ -381,7 +384,10 @@ class AutoRegressiveDecoder(object):
 
         # 达到长度直接输出
         self.flag = None
-        return results
+        if self.return_past_key_values:
+            return results, states['past_key_values']
+        else:
+            return results
 
     def stream_beam_search(self, inputs, states=None, **generation_config):
         '''beam_search的stream输出模式'''
@@ -394,8 +400,13 @@ class AutoRegressiveDecoder(object):
         results = []
         for step in range(self.maxlen):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
-            if self.return_last_token:
+
+            if self.return_last_token and self.return_past_key_values:
+                return [output_ids[output_scores.argmax()][-1:]], states['past_key_values']
+            elif self.return_last_token:
                 yield [output_ids[output_scores.argmax()][-1:]]  # 仅yield最后一个token
+            elif self.return_past_key_values:
+                yield [output_ids[output_scores.argmax()]], states['past_key_values']
             else:
                 yield [output_ids[output_scores.argmax()]]
             inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
@@ -510,7 +521,10 @@ class AutoRegressiveDecoder(object):
                     results[smp_i] = ids
         # 返回结果
         self.flag = None
-        return results
+        if self.return_past_key_values:
+            return results, states['past_key_values']
+        else:
+            return results
     
     def stream_random_sample(self, inputs_raw, states=None, **generation_config):
         """随机采样n个结果；stream输出"""
@@ -521,8 +535,12 @@ class AutoRegressiveDecoder(object):
         results = []
         for step in range(self.maxlen):
             inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
-            if self.return_last_token:
+            if self.return_last_token and self.return_past_key_values:
+                return output_ids[:, -1:], states['past_key_values']
+            elif self.return_last_token:
                 yield output_ids[:, -1:]  # 仅yield最后一个token
+            elif self.return_past_key_values:
+                yield output_ids, states['past_key_values']
             else:
                 yield output_ids
             inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results)
@@ -777,10 +795,15 @@ class SeqGeneration(AutoRegressiveDecoder):
             # hf的tokenize
             return [self.tokenizer(text, **self.tokenizer_encode_config)['input_ids']]
     
-    def post_process(self, output_ids):
+    def post_process(self, outputs):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
         if self.tokenizer is None:
-            return output_ids
+            return outputs
+        
+        if self.return_past_key_values:
+            output_ids, past_key_values = outputs
+        else:
+            output_ids = outputs
 
         if len(output_ids) > 1:
             outputs = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
@@ -793,7 +816,11 @@ class SeqGeneration(AutoRegressiveDecoder):
             return outputs
         elif len(output_ids) == 1:
             return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
-        return output_ids
+        
+        if self.return_past_key_values:
+            return output_ids, past_key_values
+        else:
+            return output_ids
 
     def _generate(self, inputs):
         if self.mode == 'random_sample':
@@ -829,8 +856,8 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # 主流程
         inputs = self.pre_process(text_list)
-        output_ids = self._generate(inputs)
-        return self.post_process(output_ids)
+        outputs = self._generate(inputs)
+        return self.post_process(outputs)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
@@ -840,11 +867,11 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(inputs):  # stream随机采样
-                yield self.post_process(output_ids)
+            for outputs in self.stream_random_sample(inputs):  # stream随机采样
+                yield self.post_process(outputs)
         elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(inputs):  # stream随机采样
-                yield self.post_process(output_ids)
+            for outputs in self.stream_beam_search(inputs):  # stream随机采样
+                yield self.post_process(outputs)
 
 
 class Seq2SeqGeneration(SeqGeneration):
@@ -873,8 +900,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output)
-        return self.post_process(output_ids)
+        output = super()._generate(encoder_output)
+        return self.post_process(output)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
@@ -890,8 +917,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text_list)
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output)
-        return self.post_process(output_ids)
+        output = super()._generate(encoder_output)
+        return self.post_process(output)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
@@ -904,8 +931,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(encoder_output):  # stream随机采样
-                yield self.post_process(output_ids)
+            for outputs in self.stream_random_sample(encoder_output):  # stream随机采样
+                yield self.post_process(outputs)
         elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(encoder_output):  # stream随机采样
-                yield self.post_process(output_ids)
+            for outputs in self.stream_beam_search(encoder_output):  # stream随机采样
+                yield self.post_process(outputs)
