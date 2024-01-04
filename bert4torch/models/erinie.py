@@ -1,5 +1,4 @@
 from bert4torch.models.bert import BERT
-import torch
 
 
 class ERNIE(BERT):

@@ -3,7 +3,7 @@ from torch import nn
 import copy
 from bert4torch.layers import LayerNorm, BlockIdentity, GatedAttentionUnit
 import torch.nn.functional as F
-import torch
+
 
 class GAU_alpha(RoFormerV2):
     def __init__(self, *args, **kwargs):

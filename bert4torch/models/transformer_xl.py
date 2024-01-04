@@ -6,6 +6,7 @@ from torch import nn
 import torch
 import copy
 
+
 class Transformer_XL(BERT):
     '''构建transformer-xl模型, 已加载；
     项目: https://github.com/kimiyoung/transformer-xl；

@@ -1,4 +1,3 @@
-import imp
 from bert4torch.models.transformer_xl import Transformer_XL
 import torch
 import re
