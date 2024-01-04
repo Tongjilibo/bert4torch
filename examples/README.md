@@ -170,7 +170,7 @@
 ## 9. 预训练
 
 - [roberta_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roberta_pretrain)：roberta的mlm预训练，数据生成代码和训练代码
-- [simbert_v2_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain)：相似问生成，数据增广，三个步骤：1-[弱监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_stage1.py)，2-[蒸馏](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_stage2.py)，3-[有监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/simbert_v2_pretrain/simbert_v2_supervised.py)，参考[SimBERT-V2](https://kexue.fm/archives/8454)
+- [roformer-sim_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roformer-sim_pretrain)：即simbert_v2, 相似问生成，数据增广，三个步骤：1-[弱监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roformer-sim_pretrain/stage1.py)，2-[蒸馏](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roformer-sim_pretrain/stage2.py)，3-[有监督](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/roformer-sim_pretrain/supervised.py)，参考[SimBERT-V2](https://kexue.fm/archives/8454)
 - [gpt_lm_pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain/gpt_lm_pretrain)：gpt的lm预训练
 
 ## 10. 模型部署

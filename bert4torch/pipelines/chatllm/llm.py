@@ -5,7 +5,7 @@
 '''
 
 import re
-from .base import Chat, extend_with_cli, extend_with_web
+from .base import Chat, extend_with_cli, extend_with_web_gradio
 from .openai_api import extend_with_chat_openai_api
 
 
@@ -35,7 +35,7 @@ class ChatGlm(Chat):
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
         return response
 ChatGlmCli = extend_with_cli(ChatGlm)
-ChatGlmWeb = extend_with_web(ChatGlm)
+ChatGlmWebGradio = extend_with_web_gradio(ChatGlm)
 ChatGlmOpenaiApi = extend_with_chat_openai_api(ChatGlm)
 
 
@@ -63,7 +63,7 @@ class ChatGlm2(Chat):
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
         return response
 ChatGlm2Cli = extend_with_cli(ChatGlm2)
-ChatGlm2Web = extend_with_web(ChatGlm2)
+ChatGlm2WebGradio = extend_with_web_gradio(ChatGlm2)
 ChatGlm2OpenaiApi = extend_with_chat_openai_api(ChatGlm2)
 
 
@@ -110,7 +110,7 @@ class ChatGlm3(Chat):
                     content = {"name": metadata.strip(), "content": content}
         return content
 ChatGlm3Cli = extend_with_cli(ChatGlm3)
-ChatGlm3Web = extend_with_web(ChatGlm3)
+ChatGlm3WebGradio = extend_with_web_gradio(ChatGlm3)
 ChatGlm3OpenaiApi = extend_with_chat_openai_api(ChatGlm3)
 
 
@@ -131,7 +131,7 @@ class ChatInternLM(Chat):
             response = response.replace(reg, '')
         return response
 ChatInternLMCli = extend_with_cli(ChatInternLM)
-ChatInternLMWeb = extend_with_web(ChatInternLM)
+ChatInternLMWebGradio = extend_with_web_gradio(ChatInternLM)
 ChatInternLMOpenaiApi = extend_with_chat_openai_api(ChatInternLM)
 
 
@@ -168,7 +168,7 @@ class ChatQwen(Chat):
 
         return raw_text
 ChatQwenCli = extend_with_cli(ChatQwen)
-ChatQwenWeb = extend_with_web(ChatQwen)
+ChatQwenWebGradio = extend_with_web_gradio(ChatQwen)
 ChatQwenOpenaiApi = extend_with_chat_openai_api(ChatQwen)
 
 
@@ -191,7 +191,7 @@ If a question does not make any sense, or is not factually coherent, explain why
         texts.append(f'{query.strip()} [/INST]')
         return ''.join(texts)
 ChatLLaMA2Cli = extend_with_cli(ChatLLaMA2)
-ChatLLaMA2Web = extend_with_web(ChatLLaMA2)
+ChatLLaMA2WebGradio = extend_with_web_gradio(ChatLLaMA2)
 ChatLLaMA2OpenaiApi = extend_with_chat_openai_api(ChatLLaMA2)
 
 
@@ -203,7 +203,7 @@ class ChatZiya(Chat):
         prompt += f"<human>:{query.strip()}\n<bot>:"
         return prompt
 ChatZiyaCli = extend_with_cli(ChatZiya)
-ChatZiyaWeb = extend_with_web(ChatZiya)
+ChatZiyaWebGradio = extend_with_web_gradio(ChatZiya)
 ChatZiyaOpenaiApi = extend_with_chat_openai_api(ChatZiya)
 
 
@@ -226,7 +226,7 @@ class ChatChineseAlphaLLaMA(Chat):
         prompt = self.system +prompt
         return prompt
 ChatChineseAlphaLLaMACli = extend_with_cli(ChatChineseAlphaLLaMA)
-ChatChineseAlphaLLaMAWeb = extend_with_web(ChatChineseAlphaLLaMA)
+ChatChineseAlphaLLaMAWebGradio = extend_with_web_gradio(ChatChineseAlphaLLaMA)
 ChatChineseAlphaLLaMAOpenaiApi = extend_with_chat_openai_api(ChatChineseAlphaLLaMA)
 
 
@@ -242,7 +242,7 @@ class ChatBelle(Chat):
         prompt += f"Human: {query} \n\nAssistant: "
         return prompt
 ChatBelleCli = extend_with_cli(ChatBelle)
-ChatBelleWeb = extend_with_web(ChatBelle)
+ChatBelleWebGradio = extend_with_web_gradio(ChatBelle)
 ChatBelleOpenaiApi = extend_with_chat_openai_api(ChatBelle)
 
 
@@ -261,5 +261,5 @@ class ChatBaichuan(Chat):
         total_input.append(self.assistant_token_id)
         return total_input
 ChatBaichuanCli = extend_with_cli(ChatBaichuan)
-ChatBaichuanWeb = extend_with_web(ChatBaichuan)
+ChatBaichuanWebGradio = extend_with_web_gradio(ChatBaichuan)
 ChatBaichuanOpenaiApi = extend_with_chat_openai_api(ChatBaichuan)

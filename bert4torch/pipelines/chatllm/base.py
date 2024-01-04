@@ -114,7 +114,7 @@ class ChatCli(Chat):
             cuda_empty_cache()
 
 
-class ChatWeb(Chat):
+class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
     '''
@@ -202,8 +202,8 @@ def extend_with_cli(InputModel):
     return ChatDemo
 
 
-def extend_with_web(InputModel):
+def extend_with_web_gradio(InputModel):
     """添加ChatWebDemo"""
-    class ChatDemo(InputModel, ChatWeb):
+    class ChatDemo(InputModel, ChatWebGradio):
         pass
     return ChatDemo
