@@ -42,6 +42,12 @@ class MyDataset(ListDataset):
                 D.append(json.loads(l))
         return D
 
+def split(text):
+    """分割句子
+    """
+    seps, strips = u'\n。！？!?；;，, ', u'；;，, '
+    return text_segmentate(text, maxlen * 1.2, seps, strips)
+
 def masked_encode(text):
     """wwm随机mask
     """
@@ -70,10 +76,9 @@ def collate_fn(batch):
     batch_token_ids, batch_segment_ids = [], []
     for d in batch:
         text, synonyms = d['text'], d['synonyms']
-        synonyms = [text] + synonyms
-        np.random.shuffle(synonyms)
+        text, synonym = np.random.permutation([text] + synonyms)[:2]
+        text, synonym = split(text)[0], split(synonym)[0]
         for _ in range(2):
-            text, synonym = synonyms[:2]
             if np.random.random() < 0.5:
                 text_ids = masked_encode(text)[0]
             else:
