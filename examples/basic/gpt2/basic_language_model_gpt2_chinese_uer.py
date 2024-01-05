@@ -69,7 +69,7 @@ for text in texts:
 print('==============默认batch 无cache================')
 article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
                                    maxlen=100, default_rtype='logits', use_states=False)
-results = article_completion.batch_generate(texts, topk=topk)
+results = article_completion.generate(texts, topk=topk)
 for text, result in zip(texts, results):
     print(text + result)
 
@@ -77,7 +77,7 @@ for text, result in zip(texts, results):
 print('==============默认batch cache================')
 article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
                                    maxlen=100, default_rtype='logits', use_states=True)
-results = article_completion.batch_generate(texts, topk=topk)
+results = article_completion.generate(texts, topk=topk)
 for text, result in zip(texts, results):
     print(text + result)
 
@@ -96,7 +96,7 @@ generate_configs = {'tokenizer': tokenizer, 'start_id': None, 'eos_token_id': en
                     'maxlen':100, 'default_rtype':'logits', 'use_states':False, 'n':1, 'topk':topk, 'include_input':True}
 for text in texts:
     print(model.generate(text, **generate_configs))
-print(model.batch_generate(texts, **generate_configs))
+print(model.generate(texts, **generate_configs))  # 批量生成
 for output in model.stream_generate(text, **generate_configs):
     os.system('clear')
     print(output, flush=True)

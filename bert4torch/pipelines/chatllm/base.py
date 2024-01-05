@@ -1,5 +1,6 @@
 import os
 import torch
+from typing import Union
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available
 
@@ -52,13 +53,12 @@ class Chat:
         '''对response进行后处理，可自行继承后来自定义'''
         return response
 
-    def chat(self, query:str, history=[]):
-        prompt = self.build_prompt(query, history)
+    def chat(self, query:Union[str,list], history=[]):
+        if isinstance(query, str):
+            prompt = self.build_prompt(query, history)
+        elif isinstance(query, list):
+            prompt = [self.build_prompt(q, history) for q in query]
         return self.model.generate(prompt, **self.generation_config)
-
-    def batch_chat(self, query:list, history=[]):
-        prompts = [self.build_prompt(q, history) for q in query]
-        return self.model.batch_generate(prompts, **self.generation_config)
 
     def stream_chat(self, query:str, history=[]):
         '''单条样本stream输出预测的结果'''

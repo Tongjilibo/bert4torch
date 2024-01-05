@@ -247,7 +247,7 @@ class Evaluator(Callback):
     def evaluate(self, data, epoch='final'):
         preds, labels = [], []
         for prompt, label in tqdm(data, desc='Evaluating'):
-            pred = generation.batch_generate(prompt, topk=50, topp=0.7, temperature=0.95)
+            pred = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
             with open(f'./preds_{epoch}.txt', 'a+', encoding='utf-8') as f:

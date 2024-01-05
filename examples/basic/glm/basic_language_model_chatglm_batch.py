@@ -36,7 +36,7 @@ print(f'Consume: {time.time()-start}s')
 
 print('===============batch_cache================')
 start = time.time()
-response = generation.batch_generate(texts, topk=50, topp=0.7, temperature=0.95)
+response = generation.generate(texts, topk=50, topp=0.7, temperature=0.95)
 print(response)
 print(f'Consume: {time.time()-start}s')
 
@@ -45,6 +45,6 @@ print('===============batch_nocache================')
 start = time.time()
 generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
                            mode='random_sample', maxlen=2048, default_rtype='logits', use_states=False)
-response = generation.batch_generate(texts, topk=50, topp=0.7, temperature=0.95)
+response = generation.generate(texts, topk=50, topp=0.7, temperature=0.95)
 print(response)
 print(f'Consume: {time.time()-start}s')

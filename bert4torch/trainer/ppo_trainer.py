@@ -77,7 +77,7 @@ class PPOTrainer(PPOTrainerTrl, Trainer):
         # actor生成得到推理结果
         responses = []
         self.generation.decoder.with_lm = True  # 输出lm_logits
-        response_tensors = self.generation.batch_generate(question_tensors, **self.generation_kwargs)
+        response_tensors = self.generation.generate(question_tensors, **self.generation_kwargs)
         self.generation.decoder.with_lm = False
         for response_tensor in response_tensors:
             r = self.tokenizer.decode(response_tensor, skip_special_tokens=True)

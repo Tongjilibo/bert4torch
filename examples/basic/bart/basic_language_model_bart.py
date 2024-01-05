@@ -71,7 +71,7 @@ for text in texts:
 print('==============默认batch 无cache================')
 autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
                               maxlen=maxlen, default_rtype='logits', use_states=False)
-results = autotitle.batch_generate(texts, topk=topk)
+results = autotitle.generate(texts, topk=topk)
 for text, result in zip(texts, results):
     print(text, ' -> ', result)
 
@@ -79,7 +79,7 @@ for text, result in zip(texts, results):
 print('==============默认batch cache================')
 autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
                               maxlen=maxlen, default_rtype='logits', use_states=True)
-results = autotitle.batch_generate(texts, topk=topk)
+results = autotitle.generate(texts, topk=topk)
 for text, result in zip(texts, results):
     print(text, ' -> ', result)
 

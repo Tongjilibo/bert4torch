@@ -1,6 +1,7 @@
 '''自回归模型的生成
 '''
 
+from typing import Union
 import torch
 import torch.nn as nn
 import numpy as np
@@ -402,13 +403,14 @@ class AutoRegressiveDecoder(object):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
 
             if self.return_last_token and self.return_past_key_values:
-                return [output_ids[output_scores.argmax()][-1:]], states['past_key_values']
+                yield [output_ids[output_scores.argmax()][-1:]], states['past_key_values']
             elif self.return_last_token:
                 yield [output_ids[output_scores.argmax()][-1:]]  # 仅yield最后一个token
             elif self.return_past_key_values:
                 yield [output_ids[output_scores.argmax()]], states['past_key_values']
             else:
                 yield [output_ids[output_scores.argmax()]]
+            
             inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
             if break_tag:
                 break 
@@ -535,14 +537,16 @@ class AutoRegressiveDecoder(object):
         results = []
         for step in range(self.maxlen):
             inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
+
             if self.return_last_token and self.return_past_key_values:
-                return output_ids[:, -1:], states['past_key_values']
+                yield output_ids[:, -1:], states['past_key_values']
             elif self.return_last_token:
                 yield output_ids[:, -1:]  # 仅yield最后一个token
             elif self.return_past_key_values:
                 yield output_ids, states['past_key_values']
             else:
                 yield output_ids
+            
             inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results)
             if break_tag:
                 break
@@ -822,42 +826,44 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             return output_ids
 
-    def _generate(self, inputs):
+    def _prepare_states(self, **kwargs):
+        '''准备states, 允许用户传入past_key_values'''
+        states = None
+        if kwargs.get('past_key_values') is not None:
+            states = {'past_key_values': kwargs['past_key_values']}
+            self.use_states = True
+        return states
+
+    def _generate(self, inputs, states=None):
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs)  # 基于随机采样
+            output_ids = self.random_sample(inputs, states=states)  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs)  # 基于beam search
+            output_ids = self.beam_search(inputs, states=states)  # 基于beam search
         return output_ids
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:str, **kwargs):
-        '''单条样本生成'''
-        self.set_generation_config(kwargs)
-        self.use_batch = False
-        inputs = self.pre_process(text)
-        output_ids = self._generate(inputs)
-        return self.post_process(output_ids)
-
-    @model_inference_mode()
-    @EmptyCacheDecorators.empty_cuda_cache()
-    def batch_generate(self, text_list:list, **kwargs):
-        '''batch样本生成，use_states=True时要求pad_mode='pre', use_states=False时候对'''
-        # 参数设定
-        if 'generation_config' in kwargs:
-            kwargs['generation_config']['n'] = 1
+    def generate(self, text:Union[str, list], **kwargs):
+        '''单条样本生成 / batch生成'''
+        if isinstance(text, str):
+            # 单条样本
+            self.use_batch = False
+        elif isinstance(text, list):
+            # batch生成
+            self.use_batch = True
+            if 'generation_config' in kwargs:
+                kwargs['generation_config']['n'] = 1
+            else:
+                kwargs['n'] = 1
+            if self.use_states and (self.pad_mode in {'post', 'right'}):
+                self.pad_mode = 'pre'
+                log_info("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
         else:
-            kwargs['n'] = 1
+            raise TypeError('Args `text` only support `str/list(str)` format')
         self.set_generation_config(kwargs)
-        self.use_batch = True
-        if self.use_states and (self.pad_mode in {'post', 'right'}):
-            self.pad_mode = 'pre'
-            log_info("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
-
-        # 主流程
-        inputs = self.pre_process(text_list)
-        outputs = self._generate(inputs)
-        return self.post_process(outputs)
+        inputs = self.pre_process(text)
+        output_ids = self._generate(inputs, states=self._prepare_states(kwargs))
+        return self.post_process(output_ids)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
@@ -867,10 +873,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
-            for outputs in self.stream_random_sample(inputs):  # stream随机采样
+            for outputs in self.stream_random_sample(inputs, states=self._prepare_states(kwargs)):  # stream随机采样
                 yield self.post_process(outputs)
         elif self.mode == 'beam_search':
-            for outputs in self.stream_beam_search(inputs):  # stream随机采样
+            for outputs in self.stream_beam_search(inputs, states=self._prepare_states(kwargs)):  # stream beam采样
                 yield self.post_process(outputs)
 
 
@@ -898,14 +904,14 @@ class Seq2SeqGeneration(SeqGeneration):
         self.set_generation_config(kwargs)
         self.use_batch = False
         inputs = self.pre_process(text)
-        inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
+        inputs = self._prepare_raw_inputs(inputs)
         encoder_output = self.encoder.predict(inputs)
-        output = super()._generate(encoder_output)
+        output = super()._generate(encoder_output, states=self._prepare_states(kwargs))
         return self.post_process(output)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def batch_generate(self, text_list:list, **kwargs):
+    def generate(self, text_list:list, **kwargs):
         '''batch样本生成'''
         # 参数设定
         if 'generation_config' in kwargs:
@@ -915,24 +921,24 @@ class Seq2SeqGeneration(SeqGeneration):
         self.set_generation_config(kwargs)
         self.use_batch = True
         inputs = self.pre_process(text_list)
-        inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
+        inputs = self._prepare_raw_inputs(inputs)
         encoder_output = self.encoder.predict(inputs)
-        output = super()._generate(encoder_output)
+        output = super()._generate(encoder_output, states=self._prepare_states(kwargs))
         return self.post_process(output)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
     def stream_generate(self, text:str, **kwargs):
-        '''stream输出t预测的结果'''
+        '''stream输出t时刻预测的结果'''
         self.set_generation_config(kwargs)
 
         self.use_batch = False
         inputs = self.pre_process(text)
-        inputs = self._prepare_raw_inputs(inputs)  # 有时候需要list转tensor
+        inputs = self._prepare_raw_inputs(inputs)
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
-            for outputs in self.stream_random_sample(encoder_output):  # stream随机采样
+            for outputs in self.stream_random_sample(encoder_output, states=self._prepare_states(kwargs)):  # stream随机采样
                 yield self.post_process(outputs)
         elif self.mode == 'beam_search':
-            for outputs in self.stream_beam_search(encoder_output):  # stream随机采样
+            for outputs in self.stream_beam_search(encoder_output, states=self._prepare_states(kwargs)):  # stream beam采样
                 yield self.post_process(outputs)
