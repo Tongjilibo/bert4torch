@@ -173,7 +173,7 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def _prepare_raw_inputs(self, inputs_raw) -> list:
+    def _trans2tensors(self, inputs_raw: Union[torch.Tensor, list, tuple, np.ndarray]) -> list:
         '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]
         :param inputs_raw: tensor/list(tensor)/list(list)/list(int)
         '''
@@ -360,7 +360,7 @@ class AutoRegressiveDecoder(object):
         """
         self.set_generation_config(generation_config)
         assert self.top_k is not None, 'Arg `topk` means beam_size anc can not be None'
-        inputs = self._prepare_raw_inputs(inputs)
+        inputs = self._trans2tensors(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
@@ -403,7 +403,7 @@ class AutoRegressiveDecoder(object):
         '''beam_search的stream输出模式'''
         self.set_generation_config(generation_config)
         assert self.top_k is not None, 'Arg `top_k` means beam_size anc can not be None'
-        inputs = self._prepare_raw_inputs(inputs)
+        inputs = self._trans2tensors(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
@@ -502,7 +502,7 @@ class AutoRegressiveDecoder(object):
         :return: n个解码序列组成的list。
         """
         self.set_generation_config(generation_config)
-        inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
+        inputs = self._trans2tensors(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
@@ -541,7 +541,7 @@ class AutoRegressiveDecoder(object):
         """随机采样n个结果；stream输出"""
         generation_config['n'] = 1
         self.set_generation_config(generation_config)
-        inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
+        inputs = self._trans2tensors(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
         for step in range(self.max_new_tokens):
@@ -911,7 +911,7 @@ class Seq2SeqGeneration(SeqGeneration):
         self.set_generation_config(kwargs)
         self.use_batch = False
         inputs = self.pre_process(text)
-        inputs = self._prepare_raw_inputs(inputs)
+        inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
         output = super()._generate(encoder_output, states=self._prepare_states(**kwargs))
         return self.post_process(output)
@@ -928,7 +928,7 @@ class Seq2SeqGeneration(SeqGeneration):
         self.set_generation_config(kwargs)
         self.use_batch = True
         inputs = self.pre_process(text_list)
-        inputs = self._prepare_raw_inputs(inputs)
+        inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
         output = super()._generate(encoder_output, states=self._prepare_states(**kwargs))
         return self.post_process(output)
@@ -941,7 +941,7 @@ class Seq2SeqGeneration(SeqGeneration):
 
         self.use_batch = False
         inputs = self.pre_process(text)
-        inputs = self._prepare_raw_inputs(inputs)
+        inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
             for outputs in self.stream_random_sample(encoder_output, states=self._prepare_states(**kwargs)):  # stream随机采样
