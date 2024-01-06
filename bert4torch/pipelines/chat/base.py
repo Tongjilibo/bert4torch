@@ -51,6 +51,13 @@ class Chat:
     
     def process_response(self, response, history=None):
         '''对response进行后处理，可自行继承后来自定义'''
+        if isinstance(response, str):
+            return response
+        elif isinstance(response, (tuple, list)):  # response, past_key_values
+            assert len(response) == 2
+            self.generation_config['past_key_values'] = response[1]
+            self.generation_config['use_states'] = True
+            return response[0]
         return response
 
     def chat(self, query:Union[str,list], history=[]):
@@ -58,13 +65,14 @@ class Chat:
             prompt = self.build_prompt(query, history)
         elif isinstance(query, list):
             prompt = [self.build_prompt(q, history) for q in query]
-        return self.model.generate(prompt, **self.generation_config)
+        response = self.model.generate(prompt, **self.generation_config)
+        return self.process_response(response, history=history)
 
     def stream_chat(self, query:str, history=[]):
         '''单条样本stream输出预测的结果'''
         prompt = self.build_prompt(query, history)
         for response in self.model.stream_generate(prompt, **self.generation_config):
-            yield response
+            yield self.process_response(response, history)
 
 
 class ChatCli(Chat):
@@ -147,7 +155,7 @@ class ChatWebGradio(Chat):
 
     def set_generation_config(self, max_length, top_p, temperature, repetition_penalty):
         '''根据web界面的参数修改生成参数'''
-        self.generation_config['max_length'] = max_length
+        self.generation_config['maxlen'] = max_length
         self.generation_config['top_p'] = top_p
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
@@ -265,7 +273,7 @@ class ChatWebStreamlit(Chat):
             input_placeholder.markdown(prompt_text)
             history = st.session_state.history
             past_key_values = st.session_state.past_key_values
-            self.generation_config['max_length'] = max_length
+            self.generation_config['maxlen'] = max_length
             self.generation_config['top_p'] = top_p
             self.generation_config['temperature'] = temperature
 

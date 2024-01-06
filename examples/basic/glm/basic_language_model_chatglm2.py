@@ -13,7 +13,8 @@ model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 generation_config  = {'mode':'random_sample',
                       'maxlen':2048, 
                       'default_rtype':'logits', 
-                      'use_states':True
+                      'use_states':True,
+                    #   'return_past_key_values': True
                       }
 
 demo = ChatGlm2Cli(model_path, **generation_config)

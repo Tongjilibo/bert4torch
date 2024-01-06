@@ -40,10 +40,10 @@ generation_config = {
 cli_demo = ChatQwenCli(dir_path, system='You are a helpful assistant.', generation_config=generation_config)
 
 if __name__ == '__main__':
-    batch_generate = False
+    batch = False
     gen_1toN = False
 
-    if batch_generate:
+    if batch:
         # chat模型，batch_generate的示例
         res = cli_demo.chat(['你好', '你是谁'])
         print(res)

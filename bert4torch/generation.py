@@ -711,7 +711,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 states['past_token_ids'] = self._prepare_next_inputs(inputs, output_ids)[0]
             
             # position_ids: 在第0步如果padding在左侧，则需要自定义position_ids, >=1步则取last_token
-            if self.use_batch and (self.step==0) and (self.pad_mode in {'pre', 'left'}) :
+            if self.use_batch and (self.step==0) and (self.pad_mode in {'pre', 'left'}):
                 # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
                 states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_id, past_key_values_length=-1, start_padding_idx=False)
@@ -813,24 +813,23 @@ class SeqGeneration(AutoRegressiveDecoder):
             outputs = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
             if isinstance(self.input_text, str):
                 # 输入是str，则在前面直接添加
-                return [self.input_text + item for item in outputs]
+                output_text = [self.input_text + item for item in outputs]
             elif isinstance(self.input_text, (tuple, list)) and (len(self.input_text) == len(outputs)):
                 # 输入是list且和outputs同维度
-                return [self.input_text[i] + item for i, item in enumerate(outputs)]
-            return outputs
+                output_text = [self.input_text[i] + item for i, item in enumerate(outputs)]
         elif len(output_ids) == 1:
-            return self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
+            output_text = self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         
         if self.return_past_key_values:
-            return output_ids, past_key_values
+            return output_text, past_key_values
         else:
-            return output_ids
+            return output_text
 
     def _prepare_states(self, **kwargs):
         '''准备states, 允许用户传入past_key_values'''
         states = None
         if kwargs.get('past_key_values') is not None:
-            states = {'past_key_values': kwargs['past_key_values']}
+            states = {'past_key_values': kwargs['past_key_values'], 'use_states': True}
             self.use_states = True
         return states
 
@@ -862,7 +861,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             raise TypeError('Args `text` only support `str/list(str)` format')
         self.set_generation_config(kwargs)
         inputs = self.pre_process(text)
-        output_ids = self._generate(inputs, states=self._prepare_states(kwargs))
+        output_ids = self._generate(inputs, states=self._prepare_states(**kwargs))
         return self.post_process(output_ids)
 
     @model_inference_mode()
@@ -873,10 +872,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
-            for outputs in self.stream_random_sample(inputs, states=self._prepare_states(kwargs)):  # stream随机采样
+            for outputs in self.stream_random_sample(inputs, states=self._prepare_states(**kwargs)):  # stream随机采样
                 yield self.post_process(outputs)
         elif self.mode == 'beam_search':
-            for outputs in self.stream_beam_search(inputs, states=self._prepare_states(kwargs)):  # stream beam采样
+            for outputs in self.stream_beam_search(inputs, states=self._prepare_states(**kwargs)):  # stream beam采样
                 yield self.post_process(outputs)
 
 
@@ -906,7 +905,7 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text)
         inputs = self._prepare_raw_inputs(inputs)
         encoder_output = self.encoder.predict(inputs)
-        output = super()._generate(encoder_output, states=self._prepare_states(kwargs))
+        output = super()._generate(encoder_output, states=self._prepare_states(**kwargs))
         return self.post_process(output)
 
     @model_inference_mode()
@@ -923,7 +922,7 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text_list)
         inputs = self._prepare_raw_inputs(inputs)
         encoder_output = self.encoder.predict(inputs)
-        output = super()._generate(encoder_output, states=self._prepare_states(kwargs))
+        output = super()._generate(encoder_output, states=self._prepare_states(**kwargs))
         return self.post_process(output)
 
     @model_inference_mode()
@@ -937,8 +936,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self._prepare_raw_inputs(inputs)
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
-            for outputs in self.stream_random_sample(encoder_output, states=self._prepare_states(kwargs)):  # stream随机采样
+            for outputs in self.stream_random_sample(encoder_output, states=self._prepare_states(**kwargs)):  # stream随机采样
                 yield self.post_process(outputs)
         elif self.mode == 'beam_search':
-            for outputs in self.stream_beam_search(encoder_output, states=self._prepare_states(kwargs)):  # stream beam采样
+            for outputs in self.stream_beam_search(encoder_output, states=self._prepare_states(**kwargs)):  # stream beam采样
                 yield self.post_process(outputs)

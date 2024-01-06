@@ -21,6 +21,7 @@ class ChatGlm(Chat):
         return prompt
     
     def process_response(self, response, *args):
+        response = super().process_response(response)
         response = response.strip()
         response = response.replace("[[训练时间]]", "2023年")
         punkts = [
@@ -50,6 +51,7 @@ class ChatGlm2(Chat):
         return prompt
     
     def process_response(self, response, *args):
+        response = super().process_response(response)
         response = response.strip()
         response = response.replace("[[训练时间]]", "2023年")
         punkts = [
@@ -92,6 +94,7 @@ class ChatGlm3(Chat):
         return prompt
     
     def process_response(self, response, history):
+        response = super().process_response(response)
         if (not response) or (response[-1] == "�"):
             return response, history
 
@@ -130,6 +133,7 @@ class ChatInternLM(Chat):
         return prompt
 
     def process_response(self, response, history=None):
+        response = super().process_response(response)
         for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
             response = response.replace(reg, '')
         return response

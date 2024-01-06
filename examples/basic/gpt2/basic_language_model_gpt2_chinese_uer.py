@@ -6,13 +6,13 @@ ckpt_dir = 'E:/pretrain_ckpt/gpt2/uer@gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 
 # ===============transformers======================
-from transformers import BertTokenizer, GPT2LMHeadModel, TextGeneration
-tokenizer = BertTokenizer.from_pretrained(ckpt_dir)
-model = GPT2LMHeadModel.from_pretrained(ckpt_dir)
-text_generator = TextGeneration(model, tokenizer)   
-output = text_generator(texts, max_length=100, do_sample=True)
-print('====transformers结果====')
-print(output)
+# from transformers import BertTokenizer, GPT2LMHeadModel, TextGeneration
+# tokenizer = BertTokenizer.from_pretrained(ckpt_dir)
+# model = GPT2LMHeadModel.from_pretrained(ckpt_dir)
+# text_generator = TextGeneration(model, tokenizer)   
+# output = text_generator(texts, max_length=100, do_sample=True)
+# print('====transformers结果====')
+# print(output)
 
 # ===============bert4torch======================
 import torch
@@ -32,63 +32,63 @@ mode = 'random_sample'
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
 model = build_transformer_model(config_path, checkpoint_path).to(device)  # 建立模型，加载权重
 
-print('==============自定义单条样本================')
-class ArticleCompletion(AutoRegressiveDecoder):
-    """基于随机采样的文章续写
-    """
-    @AutoRegressiveDecoder.wraps(default_rtype='logits', use_states=False)
-    def predict(self, inputs, output_ids, states):
-        token_ids = torch.cat([inputs[0], output_ids], 1)
-        logits = model.predict([token_ids])
-        return logits[:, -1, :]
+# print('==============自定义单条样本================')
+# class ArticleCompletion(AutoRegressiveDecoder):
+#     """基于随机采样的文章续写
+#     """
+#     @AutoRegressiveDecoder.wraps(default_rtype='logits', use_states=False)
+#     def predict(self, inputs, output_ids, states):
+#         token_ids = torch.cat([inputs[0], output_ids], 1)
+#         logits = model.predict([token_ids])
+#         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.7, topk=50, add_input=True):
-        token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n=n, topp=topp, topk=topk)  # 基于随机采样
-        add_input = text if add_input else ''
-        return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
-article_completion = ArticleCompletion(start_id=None, end_id=end_id, maxlen=100, device=device)
-for text in texts:
-    print(article_completion.generate(text, n=1, topk=topk))
-
-
-print('==============默认单条无cache================')
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
-                                   maxlen=100, default_rtype='logits', use_states=False)
-for text in texts:
-    print(text + article_completion.generate(text, n=1, topk=topk))
+#     def generate(self, text, n=1, topp=0.7, topk=50, add_input=True):
+#         token_ids, _ = tokenizer.encode(text)
+#         results = self.random_sample([token_ids], n=n, topp=topp, topk=topk)  # 基于随机采样
+#         add_input = text if add_input else ''
+#         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
+# article_completion = ArticleCompletion(start_id=None, end_id=end_id, maxlen=100, device=device)
+# for text in texts:
+#     print(article_completion.generate(text, n=1, topk=topk))
 
 
-print('==============默认单条cache================')
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
-                                   maxlen=100, default_rtype='logits', use_states=True)
-for text in texts:
-    print(text + article_completion.generate(text, n=1, topk=topk))
+# print('==============默认单条无cache================')
+# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
+#                                    maxlen=100, default_rtype='logits', use_states=False)
+# for text in texts:
+#     print(text + article_completion.generate(text, n=1, topk=topk))
 
 
-print('==============默认batch 无cache================')
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
-                                   maxlen=100, default_rtype='logits', use_states=False)
-results = article_completion.generate(texts, topk=topk)
-for text, result in zip(texts, results):
-    print(text + result)
+# print('==============默认单条cache================')
+# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
+#                                    maxlen=100, default_rtype='logits', use_states=True)
+# for text in texts:
+#     print(text + article_completion.generate(text, n=1, topk=topk))
 
 
-print('==============默认batch cache================')
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
-                                   maxlen=100, default_rtype='logits', use_states=True)
-results = article_completion.generate(texts, topk=topk)
-for text, result in zip(texts, results):
-    print(text + result)
+# print('==============默认batch 无cache================')
+# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
+#                                    maxlen=100, default_rtype='logits', use_states=False)
+# results = article_completion.generate(texts, topk=topk)
+# for text, result in zip(texts, results):
+#     print(text + result)
 
 
-print('==============默认stream================')
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
-                                   maxlen=100, default_rtype='logits', use_states=True)
-text = texts[0]
-for output in article_completion.stream_generate(text, topk=topk):
-    os.system('clear')
-    print(text+output, flush=True)
+# print('==============默认batch cache================')
+# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
+#                                    maxlen=100, default_rtype='logits', use_states=True)
+# results = article_completion.generate(texts, topk=topk)
+# for text, result in zip(texts, results):
+#     print(text + result)
+
+
+# print('==============默认stream================')
+# article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=end_id, mode=mode,
+#                                    maxlen=100, default_rtype='logits', use_states=True)
+# text = texts[0]
+# for output in article_completion.stream_generate(text, topk=topk):
+#     os.system('clear')
+#     print(text+output, flush=True)
 
 
 print('==============直接调用.generate()================')
