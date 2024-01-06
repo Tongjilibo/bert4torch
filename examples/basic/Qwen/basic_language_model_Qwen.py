@@ -3,6 +3,9 @@
 阿里云的通义千问: https://github.com/QwenLM/Qwen-7B
 bert4torch_config.json见readme
 """
+from transformers import AutoTokenizer
+from bert4torch.pipelines import ChatQwenCli
+
 
 choice = 'Qwen-1_8B-Chat'
 if choice == 'Qwen-7B-Chat':
@@ -19,9 +22,6 @@ else:
 include_input = not with_prompt
 
 
-from transformers import AutoTokenizer
-from bert4torch.pipelines import ChatQwenCli
-
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
 tokenizer_decode_config = {'skip_special_tokens': True}
@@ -31,7 +31,7 @@ generation_config = {
     'mode': 'random_sample', 
     'tokenizer_encode_config': tokenizer_encode_config, 
     'tokenizer_decode_config': tokenizer_decode_config,
-    'maxlen': 256, 
+    'max_length': 256, 
     'default_rtype': 'logits', 
     'use_states': True,
     'include_input': include_input

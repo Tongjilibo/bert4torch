@@ -43,7 +43,7 @@ class ChatBot(AutoRegressiveDecoder):
         return tokenizer.decode(results[0].cpu().numpy())
 
 
-chatbot  = ChatBot(start_id=None, end_id=tokenizer._token_end_id, maxlen=32, device=device)
+chatbot  = ChatBot(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=32, device=device)
 
 print(chatbot.response([u'别爱我没结果', u'你这样会失去我的', u'失去了又能怎样']))
 """

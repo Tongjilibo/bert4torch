@@ -34,10 +34,10 @@ class ArticleCompletion(AutoRegressiveDecoder):
 
 
 article_completion = ArticleCompletion(
-    start_id=None,
-    end_id=511,  # 511是中文句号
-    maxlen=256,
-    minlen=128,
+    bos_token_id=None,
+    eos_token_id=511,  # 511是中文句号
+    max_new_tokens=256,
+    min_new_tokens=128,
     device=device
 )
 

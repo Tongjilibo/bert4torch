@@ -97,13 +97,13 @@ class AutoTitle(AutoRegressiveDecoder):
         return y_pred[:, -1, :]
 
     def generate(self, text, topk=1, topp=0.95):
-        max_c_len = maxlen - self.maxlen
+        max_c_len = maxlen - self.max_new_tokens
         token_ids, segment_ids = tokenizer.encode(text, maxlen=max_c_len)
         output_ids = self.beam_search([token_ids, segment_ids], topk=topk)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
 
-autotitle = AutoTitle(start_id=None, end_id=tokenizer._token_end_id, maxlen=32, device=device)
+autotitle = AutoTitle(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=32, device=device)
 
 
 def just_show():

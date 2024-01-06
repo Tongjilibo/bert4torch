@@ -93,7 +93,7 @@ model = build_transformer_model(config_path, checkpoint_path).to(device)  # 建�
 
 print('==============直接调用.generate()================')
 generate_configs = {'tokenizer': tokenizer, 'start_id': None, 'eos_token_id': end_id, 'mode':mode,
-                    'maxlen':100, 'default_rtype':'logits', 'use_states':False, 'n':1, 'topk':topk, 'include_input':True}
+                    'max_length':100, 'default_rtype':'logits', 'use_states':False, 'n':1, 'topk':topk, 'include_input':True}
 for text in texts:
     print(model.generate(text, **generate_configs))
 print(model.generate(texts, **generate_configs))  # 批量生成

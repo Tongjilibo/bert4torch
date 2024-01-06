@@ -97,7 +97,7 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
-autotitle = AutoTitle(start_id=tokenizer._token_end_id, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
+autotitle = AutoTitle(bos_token_id=tokenizer._token_end_id, eos_token_id=tokenizer._token_end_id, max_new_tokens=max_t_len, device=device)
 
 def just_show():
     s1 = u'抽象了一种基于中心的战术应用场景与业务,并将网络编码技术应用于此类场景的实时数据多播业务中。在分析基于中心网络与Many-to-all业务模式特性的基础上,提出了仅在中心节点进行编码操作的传输策略以及相应的贪心算法。分析了网络编码多播策略的理论增益上界,仿真试验表明该贪心算法能够获得与理论相近的性能增益。最后的分析与仿真试验表明,在这种有中心网络的实时数据多播应用中,所提出的多播策略的实时性能要明显优于传统传输策略。'

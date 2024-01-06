@@ -37,9 +37,9 @@ class ArticleCompletion(AutoRegressiveDecoder):
 
 
 article_completion = ArticleCompletion(
-    start_id=None,
-    end_id=2,  # </s>标记
-    maxlen=256,
+    bos_token_id=None,
+    eos_token_id=2,  # </s>标记
+    max_new_tokens=256,
     device=device
 )
 

@@ -14,7 +14,7 @@ model_path = "E:/pretrain_ckpt/glm/chatglm3-6b"
 # model_path = "E:/pretrain_ckpt/glm/chatglm3-6B-32k"
 
 tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-generation_kwargs = {"maxlen": 2048, 
+generation_kwargs = {"max_length": 2048, 
               "topk": 50, 
               "topp": 0.7, 
               "temperature": 0.95,

@@ -132,7 +132,7 @@ class ChatBot(AutoRegressiveDecoder):
         return tokenizer.decode(results[0].cpu().numpy())
 
 
-chatbot = ChatBot(start_id=None, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
+chatbot = ChatBot(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)
 
 
 def just_show():

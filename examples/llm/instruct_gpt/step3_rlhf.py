@@ -132,7 +132,7 @@ generation_kwargs = {
     "end_id": tokenizer.eos_token_id, 
     "mode": 'random_sample', 
     "tokenizer_config": {'skip_special_tokens': True, 'add_special_tokens': False},
-    "maxlen": max_target_length, 
+    "max_new_tokens": max_target_length, 
     "default_rtype": 'logits', 
     "use_states": True
 }

@@ -128,7 +128,7 @@ class StoryCompletion(AutoRegressiveDecoder):
         results = self.random_sample([token_ids[:-1]], n=n, topp=topp)  # 基于随机采样
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
-story_completion = StoryCompletion(start_id=None, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
+story_completion = StoryCompletion(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)
 
 def just_show():
     s1 = u'当晚两人在一家小客店中宿歇。张无忌躺在炕上，越想越是担心，走到赵敏窗外，但听她呼吸调匀，正自香梦沉酣。'

@@ -64,9 +64,9 @@ class TextExpansion(AutoRegressiveDecoder):
 
 
 text_expansion = TextExpansion(
-    start_id=None,
-    end_id=3,  # 3是<cls>，也是换行符
-    maxlen=16,
+    bos_token_id=None,
+    eos_token_id=3,  # 3是<cls>，也是换行符
+    max_new_tokens=16,
     device=device
 )
 

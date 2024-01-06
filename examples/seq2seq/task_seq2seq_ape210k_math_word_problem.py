@@ -165,7 +165,7 @@ class AutoSolve(AutoRegressiveDecoder):
         return tokenizer.decode(output_ids.cpu().numpy()).replace(' ', '')
 
 
-autosolve = AutoSolve(start_id=None, end_id=tokenizer._token_end_id, maxlen=64, device=device)
+autosolve = AutoSolve(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=64, device=device)
 
 
 class Evaluator(Callback):

@@ -35,7 +35,7 @@ generation_config = {
     'end_id':2, 
     'mode':'random_sample', 
     'tokenizer_config': {'skip_special_tokens': True},
-    'maxlen':maxlen, 
+    'max_length':maxlen, 
     'default_rtype': 'logits', 
     'use_states': True,
     'topk': topk, 

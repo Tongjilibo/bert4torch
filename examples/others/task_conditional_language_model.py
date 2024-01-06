@@ -120,9 +120,9 @@ class RandomSentiment(AutoRegressiveDecoder):
 
 
 random_sentiment = RandomSentiment(
-    start_id=tokenizer._token_start_id,
-    end_id=tokenizer._token_end_id,
-    maxlen=maxlen,
+    bos_token_id=tokenizer._token_start_id,
+    eos_token_id=tokenizer._token_end_id,
+    max_new_tokens=maxlen,
     device=device
 )
 

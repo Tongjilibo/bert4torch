@@ -14,7 +14,7 @@ class Chat:
     :param model_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
     :param half: bool, 是否半精度
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
-    :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'maxlen':2048, 'default_rtype':'logits', 'use_states':True}
+    :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     '''
     def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -154,7 +154,7 @@ class ChatWebGradio(Chat):
 
     def set_generation_config(self, max_length, top_p, temperature, repetition_penalty):
         '''根据web界面的参数修改生成参数'''
-        self.generation_config['maxlen'] = max_length
+        self.generation_config['max_length'] = max_length
         self.generation_config['top_p'] = top_p
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
@@ -272,7 +272,7 @@ class ChatWebStreamlit(Chat):
             input_placeholder.markdown(prompt_text)
             history = st.session_state.history
             past_key_values = st.session_state.past_key_values
-            self.generation_config['maxlen'] = max_length
+            self.generation_config['max_length'] = max_length
             self.generation_config['top_p'] = top_p
             self.generation_config['temperature'] = temperature
 

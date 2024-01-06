@@ -29,7 +29,7 @@ generation_config = {
     'end_id': 2, 
     'mode': 'random_sample', 
     'tokenizer_config': tokenizer_config,
-    'maxlen': 256, 
+    'max_length': 256, 
     'default_rtype': 'logits', 
     'use_states': True,
     'include_input': include_input,

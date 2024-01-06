@@ -37,7 +37,7 @@ class AutoTitle(AutoRegressiveDecoder):
         out_text = tokenizer.decode([int(i.cpu().numpy()) for i in output_ids[0]])
         return out_text.replace("\\n", "\n").replace("\\t", "\t")
 
-autotitle = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=512, device=device)
+autotitle = AutoTitle(bos_token_id=0, eos_token_id=tokenizer._token_end_id, max_new_tokens=512, device=device)
 
 if __name__ == '__main__':
     input_text0 = "帮我写一个请假条，我因为新冠不舒服，需要请假3天，请领导批准"

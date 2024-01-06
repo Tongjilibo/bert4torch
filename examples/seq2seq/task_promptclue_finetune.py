@@ -121,7 +121,7 @@ class AutoTitle(AutoRegressiveDecoder):
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 
 
-autogen = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
+autogen = AutoTitle(bos_token_id=0, eos_token_id=tokenizer._token_end_id, max_new_tokens=max_t_len, device=device)
 
 
 def just_show():

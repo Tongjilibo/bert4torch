@@ -27,7 +27,7 @@ else:
     raise ValueError(f'{choice} not in pre maintained choices')
 
 generation_config = {'mode': 'random_sample',
-                     'maxlen': 2048, 
+                     'max_length': 2048, 
                      'default_rtype':'logits', 
                      'use_states':True}
 

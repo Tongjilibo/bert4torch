@@ -151,7 +151,7 @@ class QuestionAnswerGeneration(AutoRegressiveDecoder):
         return (tokenizer.decode(q_ids.cpu().numpy()), tokenizer.decode(a_ids.cpu().numpy()))
 
 
-qag = QuestionAnswerGeneration(start_id=None, end_id=tokenizer._token_end_id, maxlen=max_q_len, device=device)
+qag = QuestionAnswerGeneration(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=max_q_len, device=device)
 
 
 def predict_to_file(data, filename, topk=1):

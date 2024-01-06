@@ -49,7 +49,7 @@ class AutoTitle(AutoRegressiveDecoder):
         encoder_output = model.encoder.predict([token_ids])  # [encoder_hiddenstates, encoder_attention_mask]
         output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
-autotitle = AutoTitle(start_id=102, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
+autotitle = AutoTitle(bos_token_id=102, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)
 for text in texts:
     print(text, ' -> ', autotitle.generate(text, topk=topk))
 

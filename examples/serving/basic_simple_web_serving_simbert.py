@@ -69,7 +69,7 @@ class SynonymsGenerator(AutoRegressiveDecoder):
         return [tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
 
 
-synonyms_generator = SynonymsGenerator(start_id=None, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
+synonyms_generator = SynonymsGenerator(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)
 
 
 def cal_sen_emb(text_list):

@@ -107,7 +107,7 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 
-autotitle = AutoTitle(start_id=0, end_id=tokenizer._token_end_id, maxlen=max_t_len, device=device)
+autotitle = AutoTitle(bos_token_id=0, eos_token_id=tokenizer._token_end_id, max_new_tokens=max_t_len, device=device)
 
 class Evaluator(Callback):
     """评估与保存

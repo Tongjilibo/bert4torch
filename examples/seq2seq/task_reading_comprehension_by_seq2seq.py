@@ -177,13 +177,13 @@ class ReadingComprehension(AutoRegressiveDecoder):
             # 这一步主要是排除没有答案的篇章
             # 如果一开始最大值就为end_id，那说明该篇章没有答案
             argmax = probas[:, 0].argmax(dim=1)
-            available_idxs = torch.where(argmax != self.end_id)[0]
+            available_idxs = torch.where(argmax != self.eos_token_id)[0]
             if len(available_idxs) == 0:
                 scores = torch.zeros_like(probas[0])
-                scores[:, self.end_id] = 1
+                scores[:, self.eos_token_id] = 1
                 return scores, states + 1
             else:
-                for i in torch.where(argmax == self.end_id)[0]:
+                for i in torch.where(argmax == self.eos_token_id)[0]:
                     inputs[i][:, 0] = -1  # 无答案篇章首位标记为-1
                 probas = probas[available_idxs]
                 inputs = [i for i in inputs if i[0, 0] > -1]  # 过滤掉无答案篇章

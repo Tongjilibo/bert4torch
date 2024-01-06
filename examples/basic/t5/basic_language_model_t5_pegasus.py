@@ -42,7 +42,7 @@ class AutoTitle(AutoRegressiveDecoder):
         encoder_output = model.encoder.predict([token_ids])
         output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
-autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, maxlen=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
+autotitle = AutoTitle(bos_token_id=tokenizer._token_start_id, eos_token_id=tokenizer._token_end_id, max_new_tokens=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
 
 # 第二种方式
 # autotitle = Seq2SeqGeneration(model, tokenizer, start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, 

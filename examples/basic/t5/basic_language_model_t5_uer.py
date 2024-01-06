@@ -41,7 +41,7 @@ class AutoTitle(AutoRegressiveDecoder):
         output_ids = self.beam_search([token_ids], topk=topk)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
-autotitle = AutoTitle(start_id=tokenizer._token_start_id, end_id=1, maxlen=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
+autotitle = AutoTitle(bos_token_id=tokenizer._token_start_id, eos_token_id=1, max_new_tokens=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
 
 if __name__ == '__main__':
     print(autotitle.generate('中国的首都是extra0京'))

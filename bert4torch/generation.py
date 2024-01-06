@@ -43,16 +43,17 @@ class AutoRegressiveDecoder(object):
     """通用自回归生成模型解码基类
     包含beam search和random sample两种策略
 
-    :param start_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
-    :param end_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到maxlen）
-    :param maxlen: int, 最大解码长度
-    :param minlen: int, 最小解码长度, 默认为1
-    :param pad_id: int, pad_id，在batch解码时候使用
+    :param bos_token_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
+    :param eos_token_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到max_length）
+    :param max_new_tokens: int, 最大解码长度
+    :param min_new_tokens: int, 最小解码长度, 默认为1
+    :param max_length: int, 最大文本长度
+    :param pad_token_id: int, pad_id，在batch解码时候使用
     :param pad_mode: str, padding在前面还是后面，pre或者post
     :param device: str, 默认为'cpu'
     :param n: int, random_sample时候表示生成的个数；beam_search时表示束宽
-    :param topk: int, 这里的topk是指仅保留topk的值
-    :param topp: float, 这里的topp是token的概率阈值设置
+    :param top_k: int, 这里的topk是指仅保留topk的值
+    :param top_p: float, 这里的topp是token的概率阈值设置
     :param temperature: 温度参数，默认为1
     :param repetition_penalty: 重复的惩罚系数
     :param min_ends: int, 最小的end_id的个数
@@ -63,40 +64,41 @@ class AutoRegressiveDecoder(object):
 
     """
     @model_inference_mode()
-    def __init__(self, start_id=None, end_id=-1, maxlen=64, minlen=1, pad_id=0, pad_mode='post', device='cpu', 
-                 n=1, topk=50, topp=1, temperature=1, repetition_penalty=1.0, min_ends=1, **generation_config):
+    def __init__(self, bos_token_id=None, eos_token_id=-1, max_new_tokens=None, min_new_tokens=1, max_length=20, pad_token_id=0, pad_mode='post', device='cpu', 
+                 n=1, top_k=50, top_p=1, temperature=1, repetition_penalty=1.0, min_ends=1, **generation_config):
         # generation_config
-        self.start_id = start_id
-        self.end_id = end_id
-        self.maxlen = maxlen
-        self.minlen = minlen
-        self.pad_id = pad_id   # pad_token_id兼容bert4torch和hf的，如错误则需要显式传入pad_id:int
+        self.bos_token_id = bos_token_id
+        self.eos_token_id = eos_token_id
+        self.max_new_tokens = max_new_tokens
+        self.min_new_tokens = min_new_tokens
+        self.max_length = max_length
+        self.pad_token_id = pad_token_id   # pad_token_id兼容bert4torch和hf的，如错误则需要显式传入pad_id:int
         self.pad_mode = pad_mode
         self.device = device
         self.n = n
-        self.topk = topk
-        self.topp = topp
+        self.top_k = top_k
+        self.top_p = top_p
         self.temperature = temperature
         self.repetition_penalty = repetition_penalty
         self.min_ends = min_ends
         self.return_last_token = False
         self.return_states = False
         # 参数别名：兼容transformers的参数设置
-        self.alias = {'bos_token_id': 'start_id',
-                      'eos_token_id': 'end_id',
-                      'top_k': 'topk',
-                      'top_p': 'topp',
-                      'max_new_tokens': 'maxlen',
-                      'min_new_tokens': 'minlen',
-                      'pad_token_id': 'pad_id'
+        self.alias = {'start_id': 'bos_token_id',
+                      'end_id': 'eos_token_id',
+                      'topk': 'top_k',
+                      'topp': 'top_p',
+                      'maxlen': 'max_new_tokens',
+                      'minlen': 'min_new_tokens',
+                      'pad_id': 'pad_token_id'
                      }
         self.set_generation_config(generation_config)
                 
         self.use_batch = False
-        if start_id is None:
+        if bos_token_id is None:
             self.first_output_ids = torch.empty((1, 0), dtype=int, device=device)
         else:
-            self.first_output_ids = torch.tensor([[self.start_id]], device=device)
+            self.first_output_ids = torch.tensor([[self.bos_token_id]], device=device)
 
     def set_generation_config(self, kwargs):
         if kwargs.get('generation_config'):
@@ -191,7 +193,7 @@ class AutoRegressiveDecoder(object):
             elif isinstance(input_, (list, tuple, np.ndarray)):
                 # 单条样本为[1,2,3]格式，需转为[[1,2,3]]
                 input_ = input_ if self.use_batch else [input_]
-                input_new = torch.tensor(sequence_padding(input_, value=self.pad_id, mode=self.pad_mode), dtype=torch.long, device=self.device)
+                input_new = torch.tensor(sequence_padding(input_, value=self.pad_token_id, mode=self.pad_mode), dtype=torch.long, device=self.device)
 
                 # padding在右边则input_seqlen是真实的长度，左边则统一为最大程度
                 if self.pad_mode in {'post', 'right'}:
@@ -202,20 +204,27 @@ class AutoRegressiveDecoder(object):
             else:
                 raise TypeError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_new)
+
+        # max_new_tokens的校准
+        if (self.max_new_tokens is None) and (self.max_length is None):
+            raise ValueError('Args `max_new_tokens` and `max_length` can not both be None')
+        elif self.max_new_tokens is None:
+            self.max_new_tokens = max(0, self.max_length-self.input_seqlen.item())
+
         return inputs
 
     def _identify_sentence_end(self, output_ids):
         '''判断句子是否结束'''
-        if isinstance(self.end_id, (int, float)):
-            is_end = output_ids[:, -1] == self.end_id  # 标记是否以end标记结束
-            end_counts = (output_ids == self.end_id).sum(1)  # 统计出现的end标记
-        elif isinstance(self.end_id, (set, tuple, list)):
+        if isinstance(self.eos_token_id, (int, float)):
+            is_end = output_ids[:, -1] == self.eos_token_id  # 标记是否以end标记结束
+            end_counts = (output_ids == self.eos_token_id).sum(1)  # 统计出现的end标记
+        elif isinstance(self.eos_token_id, (set, tuple, list)):
             end_counts = 0
             is_end = None
-            for end_id in self.end_id:
-                tmp = output_ids[:, -1] == end_id
+            for eos_token_id in self.eos_token_id:
+                tmp = output_ids[:, -1] == eos_token_id
                 is_end = tmp if is_end is None else is_end + tmp
-                end_counts += (output_ids == end_id).sum(1)
+                end_counts += (output_ids == eos_token_id).sum(1)
         return is_end, end_counts
 
     def __beam_search_step(self, step, inputs, output_ids, output_scores, states):
@@ -223,9 +232,9 @@ class AutoRegressiveDecoder(object):
         self.step = step
         scores, states = self.predict(inputs, output_ids, states, 'logits')  # 计算当前得分
         if step == 0:  # 第1步预测后将输入重复topk次
-            inputs = [i.repeat([self.topk]+[1]*(len(i.shape)-1)) for i in inputs]
+            inputs = [i.repeat([self.top_k]+[1]*(len(i.shape)-1)) for i in inputs]
         scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
-        indices = scores.flatten().argsort(dim=-1, descending=True)[:self.topk]  # 仅保留topk
+        indices = scores.flatten().argsort(dim=-1, descending=True)[:self.top_k]  # 仅保留topk
         indices_1 = torch_div(indices, scores.shape[1], rounding_mode='floor')  # 兼容老版本
         indices_2 = (indices % scores.shape[1]).reshape((-1, 1))  # 列索引
         output_ids = torch.cat([output_ids[indices_1], indices_2], 1)  # 更新输出
@@ -238,7 +247,7 @@ class AutoRegressiveDecoder(object):
         is_end, end_counts = self._identify_sentence_end(output_ids)
         flag = ~is_end | (end_counts < self.min_ends)  # 标记未完成序列
         self.flag = flag  # 记录未完成序列
-        if output_ids.shape[1] >= self.minlen:  # 最短长度判断
+        if output_ids.shape[1] >= self.min_new_tokens:  # 最短长度判断
             best = output_scores.argmax()  # 得分最大的那个
             if is_end[best] and end_counts[best] >= self.min_ends:  # 如果已经终止
                 break_tag = True
@@ -247,7 +256,7 @@ class AutoRegressiveDecoder(object):
                 output_ids = output_ids[flag]  # 扔掉已完成序列
                 output_scores = output_scores[flag]  # 扔掉已完成序列
                 end_counts = end_counts[flag]  # 扔掉已完成end计数
-                self.topk = flag.sum()  # topk相应变化
+                self.top_k = flag.sum()  # topk相应变化
         return inputs, output_ids, output_scores, results, break_tag
 
     def __batch_beam_search_step(self, step, inputs, output_ids, output_scores, states):
@@ -258,29 +267,29 @@ class AutoRegressiveDecoder(object):
             inputs_new = []
             for input_ in inputs:
                 inputs_ = []
-                for topk, input_i in zip(self.topk, input_):
+                for top_k, input_i in zip(self.top_k, input_):
                     input_i = input_i.unsqueeze(0)
-                    inputs_.append(input_i.repeat([topk]+[1]*(len(input_i.shape)-1)))
+                    inputs_.append(input_i.repeat([top_k]+[1]*(len(input_i.shape)-1)))
                 inputs_new.append(torch.cat(inputs_))
             inputs = inputs_new
             # 对seq_len进行扩充
             input_seqlen = []
-            for topk, input_seqlen_i in zip(self.topk, self.input_seqlen):
-                input_seqlen.append(input_seqlen_i.repeat(topk))
+            for top_k, input_seqlen_i in zip(self.top_k, self.input_seqlen):
+                input_seqlen.append(input_seqlen_i.repeat(top_k))
             self.input_seqlen = torch.cat(input_seqlen)
 
         scores = output_scores.reshape((-1, 1)) + scores  # 综合累积得分
         output_ids_new, output_scores_new = [], []
-        for smp_i, topk in enumerate(self.topk):
+        for smp_i, top_k in enumerate(self.top_k):
             if step == 0:
                 score = scores[smp_i][None, ...]
                 output_id = output_ids[smp_i][None, ...]
             else:
-                start, end = sum(self.topk[:smp_i]), sum(self.topk[:smp_i+1])
+                start, end = sum(self.top_k[:smp_i]), sum(self.top_k[:smp_i+1])
                 score = scores[start:end]
                 output_id = output_ids[start:end]
 
-            indices = score.flatten().argsort(dim=-1, descending=True)[:topk]  # 仅保留topk
+            indices = score.flatten().argsort(dim=-1, descending=True)[:top_k]  # 仅保留topk
             indices_1 = torch_div(indices, score.shape[1], rounding_mode='floor')  # 兼容老版本
             indices_2 = (indices % score.shape[1]).reshape((-1, 1))  # 列索引
             output_id = torch.cat([output_id[indices_1], indices_2], 1)  # 更新输出
@@ -296,13 +305,13 @@ class AutoRegressiveDecoder(object):
         is_end, end_counts = self._identify_sentence_end(output_ids)
         self.flag = ~is_end | (end_counts < self.min_ends)  # 标记未完成序列
 
-        if output_ids.shape[1] >= self.minlen:  # 最短长度判断
+        if output_ids.shape[1] >= self.min_new_tokens:  # 最短长度判断
             inputs_new, output_ids_new, output_scores_new, flag_new = [], [], [], []
-            topks_new = self.topk.copy()
-            for smp_i, topk in enumerate(self.topk): # 这里的topk是一个list
-                if topk == 0:
+            topks_new = self.top_k.copy()
+            for smp_i, top_k in enumerate(self.top_k): # 这里的topk是一个list
+                if top_k == 0:
                     continue
-                start, end = sum(self.topk[:smp_i]), sum(self.topk[:smp_i+1])
+                start, end = sum(self.top_k[:smp_i]), sum(self.top_k[:smp_i+1])
                 input_ = [i[start:end] for i in inputs]
                 output_score = output_scores[start:end]
                 output_id = output_ids[start:end]
@@ -328,7 +337,7 @@ class AutoRegressiveDecoder(object):
             inputs = [torch.cat(i) for i in zip(*inputs_new)]
             output_ids = torch.cat(output_ids_new)
             output_scores = torch.cat(output_scores_new)
-            self.topk = topks_new
+            self.top_k = topks_new
             self.flag = torch.cat(flag_new)
 
             if len(output_ids) == 0:
@@ -343,14 +352,14 @@ class AutoRegressiveDecoder(object):
         """beam search解码
         
         :param inputs: 编码器的输入，包含encoder_hidden_states, encoder_attention_mask
-        :param topk: int, 这里的topk即beam size
+        :param top_k: int, 这里的topk即beam size
         :param states:
         :param temperature: 温度参数，默认为1
         :param min_ends:
         :return: 最优解码序列。
         """
         self.set_generation_config(generation_config)
-        assert self.topk is not None, 'Arg `topk` means beam_size anc can not be None'
+        assert self.top_k is not None, 'Arg `topk` means beam_size anc can not be None'
         inputs = self._prepare_raw_inputs(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
@@ -359,10 +368,10 @@ class AutoRegressiveDecoder(object):
 
         # batch推理
         if self.use_batch:
-            self.topk = [self.topk] * btz
+            self.top_k = [self.top_k] * btz
             results = [None] * btz
 
-        for step in range(self.maxlen):
+        for step in range(self.max_new_tokens):
             if (not self.use_batch):  # 单条推理
                 inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
                 inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
@@ -378,7 +387,7 @@ class AutoRegressiveDecoder(object):
             elif self.use_batch:
                 for smp_i, result in enumerate(results):
                     if result is None:
-                        start, end = sum(self.topk[:smp_i]), sum(self.topk[:smp_i+1])
+                        start, end = sum(self.top_k[:smp_i]), sum(self.top_k[:smp_i+1])
                         output_score = output_scores[start:end]
                         output_id = output_ids[start:end]
                         results[smp_i] = output_id[output_score.argmax()]
@@ -393,13 +402,13 @@ class AutoRegressiveDecoder(object):
     def stream_beam_search(self, inputs, states=None, **generation_config):
         '''beam_search的stream输出模式'''
         self.set_generation_config(generation_config)
-        assert self.topk is not None, 'Arg `topk` means beam_size anc can not be None'
+        assert self.top_k is not None, 'Arg `top_k` means beam_size anc can not be None'
         inputs = self._prepare_raw_inputs(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
         results = []
-        for step in range(self.maxlen):
+        for step in range(self.max_new_tokens):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
 
             if self.return_last_token and self.return_states:
@@ -427,15 +436,15 @@ class AutoRegressiveDecoder(object):
             probas = probas.repeat([self.n]+[1]*(len(probas.shape)-1))
             inputs = [i.repeat([self.n]+[1]*(len(i.shape)-1)) for i in inputs]
             output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
-        if self.topk is not None:
-            k_indices = probas.argsort(dim=-1, descending=True)[:, :self.topk]  # 仅保留topk
+        if self.top_k is not None:
+            k_indices = probas.argsort(dim=-1, descending=True)[:, :self.top_k]  # 仅保留topk
             probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
             probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
-        if self.topp is not None:
+        if self.top_p is not None:
             p_indices = probas.argsort(dim=-1, descending=True)  # 从高到低排序
             probas = take_along_dim(probas, p_indices, dim=-1)  # 排序概率
             cumsum_probas = torch.cumsum(probas, dim=-1)  # 累积概率
-            flag = torch.roll(cumsum_probas >= self.topp, 1, dims=1)  # 标记超过topp的部分
+            flag = torch.roll(cumsum_probas >= self.top_p, 1, dims=1)  # 标记超过topp的部分
             flag[:, 0] = False  # 结合上面的torch.roll，实现平移一位的效果
             probas[flag] = 0  # 后面的全部置零
             probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
@@ -443,9 +452,9 @@ class AutoRegressiveDecoder(object):
         sample_func = lambda p: torch.multinomial(p, 1)  # 按概率采样函数
         sample_ids = torch.stack([sample_func(p) for p in probas])
         sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
-        if self.topp is not None:
+        if self.top_p is not None:
             sample_ids = take_along_dim(p_indices, sample_ids, dim=1)  # 对齐原id
-        if self.topk is not None:
+        if self.top_k is not None:
             sample_ids = take_along_dim(k_indices, sample_ids, dim=1)  # 对齐原id
         output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
         return inputs, output_ids, states
@@ -455,7 +464,7 @@ class AutoRegressiveDecoder(object):
         is_end, end_counts = self._identify_sentence_end(output_ids)
         f_flag = is_end & (end_counts >= self.min_ends)  # 标记已完成序列
         self.flag = (f_flag == False)  # 记录未完成序列，这里是裁前的，用于use_states时候的裁剪操作
-        if (output_ids.shape[1] >= self.minlen) and f_flag.any():  # 最短长度判断, 如果有已完成的
+        if (output_ids.shape[1] >= self.min_new_tokens) and f_flag.any():  # 最短长度判断, 如果有已完成的
             if smp_indexs is None:  # single
                 for ids in output_ids[f_flag]:  # 存好已完成序列
                     results.append(ids)
@@ -485,8 +494,8 @@ class AutoRegressiveDecoder(object):
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
         :param inputs_raw: tensor、array、list、tuple, 解码的输入，一般为last_hidden_state, shape=[btz, seq_len, hdsz]
-        :param topk: int, 这里的topk是指仅保留topk的值
-        :param topp: float, 这里的topp是token的概率阈值设置
+        :param top_k: int, 这里的topk是指仅保留topk的值
+        :param top_p: float, 这里的topp是token的概率阈值设置
         :param states: None/dict, 缓存参数
         :param temperature: 温度参数，默认为1
         :param min_ends: 最小的end_id的个数
@@ -503,7 +512,7 @@ class AutoRegressiveDecoder(object):
             smp_indexs = torch.tensor(range(btz)).to(output_ids)
             results = [None] * btz
 
-        for step in range(self.maxlen):
+        for step in range(self.max_new_tokens):
             if not self.use_batch:  # single
                 inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
                 inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results)
@@ -535,7 +544,7 @@ class AutoRegressiveDecoder(object):
         inputs = self._prepare_raw_inputs(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
-        for step in range(self.maxlen):
+        for step in range(self.max_new_tokens):
             inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
 
             if self.return_last_token and self.return_states:
@@ -566,16 +575,16 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param device: str, 默认为None，因为可以直接使用传入的model.device
 
     > generation_config: 接受两种传参方式，1）接受两种传参方式，generation_config={'topk':50}; 2) topk=50, topp=0.9, ...
-    :param start_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
-    :param end_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到maxlen）
-    :param maxlen: int, 最大解码长度
-    :param minlen: int, 最小解码长度, 默认为1
-    :param pad_id: int, pad_id，在batch解码时候使用
+    :param bos_token_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
+    :param eos_token_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到max_length）
+    :param max_new_tokens: int, 最大解码长度
+    :param min_new_tokens: int, 最小解码长度, 默认为1
+    :param pad_token_id: int, pad_id，在batch解码时候使用
     :param pad_mode: str, padding在前面还是后面，pre或者post
     :param device: str, 默认为'cpu'
     :param n: int, random_sample时候表示生成的个数；beam_search时表示束宽
-    :param topk: int, 这里的topk是指仅保留topk的值
-    :param topp: float, 这里的topp是token的概率阈值设置
+    :param top_k: int, 这里的topk是指仅保留topk的值
+    :param top_p: float, 这里的topp是token的概率阈值设置
     :param temperature: 温度参数，默认为1
     :param repetition_penalty: 重复的惩罚系数
     :param min_ends: int, 最小的end_id的个数
@@ -596,7 +605,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.tokenizer = tokenizer
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
         tokenizer_config = tokenizer_config or dict()
-        tokenizer_config.update({'maxlen': self.maxlen})
+        tokenizer_config.update({'maxlen': self.max_length})
         tokenizer_encode_config = tokenizer_encode_config or {}
         tokenizer_decode_config = tokenizer_decode_config or {}
         if self.tokenizer is not None:
@@ -625,26 +634,26 @@ class SeqGeneration(AutoRegressiveDecoder):
             kwargs.update(**generation_config)
 
         ''' genration的默认参数设置 '''
-        if kwargs.get('pad_id') is not None:  # 用户自行设置
+        if kwargs.get('pad_token_id') is not None:  # 用户自行设置
             pass
-        elif kwargs.get('pad_token_id') is not None:  # 用户自行设置（别名）
+        elif kwargs.get('pad_id') is not None:  # 用户自行设置（别名）
             pass
         elif (tokenizer is not None) and (tokenizer.pad_token_id is not None):
-            kwargs['pad_id'] = tokenizer.pad_token_id
+            kwargs['pad_token_id'] = tokenizer.pad_token_id
         else:
-            kwargs['pad_id'] = 0
-            log_info(f'Arg `pad_id` has been set to default value 0')
+            kwargs['pad_token_id'] = 0
+            log_info(f'Arg `pad_token_id` has been set to default value 0')
         
-        if kwargs.get('end_id') is not None:  # 用户自行设置
+        if kwargs.get('eos_token_id') is not None:  # 用户自行设置
             pass
-        elif kwargs.get('eos_token_id') is not None:  # 用户自行设置（别名）
+        elif kwargs.get('end_id') is not None:  # 用户自行设置（别名）
             pass
         elif (tokenizer is not None) and hasattr(tokenizer, 'eos_token_id') and (tokenizer.eos_token_id is not None):
-            kwargs['end_id'] = tokenizer.eos_token_id
-            log_info(f'Arg `end_id` has been set to tokenizer.eos_token_id:{tokenizer.eos_token_id}')
+            kwargs['eos_token_id'] = tokenizer.eos_token_id
+            log_info(f'Arg `eos_token_id` has been set to tokenizer.eos_token_id:{tokenizer.eos_token_id}')
         else:
-            kwargs['end_id'] = kwargs['pad_id']
-            log_info(f'Arg `end_id` has been set to `pad_id`:{kwargs["pad_id"]}')
+            kwargs['eos_token_id'] = kwargs['pad_token_id']
+            log_info(f'Arg `eos_token_id` has been set to `pad_token_id`:{kwargs["pad_token_id"]}')
         kwargs['device'] = kwargs.get('device') or next(model.parameters()).device
 
         return kwargs
@@ -714,7 +723,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             if self.use_batch and (self.step==0) and (self.pad_mode in {'pre', 'left'}):
                 # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
-                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_id, past_key_values_length=-1, start_padding_idx=False)
+                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
             elif states.get('position_ids') is not None:
                 states['position_ids'] = states['position_ids'][:, -1:] + 1
 
@@ -764,7 +773,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             # 如果use_states=False且pad_mode='pre'，则需要自定义position_ids，否则position_ids不正确，但这么使用很少
             position_ids = None
             if self.pad_mode in {'pre', 'left'}:
-                position_ids = create_position_ids_start_at_padding(next_inputs[0], self.pad_id, past_key_values_length=-1, start_padding_idx=False)
+                position_ids = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
                 logits = self.decoder.predict(next_inputs, position_ids=position_ids)
             else:
                 logits = self.decoder.predict(next_inputs)

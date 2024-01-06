@@ -8,7 +8,7 @@ from bert4torch.pipelines import ChatGlm2WebGradio, ChatGlm2WebStreamlit
 choice = 'gradio'
 model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 generation_config  = {'mode':'random_sample',
-                      'maxlen':2048, 
+                      'max_length':2048, 
                       'default_rtype':'logits', 
                       'use_states':True
                       }

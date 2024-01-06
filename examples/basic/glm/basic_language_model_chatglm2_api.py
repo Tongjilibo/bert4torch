@@ -45,7 +45,7 @@ def call_sseclient():
 if __name__ == '__main__':
     model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
     generation_config  = {'mode':'random_sample',
-                        'maxlen':2048, 
+                        'max_length':2048, 
                         'default_rtype':'logits', 
                         'use_states':True
                         }

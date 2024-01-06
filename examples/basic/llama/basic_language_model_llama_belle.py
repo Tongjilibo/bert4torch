@@ -17,7 +17,7 @@ from bert4torch.pipelines import ChatBelleCli
 generation_config = {
     'end_id': 2, 
     'mode': 'random_sample',
-    'maxlen': 512, 
+    'max_length': 512, 
     'default_rtype': 'logits', 
     'use_states': True
 }

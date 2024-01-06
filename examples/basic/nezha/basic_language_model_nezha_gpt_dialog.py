@@ -40,7 +40,7 @@ class ChatBot(AutoRegressiveDecoder):
         return tokenizer.decode(results[0].cpu().numpy())
 
 
-chatbot = ChatBot(start_id=None, end_id=tokenizer._token_end_id, maxlen=32)
+chatbot = ChatBot(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=32)
 print(chatbot.response([u'别爱我没结果', u'你这样会失去我的', u'失去了又能怎样']))
 """
 回复是随机的，例如：那你还爱我吗 | 不知道 | 爱情是不是不能因为一点小事就否定了 | 我会一直爱你，你一个人会很辛苦 | 等等。

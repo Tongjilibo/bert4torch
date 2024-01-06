@@ -35,7 +35,7 @@ generation_config = {
     "end_id": tokenizer.eos_token_id, 
     "mode":'random_sample', 
     "tokenizer_decode_config": {'skip_special_tokens': True},
-    "maxlen": max_length, 
+    "max_length": max_length, 
     "default_rtype": 'logits', 
     "use_states": True,
     "repetition_penalty": 1.3, 

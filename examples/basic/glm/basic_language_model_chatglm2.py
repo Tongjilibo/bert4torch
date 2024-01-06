@@ -11,7 +11,7 @@ model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
 # model_path = "E:/pretrain_ckpt/glm/chatglm2-6B-32k"
 
 generation_config  = {'mode':'random_sample',
-                      'maxlen':2048, 
+                      'max_length':2048, 
                       'default_rtype':'logits', 
                       'use_states':True
                       }

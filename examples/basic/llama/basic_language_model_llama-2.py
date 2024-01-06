@@ -27,7 +27,7 @@ generation_config = {
     'tokenizer_config':  {'skip_special_tokens': True, 'add_special_tokens': False},
     'end_id': 2,
     'mode': 'random_sample', 
-    'maxlen': 512, 
+    'max_length': 512, 
     'default_rtype': 'logits', 
     'use_states': True,
     'include_input': include_input

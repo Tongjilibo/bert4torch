@@ -236,7 +236,7 @@ class AutoQA(AutoRegressiveDecoder):
             ids = ids.cpu().numpy()
             next_ids = [int(j) for j in KG.next_ones(ids)]  # 下一位容许集
             # ===========如果t时刻为Pt的前缀树中的短句，带来的信息增益越大，则增加Pt的概率
-            if len(next_ids) > 1 and self.end_id in ids:  # 容许集大于1且已解码出S
+            if len(next_ids) > 1 and self.eos_token_id in ids:  # 容许集大于1且已解码出S
                 candidates = KG.keys(list(ids))  # 可能解码结果
                 weights = torch.ones_like(probas[i])  # 默认权重为1
                 lcs0 = lcs(ids, token_ids[i])[0]  # 当前已经覆盖的token数
@@ -247,7 +247,7 @@ class AutoQA(AutoRegressiveDecoder):
                         weights[c[len(ids)]] = max(w + 1, weights[c[len(ids)]].cpu().numpy())
                 probas[i] = torch.pow(probas[i], 1. / weights)  # 按 p^(1/n) 来增大权重
             if not next_ids:  # 如果容许集为空，意味着要结束了
-                next_ids.append(self.end_id)
+                next_ids.append(self.eos_token_id)
             new_probas[i, next_ids] += probas[i, next_ids]  # 只保留容许集概率
         new_probas /= new_probas.sum(axis=1, keepdims=True)  # 重新归一化
         return new_probas
@@ -255,7 +255,7 @@ class AutoQA(AutoRegressiveDecoder):
     def generate(self, text, topk=1):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
         output_ids = self.beam_search([token_ids, segment_ids], topk=topk, min_ends=3)[0]  # 基于beam search
-        end_idxs = [i for i, j in enumerate(output_ids) if j == self.end_id]
+        end_idxs = [i for i, j in enumerate(output_ids) if j == self.eos_token_id]
         subject_ids = output_ids[:end_idxs[0]]
         predicate_ids = output_ids[end_idxs[0]:end_idxs[1]]
         meaning_ids = output_ids[end_idxs[1]:]
@@ -265,7 +265,7 @@ class AutoQA(AutoRegressiveDecoder):
         )
 
 
-autoqa = AutoQA(start_id=None, end_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
+autoqa = AutoQA(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)
 
 
 class Evaluator(Callback):
