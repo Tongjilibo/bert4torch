@@ -1,7 +1,7 @@
 '''自回归模型的生成
 '''
 
-from typing import Union
+from typing import Union, Optional
 import torch
 import torch.nn as nn
 import numpy as np
@@ -59,7 +59,7 @@ class AutoRegressiveDecoder(object):
     :param return_last_token: bool, 在stream_generate模式下，是否仅输出last_token, 默认为False表示输出解码出来的历史token
         1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
-    :param return_past_key_values: bool, 是否返回past_key_values，主要是有history模式下，返回past_key_values有利于加速
+    :param return_states: bool, 是否返回缓存的states，主要是有history模式下，返回past_key_values有利于加速
 
     """
     @model_inference_mode()
@@ -80,7 +80,7 @@ class AutoRegressiveDecoder(object):
         self.repetition_penalty = repetition_penalty
         self.min_ends = min_ends
         self.return_last_token = False
-        self.return_past_key_values = False
+        self.return_states = False
         # 参数别名：兼容transformers的参数设置
         self.alias = {'bos_token_id': 'start_id',
                       'eos_token_id': 'end_id',
@@ -385,8 +385,8 @@ class AutoRegressiveDecoder(object):
 
         # 达到长度直接输出
         self.flag = None
-        if self.return_past_key_values:
-            return results, states['past_key_values']
+        if self.return_states:
+            return results, states
         else:
             return results
 
@@ -402,12 +402,12 @@ class AutoRegressiveDecoder(object):
         for step in range(self.maxlen):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
 
-            if self.return_last_token and self.return_past_key_values:
-                yield [output_ids[output_scores.argmax()][-1:]], states['past_key_values']
+            if self.return_last_token and self.return_states:
+                yield [output_ids[output_scores.argmax()][-1:]], states
             elif self.return_last_token:
                 yield [output_ids[output_scores.argmax()][-1:]]  # 仅yield最后一个token
-            elif self.return_past_key_values:
-                yield [output_ids[output_scores.argmax()]], states['past_key_values']
+            elif self.return_states:
+                yield [output_ids[output_scores.argmax()]], states
             else:
                 yield [output_ids[output_scores.argmax()]]
             
@@ -523,8 +523,8 @@ class AutoRegressiveDecoder(object):
                     results[smp_i] = ids
         # 返回结果
         self.flag = None
-        if self.return_past_key_values:
-            return results, states['past_key_values']
+        if self.return_states:
+            return results, states
         else:
             return results
     
@@ -538,12 +538,12 @@ class AutoRegressiveDecoder(object):
         for step in range(self.maxlen):
             inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
 
-            if self.return_last_token and self.return_past_key_values:
-                yield output_ids[:, -1:], states['past_key_values']
+            if self.return_last_token and self.return_states:
+                yield output_ids[:, -1:], states
             elif self.return_last_token:
                 yield output_ids[:, -1:]  # 仅yield最后一个token
-            elif self.return_past_key_values:
-                yield output_ids, states['past_key_values']
+            elif self.return_states:
+                yield output_ids, states
             else:
                 yield output_ids
             
@@ -694,14 +694,14 @@ class SeqGeneration(AutoRegressiveDecoder):
             return torch.stack([logit[index_, :] for index_, logit in zip(last_token_index, logits)])
 
     @AutoRegressiveDecoder.wraps()
-    def predict(self, inputs, output_ids, states):
+    def predict(self, inputs:Union[tuple,list], output_ids, states:Optional[dict]):
         assert isinstance(inputs, (tuple, list))
         if states is not None:
             assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
         
         # 使用cache, 输入只能padding在左侧
         if self.use_states:
-            states = {'use_states': True} if states is None else states
+            states = {'use_states': True} if states is None else {**states, **{'use_states': True}}
 
             # next_inputs：step=0时候输入全部，>=1时候输入last_token
             next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=self.step==0)
@@ -804,8 +804,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         if self.tokenizer is None:
             return outputs
         
-        if self.return_past_key_values:
-            output_ids, past_key_values = outputs
+        if self.return_states:
+            output_ids, states = outputs
         else:
             output_ids = outputs
 
@@ -820,16 +820,15 @@ class SeqGeneration(AutoRegressiveDecoder):
         elif len(output_ids) == 1:
             output_text = self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         
-        if self.return_past_key_values:
-            return output_text, past_key_values
+        if self.return_states:
+            return output_text, states
         else:
             return output_text
 
     def _prepare_states(self, **kwargs):
         '''准备states, 允许用户传入past_key_values'''
-        states = None
-        if kwargs.get('past_key_values') is not None:
-            states = {'past_key_values': kwargs['past_key_values'], 'use_states': True}
+        states = kwargs.get('states')
+        if states is not None:
             self.use_states = True
         return states
 

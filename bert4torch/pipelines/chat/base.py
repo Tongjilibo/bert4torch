@@ -55,8 +55,7 @@ class Chat:
             return response
         elif isinstance(response, (tuple, list)):  # response, past_key_values
             assert len(response) == 2
-            self.generation_config['past_key_values'] = response[1]
-            self.generation_config['use_states'] = True
+            self.generation_config['states'] = response[1]
             return response[0]
         return response
 
