@@ -84,8 +84,8 @@ class MyDataset(ListDataset):
                 if spoes:
                     D.append({'text': l['text'], 'spo_list': labels, 'token_ids': token_ids, 
                               'segment_ids': segment_ids, 'spoes': spoes})
-                if len(D) > 1000:
-                    break
+                # if len(D) > 10000:
+                #     break
         return D
 
 def collate_fn(batch):
@@ -100,7 +100,6 @@ def collate_fn(batch):
                 subject_labels[s[0], 0] = 1  # subject首
                 subject_labels[s[1], 1] = 1  # subject尾
             # 随机选一个subject（这里没有实现错误！这就是想要的效果！！）
-            # Todo: 感觉可以对未选到的subject加个mask，这样计算loss就不会计算到，可能因为模型对prob**n正例加权重导致影响不大
             start, end = np.array(list(spoes.keys())).T
             start = np.random.choice(start)
             end = np.random.choice(end[end >= start])
@@ -240,8 +239,8 @@ def extract_spoes(text):
                 for _end, predicate2 in zip(*end):
                     if _start <= _end and predicate1 == predicate2:
                         spoes.append(
-                            ((mapping[subject[0]][0],
-                              mapping[subject[1]][-1]), predicate1.item(),
+                            ((mapping[subject[0]][0], mapping[subject[1]][-1]), 
+                             predicate1.item(),
                              (mapping[_start][0], mapping[_end][-1]))
                         )
                         break

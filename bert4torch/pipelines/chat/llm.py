@@ -45,8 +45,9 @@ class ChatGlm2(Chat):
     def build_prompt(self, query, history=[]):
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
         prompt = ""
-        for i, (old_query, response) in enumerate(history):
-            prompt += "[Round {}]\n\n问：{}\n\n答：{}\n".format(i+1, old_query, response)
+        if self.generation_config.get('states') is None:
+            for i, (old_query, response) in enumerate(history):
+                prompt += "[Round {}]\n\n问：{}\n\n答：{}\n".format(i+1, old_query, response)
         prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history)+1, query)
         return prompt
     
