@@ -205,13 +205,22 @@ class AutoRegressiveDecoder(object):
                 raise TypeError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_new)
 
-        # max_new_tokens的校准
+        return inputs
+    
+    def _define_stopping_criteria(self, states):
+        ''' max_new_tokens的校准'''
         if (self.max_new_tokens is None) and (self.max_length is None):
             raise ValueError('Args `max_new_tokens` and `max_length` can not both be None')
+        elif self.max_new_tokens is not None:
+            max_new_tokens = self.max_new_tokens
         elif self.max_new_tokens is None:
-            self.max_new_tokens = max(0, self.max_length-self.input_seqlen.item())
+            max_new_tokens = max(0, self.max_length-self.input_seqlen.item())
 
-        return inputs
+        if (states is not None) and (states.get('past_key_values') is not None):
+            past_key_values_lenghth = states.get('past_key_values')[0][0].shape[2]
+            max_new_tokens = max(0, max_new_tokens-past_key_values_lenghth)
+        
+        return range(max_new_tokens)
 
     def _identify_sentence_end(self, output_ids):
         '''判断句子是否结束'''
@@ -371,7 +380,7 @@ class AutoRegressiveDecoder(object):
             self.top_k = [self.top_k] * btz
             results = [None] * btz
 
-        for step in range(self.max_new_tokens):
+        for step in self._define_stopping_criteria(states):
             if (not self.use_batch):  # 单条推理
                 inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
                 inputs, output_ids, output_scores, results, break_tag = self.__beam_search_end(inputs, output_ids, output_scores, results)
@@ -379,7 +388,8 @@ class AutoRegressiveDecoder(object):
                 inputs, output_ids, output_scores, states = self.__batch_beam_search_step(step, inputs, output_ids, output_scores, states)
                 inputs, output_ids, output_scores, results, break_tag = self.__batch_beam_search_end(inputs, output_ids, output_scores, results)
             if break_tag:
-                break 
+                break
+        
         # 如果还有未完成序列，直接放入结果
         if len(output_ids) > 0:
             if not self.use_batch:
@@ -408,7 +418,7 @@ class AutoRegressiveDecoder(object):
         output_ids = self.first_output_ids.repeat(btz, 1)
         output_scores = torch.zeros(btz, device=self.device)
         results = []
-        for step in range(self.max_new_tokens):
+        for step in self._define_stopping_criteria(states):
             inputs, output_ids, output_scores, states = self.__beam_search_step(step, inputs, output_ids, output_scores, states)
 
             if self.return_last_token and self.return_states:
@@ -512,7 +522,7 @@ class AutoRegressiveDecoder(object):
             smp_indexs = torch.tensor(range(btz)).to(output_ids)
             results = [None] * btz
 
-        for step in range(self.max_new_tokens):
+        for step in self._define_stopping_criteria(states):
             if not self.use_batch:  # single
                 inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
                 inputs, output_ids, results, break_tag = self.__random_sample_end(inputs, output_ids, results)
@@ -544,7 +554,7 @@ class AutoRegressiveDecoder(object):
         inputs = self._trans2tensors(inputs_raw)  # 对输入进行处理
         output_ids = self.first_output_ids
         results = []
-        for step in range(self.max_new_tokens):
+        for step in self._define_stopping_criteria(states):
             inputs, output_ids, states = self.__random_sample_step(step, inputs, output_ids, states)
 
             if self.return_last_token and self.return_states:
@@ -703,7 +713,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             return torch.stack([logit[index_, :] for index_, logit in zip(last_token_index, logits)])
 
     @AutoRegressiveDecoder.wraps()
-    def predict(self, inputs:Union[tuple,list], output_ids, states:Optional[dict]):
+    def predict(self, inputs:Union[tuple,list], output_ids:torch.Tensor, states:Optional[dict]):
         '''
         :params inputs: 原始输入，在整个预测过程中均不改变
         :params outputs_ids: 输出的ids，随着预测进行，逐步增长
@@ -778,9 +788,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             position_ids = None
             if self.pad_mode in {'pre', 'left'}:
                 position_ids = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
-                logits = self.decoder.predict(next_inputs, position_ids=position_ids)
-            else:
-                logits = self.decoder.predict(next_inputs)
+            logits = self.decoder.predict(next_inputs, position_ids=position_ids)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)
 
@@ -834,6 +842,8 @@ class SeqGeneration(AutoRegressiveDecoder):
             output_text = self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         
         if self.return_states:
+            states = {'past_key_values': states['past_key_values'], 
+                      'past_key_values_length': states['past_key_values'][0][0].shape[2]+1}
             return output_text, states
         else:
             return output_text

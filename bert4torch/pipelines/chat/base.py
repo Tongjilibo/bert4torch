@@ -101,6 +101,8 @@ class ChatCli(Chat):
                 break
             if query.strip() == "clear":
                 previous_history, history = [], []
+                if 'states' in self.generation_config:
+                    self.generation_config.pop('states')
                 os.system(clear_command)
                 print(self.init_str)
                 continue

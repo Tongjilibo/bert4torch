@@ -126,6 +126,11 @@ class BERT(BERT_BASE):
 
         # ========================= position_ids =========================
         # [btz, seq_len]
+        past_key_values_length = model_kwargs.get('past_key_values_length', 0)
+        # Todo: 这里需要后续再看下是否增加该逻辑
+        # if model_kwargs.get('past_key_values') is not None:
+        #     past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2]
+            
         if model_kwargs.get('position_ids') is not None:
             position_ids = model_kwargs['position_ids']
         elif self.custom_position_ids is True:  # 自定义position_ids
@@ -133,9 +138,9 @@ class BERT(BERT_BASE):
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
             # 从padding位置开始
-            position_ids = create_position_ids_start_at_padding(token_ids, self.pad_token_id)
+            position_ids = create_position_ids_start_at_padding(token_ids, self.pad_token_id, past_key_values_length)
         else:
-            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0)
+            position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0) + past_key_values_length
         model_kwargs['position_ids'] = position_ids
 
         # ========================= attention_mask =========================
