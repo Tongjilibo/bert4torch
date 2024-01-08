@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import Union
+from typing import Union, Optional
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available
 
@@ -28,6 +28,10 @@ class Chat:
         self.generation_config['tokenizer'] = self.tokenizer
         self.model = self.build_model()
 
+    def no_history_states(self) -> bool:
+        '''不使用history的states'''
+        return self.generation_config.get('states') is None
+    
     def build_prompt(self, query, history) -> str:
         '''对query和history进行处理，生成进入模型的text
         :param query: str, 最近的一次user的input
@@ -49,11 +53,11 @@ class Chat:
             model = model.quantize(**self.quantization_config)
         return model.to(self.device)
     
-    def process_response(self, response, history=None):
+    def process_response(self, response:Union[str,tuple,list], history:Optional[list]=None):
         '''对response进行后处理，可自行继承后来自定义'''
         if isinstance(response, str):
             return response
-        elif isinstance(response, (tuple, list)):  # response, past_key_values
+        elif isinstance(response, (tuple, list)):  # response, states
             assert len(response) == 2
             self.generation_config['states'] = response[1]
             return response[0]

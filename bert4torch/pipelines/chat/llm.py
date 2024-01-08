@@ -15,7 +15,7 @@ class ChatGlm(Chat):
             prompt = query
         else:
             prompt = ""
-            if self.generation_config.get('states') is None:
+            if self.no_history_states():
                 for i, (old_query, response) in enumerate(history):
                     prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, response)
             prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
@@ -46,7 +46,7 @@ class ChatGlm2(Chat):
     def build_prompt(self, query, history=[]):
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
         prompt = ""
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for i, (old_query, response) in enumerate(history):
                 prompt += "[Round {}]\n\n问：{}\n\n答：{}\n".format(i+1, old_query, response)
         prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history)+1, query)
@@ -80,7 +80,7 @@ class ChatGlm3(Chat):
             history.pop()
         history.append({"role": "user", "content": query})
         history.append({"role": "assistant", "content": ""})
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             input_ids = self.tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
         else:
             input_ids = self.tokenizer.build_chat_input(query, role="user")['input_ids']
@@ -128,14 +128,13 @@ ChatGlm3OpenaiApi = extend_with_chat_openai_api(ChatGlm3)
 class ChatInternLM(Chat):
     def build_prompt(self, query, history=[]):
         prompt = ""
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for user, bot in history:
                 prompt += f"""<s><|User|>:{user}<eoh>\n<|Bot|>:{bot}<eoa>\n"""
         if len(prompt) == 0:
             prompt += "<s>"
         if query is not None:
             prompt += f"""<|User|>:{query}<eoh>\n<|Bot|>:"""
-        
         return prompt
 
     def process_response(self, response, history=None):
@@ -164,7 +163,7 @@ class ChatQwen(Chat):
         system_text = _tokenize_str("system", self.system)
         raw_text = ""
 
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for turn_query, turn_response in reversed(history):
                 query_text = _tokenize_str("user", turn_query)
                 response_text = _tokenize_str("assistant", turn_response)
@@ -201,8 +200,8 @@ If a question does not make any sense, or is not factually coherent, explain why
             self.system = system
 
     def build_prompt(self, query, history) -> str:
-        texts = [f'[INST] <<SYS>>\n{self.system}\n<</SYS>>\n\n']
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
+            texts = [f'[INST] <<SYS>>\n{self.system}\n<</SYS>>\n\n']
             for user_input, response in history:
                 texts.append(f'{user_input.strip()} [/INST] {response.strip()} </s><s> [INST] ')
         else:
@@ -218,7 +217,7 @@ ChatLLaMA2OpenaiApi = extend_with_chat_openai_api(ChatLLaMA2)
 class ChatZiya(Chat):
     def build_prompt(self, query, history) -> str:
         prompt = ''
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for human, bot in history:
                 prompt += f"<human>:{human}\n<bot>:{bot}\n"
         prompt += f"<human>:{query.strip()}\n<bot>:"
@@ -242,7 +241,7 @@ class ChatChineseAlphaLLaMA(Chat):
 
     def build_prompt(self, query, history) -> str:
         prompt = ''
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for inst, resp in history:
                 prompt += f"### Instruction:\n\n{inst}\n\n### Response:\n\n{resp}\n\n"
             prompt += f"### Instruction:\n\n{query}\n\n### Response:\n\n"
@@ -263,7 +262,7 @@ class ChatBelle(Chat):
     
     def build_prompt(self, query, history) -> str:
         prompt = ''
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for item in history:
                 prompt += f"Human: {item[0]} \n\nAssistant: {item[1]}\n\n"
         prompt += f"Human: {query} \n\nAssistant: "
@@ -282,7 +281,7 @@ class ChatBaichuan(Chat):
 
     def build_prompt(self, query, history) -> str:
         total_input = []
-        if self.generation_config.get('states') is None:
+        if self.no_history_states():
             for user, assistant in history:
                 total_input += [self.user_token_id] + self.tokenizer.encode(user)  
                 total_input += [self.assistant_token_id] + self.tokenizer.encode(assistant) + [self.tokenizer.eos_token_id]

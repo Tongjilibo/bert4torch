@@ -129,7 +129,7 @@ class BERT(BERT_BASE):
         past_key_values_length = model_kwargs.get('past_key_values_length', 0)
         # Todo: 这里需要后续再看下是否增加该逻辑
         # if model_kwargs.get('past_key_values') is not None:
-        #     past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2]
+        #     past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2] + 1
             
         if model_kwargs.get('position_ids') is not None:
             position_ids = model_kwargs['position_ids']
@@ -159,6 +159,7 @@ class BERT(BERT_BASE):
             attention_mask = self.attention_mask_cache
         self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
         model_kwargs['input_attention_mask'] = attention_mask
+        
         # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
         # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸
         attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
