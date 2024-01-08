@@ -158,7 +158,7 @@ class BERT(BERT_BASE):
         else:  # 自定义word_embedding，目前仅有VAT中使用
             attention_mask = self.attention_mask_cache
         self.attention_mask_cache = attention_mask  # 缓存上次用的attention_mask
-        model_kwargs['input_attention_mask'] = attention_mask
+        model_kwargs['pad_attention_mask'] = attention_mask
         
         # 根据token_ids创建一个3D的attention mask矩阵，尺寸为[batch_size, 1, 1, to_seq_length]，
         # 目的是为了适配多头注意力机制，从而能广播到[batch_size, num_heads, from_seq_length, to_seq_length]尺寸

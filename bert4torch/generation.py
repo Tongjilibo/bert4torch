@@ -742,10 +742,10 @@ class SeqGeneration(AutoRegressiveDecoder):
                 states['position_ids'] = states['position_ids'][:, -1:] + 1
 
             # attention_mask: 根据token_ids生成的，因此这里重置下
-            if states.get('input_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
-                attention_mask = states['input_attention_mask']
+            if states.get('pad_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
+                attention_mask = states['pad_attention_mask']
                 states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-                del states['input_attention_mask']
+                del states['pad_attention_mask']
 
             # shape和size不一致: step=1时候，beam_search的btz=束宽, 或者要返回多个结果
             if (self.mode == 'beam_search' or self.n > 1) and (self.step == 1):
