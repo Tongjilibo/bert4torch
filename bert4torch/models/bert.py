@@ -125,12 +125,16 @@ class BERT(BERT_BASE):
             segment_ids = None
 
         # ========================= position_ids =========================
-        # [btz, seq_len]
-        past_key_values_length = model_kwargs.get('past_key_values_length', 0)
-        # Todo: 这里需要后续再看下是否增加该逻辑
-        # if model_kwargs.get('past_key_values') is not None:
-        #     past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2] + 1
+        # 以下只有在一种情况下生效, 是传入了past_key_values接着推理, 如多轮对话中维持past_key_values
+        # 1）ptuning_v2不生效, 虽然传入了past_key_values, 但是postion_ids依然从0开始
+        # 2）use_states=True推理时候不生效, 虽然past_key_values有值, 但是由于传入了'position_ids'
+        past_key_values_length = 0
+        if model_kwargs.get('past_key_values_length') is not None:
+            past_key_values_length = model_kwargs['past_key_values_length']
+        elif model_kwargs.get('past_key_values') is not None:
+            past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2] + 1
             
+        # [btz, seq_len]
         if model_kwargs.get('position_ids') is not None:
             position_ids = model_kwargs['position_ids']
         elif self.custom_position_ids is True:  # 自定义position_ids
@@ -176,6 +180,7 @@ class BERT(BERT_BASE):
         except StopIteration:
             attention_mask = attention_mask.to(dtype=torch.float32)
         
+
         # ========================= conditional layer_norm =========================
         if model_kwargs.get('conditional_emb') is not None:
             conditional_emb = model_kwargs['layer_norm_ids']
