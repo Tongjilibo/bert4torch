@@ -842,7 +842,10 @@ class SeqGeneration(AutoRegressiveDecoder):
             output_text = self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         
         if self.return_states:
-            return output_text, {'past_key_values': states['past_key_values']}
+            select_states = {'past_key_values': states['past_key_values'], 
+                             'last_token_id': output_ids[0].cpu().numpy()[-1],
+                             'last_token': self.tokenizer.decode(output_ids[0].cpu().numpy()[-1])}
+            return output_text, select_states
         else:
             return output_text
 

@@ -132,7 +132,7 @@ class BERT(BERT_BASE):
         if model_kwargs.get('past_key_values_length') is not None:
             past_key_values_length = model_kwargs['past_key_values_length']
         elif model_kwargs.get('past_key_values') is not None:
-            past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2] + 1
+            past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2]
             
         # [btz, seq_len]
         if model_kwargs.get('position_ids') is not None:
@@ -180,6 +180,13 @@ class BERT(BERT_BASE):
         except StopIteration:
             attention_mask = attention_mask.to(dtype=torch.float32)
         
+        # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用, 主要为了应对额外传入的past_key_values
+        if model_kwargs.get('past_key_values') is not None:
+            past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2]
+            size_ = attention_mask.shape[:3] + torch.Size([past_key_values_length])
+            pre_attention_mask = torch.ones(size_).to(attention_mask)
+            attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
+
 
         # ========================= conditional layer_norm =========================
         if model_kwargs.get('conditional_emb') is not None:

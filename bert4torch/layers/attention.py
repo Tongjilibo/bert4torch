@@ -160,12 +160,6 @@ class MultiHeadAttentionLayer(nn.Module):
         key_layer = self.repeat_kv(key_layer)
         value_layer = self.repeat_kv(value_layer)
 
-        # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用, 主要为了应对额外传入的past_key_values
-        if attention_mask.shape[-1] < key_layer.shape[-2]:
-            size_ = attention_mask.shape[:3] + torch.Size([key_layer.shape[-2]-attention_mask.shape[-1]])
-            pre_attention_mask = torch.ones(size_).to(attention_mask)
-            attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
-
         # longlora
         if hasattr(self, 'longlora_group_size'):
             query_layer, key_layer, value_layer, attention_mask = self.longlora_shift(query_layer, key_layer, value_layer, attention_mask)

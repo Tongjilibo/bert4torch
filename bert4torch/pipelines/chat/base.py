@@ -3,10 +3,14 @@ import torch
 from typing import Union, Optional
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available
-
+from packaging import version
 
 if is_streamlit_available():
     import streamlit as st
+else:
+    # 防止streamlit不存在时候报错
+    import bert4torch.snippets as st
+    st.cache_resource = st.delete_arguments
 
 
 class Chat:
@@ -149,7 +153,8 @@ class ChatWebGradio(Chat):
         self.max_length = max_length
         self.max_repetition_penalty = 10
         self.stream = True  # 一般都是流式，因此未放在页面配置项
-        log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
+        if version.parse(gr.__version__) < version.parse("3.44.4"):
+            log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
 
     def reset_user_input(self):
         return self.gr.update(value='')
@@ -228,6 +233,10 @@ def extend_with_web_gradio(InputModel):
 
 class ChatWebStreamlit(Chat):
     def __init__(self, *args, max_length=4096, **kwargs):
+        if not is_streamlit_available():
+            raise ModuleNotFoundError('pip install streamlit')
+        if version.parse(st.__version__) < version.parse("1.29.0"):
+            log_warn_once('`streamlit` is successfully tested under 1.29.0')
         st.set_page_config(
             page_title="Chabot Web Demo",
             page_icon=":robot:",
