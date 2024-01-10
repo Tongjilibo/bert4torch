@@ -296,28 +296,24 @@ class BERT(BERT_BASE):
                         break
             return outputs
 
-    def __load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
-        old_new_keys = {}
-        for key in state_dict.keys():
-            # bert-base-chinese中ln的weight和bias是gamma和beta
-            if ".gamma" in key:
-                old_new_keys[key] = key.replace(".gamma", ".weight")
-            if ".beta" in key:
-                old_new_keys[key] = key.replace(".beta", ".bias")
-        for old_key, new_key in old_new_keys.items():
-            state_dict[new_key] = state_dict.pop(old_key)
-        if ('cls.predictions.bias' in state_dict) and ('cls.predictions.decoder.bias' not in state_dict):
-            state_dict['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bias']
-        return state_dict
-
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理
         这么写的原因是下游很多模型从BERT继承，这样下游可以默认使用BERT_BASE的load_trans_ckpt
         """
         if type(self) == BERT:
             # bert
-            state_dict = self.__load_trans_ckpt(checkpoint)
+            state_dict = super().load_trans_ckpt(checkpoint)
+            old_new_keys = {}
+            for key in state_dict.keys():
+                # bert-base-chinese中ln的weight和bias是gamma和beta
+                if ".gamma" in key:
+                    old_new_keys[key] = key.replace(".gamma", ".weight")
+                if ".beta" in key:
+                    old_new_keys[key] = key.replace(".beta", ".bias")
+            for old_key, new_key in old_new_keys.items():
+                state_dict[new_key] = state_dict.pop(old_key)
+            if ('cls.predictions.bias' in state_dict) and ('cls.predictions.decoder.bias' not in state_dict):
+                state_dict['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bias']
         else:
             # 继承的子类模型，如ERINE等
             state_dict = super().load_trans_ckpt(checkpoint)
