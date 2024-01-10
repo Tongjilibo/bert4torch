@@ -1,3 +1,6 @@
+'''句向量pipeline
+   类似sentence-transformers的调用方式`model.encode(sentences)`
+'''
 from typing import List, Union, Dict
 import numpy as np
 import os

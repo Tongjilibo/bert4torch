@@ -43,6 +43,9 @@ class PrefixEncoder(torch.nn.Module):
 
 
 class PtuningV2Trainer(BaseModel):
+    '''ptuning v2的Trainer
+    1) 虽然有past_key_values输入, 但是position_ids是从0开始的
+    '''
     def __init__(self, encoder, *args, pre_seq_len=128, prefix_projection=False, **kwargs):
         super().__init__(*args, **kwargs)
         # 建立模型，加载权重
@@ -75,7 +78,7 @@ class PtuningV2Trainer(BaseModel):
     
     def forward(self, token_ids):
         past_key_values = self.get_past_key_values(token_ids)
-        logits = self.encoder([token_ids], past_key_values=past_key_values)
+        logits = self.encoder([token_ids], past_key_values=past_key_values, past_key_values_lenghth=0)
         return logits
     
     @torch.no_grad()
@@ -87,5 +90,6 @@ class PtuningV2Trainer(BaseModel):
         if inputs_kwargs.get('past_key_values', None) is None:
             past_key_values = self.get_past_key_values(token_ids)
             inputs_kwargs['past_key_values'] = past_key_values
+        inputs_kwargs['past_key_values_lenghth'] = 0
         return self.encoder([token_ids],  **inputs_kwargs)
     
