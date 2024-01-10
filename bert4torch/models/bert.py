@@ -126,7 +126,7 @@ class BERT(BERT_BASE):
 
         # ========================= position_ids =========================
         # 以下只有在一种情况下生效, 是传入了past_key_values接着推理, 如多轮对话中维持past_key_values
-        # 1）ptuning_v2不生效, 虽然传入了past_key_values, 但是postion_ids依然从0开始
+        # 1）ptuning_v2不生效(训练阶段), 虽然传入了past_key_values, 但是postion_ids依然从0开始
         # 2）use_states=True推理时候不生效, 虽然past_key_values有值, 但是由于传入了'position_ids'
         past_key_values_length = 0
         if model_kwargs.get('past_key_values_length') is not None:

@@ -18,6 +18,7 @@ from bert4torch.snippets import ListDataset, seed_everything
 from bert4torch.callbacks import Logger
 from bert4torch.generation import SeqGeneration
 from bert4torch.optimizers import get_linear_schedule_with_warmup
+from bert4torch.trainer import PtuningV2Trainer
 import json
 import jieba 
 from rouge_chinese import Rouge
@@ -119,89 +120,15 @@ def collate_dev_fn(batch):
 train_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
 dev_dataloader = DataLoader(MyDataset('E:/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
-class PrefixEncoder(torch.nn.Module):
-    """
-    The torch.nn model to encode the prefix
-    Input shape: (batch-size, prefix-length)
-    Output shape: (batch-size, prefix-length, 2*layers*hidden)
-    """
+if choice == 'default':
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
+    encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=4, 
+                                            target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)
+else:
+    # 在config中已经写入了量化的配置参数
+    encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
 
-    def __init__(self, config):
-        super().__init__()
-        self.prefix_projection = config.prefix_projection
-        if self.prefix_projection:
-            # Use a two-layer MLP to encode the prefix
-            self.embedding = torch.nn.Embedding(config.pre_seq_len, config.hidden_size)
-            self.trans = torch.nn.Sequential(
-                torch.nn.Linear(config.hidden_size, config.hidden_size),
-                torch.nn.Tanh(),
-                torch.nn.Linear(config.hidden_size, config.num_hidden_layers * config.hidden_size * 2)
-            )
-        else:
-            self.embedding = torch.nn.Embedding(config.pre_seq_len, config.num_hidden_layers * 256 * 2)
-
-    def forward(self, prefix: torch.Tensor):
-        if self.prefix_projection:
-            prefix_tokens = self.embedding(prefix)
-            past_key_values = self.trans(prefix_tokens)
-        else:
-            past_key_values = self.embedding(prefix)
-        return past_key_values
-    
-class Model(BaseModel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # 建立模型，加载权重
-        if choice == 'default':
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
-            self.encoder = self.encoder.quantize(quantization_method='cpm_kernels', quantization_bit=4, 
-                                                 target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)
-        else:
-            # 在config中已经写入了量化的配置参数
-            self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
-        self.config = self.encoder.configs
-        self.config.pre_seq_len = 128
-        self.config.prefix_projection = False
-        for param in self.parameters():
-            param.requires_grad = False
-        self.prefix_tokens = torch.arange(self.config.pre_seq_len).long()
-        self.prefix_encoder = PrefixEncoder(self.config)
-        self.dropout = torch.nn.Dropout(0.1)
-
-    def get_past_key_values(self, token_ids):
-        batch_size = token_ids.shape[0]
-        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(token_ids.device)
-        past_key_values = self.prefix_encoder(prefix_tokens).type(torch.float16)
-        past_key_values = past_key_values.view(
-            batch_size,
-            self.config.pre_seq_len,
-            self.config.num_hidden_layers * 2,
-            self.config.multi_query_group_num,
-            128
-        )
-        # b, nh, seq_len, hidden_size
-        past_key_values = self.dropout(past_key_values)
-        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
-        past_key_values = [(v[0], v[1]) for v in past_key_values]
-        return past_key_values
-    
-    def forward(self, token_ids):
-        past_key_values = self.get_past_key_values(token_ids)
-        logits = self.encoder([token_ids], past_key_values=past_key_values)
-        return logits
-    
-    @torch.no_grad()
-    def predict(self, inputs, **inputs_kwargs):
-        self.eval()
-        token_ids = inputs[0]
-        # use_states=False时候，每次都重新生成past_key_values
-        # use_states=True时候，仅在第0步生成past_key_values
-        if inputs_kwargs.get('past_key_values', None) is None:
-            past_key_values = self.get_past_key_values(token_ids)
-            inputs_kwargs['past_key_values'] = past_key_values
-        return self.encoder([token_ids],  **inputs_kwargs)
-    
-model = Model().to(device)
+model = PtuningV2Trainer(encoder).to(device)
 model.print_trainable_parameters()
 
 class CrossEntropyLoss(nn.CrossEntropyLoss):
