@@ -129,5 +129,7 @@ def generate(max_tokens):
     print('===================answer====================')
     print(re.sub('<n>+', '\n', re.sub('▁|<eop>|<sop>','',res)))
     #['据公开报道,截至2021年6月,吉利德公司有约16,000名员工。', '领英计划裁员716人。', 'Pharmasset被吉利德以110亿美元收购。']
+
+
 if __name__ == '__main__':
     generate(1000)

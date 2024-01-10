@@ -13,13 +13,12 @@ class PrefixEncoder(torch.nn.Module):
     def __init__(self, config):
         super().__init__()
         self.prefix_projection = config.prefix_projection
+        self.shape_4 = config.hidden_size // config.num_attention_heads
         if config.get('multi_query_group_num') is not None:
             self.shape_3 = config.multi_query_group_num
-            self.shape_4 = config.hidden_size/config.num_attention_heads
             embed_size = self.shape_3 * self.shape_4
         else:
             self.shape_3 = config.num_attention_heads
-            self.shape_4 = config.hidden_size // config.num_attention_heads
             embed_size = config.hidden_size
         
         if self.prefix_projection:
@@ -78,7 +77,7 @@ class PtuningV2Trainer(BaseModel):
     
     def forward(self, token_ids):
         past_key_values = self.get_past_key_values(token_ids)
-        logits = self.encoder([token_ids], past_key_values=past_key_values, past_key_values_lenghth=0)
+        logits = self.encoder([token_ids], past_key_values=past_key_values, past_key_values_length=0)
         return logits
     
     @torch.no_grad()
@@ -90,6 +89,6 @@ class PtuningV2Trainer(BaseModel):
         if inputs_kwargs.get('past_key_values', None) is None:
             past_key_values = self.get_past_key_values(token_ids)
             inputs_kwargs['past_key_values'] = past_key_values
-        inputs_kwargs['past_key_values_lenghth'] = 0
+        inputs_kwargs['past_key_values_length'] = 0
         return self.encoder([token_ids],  **inputs_kwargs)
     

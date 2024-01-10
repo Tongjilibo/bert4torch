@@ -8,10 +8,8 @@ sentences = [
 print('=========================================sentence transformer====================================')
 from sentence_transformers import SentenceTransformer
 model = SentenceTransformer(root_model_path)
-
 #Sentences are encoded by calling model.encode()
 embeddings = model.encode(sentences)
-
 #Print the embeddings
 print(embeddings)
 

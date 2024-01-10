@@ -181,10 +181,10 @@ class BERT(BERT_BASE):
             attention_mask = attention_mask.to(dtype=torch.float32)
         
         # attention_mask最后两维是[q_len, k_ken]，如果维度不匹配补齐，目前是在ptuning_v2中使用, 主要为了应对额外传入的past_key_values
-        if model_kwargs.get('past_key_values') is not None:
-            past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2]
-            size_ = attention_mask.shape[:3] + torch.Size([past_key_values_length])
-            pre_attention_mask = torch.ones(size_).to(attention_mask)
+        if (model_kwargs.get('past_key_values') is not None) and \
+           (attention_mask.shape[-1] < model_kwargs.get('past_key_values')[0][0].shape[2] + token_ids.shape[1]):
+            pad_length = model_kwargs.get('past_key_values')[0][0].shape[2] + token_ids.shape[1] - attention_mask.shape[-1]
+            pre_attention_mask = torch.ones(attention_mask.shape[:3] + torch.Size([pad_length])).to(attention_mask)
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
 
 
