@@ -1,4 +1,6 @@
-root_model_path = 'E:\pretrain_ckpt\embedding\BAAI@bge-large-en-v1.5'
+# root_model_path = 'E:\pretrain_ckpt\embedding\BAAI@bge-large-en-v1.5'
+root_model_path = 'E:\pretrain_ckpt\embedding\BAAI@bge-large-zh-v1.5'
+
 sentences_1 = ["样例数据-1", "样例数据-2"]
 sentences_2 = ["样例数据-3", "样例数据-4"]
 

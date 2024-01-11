@@ -11,7 +11,7 @@
   "num_attention_heads": 16,
   "num_hidden_layers": 24,
   "pad_token_id": 0,
-  "torch_dtype": "float16",
+  "norm_mode": "torch_buildin",
   "type_vocab_size": 2,
   "vocab_size": 21128,
   "with_pool": true,
