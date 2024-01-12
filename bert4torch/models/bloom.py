@@ -14,6 +14,7 @@ class Bloom(Decoder):
         self.prefix = 'bloom'
 
     def load_trans_ckpt(self, checkpoint):
+        '''原始权重中qkv是一个全连接, 需要拆分成q,k,v'''
         state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
             mapping = {
@@ -30,6 +31,22 @@ class Bloom(Decoder):
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
+        return state_dict
+    
+    def save_trans_ckpt(self, checkpoint):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'h.{i}.self_attention.query_key_value.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'h.{i}.self_attention.query_key_value.bias'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                qkv = torch.cat(qkv)
+                state_dict[new_key] = qkv
         return state_dict
     
     def variable_mapping(self):

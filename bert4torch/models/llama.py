@@ -41,6 +41,21 @@ class LLaMA(Decoder):
                 state_dict.pop(old_key)
         return state_dict
     
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            mapping = {'model.layers.{}.self_attn.{}.weight': f'model.layers.{i}.self_attn.W_pack.weight'}
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    if old_key.format(i, i_k) in state_dict:
+                        qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                if qkv:
+                    qkv = torch.cat(qkv)
+                    state_dict[new_key] = qkv
+        return state_dict
+    
     def variable_mapping(self):
         '''映射到权重格式
         llama一般有两种格式, 一种是huggingface格式, 一种是pth格式, 这里的映射是以hf格式为准

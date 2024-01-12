@@ -37,7 +37,9 @@ class GLM(Decoder):
         for i in range(self.num_hidden_layers):
             mapping = {
                 f'{self.prefix}.layers.{i}.attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
-                f'{self.prefix}.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+                f'{self.prefix}.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
+                # int8和int4的weight_scale权重
+                f'{self.prefix}.layers.{i}.attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'  
             }
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
@@ -48,20 +50,26 @@ class GLM(Decoder):
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
-        
-        # int8和int4的weight_scale权重
+        return state_dict
+    
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
-            old_key = f'{self.prefix}.layers.{i}.attention.query_key_value.weight_scale'
-            if (qkv := state_dict.get(old_key)) is None:
-                continue
-            qkv = torch.split(qkv, self.attention_head_size, 0)
-            q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
-            q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
-            state_dict[f'decoderLayer.{i}.multiHeadAttention.q.weight_scale'] = q
-            state_dict[f'decoderLayer.{i}.multiHeadAttention.k.weight_scale'] = k
-            state_dict[f'decoderLayer.{i}.multiHeadAttention.v.weight_scale'] = v
-            state_dict.pop(old_key)
-
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'{self.prefix}.layers.{i}.attention.query_key_value.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'{self.prefix}.layers.{i}.attention.query_key_value.bias',
+                # int8和int4的weight_scale权重
+                'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{self.prefix}.layers.{i}.attention.query_key_value.weight_scale'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    if old_key.format(i, i_k) in state_dict:
+                        qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                if qkv:
+                    qkv = torch.cat(qkv)
+                    state_dict[new_key] = qkv
         return state_dict
     
     def variable_mapping(self):
@@ -192,7 +200,8 @@ class GLM2(GLM):
         for i in range(self.num_hidden_layers):
             mapping = {
                 f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
-                f'{self.prefix}.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias'
+                f'{self.prefix}.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
+                f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'
             }
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
@@ -202,19 +211,25 @@ class GLM2(GLM):
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
-        
-        # int8和int4的weight_scale权重
-        for i in range(self.num_hidden_layers):
-            old_key = f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight_scale'
-            if (qkv := state_dict.get(old_key)) is None:
-                continue
-            inner_dim = (qkv.shape[0]-self.hidden_size) // 2
-            q, k, v = torch.split(qkv, [self.hidden_size, inner_dim, inner_dim], 0)
-            state_dict[f'decoderLayer.{i}.multiHeadAttention.q.weight_scale'] = q
-            state_dict[f'decoderLayer.{i}.multiHeadAttention.k.weight_scale'] = k
-            state_dict[f'decoderLayer.{i}.multiHeadAttention.v.weight_scale'] = v
-            state_dict.pop(old_key)
+        return state_dict
 
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'{self.prefix}.layers.{i}.self_attention.query_key_value.bias',
+                'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight_scale'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    if old_key.format(i, i_k) in state_dict:
+                        qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                if qkv:
+                    qkv = torch.cat(qkv)
+                    state_dict[new_key] = qkv
         return state_dict
 
     def variable_mapping(self):
