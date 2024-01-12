@@ -95,7 +95,7 @@ class AutoRegressiveDecoder(object):
         self.set_generation_config(generation_config)
                 
         self.use_batch = False
-        if bos_token_id is None:
+        if self.bos_token_id is None:
             self.first_output_ids = torch.empty((1, 0), dtype=int, device=device)
         else:
             self.first_output_ids = torch.tensor([[self.bos_token_id]], device=device)
@@ -912,30 +912,24 @@ class Seq2SeqGeneration(SeqGeneration):
         # inputs中包含了[decoder_ids, encoder_hidden_state, encoder_attention_mask]
         self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
-    
-    @model_inference_mode()
-    @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:str, **kwargs):
-        self.set_generation_config(kwargs)
-        self.use_batch = False
-        inputs = self.pre_process(text)
-        inputs = self._trans2tensors(inputs)
-        encoder_output = self.encoder.predict(inputs)
-        output = super()._generate(encoder_output, states=kwargs.get('states'))
-        return self.post_process(output)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text_list:list, **kwargs):
-        '''batch样本生成'''
-        # 参数设定
-        if 'generation_config' in kwargs:
-            kwargs['generation_config']['n'] = 1
-        else:
-            kwargs['n'] = 1
+    def generate(self, text:Union[str, list], **kwargs):
+        '''单条样本生成 / batch生成'''
+        if isinstance(text, str):
+            # 单条样本
+            self.use_batch = False
+        elif isinstance(text, list):
+            # batch生成
+            self.use_batch = True
+            if 'generation_config' in kwargs:
+                kwargs['generation_config']['n'] = 1
+            else:
+                kwargs['n'] = 1
+
         self.set_generation_config(kwargs)
-        self.use_batch = True
-        inputs = self.pre_process(text_list)
+        inputs = self.pre_process(text)
         inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
         output = super()._generate(encoder_output, states=kwargs.get('states'))

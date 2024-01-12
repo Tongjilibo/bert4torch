@@ -349,8 +349,9 @@ class BERT_BASE(nn.Module):
            2. 各个模型存在load_trans_ckpt()的也要逆向过来 
         '''
         state_dict_raw = {}
+        mapping = self.variable_mapping()
         for k, v in self.save_trans_ckpt().items():
-            k = self.variable_mapping().get(k, k)
+            k = mapping.get(k, k)
             state_dict_raw[k] = v
         
         save_dir = os.path.dirname(checkpoint_path)
