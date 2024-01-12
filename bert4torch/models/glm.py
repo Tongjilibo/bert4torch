@@ -66,10 +66,9 @@ class GLM(Decoder):
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
                     if old_key.format(i, i_k) in state_dict:
-                        qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                        qkv.append(state_dict.pop(old_key.format(i, i_k)).split(self.attention_head_size, 0))
                 if qkv:
-                    qkv = torch.cat(qkv)
-                    state_dict[new_key] = qkv
+                    state_dict[new_key] = torch.cat([torch.cat(i) for i in zip(*qkv)])
         return state_dict
     
     def variable_mapping(self):
@@ -228,8 +227,7 @@ class GLM2(GLM):
                     if old_key.format(i, i_k) in state_dict:
                         qkv.append(state_dict.pop(old_key.format(i, i_k)))
                 if qkv:
-                    qkv = torch.cat(qkv)
-                    state_dict[new_key] = qkv
+                    state_dict[new_key] = torch.cat(qkv)
         return state_dict
 
     def variable_mapping(self):

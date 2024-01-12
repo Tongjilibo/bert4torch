@@ -3,7 +3,7 @@
 基本测试：baichuan模型的测试 https://github.com/baichuan-inc/Baichuan-7B
 """
 
-choice = 'Baichuan-13B-Chat'
+choice = 'Baichuan2-7B-Chat'
 
 if choice == 'Baichuan-7B':
     dir_path = 'E:\\pretrain_ckpt\\llama\\Baichuan-7B'

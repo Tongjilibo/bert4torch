@@ -33,7 +33,7 @@ class Bloom(Decoder):
                 state_dict.pop(old_key)
         return state_dict
     
-    def save_trans_ckpt(self, checkpoint):
+    def save_trans_ckpt(self):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
@@ -44,9 +44,8 @@ class Bloom(Decoder):
             for old_key, new_key in mapping.items():
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
-                    qkv.append(state_dict.pop(old_key.format(i, i_k)))
-                qkv = torch.cat(qkv)
-                state_dict[new_key] = qkv
+                    qkv.append(state_dict.pop(old_key.format(i, i_k)).split(self.attention_head_size, 0))
+                state_dict[new_key] = torch.cat([torch.cat(i) for i in zip(*qkv)])
         return state_dict
     
     def variable_mapping(self):

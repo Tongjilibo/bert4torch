@@ -31,12 +31,12 @@ class LLaMA(Decoder):
         state_dict = super().load_trans_ckpt(checkpoint)
         # baichuan的qkv权重是合在一起的W_pack, 单独处理
         for i in range(self.num_hidden_layers):
-            mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'model.layers.{}.self_attn.{}.weight'}
+            mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight'}
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
                     continue
                 qkv = torch.split(qkv, [self.hidden_size, self.hidden_size, self.hidden_size], 0)
-                for i_k, i_v in zip(['q_proj','k_proj', 'v_proj'], qkv):
+                for i_k, i_v in zip(['q','k', 'v'], qkv):
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         return state_dict
@@ -45,15 +45,14 @@ class LLaMA(Decoder):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
-            mapping = {'model.layers.{}.self_attn.{}.weight': f'model.layers.{i}.self_attn.W_pack.weight'}
+            mapping = {'decoderLayer.{}.multiHeadAttention.{}.weight': f'model.layers.{i}.self_attn.W_pack.weight'}
             for old_key, new_key in mapping.items():
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
                     if old_key.format(i, i_k) in state_dict:
                         qkv.append(state_dict.pop(old_key.format(i, i_k)))
                 if qkv:
-                    qkv = torch.cat(qkv)
-                    state_dict[new_key] = qkv
+                    state_dict[new_key] = torch.cat(qkv)
         return state_dict
     
     def variable_mapping(self):
@@ -69,9 +68,6 @@ class LLaMA(Decoder):
         for i in range(self.num_hidden_layers):
             mapping.update( 
             {
-            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
             f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
             f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
             f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',

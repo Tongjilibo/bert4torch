@@ -14,7 +14,7 @@ tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
 model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
 
 # 编码测试
-token_ids, segment_ids = tokenizer.encode(u'tokenizer')
+token_ids, segment_ids = tokenizer.encode(u'语言模型')
 token_ids, segment_ids = torch.tensor([token_ids]), torch.tensor([segment_ids])
 
 print('\n ===== predicting =====\n')
