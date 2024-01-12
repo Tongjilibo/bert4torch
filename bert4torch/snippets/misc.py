@@ -219,3 +219,17 @@ class AnyClass:
     '''主要用于import某个包不存在时候，作为类的替代'''
     def __init__(self, *args, **kwargs) -> None:
         pass
+
+
+def update_func_return_dict(original_func, **new_dict):
+    '''对某个函数的返回值（字典）进行修改'''
+    def wrapper(*args, **kwargs):
+        # 调用原始函数并获取结果
+        result = original_func(*args, **kwargs)
+        
+        # 对返回值进行修改
+        modified_result = {**result, **new_dict}
+        
+        return modified_result
+    
+    return wrapper

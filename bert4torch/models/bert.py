@@ -4,7 +4,7 @@ from torch.utils.checkpoint import checkpoint
 from bert4torch.models.base import BERT_BASE
 from bert4torch.layers import LayerNorm, BertEmbeddings
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
-from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_padding, DottableDict
+from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_padding, DottableDict, update_func_return_dict
 from bert4torch.activations import get_activation
 import copy
 from packaging import version
@@ -300,9 +300,9 @@ class BERT(BERT_BASE):
         """加载ckpt, 方便后续继承并做一些预处理
         这么写的原因是下游很多模型从BERT继承，这样下游可以默认使用BERT_BASE的load_trans_ckpt
         """
+        state_dict = super().load_trans_ckpt(checkpoint)        
         if type(self) == BERT:
             # bert
-            state_dict = super().load_trans_ckpt(checkpoint)
             old_new_keys = {}
             for key in state_dict.keys():
                 # bert-base-chinese中ln的weight和bias是gamma和beta
@@ -314,11 +314,16 @@ class BERT(BERT_BASE):
                 state_dict[new_key] = state_dict.pop(old_key)
             if ('cls.predictions.bias' in state_dict) and ('cls.predictions.decoder.bias' not in state_dict):
                 state_dict['cls.predictions.decoder.bias'] = state_dict['cls.predictions.bias']
-        else:
-            # 继承的子类模型，如ERINE等
-            state_dict = super().load_trans_ckpt(checkpoint)
+                # old_new_keys['cls.predictions.decoder.bias'] = 'cls.predictions.bias'
+            
+            # self.variable_mapping = update_func_return_dict(self.variable_mapping, **old_new_keys)
         return state_dict
+    
+    def update_dicts(func, **kwargs):
+        '''为func的dict返回项增加内容'''
 
+        return
+    
     def load_variable(self, state_dict, name):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[name]

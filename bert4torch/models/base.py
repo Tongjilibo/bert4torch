@@ -208,7 +208,10 @@ class BERT_BASE(nn.Module):
         return embeddings
 
     def load_trans_ckpt(self, checkpoint):
-        """加载ckpt, 方便后续继承并做一些预处理"""
+        """加载ckpt并转换
+           1. 支持.safe_tensors + .bin
+           2. 方便后续各个模型继承并做一些预处理, 如对qkv权重进行split
+        """
         if checkpoint.endswith(".safetensors"):
             # 加载safetensors格式
             with safe_open(checkpoint, framework="pt") as f:
@@ -333,6 +336,27 @@ class BERT_BASE(nn.Module):
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
 
+    def save_trans_ckpt(self):
+        """对state_dict进行转换
+        1. load_trans_ckpt的逆操作
+        2. 方便后续各个模型继承并做一些预处理, 如合并qkv权重
+        """
+        return self.state_dict()
+
+    def save_pretrained(self, checkpoint_path):
+        '''按照预训练模型的key来保存模型
+           1. 按照variable_mapping()逆向来保存权重
+           2. 各个模型存在load_trans_ckpt()的也要逆向过来 
+        '''
+        state_dict_raw = {}
+        for k, v in self.save_trans_ckpt().items():
+            k = self.variable_mapping().get(k, k)
+            state_dict_raw[k] = v
+        
+        save_dir = os.path.dirname(checkpoint_path)
+        os.makedirs(save_dir, exist_ok=True)
+        torch.save(state_dict_raw, checkpoint_path)        
+        
     def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError
 
@@ -449,6 +473,13 @@ class BERT_BASE(nn.Module):
         return get_parameter_device(self)
 
 
+def extend_with_base_model(InputModel):
+    """添加torch4keras的BaseModel, 可以使用.compile, .fit等Trainer的功能"""
+    class BertBaseModel(InputModel, BERT_BASE, BaseModel):
+        pass
+    return BertBaseModel
+
+
 class LM_Mask(object):
     """定义下三角Attention Mask（语言模型用）"""
     def compute_attention_bias(self, inputs=None):
@@ -497,10 +528,3 @@ def extend_with_unified_language_model(InputModel):
             super(UnifiedLanguageModel, self).__init__(*args, **kwargs)
 
     return UnifiedLanguageModel
-    
-    
-def extend_with_base_model(InputModel):
-    """添加torch4keras的BaseModel"""
-    class BertBaseModel(InputModel, BERT_BASE, BaseModel):
-        pass
-    return BertBaseModel
