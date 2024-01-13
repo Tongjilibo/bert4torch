@@ -1,4 +1,6 @@
 from bert4torch.models.transformer import Transformer
+from bert4torch.snippets import modify_variable_mapping
+import torch
 
 
 class BART(Transformer):
@@ -24,30 +26,32 @@ class BART(Transformer):
     
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
-        state_dict_new = {}
-        for k, v in state_dict.items():
+        mapping_reverse = {v:k for k, v in self.variable_mapping().items()}
+        mapping = {}
+        for k in list(state_dict.keys()):
             # V2.0: 这两个权重丢弃，因为一个为0，一个和decoder的embedding一样
-            if k in {'final_logits_bias', 'lm_head.weight'}:
+            if k in {'final_logits_bias', 'lm_head.weight', 'shared.weight', 'model.shared.weight'}:
                 continue
-            k = k.replace('model.', '')
+            if 'model.' in k:
+                k_new = k.replace('model.', '')
+                mapping[mapping_reverse[k_new]] = k
+            else:
+                k_new = k
 
             # 主要变更就是默认有514个位置，舍弃前两个位置
             if 'embed_positions.weight' in k:
-                v = v[2:]
-                state_dict_new[k] = v
-            else:
-                state_dict_new[k] = v
-        del state_dict
-        return state_dict_new
-     
+                state_dict[k] = state_dict[k][2:]
+        self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)
+        return state_dict
+
     def variable_mapping(self):
         # 查看check_point发现'shared.weight'
         mapping = {
-            'encoder.embeddings.word_embeddings.weight': 'shared.weight' if self.tie_emb_src_tgt_weight else 'encoder.embed_tokens.weight',
+            'encoder.embeddings.word_embeddings.weight': 'encoder.embed_tokens.weight',
             'encoder.embeddings.position_embeddings.weight': 'encoder.embed_positions.weight',
             'encoder.embeddings.layerNorm.weight': 'encoder.layernorm_embedding.weight',
             'encoder.embeddings.layerNorm.bias': 'encoder.layernorm_embedding.bias',
-            'decoder.embeddings.word_embeddings.weight': 'shared.weight' if self.tie_emb_src_tgt_weight else 'decoder.embed_tokens.weight',
+            'decoder.embeddings.word_embeddings.weight': 'decoder.embed_tokens.weight',
             'decoder.embeddings.position_embeddings.weight': 'decoder.embed_positions.weight',
             'decoder.embeddings.layerNorm.weight': 'decoder.layernorm_embedding.weight',
             'decoder.embeddings.layerNorm.bias': 'decoder.layernorm_embedding.bias',

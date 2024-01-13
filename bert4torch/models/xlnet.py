@@ -59,19 +59,50 @@ class XLNET(Transformer_XL):
         variable = state_dict[name]
         if name in {f'{self.prefix}.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
             return self.load_embeddings(variable)
-        elif re.search('rel_attn\.(q|k|v|r)$', name):
-            return variable.reshape(variable.shape[0], -1).T
-        # elif re.search('rel_attn\.(o|seg_embed)$', name):
-        elif re.search('rel_attn\.(o)$', name):
-            return variable.reshape(variable.shape[0], -1)
         else:
             return variable
 
     def load_trans_ckpt(self, checkpoint):
-        return torch.load(checkpoint, map_location='cpu')
+        state_dict = torch.load(checkpoint, map_location='cpu')
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'{self.prefix}.layer.%d.' % i
+            mapping = {
+                    prefix_i + 'rel_attn.q': f'encoderLayer.{i}.multiHeadAttention.q.weight',
+                    prefix_i + 'rel_attn.k': f'encoderLayer.{i}.multiHeadAttention.k.weight',
+                    prefix_i + 'rel_attn.v': f'encoderLayer.{i}.multiHeadAttention.v.weight',
+                    prefix_i + 'rel_attn.r': f'encoderLayer.{i}.multiHeadAttention.r.weight',
+                    }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    variable = state_dict.pop(old_key)
+                    state_dict[new_key] = variable.reshape(variable.shape[0], -1).T
+
+            old_key = prefix_i + 'rel_attn.o'
+            if state_dict.get(old_key) is not None:
+                variable = state_dict.pop(old_key)
+                state_dict[f'encoderLayer.{i}.multiHeadAttention.o.weight'] = variable.reshape(variable.shape[0], -1)
+        return state_dict
 
     def save_trans_ckpt(self):
-        return self.state_dict()
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'{self.prefix}.layer.%d.' % i
+            mapping = {
+                    f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'rel_attn.q',
+                    f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'rel_attn.k',
+                    f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'rel_attn.v',
+                    f'encoderLayer.{i}.multiHeadAttention.r.weight': prefix_i + 'rel_attn.r',
+                    }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    variable = state_dict.pop(old_key)
+                    state_dict[new_key] = variable.T.reshape(-1, self.num_attention_heads, self.attention_head_size)
+
+            old_key = f'encoderLayer.{i}.multiHeadAttention.o.weight'
+            if state_dict.get(old_key) is not None:
+                variable = state_dict.pop(old_key)
+                state_dict[prefix_i + 'rel_attn.o'] = variable.reshape(-1, self.num_attention_heads, self.attention_head_size)
+        return state_dict
 
     def variable_mapping(self):
         mapping = {
@@ -81,11 +112,7 @@ class XLNET(Transformer_XL):
         }
         for i in range(self.num_hidden_layers):
             prefix_i = f'{self.prefix}.layer.%d.' % i
-            mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'rel_attn.q',
-                            f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'rel_attn.k',
-                            f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'rel_attn.v',
-                            f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'rel_attn.o',
-                            f'encoderLayer.{i}.multiHeadAttention.r.weight': prefix_i + 'rel_attn.r',
+            mapping.update({
                             f'encoderLayer.{i}.multiHeadAttention.r_r_bias': prefix_i + 'rel_attn.r_r_bias',
                             f'encoderLayer.{i}.multiHeadAttention.r_s_bias': prefix_i + 'rel_attn.r_s_bias',
                             f'encoderLayer.{i}.multiHeadAttention.r_w_bias': prefix_i + 'rel_attn.r_w_bias',
