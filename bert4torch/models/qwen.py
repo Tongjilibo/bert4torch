@@ -44,7 +44,8 @@ class Qwen(InternLM):
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
                     qkv.append(state_dict.pop(old_key.format(i, i_k)))
-                state_dict[new_key] = torch.cat(qkv)
+                if qkv:
+                    state_dict[new_key] = torch.cat(qkv)
         return state_dict
     
     def variable_mapping(self):

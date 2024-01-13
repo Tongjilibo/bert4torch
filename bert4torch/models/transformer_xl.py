@@ -173,13 +173,24 @@ class Transformer_XL(BERT):
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
         for i in range(self.num_hidden_layers):
-            old_key = f'transformer.layers.{i}.dec_attn.qkv_net.weight'
-            qkv_net = state_dict[old_key]
+            qkv_net = state_dict.pop(f'transformer.layers.{i}.dec_attn.qkv_net.weight')
             for k, v in zip(['q', 'k', 'v'], qkv_net.chunk(3, dim=0)):
                 state_dict[f'encoderLayer.{i}.multiHeadAttention.{k}.weight'] = v
-            state_dict.pop(old_key)
         return state_dict
     
+    def save_trans_ckpt(self):
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            qkv = []
+            old_key = 'encoderLayer.{}.multiHeadAttention.{}.weight'
+            for i_k in ['q', 'k', 'v']:
+                if old_key.format(i, i_k) in state_dict:
+                    qkv.append(state_dict.pop(old_key.format(i, i_k)))
+            if qkv:
+                state_dict[f'transformer.layers.{i}.dec_attn.qkv_net.weight'] = torch.cat(qkv)
+
+        return state_dict
+
     def variable_mapping(self):
         mapping = {
             'embeddings.emb_layers.0.weight': 'transformer.word_emb.emb_layers.0.weight',

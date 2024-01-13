@@ -69,7 +69,10 @@ class XLNET(Transformer_XL):
 
     def load_trans_ckpt(self, checkpoint):
         return torch.load(checkpoint, map_location='cpu')
-    
+
+    def save_trans_ckpt(self):
+        return self.state_dict()
+
     def variable_mapping(self):
         mapping = {
             'embeddings.weight': f'{self.prefix}.word_embedding.weight',

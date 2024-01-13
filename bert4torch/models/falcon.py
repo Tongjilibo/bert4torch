@@ -51,6 +51,30 @@ class Falcon(Decoder):
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
         return state_dict
+
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'transformer.h.{i}.self_attention.query_key_value.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'transformer.h.{i}.self_attention.query_key_value.bias'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                if not self.multi_query_attention:
+                    for i_k in ['q', 'k', 'v']:
+                        if old_key.format(i, i_k) in state_dict:
+                            qkv.append(state_dict.pop(old_key.format(i, i_k)).split(self.attention_head_size, 0))
+                    if qkv:
+                        state_dict[new_key] = torch.cat([torch.cat(i) for i in zip(*qkv)])
+                else:
+                    for i_k in ['q', 'k', 'v']:
+                        if old_key.format(i, i_k) in state_dict:
+                            qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                    if qkv:
+                        state_dict[new_key] = torch.cat(qkv)
+        return state_dict
     
     def variable_mapping(self):
         """权重映射字典，格式为{new_key: old_key}"""

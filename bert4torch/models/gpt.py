@@ -22,10 +22,8 @@ class GPT(Decoder):
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
         # CDial-GPT的[CLS]是0、[PAD]是1，不符合一般习惯，所以交换一下
-        old_key = 'transformer.tokens_embed.weight'
-        w = state_dict[old_key]
-        state_dict[f'embeddings.word_embeddings.weight'] = torch.cat([w[1:2], w[:1], w[2:]], axis=0)
-        state_dict.pop(old_key)
+        w = state_dict.pop('transformer.tokens_embed.weight')
+        state_dict['embeddings.word_embeddings.weight'] = torch.cat([w[1:2], w[:1], w[2:]], axis=0)
 
         for i in range(self.num_hidden_layers):
             # qkv
@@ -39,26 +37,47 @@ class GPT(Decoder):
                     is_weight = old_key.endswith('weight')
                     qkv = torch.chunk(qkv, 3, dim=1 if is_weight else 0)
                     for i_k, i_v in zip(['q', 'k', 'v'], qkv):
+                        # 对weight转置
                         state_dict[new_key.format(i, i_k)] = i_v.T if is_weight else i_v
                     state_dict.pop(old_key)
+            
+            mapping = {
+                f'transformer.h.{i}.attn.c_proj.weight': f'decoderLayer.{i}.multiHeadAttention.o.weight',  # hdsz-hdsz的全连接
+                f'transformer.h.{i}.mlp.c_fc.weight': f'decoderLayer.{i}.feedForward.intermediateDense.weight',  # feed forward 第一层
+                f'transformer.h.{i}.mlp.c_proj.weight': f'decoderLayer.{i}.feedForward.outputDense.weight'  # feed forward 第二层
+            }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    state_dict[new_key] = state_dict.pop(old_key).T
+        return state_dict
 
-            # hdsz-hdsz的全连接
-            old_key = f'transformer.h.{i}.attn.c_proj.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.multiHeadAttention.o.weight'] = w.T
-                state_dict.pop(old_key)
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        w = state_dict.pop('embeddings.word_embeddings.weight')
+        state_dict['transformer.tokens_embed.weight'] = torch.cat([w[1:2], w[:1], w[2:]], axis=0)
 
-            # feed forward 第一层
-            old_key = f'transformer.h.{i}.mlp.c_fc.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.feedForward.intermediateDense.weight'] = w.T
-                state_dict.pop(old_key)
-                
-            # feed forward 第二层
-            old_key = f'transformer.h.{i}.mlp.c_proj.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
-                state_dict.pop(old_key)
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'transformer.h.{i}.attn.c_attn.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'transformer.h.{i}.attn.c_attn.bias'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    weight_bias = state_dict.pop(old_key.format(i, i_k))
+                    qkv.append(weight_bias.T if old_key.endswith('weight') else weight_bias)
+                if qkv:
+                    state_dict[new_key] = torch.cat(qkv, dim=1) if old_key.endswith('weight') else torch.cat(qkv)
+            
+            mapping = {
+                f'decoderLayer.{i}.multiHeadAttention.o.weight': f'transformer.h.{i}.attn.c_proj.weight',  # hdsz-hdsz的全连接
+                f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'transformer.h.{i}.mlp.c_fc.weight',  # feed forward 第一层
+                f'decoderLayer.{i}.feedForward.outputDense.weight': f'transformer.h.{i}.mlp.c_proj.weight'  # feed forward 第二层
+            }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    state_dict[new_key] = state_dict.pop(old_key).T
 
         return state_dict
     
@@ -115,23 +134,40 @@ class GPT2(Decoder):
                         state_dict[new_key.format(i, i_k)] = i_v.T if is_weight else i_v
                     state_dict.pop(old_key)
 
-            # hdsz-hdsz的全连接
-            old_key = f'transformer.h.{i}.attn.c_proj.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.multiHeadAttention.o.weight'] = w.T
-                state_dict.pop(old_key)
+            mapping = {
+                f'transformer.h.{i}.attn.c_proj.weight': f'decoderLayer.{i}.multiHeadAttention.o.weight',  # hdsz-hdsz的全连接
+                f'transformer.h.{i}.mlp.c_fc.weight': f'decoderLayer.{i}.feedForward.intermediateDense.weight',  # feed forward 第一层
+                f'transformer.h.{i}.mlp.c_proj.weight': f'decoderLayer.{i}.feedForward.outputDense.weight'  # feed forward 第二层
+            }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    state_dict[new_key] = state_dict.pop(old_key).T
+        return state_dict
 
-            # feed forward 第一层
-            old_key = f'transformer.h.{i}.mlp.c_fc.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.feedForward.intermediateDense.weight'] = w.T
-                state_dict.pop(old_key)
-                
-            # feed forward 第二层
-            old_key = f'transformer.h.{i}.mlp.c_proj.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
-                state_dict.pop(old_key)
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'transformer.h.{i}.attn.c_attn.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'transformer.h.{i}.attn.c_attn.bias'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    weight_bias = state_dict.pop(old_key.format(i, i_k))
+                    qkv.append(weight_bias.T if old_key.endswith('weight') else weight_bias)
+                if qkv:
+                    state_dict[new_key] = torch.cat(qkv, dim=1) if old_key.endswith('weight') else torch.cat(qkv)
+            
+            mapping = {
+                f'decoderLayer.{i}.multiHeadAttention.o.weight': f'transformer.h.{i}.attn.c_proj.weight',  # hdsz-hdsz的全连接
+                f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'transformer.h.{i}.mlp.c_fc.weight',  # feed forward 第一层
+                f'decoderLayer.{i}.feedForward.outputDense.weight': f'transformer.h.{i}.mlp.c_proj.weight'  # feed forward 第二层
+            }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    state_dict[new_key] = state_dict.pop(old_key).T
 
         return state_dict
     
@@ -191,23 +227,42 @@ class GPT2_ML(Decoder):
                     state_dict[new_key.format(i, i_k)] = i_v.T if is_weight else i_v
                 state_dict.pop(old_key)
             
-            # hdsz-hdsz的全连接
-            old_key = f'h.{i}.attn.c_proj.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.multiHeadAttention.o.weight'] = w.T
-                state_dict.pop(old_key)
+            mapping = {
+                f'h.{i}.attn.c_proj.weight': f'decoderLayer.{i}.multiHeadAttention.o.weight',  # hdsz-hdsz的全连接
+                f'h.{i}.mlp.c_fc.weight': f'decoderLayer.{i}.feedForward.intermediateDense.weight',  # feed forward 第一层
+                f'h.{i}.mlp.c_proj.weight': f'decoderLayer.{i}.feedForward.outputDense.weight'  # feed forward 第二层
+            }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    state_dict[new_key] = state_dict.pop(old_key).T
 
-            # feed forward 第一层
-            old_key = f'h.{i}.mlp.c_fc.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.feedForward.intermediateDense.weight'] = w.T
-                state_dict.pop(old_key)
-                
-            # feed forward 第二层
-            old_key = f'h.{i}.mlp.c_proj.weight'
-            if (w := state_dict.get(old_key)) is not None:
-                state_dict[f'decoderLayer.{i}.feedForward.outputDense.weight'] = w.T
-                state_dict.pop(old_key)
+        return state_dict
+
+    def save_trans_ckpt(self):
+        '''把q,k,v合并成qkv, 以便于transformers包加载'''
+        state_dict = self.state_dict()
+        for i in range(self.num_hidden_layers):
+            mapping = {
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'h.{i}.attn.c_attn.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'h.{i}.attn.c_attn.bias'
+            }
+            for old_key, new_key in mapping.items():
+                qkv = []
+                for i_k in ['q', 'k', 'v']:
+                    weight_bias = state_dict.pop(old_key.format(i, i_k))
+                    qkv.append(weight_bias.T if old_key.endswith('weight') else weight_bias)
+                if qkv:
+                    state_dict[new_key] = torch.cat(qkv, dim=1) if old_key.endswith('weight') else torch.cat(qkv)
+            
+            mapping = {
+                f'transformer.h.{i}.attn.c_proj.weight': f'decoderLayer.{i}.multiHeadAttention.o.weight',  # hdsz-hdsz的全连接
+                f'transformer.h.{i}.mlp.c_fc.weight': f'decoderLayer.{i}.feedForward.intermediateDense.weight',  # feed forward 第一层
+                f'transformer.h.{i}.mlp.c_proj.weight': f'decoderLayer.{i}.feedForward.outputDense.weight'  # feed forward 第二层
+            }
+            for old_key, new_key in mapping.items():
+                if state_dict.get(old_key) is not None:
+                    state_dict[new_key] = state_dict.pop(old_key).T
+
         return state_dict
     
     def variable_mapping(self):

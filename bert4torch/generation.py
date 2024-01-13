@@ -214,7 +214,8 @@ class AutoRegressiveDecoder(object):
         elif self.max_new_tokens is not None:
             max_new_tokens = self.max_new_tokens
         elif self.max_new_tokens is None:
-            max_new_tokens = max(0, self.max_length-self.input_seqlen.item())
+            # 这里用max是因为batch_generate时候self.input_seqlen是多个
+            max_new_tokens = max(0, self.max_length-self.input_seqlen.max().item())
 
         if (states is not None) and (states.get('past_key_values') is not None):
             past_key_values_lenghth = states.get('past_key_values')[0][0].shape[2]
