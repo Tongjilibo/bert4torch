@@ -7,7 +7,12 @@ from torch.nn.utils.rnn import pad_sequence
 from torch4keras.snippets import *
 import random
 from pathlib import Path
+from .import_utils import is_safetensors_available
 
+if is_safetensors_available():
+    from safetensors import safe_open
+    from safetensors.torch import load_file as safe_load_file
+    from safetensors.torch import save_file as safe_save_file
 
 is_py2 = six.PY2
 
@@ -402,3 +407,34 @@ def snapshot_download(
         if os.path.exists(path + ".lock"):
             os.remove(path + ".lock")
     return storage_folder
+
+
+def load(checkpoint:str, load_safetensors:bool=False):
+    '''加载ckpt，支持torch.load和safetensors
+    '''
+    if load_safetensors or checkpoint.endswith(".safetensors"):
+        # 加载safetensors格式
+        with safe_open(checkpoint, framework="pt") as f:
+            metadata = f.metadata()
+        if metadata.get("format") not in ["pt", "tf", "flax"]:
+            raise OSError(
+                f"The safetensors archive passed at {checkpoint} does not contain the valid metadata. Make sure "
+                "you save your model with the `save_pretrained` method."
+            )
+        elif metadata["format"] != "pt":
+            raise NotImplementedError(
+                f"Conversion from a {metadata['format']} safetensors archive to PyTorch is not implemented yet."
+            )
+        return safe_load_file(checkpoint)
+    else:
+        # 正常加载pytorch_model.bin
+        return torch.load(checkpoint, map_location='cpu')
+
+
+def save(state_dict:dict, save_path:str, save_safetensors:bool=False):
+    '''保存ckpt，支持torch.save和safetensors
+    '''
+    if save_safetensors or save_path.endswith('.safetensors'):
+        safe_save_file(state_dict, save_path, metadata={"format": "pt"})
+    else:
+        torch.save(state_dict, save_path)

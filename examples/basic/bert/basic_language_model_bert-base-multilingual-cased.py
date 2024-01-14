@@ -28,6 +28,7 @@ print('====transformers output====')
 print(predicted_token, logit_prob[predicted_index])
 
 
+# ==========================bert4torch调用==========================
 # 建立分词器
 model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
 
@@ -36,4 +37,5 @@ model.eval()
 with torch.no_grad():
     _, probas = model([encoded_input['input_ids'], encoded_input['token_type_ids']])
     result = torch.argmax(probas[0, mask_pos], dim=-1).numpy()
+    print('====bert4torch output====')
     print(tokenizer.decode([result]))

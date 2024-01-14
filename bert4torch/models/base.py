@@ -6,18 +6,13 @@ import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model
-from bert4torch.snippets import take_along_dim, get_parameter_device, is_safetensors_available
+from bert4torch.snippets import take_along_dim, get_parameter_device, load, save
 import warnings
+from typing import Union, Optional
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
 import copy
-
-
-if is_safetensors_available():
-    from safetensors import safe_open
-    from safetensors.torch import load_file as safe_load_file
-    from safetensors.torch import save_file as safe_save_file
 
 
 class BERT_BASE(nn.Module):
@@ -207,33 +202,16 @@ class BERT_BASE(nn.Module):
 
         return embeddings
 
-    def load_trans_ckpt(self, checkpoint):
+    def load_trans_ckpt(self, checkpoint:str):
         """加载ckpt并转换
            1. 支持.safe_tensors + .bin
            2. 方便后续各个模型继承并做一些预处理, 如对qkv权重进行split
         """
-        if checkpoint.endswith(".safetensors"):
-            # 加载safetensors格式
-            with safe_open(checkpoint, framework="pt") as f:
-                metadata = f.metadata()
-            if metadata.get("format") not in ["pt", "tf", "flax"]:
-                raise OSError(
-                    f"The safetensors archive passed at {checkpoint} does not contain the valid metadata. Make sure "
-                    "you save your model with the `save_pretrained` method."
-                )
-            elif metadata["format"] != "pt":
-                raise NotImplementedError(
-                    f"Conversion from a {metadata['format']} safetensors archive to PyTorch is not implemented yet."
-                )
-            return safe_load_file(checkpoint)
-        elif isinstance(checkpoint, str):
-            # 正常加载pytorch_model.bin
-            return torch.load(checkpoint, map_location='cpu')
-        raise ValueError('Args `checkpoint_path` only support `str` format')
+        return load(checkpoint)
 
-    def load_weights_from_pytorch_checkpoint(self, checkpoint, mapping=None, skip_init=False, device_map=None, 
-                                             torch_dtype=None, verbose=1):
-        """根据mapping从checkpoint加载权重"""
+    def from_pretrained_single(self, checkpoint:str=None, mapping:dict=None, skip_init:bool=False, 
+                               device_map:dict=None, torch_dtype=None, verbose=1):
+        """加载预训练模型(单个权重文件)，根据mapping从checkpoint加载权重"""
         # 加载模型文件, 并可专业些转换
         ckpt_state_dict = self.load_trans_ckpt(checkpoint)
         
@@ -284,19 +262,9 @@ class BERT_BASE(nn.Module):
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
-    @staticmethod
-    def _print_mismatch_keys(missing_keys, over_keys, verbose):
-        """打印mismatch keys"""
-        if verbose != 0:
-            for key in missing_keys:  # model中有，但是ckpt中不存在
-                log_warn(f'`{key}` not found in pretrained checkpoints')
-        if verbose > 1:
-            for key in over_keys:  # ckpt中存在，但是model中不存在
-                log_warn(f'`{key}` only exists in pretrained checkpoints but not in model parameters')
-
-    def load_weights_from_pytorch_checkpoints(self, checkpoints, mapping=None, skip_init=False, device_map=None, 
-                                              torch_dtype=None, verbose=1):
-        """逐个ckpt加载"""
+    def from_pretrained(self, checkpoints:Union[str,list], mapping:dict=None, skip_init:bool=False, 
+                        device_map:dict=None, torch_dtype=None, verbose=1):
+        """加载预训练模型(单个/多个ckpt)"""
         # 文件夹，则默认加载所有以.bin结尾的权重
         if isinstance(checkpoints, str) and os.path.isdir(checkpoints):
             for postfix in ['.bin', '.safetensors']:  # 优先查找bin格式权重
@@ -312,8 +280,8 @@ class BERT_BASE(nn.Module):
 
         # 单个权重文件
         if isinstance(checkpoints, str):
-            self.load_weights_from_pytorch_checkpoint(checkpoints, mapping=mapping, skip_init=skip_init, 
-                                                      device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+            self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 
+                                        device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
             all_missing_keys, all_over_keys = [], []
@@ -321,8 +289,8 @@ class BERT_BASE(nn.Module):
             for checkpoint in tqdm_checkpoints:
                 tqdm_checkpoints.set_description(f'Loading {os.path.basename(checkpoint)}')
                 missing_keys, over_keys, needed_keys = \
-                    self.load_weights_from_pytorch_checkpoint(checkpoint, mapping=mapping, skip_init=skip_init, 
-                                                              device_map=device_map, torch_dtype=torch_dtype, verbose=0)
+                    self.from_pretrained_single(checkpoint, mapping=mapping, skip_init=skip_init, 
+                                                device_map=device_map, torch_dtype=torch_dtype, verbose=0)
                 all_missing_keys.extend(missing_keys)
                 all_over_keys.extend(over_keys)
                 if checkpoint == checkpoints[-1]:
@@ -335,6 +303,16 @@ class BERT_BASE(nn.Module):
 
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
+        
+    @staticmethod
+    def _print_mismatch_keys(missing_keys, over_keys, verbose):
+        """打印mismatch keys"""
+        if verbose != 0:
+            for key in missing_keys:  # model中有，但是ckpt中不存在
+                log_warn(f'`{key}` not found in pretrained checkpoints')
+        if verbose > 1:
+            for key in over_keys:  # ckpt中存在，但是model中不存在
+                log_warn(f'`{key}` only exists in pretrained checkpoints but not in model parameters')
 
     def save_trans_ckpt(self):
         """对state_dict进行转换
@@ -343,20 +321,43 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, checkpoint_path):
+    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None):
         '''按照预训练模型的key来保存模型
            1. 按照variable_mapping()逆向来保存权重
-           2. 各个模型存在load_trans_ckpt()的也要逆向过来 
+           2. 各个模型存在load_trans_ckpt()的也要逆向过来
+
+           :param checkpoint_path: str, 保存的文件路径，或文件夹
         '''
-        state_dict_raw = {}
         mapping = self.variable_mapping()
-        for k, v in self.save_trans_ckpt().items():
-            k = mapping.get(k, k)
-            state_dict_raw[k] = v
+        state_dict = self.save_trans_ckpt()
+        for k in list(state_dict.keys()):
+            state_dict[mapping.get(k, k)] = state_dict.pop(k)
         
-        save_dir = os.path.dirname(checkpoint_path)
-        os.makedirs(save_dir, exist_ok=True)
-        torch.save(state_dict_raw, checkpoint_path)        
+        # 保存为单文件
+        if weight_map is None:
+            # if os.path.isdir(checkpoint_path):
+            #     checkpoint_path = os.path.join(checkpoint_path, 'pytorch_model.bin')
+            save_dir = os.path.dirname(checkpoint_path)
+            os.makedirs(save_dir, exist_ok=True)
+            save(state_dict, checkpoint_path)
+        # 保存为多个文件
+        else:
+            # if os.path.isfile(checkpoint_path):
+            #     checkpoint_path = os.path.dirname(checkpoint_path)
+            os.makedirs(checkpoint_path, exist_ok=True)
+            ckpt2param = dict()
+            for param_name, save_file in weight_map.items():
+                if save_file not in ckpt2param:
+                    ckpt2param[save_file] = set([param_name])
+                else:
+                    ckpt2param[save_file].add(param_name)
+            
+            for save_file, param_names in ckpt2param.items():
+                single_ckpt = {}
+                for k in list(state_dict.keys()):
+                    if k in param_names:
+                        single_ckpt[k] = state_dict.pop(k)
+                save(single_ckpt, os.path.join(checkpoint_path, save_file))
         
     def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError
