@@ -8,6 +8,8 @@ class BART(Transformer):
     def __init__(self, *args, **kwargs):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
+        self.postion_offset = 2
+        kwargs['max_position'] = kwargs['max_position'] + self.postion_offset  # bart有个值为2的offset
         super(BART, self).__init__(*args, **kwargs)
 
     def load_variable(self, state_dict, name):
@@ -40,8 +42,15 @@ class BART(Transformer):
 
             # 主要变更就是默认有514个位置，舍弃前两个位置
             if 'embed_positions.weight' in k:
-                state_dict[k] = state_dict[k][2:]
+                state_dict[k] = torch.cat([state_dict[k][self.postion_offset:], state_dict[k][:self.postion_offset]])
         self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)
+        return state_dict
+
+    def save_trans_ckpt(self):
+        state_dict = self.state_dict()
+        for k in list(state_dict.keys()):
+            if 'embeddings.position_embeddings.weight' in k:
+                state_dict[k] = torch.cat([state_dict[k][-self.postion_offset:], state_dict[k][:-self.postion_offset]])
         return state_dict
 
     def variable_mapping(self):

@@ -141,6 +141,7 @@ class Transformer(BERT_BASE):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
+        self.max_position = kwargs['max_position']
         self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
         self.is_encoder_decoder = True
         self.prefix = 'transformer'
