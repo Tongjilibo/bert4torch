@@ -1,3 +1,4 @@
+'''测试bert和transformer的结果比对'''
 import pytest
 import torch
 from bert4torch.models import build_transformer_model

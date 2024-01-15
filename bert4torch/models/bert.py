@@ -331,7 +331,7 @@ class BERT(BERT_BASE):
         elif name == f'{self.prefix}.embeddings.position_embeddings.weight':
             return self.load_pos_embeddings(variable)
         elif name == 'cls.seq_relationship.weight':
-            return variable.T
+            return variable
         else:
             return variable
 
