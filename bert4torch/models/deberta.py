@@ -27,6 +27,15 @@ class DebertaV2(BERT):
             self.encoderLayer[i].multiHeadAttention.layernorm.weight = self.encoderLayer[0].multiHeadAttention.layernorm.weight
             self.encoderLayer[i].multiHeadAttention.layernorm.bias = self.encoderLayer[0].multiHeadAttention.layernorm.bias
 
+    def save_trans_ckpt(self):
+        state_dict = self.state_dict()
+        for i in range(1, self.num_hidden_layers):
+            state_dict.pop(f'encoderLayer.{i}.multiHeadAttention.relative_positions_encoding.weight')
+            state_dict.pop(f'encoderLayer.{i}.multiHeadAttention.relative_positions.relative_position')
+            state_dict.pop(f'encoderLayer.{i}.multiHeadAttention.layernorm.weight')
+            state_dict.pop(f'encoderLayer.{i}.multiHeadAttention.layernorm.bias')
+        return state_dict
+    
     def apply_main_layers(self, **model_kwargs):
         """DebertaV2: 主要区别是第0层后, 会通过卷积层"""
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出

@@ -111,6 +111,7 @@ class ChatCli(Chat):
                 previous_history, history = [], []
                 if 'states' in self.generation_config:
                     self.generation_config.pop('states')
+                cuda_empty_cache()
                 os.system(clear_command)
                 print(self.init_str)
                 continue
@@ -159,8 +160,10 @@ class ChatWebGradio(Chat):
     def reset_user_input(self):
         return self.gr.update(value='')
 
-    @staticmethod
-    def reset_state():
+    def reset_state(self):
+        if 'states' in self.generation_config:
+            self.generation_config.pop('states')
+        cuda_empty_cache()  # 清理显存
         return [], []
 
     def set_generation_config(self, max_length, top_p, temperature, repetition_penalty):
@@ -256,8 +259,8 @@ class ChatWebStreamlit(Chat):
     def run(self):
         if "history" not in st.session_state:
             st.session_state.history = []
-        if "past_key_values" not in st.session_state:
-            st.session_state.past_key_values = None
+        if "states" not in st.session_state:
+            st.session_state.states = None
 
         max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
         top_p = st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
@@ -266,7 +269,7 @@ class ChatWebStreamlit(Chat):
         buttonClean = st.sidebar.button("清理会话历史", key="clean")
         if buttonClean:
             st.session_state.history = []
-            st.session_state.past_key_values = None
+            st.session_state.states = None
             cuda_empty_cache()
             st.rerun()
 
@@ -286,16 +289,18 @@ class ChatWebStreamlit(Chat):
         if prompt_text:
             input_placeholder.markdown(prompt_text)
             history = st.session_state.history
-            past_key_values = st.session_state.past_key_values
+            states = st.session_state.states
             self.generation_config['max_length'] = max_length
             self.generation_config['top_p'] = top_p
             self.generation_config['temperature'] = temperature
+            self.generation_config['states'] = states
 
             input_text = self.build_prompt(prompt_text, history)
             for response in self.model.stream_generate(input_text, **self.generation_config):
+                response = self.process_response(response, history)
                 message_placeholder.markdown(response)
             st.session_state.history = history + [(prompt_text, response)]
-            st.session_state.past_key_values = past_key_values
+            st.session_state.states = self.generation_config.get('states')
 
 
 def extend_with_web_streamlit(InputModel):

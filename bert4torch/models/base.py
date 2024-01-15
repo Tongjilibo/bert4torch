@@ -321,29 +321,25 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None):
+    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None):
         '''按照预训练模型的key来保存模型
            1. 按照variable_mapping()逆向来保存权重
            2. 各个模型存在load_trans_ckpt()的也要逆向过来
 
            :param checkpoint_path: str, 保存的文件路径，或文件夹
         '''
-        mapping = self.variable_mapping()
+        mapping = mapping or self.variable_mapping()
         state_dict = self.save_trans_ckpt()
         for k in list(state_dict.keys()):
             state_dict[mapping.get(k, k)] = state_dict.pop(k)
         
         # 保存为单文件
         if weight_map is None:
-            # if os.path.isdir(checkpoint_path):
-            #     checkpoint_path = os.path.join(checkpoint_path, 'pytorch_model.bin')
             save_dir = os.path.dirname(checkpoint_path)
             os.makedirs(save_dir, exist_ok=True)
             save(state_dict, checkpoint_path)
         # 保存为多个文件
         else:
-            # if os.path.isfile(checkpoint_path):
-            #     checkpoint_path = os.path.dirname(checkpoint_path)
             os.makedirs(checkpoint_path, exist_ok=True)
             ckpt2param = dict()
             for param_name, save_file in weight_map.items():
