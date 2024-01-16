@@ -13,6 +13,7 @@ from torch4keras.model import *
 from tqdm import tqdm
 import gc
 import copy
+from collections import Counter
 
 
 class BERT_BASE(nn.Module):
@@ -224,19 +225,24 @@ class BERT_BASE(nn.Module):
             if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
                 mapping.update({layer_name: layer_name})
 
-        state_dict_new = {}  # 用new_key作为key整理后的权重字典
-        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
+        ckpt_keys = set(ckpt_state_dict.keys())
         over_keys = set(ckpt_state_dict.keys())  # ckpt-model
+        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
         needed_keys = []  # 所需要的全部的old_keys名
         model_state_dict = self.state_dict()  # 模型的字典
+        mapping_count = Counter(mapping.values())
         for new_key, old_key in mapping.items():
             # 1. mapping和model不一致则忽略，如with_nsp=False时候在mapping中有但是model中没有
             if new_key not in model_state_dict:
                 continue
 
             # 2. model中有，且ckpt中有，正常加载
-            if old_key in ckpt_state_dict:
-                state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key)
+            if old_key in ckpt_keys:
+                ckpt_state_dict[new_key] = self.load_variable(ckpt_state_dict, old_key)
+                mapping_count[old_key] -= 1
+                if mapping_count.get(old_key) == 0:
+                    ckpt_state_dict.pop(old_key)
+                
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
                 if old_key in over_keys:
                     over_keys.remove(old_key)
@@ -247,18 +253,15 @@ class BERT_BASE(nn.Module):
             needed_keys.append(old_key)
         
         over_keys = list(over_keys)
-        del ckpt_state_dict
-        gc.collect()
-        
         self._print_mismatch_keys(missing_keys, over_keys, verbose)  # 打印mixmatch keys
 
         # 将ckpt的权重load到模型结构中
         if not skip_init:
-            self.load_state_dict(state_dict_new, strict=False)
+            self.load_state_dict(ckpt_state_dict, strict=False)
         else:
-            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, torch_dtype=torch_dtype)
+            load_state_dict_into_meta_model(self, ckpt_state_dict, device_map=device_map, torch_dtype=torch_dtype)
             
-        del state_dict_new
+        del ckpt_state_dict
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
