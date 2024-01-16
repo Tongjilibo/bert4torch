@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model
-from bert4torch.snippets import take_along_dim, get_parameter_device, load, save
+from bert4torch.snippets import take_along_dim, get_parameter_device, load_checkpoint, save_checkpoint
 import warnings
 from typing import Union, Optional
 from torch4keras.model import *
@@ -208,7 +208,7 @@ class BERT_BASE(nn.Module):
            1. 支持.safe_tensors + .bin
            2. 方便后续各个模型继承并做一些预处理, 如对qkv权重进行split
         """
-        return load(checkpoint)
+        return load_checkpoint(checkpoint)
 
     def from_pretrained_single(self, checkpoint:str=None, mapping:dict=None, skip_init:bool=False, 
                                device_map:dict=None, torch_dtype=None, verbose=1):
@@ -225,24 +225,19 @@ class BERT_BASE(nn.Module):
             if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
                 mapping.update({layer_name: layer_name})
 
-        ckpt_keys = set(ckpt_state_dict.keys())
-        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
+        state_dict_new = {}  # 用new_key作为key整理后的权重字典
         missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
+        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
         needed_keys = []  # 所需要的全部的old_keys名
         model_state_dict = self.state_dict()  # 模型的字典
-        mapping_count = Counter(mapping.values())
         for new_key, old_key in mapping.items():
             # 1. mapping和model不一致则忽略，如with_nsp=False时候在mapping中有但是model中没有
             if new_key not in model_state_dict:
                 continue
 
             # 2. model中有，且ckpt中有，正常加载
-            if old_key in ckpt_keys:
-                ckpt_state_dict[new_key] = self.load_variable(ckpt_state_dict, old_key)
-                mapping_count[old_key] -= 1
-                if mapping_count.get(old_key) == 0:
-                    ckpt_state_dict.pop(old_key)
-                
+            if old_key in ckpt_state_dict:
+                state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key)
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
                 if old_key in over_keys:
                     over_keys.remove(old_key)
@@ -253,15 +248,18 @@ class BERT_BASE(nn.Module):
             needed_keys.append(old_key)
         
         over_keys = list(over_keys)
+        del ckpt_state_dict
+        gc.collect()
+        
         self._print_mismatch_keys(missing_keys, over_keys, verbose)  # 打印mixmatch keys
 
         # 将ckpt的权重load到模型结构中
         if not skip_init:
-            self.load_state_dict(ckpt_state_dict, strict=False)
+            self.load_state_dict(state_dict_new, strict=False)
         else:
-            load_state_dict_into_meta_model(self, ckpt_state_dict, device_map=device_map, torch_dtype=torch_dtype)
+            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, torch_dtype=torch_dtype)
             
-        del ckpt_state_dict
+        del state_dict_new
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
@@ -324,7 +322,7 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk=True):
+    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True):
         '''按照预训练模型的key来保存模型, 可供transformers包加载
            1. 按照variable_mapping()逆向来保存权重
            2. 各个模型存在save_trans_ckpt()的也要执行, 如部分大模型需要把q,k,v合并为qkv
@@ -334,6 +332,7 @@ class BERT_BASE(nn.Module):
                               可`from bert4torch.snippets import JsonConfig
                                  weight_map = JsonConfig(config_path).weight_map`来加载
            :param mapping: dict, 一般来说为None, 也允许用户自行指定映射关系（一般不需要）
+           :param write_to_disk: bool, 是否写入硬盘，一般都是True, 该参数主要是为了在Trainer().save_pretrained
         '''
         mapping = mapping or self.variable_mapping()
         state_dict = self.save_trans_ckpt()
@@ -342,16 +341,13 @@ class BERT_BASE(nn.Module):
         
         # 保存为单文件
         if weight_map is None:
-            save_dir = os.path.dirname(checkpoint_path)
-            os.makedirs(save_dir, exist_ok=True)
             if write_to_disk:
-                save(state_dict, checkpoint_path)
+                save_checkpoint(state_dict, checkpoint_path)
             else:
                 return state_dict
         
         # 保存为多个文件
         else:
-            os.makedirs(checkpoint_path, exist_ok=True)
             ckpt2param = dict()
             for param_name, save_file in weight_map.items():
                 if save_file not in ckpt2param:
@@ -364,7 +360,7 @@ class BERT_BASE(nn.Module):
                 for k in list(state_dict.keys()):
                     if k in param_names:
                         single_ckpt[k] = state_dict.pop(k)
-                save(single_ckpt, os.path.join(checkpoint_path, save_file))
+                save_checkpoint(single_ckpt, os.path.join(checkpoint_path, save_file))
         
     def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError
