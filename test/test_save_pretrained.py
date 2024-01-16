@@ -71,7 +71,7 @@ def test_encoder_model(model_dir):
     print(predicted_token, logit_prob[predicted_index])
     
     if os.path.exists(root_model_path):
-         shutil.rmtree(root_model_path)
+        shutil.rmtree(root_model_path)
 
 
 if __name__=='__main__':

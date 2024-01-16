@@ -321,12 +321,16 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None):
-        '''按照预训练模型的key来保存模型
+    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk=True):
+        '''按照预训练模型的key来保存模型, 可供transformers包加载
            1. 按照variable_mapping()逆向来保存权重
-           2. 各个模型存在load_trans_ckpt()的也要逆向过来
+           2. 各个模型存在save_trans_ckpt()的也要执行, 如部分大模型需要把q,k,v合并为qkv
 
            :param checkpoint_path: str, 保存的文件路径，或文件夹
+           :param weight_map: dict, 部分大模型会有pytorch_model.bin.index.json文件, 对应其中的weight_map字段
+                              可`from bert4torch.snippets import JsonConfig
+                                 weight_map = JsonConfig(config_path).weight_map`来加载
+           :param mapping: dict, 一般来说为None, 也允许用户自行指定映射关系（一般不需要）
         '''
         mapping = mapping or self.variable_mapping()
         state_dict = self.save_trans_ckpt()
@@ -337,7 +341,11 @@ class BERT_BASE(nn.Module):
         if weight_map is None:
             save_dir = os.path.dirname(checkpoint_path)
             os.makedirs(save_dir, exist_ok=True)
-            save(state_dict, checkpoint_path)
+            if write_to_disk:
+                save(state_dict, checkpoint_path)
+            else:
+                return state_dict
+        
         # 保存为多个文件
         else:
             os.makedirs(checkpoint_path, exist_ok=True)

@@ -1,3 +1,4 @@
+from typing import Union
 from torch4keras.model import *
 from bert4torch.snippets import set_default_torch_dtype
 from bert4torch.models.albert import *
@@ -24,7 +25,8 @@ from bert4torch.models.internlm import *
 from bert4torch.models.falcon import *
 
 
-def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', add_trainer=False, verbose=1, **kwargs):
+def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', 
+                            add_trainer=False, verbose=1, **kwargs) -> Union[BERT_BASE, BERT, Transformer]:
     """根据配置文件构建模型, 可选加载checkpoint权重
 
     :param config_path: str, 模型的config文件地址

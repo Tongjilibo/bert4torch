@@ -14,6 +14,6 @@ setup(
     license='MIT Licence',
     url='https://github.com/Tongjilibo/bert4torch',
     author='Tongjilibo',
-    install_requires=['numpy', 'tqdm', 'torch>1.6', 'torch4keras==0.1.7'],
+    install_requires=['numpy', 'tqdm', 'torch>1.6', 'torch4keras==0.1.8'],
     packages=find_packages()
 )
