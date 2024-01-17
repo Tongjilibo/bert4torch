@@ -49,28 +49,39 @@ def test_encoder_model(model_dir):
     root_model_path = './pytorch_model'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     config_path, checkpoint_path, configs = get_configs(model_dir)
-
-    # =======================保存预训练的权重=======================
-    model = build_transformer_model(config_path, checkpoint_path, **configs).to(device)
-    shutil.copytree(model_dir, root_model_path, ignore=_ignore_copy_files)
-    model.save_pretrained(os.path.join(root_model_path, 'pytorch_model.bin'))
-
-    # =======================transformer加载和预测=======================
-    tokenizer = AutoTokenizer.from_pretrained(root_model_path)
-    model = AutoModelForMaskedLM.from_pretrained(root_model_path)
-
     inputtext = "今天[MASK]情很好"
 
-    encoded_input = tokenizer(inputtext, return_tensors='pt')
+    tokenizer = AutoTokenizer.from_pretrained(os.path.dirname(checkpoint_path))
+    encoded_input = tokenizer(inputtext, return_tensors='pt').to(device)
+    # =======================bert4torch加载和预测=======================
+    model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **configs).to(device)
     maskpos = encoded_input['input_ids'][0].tolist().index(tokenizer.mask_token_id)
+    prediction_scores = model.predict(**encoded_input)['mlm_scores']
+    predicted_index = torch.argmax(prediction_scores[0, maskpos]).item()
+    predicted_token1 = tokenizer.convert_ids_to_tokens([predicted_index])[0]
+
+    # =======================保存预训练的权重=======================
+    shutil.copytree(model_dir, root_model_path, ignore=_ignore_copy_files)
+    checkpoint_path = os.path.join(root_model_path, 'pytorch_model.bin')
+    model.save_pretrained(checkpoint_path)
+
+    # =======================用保存预训练的权重bert4torch推理=======================
+    model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **configs).to(device)
+    maskpos = encoded_input['input_ids'][0].tolist().index(tokenizer.mask_token_id)
+    prediction_scores = model.predict(**encoded_input)['mlm_scores']
+    predicted_index = torch.argmax(prediction_scores[0, maskpos]).item()
+    predicted_token2 = tokenizer.convert_ids_to_tokens([predicted_index])[0]
+
+    # =======================transformer加载和预测=======================
+    model = AutoModelForMaskedLM.from_pretrained(root_model_path).to(device)
     prediction_scores = model(**encoded_input)['logits']
 
-    logit_prob = softmax(prediction_scores[0, maskpos],dim=-1).data.tolist()
     predicted_index = torch.argmax(prediction_scores[0, maskpos]).item()
-    predicted_token = tokenizer.convert_ids_to_tokens([predicted_index])[0]
-    print(f'{model_dir}'.center(100, '='))
-    print(predicted_token, logit_prob[predicted_index])
-    
+    predicted_token3 = tokenizer.convert_ids_to_tokens([predicted_index])[0]
+
+    assert predicted_token1 == predicted_token2
+    assert predicted_token2 == predicted_token3
+
     if os.path.exists(root_model_path):
         shutil.rmtree(root_model_path)
 
