@@ -61,6 +61,12 @@ for text in texts:
     print(text, ' -> ', autotitle.generate(text, topk=topk))
 
 
+print('==============默认batch 无cache================')
+results = autotitle.generate(texts, topk=topk)
+for text, result in zip(texts, results):
+    print(text, ' -> ', result)
+
+
 print('==============默认单条cache================')
 autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
                               maxlen=maxlen, default_rtype='logits', use_states=True)
@@ -68,25 +74,13 @@ for text in texts:
     print(text, ' -> ', autotitle.generate(text, topk=topk))
 
 
-print('==============默认batch 无cache================')
-autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
-                              maxlen=maxlen, default_rtype='logits', use_states=False)
-results = autotitle.generate(texts, topk=topk)
-for text, result in zip(texts, results):
-    print(text, ' -> ', result)
-
-
 print('==============默认batch cache================')
-autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
-                              maxlen=maxlen, default_rtype='logits', use_states=True)
 results = autotitle.generate(texts, topk=topk)
 for text, result in zip(texts, results):
     print(text, ' -> ', result)
 
 
 print('==============默认stream================')
-autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
-                              maxlen=maxlen, default_rtype='logits', use_states=True)
 text = texts[0]
 for output in autotitle.stream_generate(text, topk=topk):
     os.system('clear')

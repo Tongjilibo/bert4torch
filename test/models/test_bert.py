@@ -4,12 +4,16 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from transformers import BertConfig, BertTokenizer, BertModel
+import os
+
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def get_bert4torch_model(model_dir):
     vocab_path = model_dir + "/vocab.txt"
     config_path = model_dir + "/bert4torch_config.json"
+    if not os.path.exists(config_path):
+        config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
@@ -23,7 +27,9 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/bert/google@bert-base-chinese"])
+@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/bert/google@bert-base-chinese",
+                                       "E:/pretrain_ckpt/bert/bert-base-multilingual-cased",
+                                       "E:/pretrain_ckpt/bert/hfl@macbert-base"])
 def test_bert_output(model_dir):
     model, _ = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)
@@ -40,4 +46,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output("E:/pretrain_ckpt/bert/google@bert-base-chinese")
+    test_bert_output("E:/pretrain_ckpt/bert/hfl@macbert-base")

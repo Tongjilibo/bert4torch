@@ -8,7 +8,7 @@ from bert4torch.tokenizers import Tokenizer
 # 加载模型，
 base_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/'
 dict_path = base_path + '/vocab.txt'
-config_path = base_path + '/config.json'
+config_path = base_path + '/bert4torch_config.json'
 checkpoint_path = base_path + '/pytorch_model.bin'
 
 # 分词器

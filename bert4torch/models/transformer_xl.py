@@ -107,18 +107,38 @@ class Transformer_XL(BERT):
         '''接受的inputs输入: [token_ids, segment_ids], 暂不支持条件LayerNorm输入'''
         assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
 
-        self.mems = self.init_mems(inputs[0].size(0))  # 生成mems
+        # ========================= token_ids =========================
+        index_ = 0
+        if model_kwargs.get('input_ids') is not None:
+            token_ids = model_kwargs['input_ids']
+        elif model_kwargs.get('token_ids') is not None:
+            token_ids = model_kwargs['token_ids']
+        else:
+            token_ids = inputs[0]
+            index_ += 1
+
+        self.mems = self.init_mems(token_ids.size(0))  # 生成mems
         # 精简后embeddings中只计算word_emdedding
-        word_emb = self.dropout(self.embeddings(inputs[0]))
+        word_emb = self.dropout(self.embeddings(token_ids))
         index_ = 1
-        btz, qlen = inputs[0].shape[:2]  # query长度
+        btz, qlen = token_ids.shape[:2]  # query长度
         mlen = self.mems[0].size(1) if self.mems is not None else 0
         klen = mlen + qlen
         # 相对位置编码
         pos_emb = self.relative_positional_encoding(qlen, klen, word_emb.device)
+        
+        # ========================= segment_ids =========================
         # segment embedding
-        if self.segment_vocab_size > 0:
+        if model_kwargs.get('segment_ids') is not None:
+            segment_ids = model_kwargs['segment_ids']
+        elif model_kwargs.get('token_type_ids') is not None:
+            segment_ids = model_kwargs['token_type_ids']
+        elif self.segment_vocab_size > 0:
             segment_ids = inputs[index_]
+            index_ += 1
+        else:
+            segment_ids = None
+        if segment_ids is not None:
             if mlen > 0:
                 mem_pad = torch.zeros([btz, mlen], dtype=torch.long, device=word_emb.device)
                 cat_ids = torch.cat([mem_pad, segment_ids], dim=1)
@@ -126,14 +146,11 @@ class Transformer_XL(BERT):
                 cat_ids = segment_ids
             # `1` indicates not in the same segment [qlen x klen x bsz]
             segment_ids = (segment_ids[:, :, None] != cat_ids[:, None]).long()
-            index_ += 1
-        else:
-            segment_ids = None
 
         if self.attn_type in {'uni', 0}:  # 兼容transformer_xl的设置: 0
             non_tgt_mask = self.create_mask(word_emb, qlen, klen, mlen)
         elif self.attn_type == 'bi':
-            attention_mask = (inputs[0] != self.pad_token_id).long().unsqueeze(1).unsqueeze(2)
+            attention_mask = (token_ids != self.pad_token_id).long().unsqueeze(1).unsqueeze(2)
             non_tgt_mask = torch.eye(qlen).to(attention_mask)[None, None, :, :]
             non_tgt_mask = ((1 - attention_mask - non_tgt_mask) <= 0).long()
         model_kwargs.update({'hidden_states': word_emb, 'segment_ids': segment_ids, 'pos_emb': pos_emb, 

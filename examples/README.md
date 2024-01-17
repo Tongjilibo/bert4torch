@@ -11,6 +11,7 @@
 |      | [basic_language_model_bert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_language_model_bert.py)：测试BERT的MLM模型效果。
 |      |[basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_guwenbert.py): 测试[古文bert](https://huggingface.co/ethanyt/guwenbert-base)模型。
 |      | [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_make_uncased_model_cased.py)：通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
+|      |[basic_language_model_macbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/macbert/basic_language_model_macbert.py)：测试macbert的MLM模型效果。
 |bloom | [basic_language_model_bloom.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bloom/basic_language_model_bloom.py)：测试[bloom](https://huggingface.co/bigscience)。
 |deberta|[basic_language_model_deberta_v2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/deberta/basic_language_model_deberta_v2.py): 测试deberta_v2模型。
 |embedding|[basic_text2vec-base-chinese.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/embedding/basic_text2vec-base-chinese.py): [text2vec-base-chinese](https://huggingface.co/shibing624/text2vec-base-chinese)
@@ -41,7 +42,6 @@
 |      |[basic_language_model_llama_ziya.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama_ziya.py): 测试[ziya](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1.1)模型。
 |      |[basic_language_model_llama-2.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama-2.py): 测试[llama-2](https://github.com/facebookresearch/llama)模型。
 |      |[basic_language_model_llama.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/llama/basic_language_model_llama.py): 测试[llama](https://github.com/facebookresearch/llama)模型。
-|macbert|[basic_language_model_macbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/macbert/basic_language_model_macbert.py)：测试macbert的MLM模型效果。
 | nezha|[basic_language_model_nezha_gen_gpt.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/nezha/basic_language_model_nezha_gen_gpt.py)：测试[GPTBase（又叫NEZHE-GEN）](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-Gen-TensorFlow)的生成效果。
 |      |[basic_language_model_nezha_gpt_dialog.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/nezha/basic_language_model_nezha_gpt_dialog.py): 测试[nezha_gpt_dialog](https://kexue.fm/archives/7718)。
 |others|[basic_language_model_moss.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/others/basic_language_model_moss.py): 测试[moss](https://github.com/OpenLMLab/MOSS)模型, int4和int8低成本部署。

@@ -103,10 +103,10 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 |     | bert-base-multilingual-cased| huggingface | [torch](https://huggingface.co/bert-base-multilingual-cased) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) |
 |     | macbert | HFL| [tf/torch](https://github.com/ymcui/MacBERT)，[torch](https://huggingface.co/hfl/chinese-macbert-base) | |
 |     | wobert| 追一科技| [tf](https://github.com/ZhuiyiTechnology/WoBERT)，[torch_base](https://huggingface.co/junnyu/wobert_chinese_base)，[torch_plus_base](https://huggingface.co/junnyu/wobert_chinese_plus_base) | |
-|     | guwenbert| ethanyt |[torch](https://huggingface.co/ethanyt/guwenbert-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/ethanyt@guwenbert-base/bert4torch_config.json)|
 |roberta|chinese-roberta-wwm-ext | HFL | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-roberta-wwm-ext) | |
 |     |roberta-small/tiny| 追一科技 & UER| [tf](https://github.com/ZhuiyiTechnology/pretrained-models)，[torch](https://huggingface.co/uer) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-small.py) |
 |     |roberta-base-english| huggingface | [torch](https://huggingface.co/roberta-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/huggingface@roberta-base-english/bert4torch_config.json) |
+|     | guwenbert| ethanyt |[torch](https://huggingface.co/ethanyt/guwenbert-base) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/ethanyt@guwenbert-base/bert4torch_config.json)|
 | albert|albert| brightmart| [tf](https://github.com/brightmart/albert_zh)，[torch](https://huggingface.co/voidful)，[torch](https://github.com/lonePatient/albert_pytorch) | |
 | nezha|NEZHA | 华为| [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[torch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | |
 | xlnet|chinese-xlnet | HFL | [tf/torch](https://github.com/ymcui/Chinese-XLNet) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/hfl@chinese-xlnet-base)|
