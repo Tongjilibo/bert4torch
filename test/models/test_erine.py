@@ -29,6 +29,7 @@ def get_hf_model(model_dir):
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/ernie/baidu@ernie-1-base-zh",
                                        "E:/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"])
+@torch.inference_mode()
 def test_bert_output(model_dir):
     model, _ = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)
@@ -36,7 +37,7 @@ def test_bert_output(model_dir):
     model.eval()
     model_hf.eval()
 
-    inputs = tokenizer('语言模型', padding=True, return_tensors='pt').to(device)
+    inputs = tokenizer('科学[MASK][MASK]是第一生产力', padding=True, return_tensors='pt').to(device)
     sequence_output = model(**inputs)
     sequence_output_hf = model_hf(**inputs).last_hidden_state
     print(f"Output mean diff: {(sequence_output - sequence_output_hf).abs().mean().item()}")
@@ -45,4 +46,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output("E:/pretrain_ckpt/ernie/baidu@ernie-1-base-zh")
+    test_bert_output("E:/pretrain_ckpt/ernie/baidu@ernie-3-base-zh")

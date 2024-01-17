@@ -9,6 +9,7 @@ from torch.nn.functional import softmax
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/albert/brightmart@albert_base_zh"])
+@torch.inference_mode()
 def test_albert(model_dir):
     inputtext = "今天[MASK]情很好"
 

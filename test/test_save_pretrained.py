@@ -44,6 +44,7 @@ def get_configs(model_dir):
                                        "E:/pretrain_ckpt/bert/hfl@macbert-base",
                                        'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/',
                                        "E:/pretrain_ckpt/bert/sushen@wobert_chinese_plus_base"])
+@torch.inference_mode()
 def test_encoder_model(model_dir):
     root_model_path = './pytorch_model'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'

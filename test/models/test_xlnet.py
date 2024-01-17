@@ -27,6 +27,7 @@ def get_hf_model(model_dir):
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/transformer_xl/huggingface@transfo-xl-wt103",
                                        "E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base"])
+@torch.inference_mode()
 def test_bert_output(model_dir):
     model = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)

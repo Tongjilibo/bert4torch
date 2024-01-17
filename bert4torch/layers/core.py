@@ -106,12 +106,15 @@ class BertEmbeddings(nn.Module):
         if embedding_size != hidden_size:
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
 
-    def forward(self, token_ids=None, segment_ids=None, position_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None):
+    def apply_embeddings(self, token_ids, segment_ids, position_ids, additional_embs, **kwargs):
+        '''单独拆分出来，方便下游继承和修改'''
+        # word embedding
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):
             words_embeddings = self.word_embeddings(token_ids)
         else:
             words_embeddings = token_ids  # 自定义word_embedding，目前仅有VAT中使用
 
+        # segment_embeddings
         if hasattr(self, 'segment_embeddings'):
             segment_ids = torch.zeros_like(token_ids) if segment_ids is None else segment_ids
             segment_embeddings = self.segment_embeddings(segment_ids)  
@@ -123,16 +126,21 @@ class BertEmbeddings(nn.Module):
         else:
             embeddings = words_embeddings
         
-        # 额外的embedding，如词性等
-        if additional_embs is not None:
-            for emb in additional_embs:
-                embeddings += emb
-
+        # position_embeddings
         if hasattr(self, 'position_embeddings') and (position_ids is not None):
             if position_ids.shape[0] == 1:
                 position_ids = position_ids.repeat(token_ids.shape[0], 1)
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
+        
+        # 额外的embedding，如词性等
+        if additional_embs is not None:
+            for emb in additional_embs:
+                embeddings += emb
+        return embeddings
+
+    def forward(self, token_ids=None, segment_ids=None, position_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None, **kwargs):
+        embeddings = self.apply_embeddings(token_ids, segment_ids, position_ids, additional_embs, **kwargs)
 
         if self.emb_scale != 1:
             embeddings = embeddings * self.emb_scale  # transform_xl, xlnet特有

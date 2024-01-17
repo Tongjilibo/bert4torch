@@ -11,6 +11,7 @@ import pytest
 
 @pytest.mark.parametrize("ckpt_dir", ["E:/pretrain_ckpt/bart/fnlp@bart-base-chinese/",
                                       "E:/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/"])
+@torch.inference_mode()
 def test_bart(ckpt_dir):
     texts = ["北京是[MASK]的首都", "今天的天气是[MASK]，可以正常出海"]
 

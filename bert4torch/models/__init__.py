@@ -7,7 +7,7 @@ from bert4torch.models.base import *
 from bert4torch.models.bert import *
 from bert4torch.models.deberta import *
 from bert4torch.models.electra import *
-from bert4torch.models.erinie import *
+from bert4torch.models.ernie import *
 from bert4torch.models.gau_alpha import *
 from bert4torch.models.glm import *
 from bert4torch.models.gpt import *
