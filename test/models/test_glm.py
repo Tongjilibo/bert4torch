@@ -36,11 +36,11 @@ def get_hf_model(model_dir):
                                        "E:/pretrain_ckpt/glm/chatglm3-6b",
                                        "E:/pretrain_ckpt/glm/chatglm3-6B-32k"])
 @torch.inference_mode()
-def test_bert_output(model_dir):
+def test_glm(model_dir):
     query = '你好'
 
     model_hf, tokenizer = get_hf_model(model_dir)
-    inputs = tokenizer.encode(query, return_tensors="pt").to("cuda")
+    inputs = tokenizer.encode(query, return_tensors="pt").to(device)
     sequence_output_hf = model_hf.generate(inputs, top_k=1, max_length=20)
     sequence_output_hf = tokenizer.decode(sequence_output_hf[0].cpu(), skip_special_tokens=True)
     sequence_output_hf = sequence_output_hf.replace(' ', '')
@@ -68,4 +68,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output("E:/pretrain_ckpt/glm/chatglm-6B")
+    test_glm("E:/pretrain_ckpt/glm/chatglm-6B")

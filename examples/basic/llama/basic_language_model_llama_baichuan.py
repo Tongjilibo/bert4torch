@@ -32,7 +32,7 @@ include_input = not with_prompt
 
 from bert4torch.pipelines import ChatBaichuanCli
 generation_config = {
-    'end_id':2, 
+    'end_id': 2, 
     'mode':'random_sample', 
     'tokenizer_config': {'skip_special_tokens': True},
     'max_length':maxlen, 

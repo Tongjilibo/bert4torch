@@ -22,5 +22,5 @@
     "multi_query_group_num": 1,
     "vocab_size": 65024,
 	"skip_init": true,
-    "flash_attention": "sdpa"
+    "norm_mode": "torch_buildin"
 }

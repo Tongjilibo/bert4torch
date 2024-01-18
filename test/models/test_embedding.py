@@ -17,7 +17,7 @@ from bert4torch.pipelines import Text2Vec
                                        "E:/pretrain_ckpt/embedding/shibing624@text2vec-base-chinese"
                                         ])
 @torch.inference_mode()
-def test_bert_output(model_dir):
+def test_embedding(model_dir):
     sentences_1 = ["样例数据-1", "样例数据-2"]
     sentences_2 = ["样例数据-3", "样例数据-4"]
 
@@ -42,4 +42,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output('E:/pretrain_ckpt/embedding/BAAI@bge-large-en-v1.5')
+    test_embedding('E:/pretrain_ckpt/embedding/BAAI@bge-large-en-v1.5')

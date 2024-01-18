@@ -31,7 +31,7 @@ def get_hf_model(model_dir):
                                        "E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese",
                                        "E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese"])
 @torch.inference_mode()
-def test_bert_output(model_dir):
+def test_deberta(model_dir):
     model, _ = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)
 
@@ -47,4 +47,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output("E:/pretrain_ckpt/bert/google@bert-base-chinese")
+    test_deberta("E:/pretrain_ckpt/bert/google@bert-base-chinese")

@@ -23,7 +23,7 @@ def get_bert4torch_model(root_path):
 @pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-base',
                                        'E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-large'])
 @torch.inference_mode()
-def test_bert_output(model_dir):
+def test_gpt(model_dir):
     encoder, tokenizer = get_bert4torch_model(model_dir)
     speakers = [tokenizer.token_to_id('[speaker1]'), tokenizer.token_to_id('[speaker2]')]
 
@@ -59,4 +59,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output('E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-large')
+    test_gpt('E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-large')

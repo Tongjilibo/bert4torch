@@ -29,7 +29,7 @@ def get_hf_model(model_dir):
                                        "E:/pretrain_ckpt/bert/bert-base-multilingual-cased",
                                        "E:/pretrain_ckpt/bert/hfl@macbert-base"])
 @torch.inference_mode()
-def test_bert_output(model_dir):
+def test_bert(model_dir):
     model = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)
 
@@ -45,4 +45,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output("E:/pretrain_ckpt/bert/hfl@macbert-base")
+    test_bert("E:/pretrain_ckpt/bert/hfl@macbert-base")

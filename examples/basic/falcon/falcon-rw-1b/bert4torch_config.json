@@ -20,5 +20,5 @@
     "torch_dtype": "bfloat16",
     "vocab_size": 50304,
     "skip_init": true,
-    "flash_attention": "sdpa"
+    "norm_mode": "torch_buildin"
     }

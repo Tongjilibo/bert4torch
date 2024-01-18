@@ -30,7 +30,7 @@ def get_hf_model(model_dir):
 @pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/bloom/bloom-560m',
                                        'E:/pretrain_ckpt/bloom/bloomz-560m'])
 @torch.inference_mode()
-def test_bert_output(model_dir):
+def test_bloom(model_dir):
     query = '你好'
     model = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)
@@ -49,7 +49,7 @@ def test_bert_output(model_dir):
     }
     sequence_output = model.generate(query, **generation_config)
 
-    inputs = tokenizer.encode(query, return_tensors="pt").to("cuda")
+    inputs = tokenizer.encode(query, return_tensors="pt").to(device)
     sequence_output_hf = model_hf.generate(inputs, top_k=1, max_length=20)
     sequence_output_hf = tokenizer.decode(sequence_output_hf[0].cpu(), skip_special_tokens=True)
     print(sequence_output, '    ====>    ', sequence_output_hf)
@@ -57,4 +57,4 @@ def test_bert_output(model_dir):
 
 
 if __name__=='__main__':
-    test_bert_output('E:/pretrain_ckpt/bloom/bloom-560m')
+    test_bloom('E:/pretrain_ckpt/bloom/bloom-560m')
