@@ -6,7 +6,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import inspect
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, log_info, log_warn
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding
+from bert4torch.snippets import log_info, log_warn, log_warn_once
 from bert4torch.tokenizers import TokenizerBase
 from packaging import version
 from contextlib import contextmanager
@@ -665,6 +666,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             kwargs['eos_token_id'] = kwargs['pad_token_id']
             log_info(f'Arg `eos_token_id` has been set to `pad_token_id`:{kwargs["pad_token_id"]}')
+        if ('eos_token_id' in kwargs) and ('end_id' in kwargs):
+            kwargs.pop('end_id')
         kwargs['device'] = kwargs.get('device') or next(model.parameters()).device
 
         return kwargs

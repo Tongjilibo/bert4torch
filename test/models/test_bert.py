@@ -10,15 +10,13 @@ import os
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def get_bert4torch_model(model_dir):
-    vocab_path = model_dir + "/vocab.txt"
     config_path = model_dir + "/bert4torch_config.json"
     if not os.path.exists(config_path):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
-    tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
     model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
-    return model.to(device), tokenizer
+    return model.to(device)
 
 
 def get_hf_model(model_dir):
@@ -32,7 +30,7 @@ def get_hf_model(model_dir):
                                        "E:/pretrain_ckpt/bert/hfl@macbert-base"])
 @torch.inference_mode()
 def test_bert_output(model_dir):
-    model, _ = get_bert4torch_model(model_dir)
+    model = get_bert4torch_model(model_dir)
     model_hf, tokenizer = get_hf_model(model_dir)
 
     model.eval()

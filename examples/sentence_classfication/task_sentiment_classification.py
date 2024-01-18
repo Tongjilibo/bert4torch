@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 
 maxlen = 256
@@ -101,7 +102,7 @@ class Evaluator(Callback):
     # 定义评价函数
     def evaluate(self, data):
         total, right = 0., 0.
-        for x_true, y_true in data:
+        for x_true, y_true in tqdm(data):
             y_pred = model.predict(x_true).argmax(axis=1)
             total += len(y_true)
             right += (y_true == y_pred).sum().item()
@@ -118,6 +119,7 @@ def inference(texts):
         logit = model.predict([token_ids, segment_ids])
         y_pred = torch.argmax(torch.softmax(logit, dim=-1)).cpu().numpy()
         print(text, ' ----> ', y_pred)
+
 
 if __name__ == '__main__':
     if choice == 'train':

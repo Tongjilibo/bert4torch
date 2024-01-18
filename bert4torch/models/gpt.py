@@ -203,6 +203,7 @@ class GPT2_ML(Decoder):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
+        kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
         layer = self.Gpt2MlLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
                                 'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
