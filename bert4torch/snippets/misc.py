@@ -149,6 +149,29 @@ def cuda_empty_cache(device=None):
             torch.cuda.ipc_collect()
 
 
+def generate_speed(generate_count:int=None):
+    '''装饰器，计算token生成的速度
+    '''
+    def actual_decorator(func):
+        def warpper(*args, **kwargs):
+            start = time.time()
+            res = func(*args, **kwargs)
+            end = time.time()
+            consume = end - start
+            try:
+                if generate_count is None:
+                    consume = format_time(consume)
+                    log_info(f'Cost {consume}')
+                else:
+                    speed = generate_count / consume
+                    log_info(f'Generate speed: {speed:.2f} token/s')
+            except:
+                log_error(traceback.format_exc())
+            return res
+        return warpper
+    return actual_decorator
+
+
 class WebServing(object):
     """简单的Web接口，基于bottlepy简单封装，仅作为临时测试使用，不保证性能。
 
