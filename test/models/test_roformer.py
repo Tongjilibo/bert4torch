@@ -24,7 +24,7 @@ def get_bert4torch_model(model_dir):
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/roformer/sushen@roformer_v1_base",
                                        "E:/pretrain_ckpt/roformer/sushen@roformer_v2_char_base"])
 @torch.inference_mode()
-def test_gau(model_dir):
+def test_roformer(model_dir):
     query = "今天[MASK]很好，我[MASK]去公园玩。"
     model, tokenizer = get_bert4torch_model(model_dir)
 
@@ -50,4 +50,4 @@ def test_gau(model_dir):
     assert pred_str in '今天天气很好，我想去公园玩。'
 
 if __name__=='__main__':
-    test_gau("E:/pretrain_ckpt/roformer/sushen@roformer_v1_base")
+    test_roformer("E:/pretrain_ckpt/roformer/sushen@roformer_v1_base")

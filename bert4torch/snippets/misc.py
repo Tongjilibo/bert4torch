@@ -149,27 +149,47 @@ def cuda_empty_cache(device=None):
             torch.cuda.ipc_collect()
 
 
-def generate_speed(generate_count:int=None):
-    '''装饰器，计算token生成的速度
+class GenerateSpeed:
+    '''上下文管理器，计算token生成的速度
+
+    Example
+    -----------------------------------------------------
+    from bert4torch.snippets import GenerateSpeed
+    with GenerateSpeed() as gs:
+        response = model.generate(query, **generation_config)
+        tokens_len = len(tokenizer(response, return_tensors='pt')['input_ids'][0])
+        gs(tokens_len)
     '''
-    def actual_decorator(func):
-        def warpper(*args, **kwargs):
-            start = time.time()
-            res = func(*args, **kwargs)
-            end = time.time()
-            consume = end - start
-            try:
-                if generate_count is None:
-                    consume = format_time(consume)
-                    log_info(f'Cost {consume}')
-                else:
-                    speed = generate_count / consume
-                    log_info(f'Generate speed: {speed:.2f} token/s')
-            except:
-                log_error(traceback.format_exc())
-            return res
-        return warpper
-    return actual_decorator
+    def __enter__(self):
+        self.count = None
+        self.start_tm = time.time()
+        return self
+
+    def __call__(self, count):
+        self.count = count
+
+    def set(self, count:int):
+        self.count = count
+
+    def start(self):
+        '''自定义开始记录的地方'''
+        self.start_tm = time.time()
+    
+    def end(self, count:int=None):
+        if count is not None:
+            self.count = count
+        
+        end_tm = time.time()
+        consume = end_tm - self.start_tm
+        if self.count is None:
+            consume = format_time(consume, hhmmss=False)
+            log_info(f'Cost {consume}')
+        else:
+            speed = self.count / consume
+            log_info(f'Generate speed: {speed:.2f} token/s')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.end()
 
 
 class WebServing(object):
