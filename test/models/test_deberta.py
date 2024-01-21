@@ -28,7 +28,7 @@ def get_hf_model(model_dir):
 
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese",
-                                       "E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese",
+                                       "E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese",
                                        "E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese"])
 @torch.inference_mode()
 def test_deberta(model_dir):
@@ -47,4 +47,6 @@ def test_deberta(model_dir):
 
 
 if __name__=='__main__':
-    test_deberta("E:/pretrain_ckpt/bert/google@bert-base-chinese")
+    test_deberta("E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese")
+    test_deberta("E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese")
+    test_deberta("E:/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese")

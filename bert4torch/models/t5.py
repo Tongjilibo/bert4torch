@@ -18,12 +18,16 @@ class T5_Encoder(Encoder):
                                       'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
 
-        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
-        for i in range(1, self.num_hidden_layers):
-            self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
         self.prefix = 'encoder'
+        self.tie_weights()
+
+    def tie_weights(self):
+        super().tie_weights()
+        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        for i in range(1, self.num_hidden_layers):
+            self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
 
     def apply_final_layers(self, **model_kwargs):
         outputs = super().apply_final_layers(**model_kwargs)
@@ -75,12 +79,16 @@ class T5_Decoder(Decoder):
                                                        'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
         
-        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
-        for i in range(1, self.num_hidden_layers):
-            self.decoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.decoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
         self.prefix = 'decoder'
+        self.tie_weights()        
+
+    def tie_weights(self):
+        super().tie_weights()
+        # 把第二层后的相对位置编码的权重绑定到第一层上，变相实现仅由第一层计算
+        for i in range(1, self.num_hidden_layers):
+            self.decoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.decoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
 
     def apply_final_layers(self, **model_kwargs):
         # 这里的encoded_layers没有改成decoded_layers是想使用super()
@@ -144,6 +152,11 @@ class T5(Transformer):
         kwargs['logit_scale'] = kwargs.get('logit_scale', True)
         self.decoder = T5_Decoder(*args, **kwargs)
 
+    def tie_weights(self):
+        super().tie_weights()
+        self.encoder.tie_weights()
+        self.decoder.tie_weights()
+    
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
         variable = state_dict[name]

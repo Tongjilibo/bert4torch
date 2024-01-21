@@ -10,26 +10,6 @@ import re
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def get_bert4torch_model(model_dir):
-    config_path = model_dir + "/bert4torch_config.json"
-    if not os.path.exists(config_path):
-        config_path = model_dir + "/config.json"
-    checkpoint_path = model_dir + '/pytorch_model.bin'
-    dict_path = model_dir + '/vocab.txt'
-    if not os.path.exists(dict_path):
-        dict_path = model_dir + "/spiece.model"
-        tokenizer = SpTokenizer(dict_path, token_start=None, token_end='</s>', keep_accents=True)
-    else:
-        tokenizer = Tokenizer(dict_path, do_lower_case=True)
-    
-    pad_token_id = 0
-    if ('ChatYuan' in model_dir) or ('PromptCLUE' in model_dir):
-        pad_token_id = -1
-    model = build_transformer_model(config_path, checkpoint_path, pad_token_id=pad_token_id)  # 建立模型，加载权重
-    model.eval()
-    return model.to(device), tokenizer
-
-
 @pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/'])
 @torch.inference_mode()
 def test_chatyuan(model_dir):
@@ -47,8 +27,7 @@ def test_chatyuan(model_dir):
         'bos_token_id': 0, 
         'eos_token_id': tokenizer._token_end_id, 
         'max_length': 512,
-        'top_k': 1,
-        'use_states': False
+        'top_k': 1
     }
     res = model.generate("用户：你能干什么\\n小元：", **generation_config)
     print(res)
@@ -72,8 +51,7 @@ def test_PromptCLUE(model_dir):
         'bos_token_id': 0, 
         'eos_token_id': tokenizer._token_end_id, 
         'max_length': 512,
-        'top_k': 1,
-        'use_states': False
+        'top_k': 1
     }
     res = model.generate("生成与下列文字相同意思的句子： 白云遍地无人扫 答案：", **generation_config)
     print(res)
@@ -102,8 +80,7 @@ def test_t5_pegasus(model_dir):
         'bos_token_id': tokenizer._token_start_id, 
         'eos_token_id': tokenizer._token_end_id, 
         'max_length': 512,
-        'top_k': 1,
-        'use_states': False
+        'top_k': 1
     }
     res = model.generate("今天天气不错啊", **generation_config)
     print(res)
@@ -133,8 +110,7 @@ def test_t5_ner(model_dir):
         'bos_token_id': tokenizer._token_start_id, 
         'eos_token_id': 1, 
         'max_length': 32,
-        'top_k': 1,
-        'use_states': False
+        'top_k': 1
     }
     res = model.generate("中国的首都是extra0京", **generation_config)
     res = re.sub('extra[0-9]+', '', res).strip()
@@ -143,7 +119,7 @@ def test_t5_ner(model_dir):
 
 
 if __name__=='__main__':
-    # test_chatyuan('E:/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/')
-    # test_PromptCLUE('E:/pretrain_ckpt/t5/ClueAi@PromptCLUE-base-v1-5/')
-    # test_t5_pegasus('E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/')
+    test_chatyuan('E:/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/')
+    test_PromptCLUE('E:/pretrain_ckpt/t5/ClueAi@PromptCLUE-base-v1-5/')
+    test_t5_pegasus('E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/')
     test_t5_ner('E:/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/')

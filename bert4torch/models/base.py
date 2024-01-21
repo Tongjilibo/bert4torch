@@ -5,7 +5,7 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model
+from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model, find_tied_parameters
 from bert4torch.snippets import take_along_dim, get_parameter_device, load_checkpoint, save_checkpoint
 import warnings
 from typing import Union, Optional
@@ -322,7 +322,7 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True):
+    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True, ignore_tied_parameters=False):
         '''按照预训练模型的key来保存模型, 可供transformers包加载
            1. 按照variable_mapping()逆向来保存权重
            2. 各个模型存在save_trans_ckpt()的也要执行, 如部分大模型需要把q,k,v合并为qkv
@@ -333,9 +333,20 @@ class BERT_BASE(nn.Module):
                                  weight_map = JsonConfig(config_path).weight_map`来加载
            :param mapping: dict, 一般来说为None, 也允许用户自行指定映射关系（一般不需要）
            :param write_to_disk: bool, 是否写入硬盘，一般都是True, 该参数主要是为了在Trainer().save_pretrained
+           :param ignore_tied_parameters: bool, 保存时候忽视tied_parameters
         '''
         mapping = mapping or self.variable_mapping()
         state_dict = self.save_trans_ckpt()
+        
+        if ignore_tied_parameters:
+            named_tied_parameters = find_tied_parameters(self)
+            tied_parameters = [tied_parameter for _, tied_parameters in named_tied_parameters.items() \
+                               for tied_parameter in tied_parameters]
+            log_info(f'Remove tied parameters: {tied_parameters}')
+            for tied_parameter in tied_parameters:
+                    if tied_parameter in state_dict:
+                        state_dict.pop(tied_parameter)
+        
         for k in list(state_dict.keys()):
             state_dict[mapping.get(k, k)] = state_dict.pop(k)
         

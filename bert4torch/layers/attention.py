@@ -253,10 +253,9 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def apply_alibi_pos_emb(self, attention_scores, key_layer):
         ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
-        if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
-            key_position_scores_r_t = self.relative_positions_encoding(key_layer)
-            attention_scores = attention_scores + key_position_scores_r_t
-            attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
+        key_position_scores_r_t = self.relative_positions_encoding(key_layer)
+        attention_scores = attention_scores + key_position_scores_r_t
+        attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
         return attention_scores
 
     def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
@@ -364,8 +363,9 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_scores = attention_scores + key_position_scores_r_t
         elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== t5相对位置编码 ====================
-            relations_keys = self.relative_positions(attention_scores.shape[-2], attention_scores.shape[-1])
+            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])  # 都是klen, 应对use_state=True
             key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
+            key_position_scores_r_t = key_position_scores_r_t[:, :, -attention_scores.shape[-2] :, :]  # 这里是qlen
             attention_scores = attention_scores + key_position_scores_r_t
         elif (self.p_bias == 'deberta_v2') and hasattr(self, 'relative_positions_encoding'):
             # ==================== deberta_v2相对位置编码 ====================
@@ -388,7 +388,8 @@ class MultiHeadAttentionLayer(nn.Module):
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         
         # ==================== alibi相对位置编码 ====================
-        attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
+        if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
+            attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
 
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分

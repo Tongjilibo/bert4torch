@@ -20,7 +20,10 @@ class DebertaV2(BERT):
         # Encoder中transformer_block前的其他网络结构
         self.relative_attention = kwargs.get("relative_attention", True)
         self.conv = ConvLayer(**kwargs) if kwargs.get("conv_kernel_size", 0) > 0 else None
-        
+        self.tie_weights()
+    
+    def tie_weights(self):
+        super().tie_weights()
         # 把第二层后的相对位置编码的权重绑定到第一层上, 变相实现仅由第一层计算
         for i in range(1, self.num_hidden_layers):
             self.encoderLayer[i].multiHeadAttention.relative_positions_encoding.weight = self.encoderLayer[0].multiHeadAttention.relative_positions_encoding.weight
