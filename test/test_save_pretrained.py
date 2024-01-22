@@ -7,13 +7,6 @@ from torch.nn.functional import softmax
 import os
 import shutil
 
-def _ignore_copy_files(path, content):
-        to_ignore = []
-        for file_ in content:
-            if ('.bin' in file_) or ('.safetensors' in file_):
-                to_ignore.append(file_)
-        return to_ignore
-
 
 def get_configs(model_dir):
     if os.path.exists(model_dir + "/bert4torch_config.json"):
@@ -45,7 +38,6 @@ def get_configs(model_dir):
                                        "E:/pretrain_ckpt/bert/sushen@wobert_chinese_plus_base"])
 @torch.inference_mode()
 def test_encoder_model(model_dir):
-    root_model_path = './pytorch_model'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     config_path, checkpoint_path, configs = get_configs(model_dir)
     inputtext = "今天[MASK]情很好"
@@ -60,18 +52,18 @@ def test_encoder_model(model_dir):
     predicted_token1 = tokenizer.convert_ids_to_tokens([predicted_index])[0]
 
     # =======================保存预训练的权重=======================
-    checkpoint_path = os.path.join(root_model_path, 'pytorch_model.bin')
-    model.save_pretrained(checkpoint_path)
+    save_dir = './pytorch_model'
+    model.save_pretrained(save_dir)
 
     # =======================用保存预训练的权重bert4torch推理=======================
-    model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **configs).to(device)
+    model = build_transformer_model(config_path, save_dir, return_dict=True, **configs).to(device)
     maskpos = encoded_input['input_ids'][0].tolist().index(tokenizer.mask_token_id)
     prediction_scores = model.predict(**encoded_input)['mlm_scores']
     predicted_index = torch.argmax(prediction_scores[0, maskpos]).item()
     predicted_token2 = tokenizer.convert_ids_to_tokens([predicted_index])[0]
 
     # =======================transformer加载和预测=======================
-    model = AutoModelForMaskedLM.from_pretrained(root_model_path).to(device)
+    model = AutoModelForMaskedLM.from_pretrained(save_dir).to(device)
     prediction_scores = model(**encoded_input)['logits']
 
     predicted_index = torch.argmax(prediction_scores[0, maskpos]).item()
@@ -80,8 +72,8 @@ def test_encoder_model(model_dir):
     assert predicted_token1 == predicted_token2
     assert predicted_token2 == predicted_token3
 
-    if os.path.exists(root_model_path):
-        shutil.rmtree(root_model_path)
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)
 
 
 if __name__=='__main__':

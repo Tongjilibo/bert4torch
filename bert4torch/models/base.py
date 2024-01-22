@@ -349,13 +349,14 @@ class BERT_BASE(nn.Module):
         for k in list(state_dict.keys()):
             state_dict[mapping.get(k, k)] = state_dict.pop(k)
         
-        # 把除了权重文件的其他文件copy过去
-        if hasattr(self, 'checkpoint_path') and self.checkpoint_path is not None:
+        # 把checkpoint_path所在目录下，除了权重文件的其他文件copy过去
+        if write_to_disk and hasattr(self, 'checkpoint_path') and self.checkpoint_path is not None:
             if os.path.isfile(self.checkpoint_path):
                 src = os.path.dirname(self.checkpoint_path)
             else:
                 src = self.checkpoint_path
-            copytree(src, save_dir, ignore_copy_files=['.bin', '.safetensors'])
+            # 如果目录下文件存在也会强制覆盖
+            copytree(src, save_dir, ignore_copy_files=['.bin', '.safetensors'], dirs_exist_ok=True)
 
         # 保存为单文件
         if weight_map is None:

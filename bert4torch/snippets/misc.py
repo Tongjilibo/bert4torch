@@ -279,8 +279,12 @@ def modify_variable_mapping(original_func, **new_dict):
     return wrapper
 
 
-def copytree(src, dst, ignore_copy_files:str=None, replace=False):
-    '''从一个文件夹copy到另一个文件夹'''
+def copytree(src:str, dst:str, ignore_copy_files:str=None, dirs_exist_ok=False):
+    '''从一个文件夹copy到另一个文件夹
+    
+    :param src: str, copy from src
+    :param dst: str, copy to dst
+    '''
     def _ignore_copy_files(path, content):
         to_ignore = []
         if ignore_copy_files is None:
@@ -291,11 +295,7 @@ def copytree(src, dst, ignore_copy_files:str=None, replace=False):
                 if postfix in file_:
                     to_ignore.append(file_)
         return to_ignore
-            
-    # 删除目标文件夹的所有内容
-    if replace and os.path.exists(dst):
-        shutil.rmtree(dst)
 
     if src:
         os.makedirs(src, exist_ok=True)
-    shutil.copytree(src, dst, ignore=_ignore_copy_files)
+    shutil.copytree(src, dst, ignore=_ignore_copy_files, dirs_exist_ok=dirs_exist_ok)
