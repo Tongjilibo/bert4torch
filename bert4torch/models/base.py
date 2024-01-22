@@ -6,14 +6,13 @@ import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model, find_tied_parameters
-from bert4torch.snippets import take_along_dim, get_parameter_device, load_checkpoint, save_checkpoint
+from bert4torch.snippets import take_along_dim, get_parameter_device, load_checkpoint, save_checkpoint, copytree
 import warnings
 from typing import Union, Optional
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
 import copy
-from collections import Counter
 
 
 class BERT_BASE(nn.Module):
@@ -322,12 +321,12 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, checkpoint_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True, ignore_tied_parameters=False):
+    def save_pretrained(self, save_dir:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True, ignore_tied_parameters=False):
         '''按照预训练模型的key来保存模型, 可供transformers包加载
            1. 按照variable_mapping()逆向来保存权重
            2. 各个模型存在save_trans_ckpt()的也要执行, 如部分大模型需要把q,k,v合并为qkv
 
-           :param checkpoint_path: str, 保存的文件路径，或文件夹
+           :param save_dir: str, 保存的文件夹路径
            :param weight_map: dict, 部分大模型会有pytorch_model.bin.index.json文件, 对应其中的weight_map字段
                               可`from bert4torch.snippets import JsonConfig
                                  weight_map = JsonConfig(config_path).weight_map`来加载
@@ -350,10 +349,18 @@ class BERT_BASE(nn.Module):
         for k in list(state_dict.keys()):
             state_dict[mapping.get(k, k)] = state_dict.pop(k)
         
+        # 把除了权重文件的其他文件copy过去
+        if hasattr(self, 'checkpoint_path') and self.checkpoint_path is not None:
+            if os.path.isfile(self.checkpoint_path):
+                src = os.path.dirname(self.checkpoint_path)
+            else:
+                src = self.checkpoint_path
+            copytree(src, save_dir, ignore_copy_files=['.bin', '.safetensors'])
+
         # 保存为单文件
         if weight_map is None:
             if write_to_disk:
-                save_checkpoint(state_dict, checkpoint_path)
+                save_checkpoint(state_dict, os.path.join(save_dir, 'pytorch_model.bin'))
             else:
                 return state_dict
         
@@ -371,7 +378,7 @@ class BERT_BASE(nn.Module):
                 for k in list(state_dict.keys()):
                     if k in param_names:
                         single_ckpt[k] = state_dict.pop(k)
-                save_checkpoint(single_ckpt, os.path.join(checkpoint_path, save_file))
+                save_checkpoint(single_ckpt, os.path.join(save_dir, save_file))
         
     def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError

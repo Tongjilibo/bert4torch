@@ -178,6 +178,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     
     # 权重加载
     checkpoint_path = checkpoint_path or configs.get('checkpoint_path')
+    transformer.checkpoint_path = checkpoint_path
     if checkpoint_path is not None:
         transformer.from_pretrained(checkpoint_path, mapping=configs.get('mapping'), skip_init=skip_init, 
                                     device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)

@@ -4,9 +4,8 @@ import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from torch.nn.functional import softmax
-import shutil
 import os
-
+import shutil
 
 def _ignore_copy_files(path, content):
         to_ignore = []
@@ -61,7 +60,6 @@ def test_encoder_model(model_dir):
     predicted_token1 = tokenizer.convert_ids_to_tokens([predicted_index])[0]
 
     # =======================保存预训练的权重=======================
-    shutil.copytree(model_dir, root_model_path, ignore=_ignore_copy_files)
     checkpoint_path = os.path.join(root_model_path, 'pytorch_model.bin')
     model.save_pretrained(checkpoint_path)
 

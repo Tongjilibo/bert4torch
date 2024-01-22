@@ -8,6 +8,7 @@ import gc
 import inspect
 from torch4keras.snippets import *
 from torch.utils.checkpoint import CheckpointFunction
+import shutil
 
 
 def insert_arguments(**arguments):
@@ -276,3 +277,25 @@ def modify_variable_mapping(original_func, **new_dict):
         return result
     
     return wrapper
+
+
+def copytree(src, dst, ignore_copy_files:str=None, replace=False):
+    '''从一个文件夹copy到另一个文件夹'''
+    def _ignore_copy_files(path, content):
+        to_ignore = []
+        if ignore_copy_files is None:
+            return to_ignore
+        
+        for file_ in content:
+            for postfix in ignore_copy_files:
+                if postfix in file_:
+                    to_ignore.append(file_)
+        return to_ignore
+            
+    # 删除目标文件夹的所有内容
+    if replace and os.path.exists(dst):
+        shutil.rmtree(dst)
+
+    if src:
+        os.makedirs(src, exist_ok=True)
+    shutil.copytree(src, dst, ignore=_ignore_copy_files)
