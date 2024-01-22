@@ -29,8 +29,7 @@ end_id = [tokenizer.im_start_id, tokenizer.im_end_id] if with_prompt else tokeni
 generation_config = {
     'end_id': end_id, 
     'mode': 'random_sample', 
-    'tokenizer_encode_config': tokenizer_encode_config, 
-    'tokenizer_decode_config': tokenizer_decode_config,
+    'tokenizer_config': {**tokenizer_encode_config, **tokenizer_decode_config}, 
     'max_length': 256, 
     'default_rtype': 'logits', 
     'use_states': True,

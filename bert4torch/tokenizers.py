@@ -168,9 +168,10 @@ class TokenizerBase(object):
         return self.encode(*args, **kwds)
         
     def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False, 
-               return_tensors=None, return_dict=False):
+               return_tensors=None, return_dict=False, **kwargs):
         '''可以处理多条或者单条
         '''
+        maxlen = maxlen or kwargs.get('max_length')  # 兼容transformers的参数
         return_list = False if isinstance(first_texts, str) else True  # 输入为str时候默认不加btz维度
         first_texts = [first_texts] if isinstance(first_texts, str) else first_texts
         second_texts = [second_texts] if isinstance(second_texts, str) else second_texts

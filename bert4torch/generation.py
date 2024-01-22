@@ -72,7 +72,7 @@ class AutoRegressiveDecoder(object):
         self.eos_token_id = eos_token_id
         self.max_new_tokens = max_new_tokens
         self.min_new_tokens = min_new_tokens
-        self.max_length = max_length
+        self.max_length = max_length  # 最大长度，含输入的text
         self.pad_token_id = pad_token_id   # pad_token_id兼容bert4torch和hf的，如错误则需要显式传入pad_id:int
         self.pad_mode = pad_mode
         self.device = device
@@ -89,8 +89,7 @@ class AutoRegressiveDecoder(object):
                       'end_id': 'eos_token_id',
                       'topk': 'top_k',
                       'topp': 'top_p',
-                      'maxlen': 'max_new_tokens',
-                      'minlen': 'min_new_tokens',
+                      'maxlen': 'max_length',  # 从0.4.7开始，之前maxlen表示max_new_tokens
                       'pad_id': 'pad_token_id'
                      }
         self.set_generation_config(generation_config)
@@ -605,8 +604,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
-    def __init__(self, model, tokenizer=None, tokenizer_config=None, tokenizer_encode_config=None, tokenizer_decode_config=None, 
-                 mode='random_sample', default_rtype='logits', use_states=True, optimize_cuda_cache=False, **kwargs):
+    def __init__(self, model, tokenizer=None, tokenizer_config:dict=None, tokenizer_encode_config:dict=None, tokenizer_decode_config:dict=None, 
+                 mode:str='random_sample', default_rtype:str='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
         kwargs = self._default_generation_config(tokenizer, model, kwargs)  # 对部分参数进行默认设置
         super().__init__(**kwargs)
 
@@ -616,16 +615,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         # tokenizer参数
         self.tokenizer = tokenizer
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
-        tokenizer_config = tokenizer_config or dict()
-        tokenizer_config.update({'maxlen': self.max_length})
-        tokenizer_encode_config = tokenizer_encode_config or {}
-        tokenizer_decode_config = tokenizer_decode_config or {}
-        if self.tokenizer is not None:
-            self.tokenizer_encode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.encode), **tokenizer_encode_config}
-            self.tokenizer_decode_config = {**self.clear_tokenizer_config(tokenizer_config, self.tokenizer.decode), **tokenizer_decode_config}
-        else:
-            self.tokenizer_encode_config = dict()
-            self.tokenizer_decode_config = dict()
+        self.tokenizer_encode_config = tokenizer_encode_config or self.clear_tokenizer_config(tokenizer_config, 'encode')
+        self.tokenizer_decode_config = tokenizer_decode_config or self.clear_tokenizer_config(tokenizer_config, 'decode')
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
@@ -799,11 +790,20 @@ class SeqGeneration(AutoRegressiveDecoder):
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)
 
-    @staticmethod
-    def clear_tokenizer_config(config, func):
+    def clear_tokenizer_config(self, config:dict, mode:str):
         '''获取在tokenize_params中的参数'''
-        arg_names = [k for k in inspect.signature(func).parameters]
-        return {k:v for k, v in config.items() if k in arg_names}
+        if (self.tokenizer is None) or (config is None):
+            return dict()
+        
+        encode_kwargs = {'max_length', 'add_special_tokens', 'padding', 'truncation', 'stride', 'allowed_special', 'return_tensors', 
+                         'maxlen', 'return_dict', 'truncate_from', 'return_offsets'}
+        decode_kwargs = {'skip_special_tokens', 'clean_up_tokenization_spaces'}
+        if mode == 'encode':
+            return {k:v for k, v in config.items() if k in encode_kwargs}
+        elif mode == 'decode':
+            return {k:v for k, v in config.items() if k in decode_kwargs}
+        else:
+            raise ValueError(f'Only support `encode` and `decode` options, {mode} not supported')
 
     def pre_process(self, text):
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''

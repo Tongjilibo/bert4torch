@@ -56,8 +56,7 @@ def test_qwen(model_dir):
 
     generation_config = {
         'tokenizer': tokenizer,
-        'tokenizer_encode_config': tokenizer_encode_config, 
-        'tokenizer_decode_config': tokenizer_decode_config,
+        'tokenizer_config': {**tokenizer_encode_config, **tokenizer_decode_config}, 
         'end_id': end_id, 
         'mode': 'random_sample', 
         'max_length': 20, 
