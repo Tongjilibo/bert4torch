@@ -83,8 +83,6 @@ class ALBERT(BERT):
             'predictions.decoder.bias'
         }:
             return self.load_embeddings(variable)
-        elif name == 'albert.embeddings.position_embeddings.weight':
-            return self.load_pos_embeddings(variable)
         elif name == 'sop_classifier.classifier.weight':
             return variable.T
         else:

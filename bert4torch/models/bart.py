@@ -21,8 +21,6 @@ class BART(Transformer):
             'decoder.embed_tokens.weight',
         }:
             return self.load_embeddings(variable)
-        elif name in {'encoder.embed_positions.weight', 'decoder.embed_positions.weight'}:
-            return self.load_pos_embeddings(variable)
         else:
             return variable
     

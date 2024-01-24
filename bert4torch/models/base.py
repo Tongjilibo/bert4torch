@@ -5,8 +5,8 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import torch_div, log_warn, load_state_dict_into_meta_model, find_tied_parameters
-from bert4torch.snippets import take_along_dim, get_parameter_device, load_checkpoint, save_checkpoint, copytree
+from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters
+from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree
 import warnings
 from typing import Union, Optional
 from torch4keras.model import *
@@ -184,21 +184,6 @@ class BERT_BASE(nn.Module):
                     ext_embeddings.append(torch.mean(embeddings, 0, keepdim=True))
                     warnings.warn(f'Initialize ext_embeddings from compound_tokens not in embedding index')
             embeddings = torch.cat([embeddings] + ext_embeddings, 0)
-
-        return embeddings
-
-    def load_pos_embeddings(self, embeddings):
-        """根据hierarchical_position对pos_embedding进行修改"""
-        if self.hierarchical_position is not None:
-            alpha = 0.4 if self.hierarchical_position is True else self.hierarchical_position
-            embeddings = embeddings - alpha * embeddings[:1]
-            embeddings = embeddings / (1 - alpha)
-            position_index = torch.arange(self.max_position)[:, None]
-            # 为兼容低版本pytorch没有take_along_dim
-            embeddings_x = take_along_dim(embeddings,  torch_div(position_index, embeddings.size(0), rounding_mode='trunc'), dim=0)  # 兼容老版本
-            # embeddings_x = take_along_dim(embeddings,  torch.div(position_index, embeddings.size(0), rounding_mode='trunc'), dim=0)
-            embeddings_y = take_along_dim(embeddings, position_index % embeddings.size(0), dim=0)
-            embeddings = alpha * embeddings_x + (1 - alpha) * embeddings_y
 
         return embeddings
 

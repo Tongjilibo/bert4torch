@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 from bert4torch.activations import get_activation
 from bert4torch.layers.position_encoding import SinusoidalPositionEncoding
+from bert4torch.snippets import torch_div, take_along_dim
 
 
 class LayerNorm(nn.Module):
@@ -88,7 +89,9 @@ class BertEmbeddings(nn.Module):
             pass
         elif max_position > 0:
             self.position_embeddings = nn.Embedding(max_position, embedding_size)
-        
+        # 层次位置编码
+        self.hierarchical_position = kwargs.get('hierarchical_position')
+
         # segement编码
         if (segment_vocab_size > 0) and (not shared_segment_embeddings) and kwargs.get('use_segment_embedding', True):
             # use_segment_embedding用于lm, unilm场景，不使用segment_embeddings但是传入segment_ids用于计算mask
@@ -105,6 +108,21 @@ class BertEmbeddings(nn.Module):
         # 如果embedding_size != hidden_size，则再有一个linear(适用于albert矩阵分解)
         if embedding_size != hidden_size:
             self.embedding_hidden_mapping_in = nn.Linear(embedding_size, hidden_size)
+
+    def apply_hierarchical_pos_embedding(self, position_index):
+        """层次分解位置代码: https://spaces.ac.cn/archives/7947"""
+        alpha = 0.4 if self.hierarchical_position is True else self.hierarchical_position
+        embeddings = self.position_embeddings.weight - alpha * self.position_embeddings.weight[:1]
+        embeddings = embeddings / (1 - alpha)
+        
+        # 这里实现略作改动，bert4keras中是torch.arange(seq_len)[:, None]，实际使用中position_index未必是从0开始，比如padding在左侧
+        btz, seqlen = position_index.shape
+        position_index_reshape = position_index.flatten()[:, None]
+        # 为兼容低版本pytorch没有take_along_dim
+        embeddings_x = take_along_dim(embeddings,  torch_div(position_index_reshape, embeddings.size(0), rounding_mode='trunc'), dim=0)  # 兼容老版本
+        embeddings_y = take_along_dim(embeddings, position_index_reshape % embeddings.size(0), dim=0)
+        position_embeddings = alpha * embeddings_x + (1 - alpha) * embeddings_y
+        return position_embeddings.reshape(btz, seqlen, -1)  # [btz, seq_len, embed_size]
 
     def apply_embeddings(self, token_ids, segment_ids, position_ids, additional_embs, **kwargs):
         '''单独拆分出来，方便下游继承和修改'''
@@ -128,9 +146,14 @@ class BertEmbeddings(nn.Module):
         
         # position_embeddings
         if hasattr(self, 'position_embeddings') and (position_ids is not None):
-            if position_ids.shape[0] == 1:
+            if position_ids.shape[0] == 1:  # btz维度
                 position_ids = position_ids.repeat(token_ids.shape[0], 1)
-            position_embeddings = self.position_embeddings(position_ids)
+            
+            if (self.hierarchical_position is not None) and (position_ids.shape[1] > self.position_embeddings.weight.shape[0]):
+                # 层次分解位置编码
+                position_embeddings = self.apply_hierarchical_pos_embedding(position_ids)
+            else:
+                position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
         
         # 额外的embedding，如词性等

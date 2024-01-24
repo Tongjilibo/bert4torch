@@ -328,8 +328,6 @@ class BERT(BERT_BASE):
             'cls.predictions.decoder.bias'
         }:
             return self.load_embeddings(variable)
-        elif name == f'{self.prefix}.embeddings.position_embeddings.weight':
-            return self.load_pos_embeddings(variable)
         elif name == 'cls.seq_relationship.weight':
             return variable
         else:

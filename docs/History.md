@@ -1,6 +1,6 @@
 ## 更新历史
 
-- **20240121**：增加GenerateSpeed用于统计token生成速度，修复t5在use_states=True时候的错误
+- **20240121**：增加GenerateSpeed用于统计token生成速度，修复t5在use_states=True时候的错误, 修改层次编码的bug
 - **20240116**：bug修复，增加`save_pretrained`用于保存`transformer`格式的权重, 增加部分`embedding`模型|
 - **20240111**：`training`时候不生成`past_key_values`, 增加`streamlit`的example, 修复句向量`max`时的bug, `batch_generate`合并到`generate`, 修改`generation`的默认参数名(兼容过去的参数名), 多轮对话中可保留`past_key_values`, 把`attention`中的`mask`补齐逻辑移到`apply_embedding`中, 增加`uie`的`pipeline`，增加`PtuningV2Trainer`
 - **20231228**：新增`pipelines`模块，把`chat`整理进去，并新增`Text2Vec`模块用于向量生成，新增`snapshot_download`用于hf模型下载

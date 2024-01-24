@@ -101,8 +101,6 @@ class Decoder(LM_Mask, BERT):
         variable = state_dict[name]
         if name in {f'{self.prefix}.embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
-        elif name == f'{self.prefix}.embeddings.position_embeddings.weight':
-            return self.load_pos_embeddings(variable)
         else:
             return variable
         
