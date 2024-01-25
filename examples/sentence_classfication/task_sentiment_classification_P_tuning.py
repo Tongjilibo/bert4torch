@@ -21,7 +21,7 @@ config_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/config.
 checkpoint_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-choice = 'finetune_all'  # finetune_all finetune_few
+choice = 'finetune_few'  # finetune_all finetune_few
 
 def load_data(filename):
     D = []
@@ -120,14 +120,20 @@ class MyLoss(nn.CrossEntropyLoss):
         return loss
 
 if choice == 'finetune_few':
-    # 只训练这几个tokens权重这部分尚未调试好
+    # 只训练这几个tokens权重
     class PtuningBERT(BaseModel):
         def __init__(self):
             super().__init__()
-            self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, tie_emb_prj_weight=True, custom_attention_mask=True)
+            self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, 
+                                                # tie_emb_prj_weight=True, 
+                                                custom_attention_mask=True)
             for name, param in self.bert.named_parameters():
                 if ('word_embeddings' not in name) and ('mlmDecoder' not in name):
                     param.requires_grad = False  # 冻结除了word_embedding层意外的其他层
+                else:
+                    print(name)
+            self.print_trainable_parameters()
+
         def forward(self, token_ids, segment_ids):
             embedding = self.bert.embeddings.word_embeddings(token_ids)
             embedding_no_grad = embedding.detach()
@@ -155,7 +161,10 @@ class Evaluator(Callback):
     def __init__(self):
         self.best_val_acc = 0.
 
+
     def on_epoch_end(self, global_step, epoch, logs=None):
+        if choice == 'finetune_few':
+            print(model.bert.embeddings.word_embeddings.weight[20].sum().cpu().item())  # 可以监控该其他的token是否更新了
         val_acc = self.evaluate(valid_dataloader)
         test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:

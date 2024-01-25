@@ -103,7 +103,7 @@ class Attention(nn.Module):
         outputs = self.query(key).squeeze(2)  # [btz, max_segment]
         outputs -= 1e32 * (1 - mask)
         attn_scores = F.softmax(outputs, dim=-1)
-        attn_scores = attn_scores * mask
+        # attn_scores = attn_scores * mask  # 可省略
         attn_scores = attn_scores.reshape(-1, 1, attn_scores.shape[-1])  # [btz, 1, max_segment]
 
         outputs = torch.matmul(attn_scores, key).squeeze(1)  # [btz, hdsz]
@@ -127,7 +127,7 @@ class Model(BaseModel):
 
         output = self.bert([token_ids])[:, 0]  # [btz*max_segment, hdsz]
         output = output.reshape((-1, max_segment, output.shape[-1]))  # [btz, max_segment, hdsz]
-        output = output * input_mask
+        # output = output * input_mask  # 可省略
         output = self.dropout1(output)
         output = self.attn(output, input_mask)
         output = self.dropout2(output)
