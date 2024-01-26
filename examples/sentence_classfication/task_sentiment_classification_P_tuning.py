@@ -22,7 +22,11 @@ checkpoint_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pyt
 dict_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'finetune_few'  # finetune_all finetune_few
-verify_finetune_few = False  # 打印验证是否仅更新目标的几个token，True的话会取消random_mask方便验证
+
+if choice == 'finetune_few':
+    # 苏神的代码中也会对前面的token进行mask，个人感觉不mask，这样仅需微调这几个token的权重
+    # 打印验证是否仅更新目标的几个token，True的话会取消random_mask方便验证
+    use_random_mask = True
 
 def load_data(filename):
     D = []
@@ -104,7 +108,7 @@ class MyDataset(ListDataset):
         return [batch_token_ids, batch_segment_ids], batch_output_ids
 
 # 加载数据集
-train_dataset = MyDataset(data=train_data, random=not verify_finetune_few)
+train_dataset = MyDataset(data=train_data, random=not use_random_mask)
 valid_dataset = MyDataset(data=valid_data, random=False)
 test_dataset = MyDataset(data=test_data, random=False)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
@@ -170,12 +174,12 @@ class Evaluator(Callback):
     def on_epoch_end(self, global_step, epoch, logs=None):
         if choice == 'finetune_few':
             # 可以监控该其他的token是否更新了，理论上只微调这几个token，那剩余的token是不更新的
-            # 如果random_mask了，那该值还是会更新的，需verify_finetune_few=True来观察
+            # 如果random_mask了，那该值还是会更新的，需use_random_mask=True来观察
             change = model.bert.embeddings.word_embeddings.weight[1:9].sum().cpu().item()
-            not_change = model.bert.embeddings.word_embeddings.weight[200:].sum().cpu().item()
-            if not verify_finetune_few:
-                log_warn_once('You may set `verify_finetune_few`=True to see not_change the same')
-            print(f'change: {change}, not_change: {not_change}')
+            no_change = model.bert.embeddings.word_embeddings.weight[200:].sum().cpu().item()
+            if not use_random_mask:
+                log_warn_once('You may set `use_random_mask`=True to see no_change the same')
+            print(f'change: {change}, no_change: {no_change}')
         
         val_acc = self.evaluate(valid_dataloader)
         test_acc = self.evaluate(test_dataloader)

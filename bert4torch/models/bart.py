@@ -13,10 +13,10 @@ class BART(Transformer):
         super(BART, self).__init__(*args, **kwargs)
         self.model_type = 'bart'
 
-    def load_variable(self, state_dict, name):
+    def load_variable(self, state_dict, old_key, new_key):
         # 加载单个变量的函数
-        variable = state_dict[name]
-        if name in {
+        variable = state_dict[old_key]
+        if old_key in {
             'shared.weight',
             'encoder.embed_tokens.weight',
             'decoder.embed_tokens.weight',

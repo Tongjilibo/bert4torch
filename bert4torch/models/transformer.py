@@ -96,10 +96,10 @@ class Decoder(LM_Mask, BERT):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, state_dict, name):
+    def load_variable(self, state_dict, old_key, new_key):
         """加载单个变量的函数, 这里的名称均为映射前的"""
-        variable = state_dict[name]
-        if name in {f'decoder.embeddings.word_embeddings.weight', 'lm_head.weight'}:
+        variable = state_dict[old_key]
+        if old_key in {f'decoder.embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable

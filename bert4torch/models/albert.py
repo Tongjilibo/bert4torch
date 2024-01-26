@@ -73,17 +73,17 @@ class ALBERT(BERT):
 
         return mapping
 
-    def load_variable(self, state_dict, name):
+    def load_variable(self, state_dict, old_key, new_key):
         # 加载单个变量的函数
-        variable = state_dict[name]
-        if name in {
+        variable = state_dict[old_key]
+        if old_key in {
             'albert.embeddings.word_embeddings.weight',
             'predictions.bias',
             'predictions.decoder.weight',
             'predictions.decoder.bias'
         }:
             return self.load_embeddings(variable)
-        elif name == 'sop_classifier.classifier.weight':
+        elif old_key == 'sop_classifier.classifier.weight':
             return variable.T
         else:
             return variable

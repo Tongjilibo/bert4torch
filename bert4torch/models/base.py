@@ -221,7 +221,7 @@ class BERT_BASE(nn.Module):
 
             # 2. model中有，且ckpt中有，正常加载
             if old_key in ckpt_state_dict:
-                state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key)
+                state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key, new_key)
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
                 if old_key in over_keys:
                     over_keys.remove(old_key)

@@ -14,9 +14,9 @@ class GAU_alpha(RoFormerV2):
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.model_type = 'gau_alpha'
 
-    def load_variable(self, state_dict, name):
-        variable = state_dict[name]
-        if name in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'}:
+    def load_variable(self, state_dict, old_key, new_key):
+        variable = state_dict[old_key]
+        if old_key in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable

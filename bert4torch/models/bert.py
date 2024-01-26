@@ -317,18 +317,23 @@ class BERT(BERT_BASE):
             self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)
         return state_dict
     
-    def load_variable(self, state_dict, name, prefix='bert'):
+    def load_variable(self, state_dict, old_key, new_key, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
-        variable = state_dict[name]
-        if name in {
+        variable = state_dict[old_key]
+        mapping = self.variable_mapping()
+
+        if old_key in {
             f'{prefix}.embeddings.word_embeddings.weight',
             'cls.predictions.bias',
             'cls.predictions.decoder.weight',
             'cls.predictions.decoder.bias'
         }:
             return self.load_embeddings(variable)
-        elif name == 'cls.seq_relationship.weight':
-            return variable
+        elif new_key in {'embeddings.word_embeddings.weight', 'mlmBias',
+                         'mlmDecoder.weight', 'mlmDecoder.bias'} and \
+            (state_dict.get(mapping[new_key]) is not None):
+            # bert4torch中new_key相对固定, 能cover住绝大多数BERT子类
+            return self.load_embeddings(state_dict.get(mapping[new_key]))
         else:
             return variable
 
