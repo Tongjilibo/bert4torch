@@ -19,6 +19,7 @@ class Falcon(Decoder):
         if kwargs.get('p_bias') == 'alibi':
             MultiHeadAttentionLayer.apply_alibi_pos_emb = apply_alibi_pos_emb
         super().__init__(*args, **kwargs)
+        self.model_type = 'falcon'
         self.prefix = 'falcon'
         self.multi_query_attention = kwargs.get('multi_query_group_num') is not None
         del self.embeddings.layerNorm

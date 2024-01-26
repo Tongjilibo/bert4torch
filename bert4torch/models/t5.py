@@ -20,6 +20,7 @@ class T5_Encoder(Encoder):
 
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
+        self.model_type = 't5_encoder'
         self.prefix = 'encoder'
         self.tie_weights()
 
@@ -81,6 +82,7 @@ class T5_Decoder(Decoder):
         
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
+        self.model_type = 't5_decoder'
         self.prefix = 'decoder'
         self.tie_weights()        
 
@@ -151,6 +153,7 @@ class T5(Transformer):
         kwargs['add_cross_attention'] = True
         kwargs['logit_scale'] = kwargs.get('logit_scale', True)
         self.decoder = T5_Decoder(*args, **kwargs)
+        self.model_type = 't5'
 
     def tie_weights(self):
         super().tie_weights()

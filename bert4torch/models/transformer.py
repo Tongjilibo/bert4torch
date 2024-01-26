@@ -15,6 +15,7 @@ class Encoder(BERT):
         super().__init__(*args, **kwargs)
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
+        self.model_type = 'encoder'
         self.prefix = 'encoder'
     
     def forward(self, *inputs, **model_kwargs):
@@ -34,6 +35,7 @@ class Decoder(LM_Mask, BERT):
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
         self.is_decoder = True
+        self.model_type = 'decoder'
         self.prefix = 'decoder'
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
@@ -142,6 +144,7 @@ class Transformer(BERT_BASE):
         self.max_position = kwargs['max_position']
         self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
         self.is_encoder_decoder = True
+        self.model_type = 'transformer'
         self.prefix = 'transformer'
 
         # encoder

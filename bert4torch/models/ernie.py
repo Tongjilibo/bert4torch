@@ -11,6 +11,7 @@ class ERNIE(BERT):
         self.use_task_id = kwargs.get('use_task_id')
         self.embeddings = self.ErnieEmbeddings(**self.get_kw('vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
                                                        'shared_segment_embeddings', 'dropout_rate', 'conditional_size', **kwargs))
+        self.model_type = 'ernie'
         self.prefix = 'ernie'
 
     def variable_mapping(self):

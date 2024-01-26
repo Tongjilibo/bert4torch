@@ -9,3 +9,4 @@ class NEZHA(BERT):
         # p_bias来控制embedding阶段无pos_embedding, max_relative_position默认取64
         kwargs.update({'p_bias': 'typical_relative', 'max_relative_position': kwargs.get('max_relative_position', 64)})
         super(NEZHA, self).__init__(*args, **kwargs)
+        self.model_type = 'nezha'

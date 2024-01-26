@@ -12,6 +12,7 @@ class XLNET(Transformer_XL):
         self.bi_data = bi_data
         kwargs['rel_shift_opt'] = 'xlnet'
         super().__init__(*args, **kwargs)
+        self.model_type = 'xlnet'
         self.prefix = 'transformer'
     
     def relative_positional_encoding(self, qlen, klen, device):

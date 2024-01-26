@@ -16,6 +16,7 @@ class DebertaV2(BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'deberta_v2'})  # 控制在Embedding阶段不生成position_embedding
         super(DebertaV2, self).__init__(*args, **kwargs)
+        self.model_type = 'deberta'
         self.prefix = 'deberta'
         # Encoder中transformer_block前的其他网络结构
         self.relative_attention = kwargs.get("relative_attention", True)

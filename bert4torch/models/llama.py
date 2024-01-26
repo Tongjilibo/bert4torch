@@ -17,6 +17,7 @@ class LLaMA(Decoder):
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
+        self.model_type = 'llama'
         self.prefix = 'llama'
 
         # 修改feedword

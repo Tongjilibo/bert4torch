@@ -17,6 +17,7 @@ class GPT(Decoder):
         kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
+        self.model_type = 'gpt'
         self.prefix = 'gpt'
 
     def load_trans_ckpt(self, checkpoint):
@@ -115,6 +116,7 @@ class GPT2(Decoder):
         kwargs['final_layernorm'] = kwargs.get('final_layernorm', True)
         super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
+        self.model_type = 'gpt2'
         self.prefix = 'gpt2'
 
     def load_trans_ckpt(self, checkpoint):
@@ -208,6 +210,7 @@ class GPT2_ML(Decoder):
         layer = self.Gpt2MlLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
                                 'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+        self.model_type = 'gpt2_ml'
         self.prefix = 'gpt2_ml'
     
     def load_trans_ckpt(self, checkpoint):

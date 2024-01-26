@@ -10,7 +10,7 @@ import numpy as np
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from torch.optim import Adam
-from bert4torch.snippets import sequence_padding, ListDataset
+from bert4torch.snippets import sequence_padding, ListDataset, log_warn_once
 from bert4torch.callbacks import Callback
 from torch.utils.data import DataLoader
 from torchinfo import summary
@@ -22,6 +22,7 @@ checkpoint_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pyt
 dict_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'finetune_few'  # finetune_all finetune_few
+verify_finetune_few = False  # 打印验证是否仅更新目标的几个token，True的话会取消random_mask方便验证
 
 def load_data(filename):
     D = []
@@ -103,7 +104,7 @@ class MyDataset(ListDataset):
         return [batch_token_ids, batch_segment_ids], batch_output_ids
 
 # 加载数据集
-train_dataset = MyDataset(data=train_data, random=True)
+train_dataset = MyDataset(data=train_data, random=not verify_finetune_few)
 valid_dataset = MyDataset(data=valid_data, random=False)
 test_dataset = MyDataset(data=test_data, random=False)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=train_dataset.collate_fn)
@@ -124,6 +125,7 @@ if choice == 'finetune_few':
     class PtuningBERT(BaseModel):
         def __init__(self):
             super().__init__()
+            # 这里tie_emb_prj_weight=False，若设置为True, 则最后一层mlmDecoder也需要mask（未实现）
             self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, 
                                                 # tie_emb_prj_weight=True, 
                                                 custom_attention_mask=True)
@@ -135,15 +137,19 @@ if choice == 'finetune_few':
             self.print_trainable_parameters()
 
         def forward(self, token_ids, segment_ids):
+            attention_mask = (token_ids != tokenizer._token_pad_id)
             embedding = self.bert.embeddings.word_embeddings(token_ids)
             embedding_no_grad = embedding.detach()
             mask = torch.ones(token_ids.shape[1], dtype=torch.long, device=token_ids.device)
             mask[1:9] -= 1  # 只优化id为1～8的token
-            embedding[:, mask.bool()] = embedding_no_grad[:, mask.bool()]
-            attention_mask = (token_ids != tokenizer._token_pad_id)
+
+            # embedding[:, mask.bool()] = embedding_no_grad[:, mask.bool()]  # 实现1
+            embedding = embedding * (1-mask[None,:,None]) + embedding_no_grad * mask[None,:,None]  # 实现2
             return self.bert([embedding, segment_ids, attention_mask])
+ 
     model = PtuningBERT().to(device)
     summary(model, input_data=next(iter(train_dataloader))[0])
+
 elif choice == 'finetune_all':
     # 全部权重一起训练
     model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, add_trainer=True).to(device)
@@ -161,10 +167,16 @@ class Evaluator(Callback):
     def __init__(self):
         self.best_val_acc = 0.
 
-
     def on_epoch_end(self, global_step, epoch, logs=None):
         if choice == 'finetune_few':
-            print(model.bert.embeddings.word_embeddings.weight[20].sum().cpu().item())  # 可以监控该其他的token是否更新了
+            # 可以监控该其他的token是否更新了，理论上只微调这几个token，那剩余的token是不更新的
+            # 如果random_mask了，那该值还是会更新的，需verify_finetune_few=True来观察
+            change = model.bert.embeddings.word_embeddings.weight[1:9].sum().cpu().item()
+            not_change = model.bert.embeddings.word_embeddings.weight[200:].sum().cpu().item() # 取
+            if not verify_finetune_few:
+                log_warn_once('You may set `verify_finetune_few`=True to see not_change the same')
+            print(f'change: {change}, not_change: {not_change}')
+        
         val_acc = self.evaluate(valid_dataloader)
         test_acc = self.evaluate(test_dataloader)
         if val_acc > self.best_val_acc:

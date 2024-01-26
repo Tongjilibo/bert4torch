@@ -10,6 +10,7 @@ class RoFormer(BERT):
     def __init__(self, *args, **kwargs):
         kwargs.update({'p_bias': 'rotary'})  # 指定在attention阶段使用rotary编码
         super(RoFormer, self).__init__(*args, **kwargs)
+        self.model_type = 'roformer'
         self.prefix = 'roformer'
     
     def variable_mapping(self):
@@ -31,6 +32,7 @@ class RoFormerV2(RoFormer):
             del self.mlmBias
             del self.mlmDense
             self.mlmDecoder.register_parameter('bias', None)
+        self.model_type = 'roformer_v2'
 
     def variable_mapping(self):
         mapping = super().variable_mapping()

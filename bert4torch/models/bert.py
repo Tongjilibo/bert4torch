@@ -71,7 +71,7 @@ class BERT(BERT_BASE):
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
             self.tie_weights()
-        # 下述继承于BERT的有声明新的参数，在这里初始化不能统一初始化到
+        self.model_type = 'bert'
 
     def tie_weights(self):
         """权重的tie"""
@@ -301,7 +301,7 @@ class BERT(BERT_BASE):
         这么写的原因是下游很多模型从BERT继承，这样下游可以默认使用BERT_BASE的load_trans_ckpt
         """
         state_dict = super().load_trans_ckpt(checkpoint)        
-        if type(self) == BERT:
+        if hasattr(self, 'model_type') and (self.model_type == 'bert'):
             # bert
             mapping_reverse = {v:k for k, v in self.variable_mapping().items()}
             mapping = {}

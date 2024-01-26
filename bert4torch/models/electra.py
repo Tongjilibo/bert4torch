@@ -12,6 +12,7 @@ class ELECTRA(BERT):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, max_position, **kwargs):
         super(ELECTRA, self).__init__(max_position, **kwargs)
+        self.model_type = 'electra'
         self.prefix = 'electra'
         if self.with_discriminator:
             self.dense = nn.Linear(self.hidden_size, self.hidden_size)

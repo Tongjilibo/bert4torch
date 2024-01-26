@@ -11,6 +11,7 @@ class BART(Transformer):
         self.postion_offset = 2
         kwargs['max_position'] = kwargs['max_position'] + self.postion_offset  # bart有个值为2的offset
         super(BART, self).__init__(*args, **kwargs)
+        self.model_type = 'bart'
 
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
