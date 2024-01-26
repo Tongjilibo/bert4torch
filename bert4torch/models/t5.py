@@ -21,7 +21,6 @@ class T5_Encoder(Encoder):
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
         self.model_type = 't5_encoder'
-        self.prefix = 'encoder'
         self.tie_weights()
 
     def tie_weights(self):
@@ -38,32 +37,32 @@ class T5_Encoder(Encoder):
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
         variable = state_dict[name]
-        if name in {f'{self.prefix}.embed_tokens.weight', 'shared.weight'}:
+        if name in {f'encoder.embed_tokens.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
 
     def variable_mapping(self):
         # 查看check_point发现'shared.weight'
-        mapping = {f'{self.prefix}.embeddings.word_embeddings.weight': 'encoder.embed_tokens.weight',
-                   f'{self.prefix}.encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
-                   f'{self.prefix}.final_layer_norm.weight': 'encoder.final_layer_norm.weight'}
+        mapping = {f'encoder.embeddings.word_embeddings.weight': 'encoder.embed_tokens.weight',
+                   f'encoder.encoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
+                   f'encoder.final_layer_norm.weight': 'encoder.final_layer_norm.weight'}
         for i in range(self.num_hidden_layers):
             mapping.update({
-                f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.block.{i}.layer.0.SelfAttention.q.weight',
-                f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.block.{i}.layer.0.SelfAttention.k.weight',
-                f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.block.{i}.layer.0.SelfAttention.v.weight',
-                f'{self.prefix}.encoderLayer.{i}.multiHeadAttention.o.weight': f'encoder.block.{i}.layer.0.SelfAttention.o.weight',
-                f'{self.prefix}.encoderLayer.{i}.attnLayerNorm.weight': f'encoder.block.{i}.layer.0.layer_norm.weight',
-                f'{self.prefix}.encoderLayer.{i}.feedForward.outputDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wo.weight',
-                f'{self.prefix}.encoderLayer.{i}.ffnLayerNorm.weight': f'encoder.block.{i}.layer.1.layer_norm.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.block.{i}.layer.0.SelfAttention.q.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.k.weight': f'encoder.block.{i}.layer.0.SelfAttention.k.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.v.weight': f'encoder.block.{i}.layer.0.SelfAttention.v.weight',
+                f'encoder.encoderLayer.{i}.multiHeadAttention.o.weight': f'encoder.block.{i}.layer.0.SelfAttention.o.weight',
+                f'encoder.encoderLayer.{i}.attnLayerNorm.weight': f'encoder.block.{i}.layer.0.layer_norm.weight',
+                f'encoder.encoderLayer.{i}.feedForward.outputDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wo.weight',
+                f'encoder.encoderLayer.{i}.ffnLayerNorm.weight': f'encoder.block.{i}.layer.1.layer_norm.weight',
                 })
 
             if self.version.endswith('t5.1.0'):
-                mapping.update({f'{self.prefix}.encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi.weight'})
+                mapping.update({f'encoder.encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi.weight'})
             elif self.version.endswith('t5.1.1'):
-                mapping.update({f'{self.prefix}.encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi_0.weight',
-                                f'{self.prefix}.encoderLayer.{i}.feedForward.intermediateDense1.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi_1.weight'})
+                mapping.update({f'encoder.encoderLayer.{i}.feedForward.intermediateDense.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi_0.weight',
+                                f'encoder.encoderLayer.{i}.feedForward.intermediateDense1.weight': f'encoder.block.{i}.layer.1.DenseReluDense.wi_1.weight'})
         return mapping
     
 
@@ -83,8 +82,7 @@ class T5_Decoder(Decoder):
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
         self.model_type = 't5_decoder'
-        self.prefix = 'decoder'
-        self.tie_weights()        
+        self.tie_weights()
 
     def tie_weights(self):
         super().tie_weights()
@@ -101,41 +99,41 @@ class T5_Decoder(Decoder):
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
         variable = state_dict[name]
-        if name in {f'{self.prefix}.embed_tokens.weight', 'lm_head.weight', 'shared.weight'}:
+        if name in {f'decoder.embed_tokens.weight', 'lm_head.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
 
     def variable_mapping(self):
         # 查看check_point发现'shared.weight'
-        mapping = {f'{self.prefix}.embeddings.word_embeddings.weight': 'decoder.embed_tokens.weight',
-                   f'{self.prefix}.decoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
-                   f'{self.prefix}.final_layer_norm.weight': 'decoder.final_layer_norm.weight',
-                   f'{self.prefix}.lm_head.weight': 'lm_head.weight'}
+        mapping = {f'decoder.embeddings.word_embeddings.weight': 'decoder.embed_tokens.weight',
+                   f'decoder.decoderLayer.0.multiHeadAttention.relative_positions_encoding.weight': 'decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight',
+                   f'decoder.final_layer_norm.weight': 'decoder.final_layer_norm.weight',
+                   f'decoder.lm_head.weight': 'lm_head.weight'}
 
         for i in range(self.num_hidden_layers):
             mapping.update({
-                f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.q.weight': f'decoder.block.{i}.layer.0.SelfAttention.q.weight',
-                f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.block.{i}.layer.0.SelfAttention.k.weight',
-                f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.block.{i}.layer.0.SelfAttention.v.weight',
-                f'{self.prefix}.decoderLayer.{i}.multiHeadAttention.o.weight': f'decoder.block.{i}.layer.0.SelfAttention.o.weight',
-                f'{self.prefix}.decoderLayer.{i}.attnLayerNorm.weight': f'decoder.block.{i}.layer.0.layer_norm.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.q.weight': f'decoder.block.{i}.layer.0.SelfAttention.q.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.k.weight': f'decoder.block.{i}.layer.0.SelfAttention.k.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.v.weight': f'decoder.block.{i}.layer.0.SelfAttention.v.weight',
+                f'decoder.decoderLayer.{i}.multiHeadAttention.o.weight': f'decoder.block.{i}.layer.0.SelfAttention.o.weight',
+                f'decoder.decoderLayer.{i}.attnLayerNorm.weight': f'decoder.block.{i}.layer.0.layer_norm.weight',
 
-                f'{self.prefix}.decoderLayer.{i}.crossAttention.q.weight': f'decoder.block.{i}.layer.1.EncDecAttention.q.weight',
-                f'{self.prefix}.decoderLayer.{i}.crossAttention.k.weight': f'decoder.block.{i}.layer.1.EncDecAttention.k.weight',
-                f'{self.prefix}.decoderLayer.{i}.crossAttention.v.weight': f'decoder.block.{i}.layer.1.EncDecAttention.v.weight',
-                f'{self.prefix}.decoderLayer.{i}.crossAttention.o.weight': f'decoder.block.{i}.layer.1.EncDecAttention.o.weight',
-                f'{self.prefix}.decoderLayer.{i}.crossLayerNorm.weight': f'decoder.block.{i}.layer.1.layer_norm.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.q.weight': f'decoder.block.{i}.layer.1.EncDecAttention.q.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.k.weight': f'decoder.block.{i}.layer.1.EncDecAttention.k.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.v.weight': f'decoder.block.{i}.layer.1.EncDecAttention.v.weight',
+                f'decoder.decoderLayer.{i}.crossAttention.o.weight': f'decoder.block.{i}.layer.1.EncDecAttention.o.weight',
+                f'decoder.decoderLayer.{i}.crossLayerNorm.weight': f'decoder.block.{i}.layer.1.layer_norm.weight',
 
-                f'{self.prefix}.decoderLayer.{i}.feedForward.outputDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wo.weight',
-                f'{self.prefix}.decoderLayer.{i}.ffnLayerNorm.weight': f'decoder.block.{i}.layer.2.layer_norm.weight',
+                f'decoder.decoderLayer.{i}.feedForward.outputDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wo.weight',
+                f'decoder.decoderLayer.{i}.ffnLayerNorm.weight': f'decoder.block.{i}.layer.2.layer_norm.weight',
                 })
 
             if self.version.endswith('t5.1.0'):
-                mapping.update({f'{self.prefix}.decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi.weight'})
+                mapping.update({f'decoder.decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi.weight'})
             elif self.version.endswith('t5.1.1'):
-                mapping.update({f'{self.prefix}.decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi_0.weight',
-                                f'{self.prefix}.decoderLayer.{i}.feedForward.intermediateDense1.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi_1.weight'})
+                mapping.update({f'decoder.decoderLayer.{i}.feedForward.intermediateDense.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi_0.weight',
+                                f'decoder.decoderLayer.{i}.feedForward.intermediateDense1.weight': f'decoder.block.{i}.layer.2.DenseReluDense.wi_1.weight'})
         return mapping
 
 

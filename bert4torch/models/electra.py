@@ -13,7 +13,6 @@ class ELECTRA(BERT):
     def __init__(self, max_position, **kwargs):
         super(ELECTRA, self).__init__(max_position, **kwargs)
         self.model_type = 'electra'
-        self.prefix = 'electra'
         if self.with_discriminator:
             self.dense = nn.Linear(self.hidden_size, self.hidden_size)
             self.dense_act = get_activation(self.hidden_act)
@@ -34,12 +33,8 @@ class ELECTRA(BERT):
                 outputs.append(logits)
         return outputs
 
-    def load_variable(self, state_dict, name):
-        # 加载单个变量的函数
-        return super().load_variable(state_dict, name)
-
     def variable_mapping(self):
-        mapping = super(ELECTRA, self).variable_mapping()
+        mapping = super(ELECTRA, self).variable_mapping(prefix='electra')
         mapping.update({'dense.weight': 'discriminator_predictions.dense.weight', 
                         'dense.bias': 'discriminator_predictions.dense.bias',
                         'dense_prediction.weight': 'discriminator_predictions.dense_prediction.weight',

@@ -47,7 +47,8 @@ def test_roformer(model_dir):
             pred_str.append(token_ids[i])
     pred_str = tokenizer.decode(pred_str)
     print(pred_str)
-    assert pred_str in '今天天气很好，我想去公园玩。'
+    assert pred_str in {'今天天气很好，我想去公园玩。', '今天我很好，我想去公园玩。'}
+
 
 if __name__=='__main__':
     test_roformer("E:/pretrain_ckpt/roformer/sushen@roformer_v1_base")

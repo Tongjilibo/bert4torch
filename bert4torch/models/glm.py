@@ -29,18 +29,17 @@ class GLM(Decoder):
                                             'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
-        self.prefix = 'transformer'
         self.model_type = 'glm'
 
-    def load_trans_ckpt(self, checkpoint):
+    def load_trans_ckpt(self, checkpoint, prefix='transformer'):
         state_dict = super().load_trans_ckpt(checkpoint)
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
-                f'{self.prefix}.layers.{i}.attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
-                f'{self.prefix}.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
+                f'{prefix}.layers.{i}.attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'{prefix}.layers.{i}.attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
                 # int8和int4的weight_scale权重
-                f'{self.prefix}.layers.{i}.attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'  
+                f'{prefix}.layers.{i}.attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'  
             }
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
@@ -53,15 +52,15 @@ class GLM(Decoder):
                 state_dict.pop(old_key)
         return state_dict
     
-    def save_trans_ckpt(self):
+    def save_trans_ckpt(self, prefix='transformer'):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
             mapping = {
-                'decoderLayer.{}.multiHeadAttention.{}.weight': f'{self.prefix}.layers.{i}.attention.query_key_value.weight',
-                'decoderLayer.{}.multiHeadAttention.{}.bias': f'{self.prefix}.layers.{i}.attention.query_key_value.bias',
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'{prefix}.layers.{i}.attention.query_key_value.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'{prefix}.layers.{i}.attention.query_key_value.bias',
                 # int8和int4的weight_scale权重
-                'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{self.prefix}.layers.{i}.attention.query_key_value.weight_scale'
+                'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{prefix}.layers.{i}.attention.query_key_value.weight_scale'
             }
             for old_key, new_key in mapping.items():
                 qkv = []
@@ -72,16 +71,16 @@ class GLM(Decoder):
                     state_dict[new_key] = torch.cat([torch.cat(i) for i in zip(*qkv)])
         return state_dict
     
-    def variable_mapping(self):
+    def variable_mapping(self, prefix='transformer'):
         # 映射到权重格式
         mapping = {
-            'LayerNormFinal.weight': f"{self.prefix}.final_layernorm.weight",
-            'LayerNormFinal.bias': f"{self.prefix}.final_layernorm.bias",
+            'LayerNormFinal.weight': f"{prefix}.final_layernorm.weight",
+            'LayerNormFinal.bias': f"{prefix}.final_layernorm.bias",
             'lm_head.weight': "lm_head.weight",
             'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
 
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.prefix}.layers.%d.' % i
+            prefix_i = f'{prefix}.layers.%d.' % i
             mapping.update({
                 f'decoderLayer.{i}.attnLayerNorm.weight': prefix_i + 'input_layernorm.weight',
                 f'decoderLayer.{i}.attnLayerNorm.bias': prefix_i + 'input_layernorm.bias',
@@ -192,17 +191,16 @@ class GLM2(GLM):
         kwargs.update({'norm_mode': 'rmsnorm', 'pre_layernorm': True, 'is_causal': True})
         super().__init__(*args, **kwargs)
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-5), norm_mode='rmsnorm', bias=False)
-        self.prefix = 'transformer.encoder'
         self.model_type = 'glm2'
 
-    def load_trans_ckpt(self, checkpoint):
-        state_dict = super().load_trans_ckpt(checkpoint)
+    def load_trans_ckpt(self, checkpoint, prefix='transformer.encoder'):
+        state_dict = super().load_trans_ckpt(checkpoint, prefix)
         # weight bias
         for i in range(self.num_hidden_layers):
             mapping = {
-                f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
-                f'{self.prefix}.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
-                f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'
+                f'{prefix}.layers.{i}.self_attention.query_key_value.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight',
+                f'{prefix}.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
+                f'{prefix}.layers.{i}.self_attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'
             }
             for old_key, new_key in mapping.items():
                 if (qkv := state_dict.get(old_key)) is None:
@@ -214,14 +212,14 @@ class GLM2(GLM):
                 state_dict.pop(old_key)
         return state_dict
 
-    def save_trans_ckpt(self):
+    def save_trans_ckpt(self, prefix='transformer.encoder'):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
             mapping = {
-                'decoderLayer.{}.multiHeadAttention.{}.weight': f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight',
-                'decoderLayer.{}.multiHeadAttention.{}.bias': f'{self.prefix}.layers.{i}.self_attention.query_key_value.bias',
-                'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{self.prefix}.layers.{i}.self_attention.query_key_value.weight_scale'
+                'decoderLayer.{}.multiHeadAttention.{}.weight': f'{prefix}.layers.{i}.self_attention.query_key_value.weight',
+                'decoderLayer.{}.multiHeadAttention.{}.bias': f'{prefix}.layers.{i}.self_attention.query_key_value.bias',
+                'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{prefix}.layers.{i}.self_attention.query_key_value.weight_scale'
             }
             for old_key, new_key in mapping.items():
                 qkv = []
@@ -232,14 +230,14 @@ class GLM2(GLM):
                     state_dict[new_key] = torch.cat(qkv)
         return state_dict
 
-    def variable_mapping(self):
-        mapping = super().variable_mapping()
+    def variable_mapping(self, prefix='transformer.encoder'):
+        mapping = super().variable_mapping(prefix)
         mapping.update({
             'embeddings.word_embeddings.weight': 'transformer.embedding.word_embeddings.weight',
             'lm_head.weight': "transformer.output_layer.weight"
         })
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.prefix}.layers.%d.' % i
+            prefix_i = f'{prefix}.layers.%d.' % i
             mapping.update({
                 f'decoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'self_attention.dense.weight',
                 f'decoderLayer.{i}.multiHeadAttention.o.weight_scale': prefix_i + "self_attention.dense.weight_scale",

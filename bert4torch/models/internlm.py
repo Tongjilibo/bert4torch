@@ -13,7 +13,6 @@ class InternLM(Decoder):
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         self.model_type = 'internlm'
-        self.prefix = 'internlm'
         del self.embeddings.layerNorm
 
         # 修改网络结构

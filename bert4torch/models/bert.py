@@ -30,7 +30,6 @@ class BERT(BERT_BASE):
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
-        self.prefix = 'bert'
         self.max_position = max_position
         self.segment_vocab_size = segment_vocab_size
         self.with_pool = with_pool
@@ -318,11 +317,11 @@ class BERT(BERT_BASE):
             self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)
         return state_dict
     
-    def load_variable(self, state_dict, name):
+    def load_variable(self, state_dict, name, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[name]
         if name in {
-            f'{self.prefix}.embeddings.word_embeddings.weight',
+            f'{prefix}.embeddings.word_embeddings.weight',
             'cls.predictions.bias',
             'cls.predictions.decoder.weight',
             'cls.predictions.decoder.bias'
@@ -333,16 +332,16 @@ class BERT(BERT_BASE):
         else:
             return variable
 
-    def variable_mapping(self):
+    def variable_mapping(self, prefix='bert'):
         """权重映射字典，格式为{new_key: old_key}"""
         mapping = {
-            'embeddings.word_embeddings.weight': f'{self.prefix}.embeddings.word_embeddings.weight',
-            'embeddings.position_embeddings.weight': f'{self.prefix}.embeddings.position_embeddings.weight',
-            'embeddings.segment_embeddings.weight': f'{self.prefix}.embeddings.token_type_embeddings.weight',
-            'embeddings.layerNorm.weight': f'{self.prefix}.embeddings.LayerNorm.weight',
-            'embeddings.layerNorm.bias': f'{self.prefix}.embeddings.LayerNorm.bias',
-            'pooler.weight': f'{self.prefix}.pooler.dense.weight',
-            'pooler.bias': f'{self.prefix}.pooler.dense.bias',
+            'embeddings.word_embeddings.weight': f'{prefix}.embeddings.word_embeddings.weight',
+            'embeddings.position_embeddings.weight': f'{prefix}.embeddings.position_embeddings.weight',
+            'embeddings.segment_embeddings.weight': f'{prefix}.embeddings.token_type_embeddings.weight',
+            'embeddings.layerNorm.weight': f'{prefix}.embeddings.LayerNorm.weight',
+            'embeddings.layerNorm.bias': f'{prefix}.embeddings.LayerNorm.bias',
+            'pooler.weight': f'{prefix}.pooler.dense.weight',
+            'pooler.bias': f'{prefix}.pooler.dense.bias',
             'nsp.weight': 'cls.seq_relationship.weight',
             'nsp.bias': 'cls.seq_relationship.bias',
             'mlmDense.weight': 'cls.predictions.transform.dense.weight',
@@ -354,7 +353,7 @@ class BERT(BERT_BASE):
             'mlmDecoder.bias': 'cls.predictions.decoder.bias'
         }
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.prefix}.encoder.layer.%d.' % i
+            prefix_i = f'{prefix}.encoder.layer.%d.' % i
             mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.self.query.weight',
                             f'encoderLayer.{i}.multiHeadAttention.q.bias': prefix_i + 'attention.self.query.bias',
                             f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attention.self.key.weight',
@@ -374,6 +373,6 @@ class BERT(BERT_BASE):
                             })
 
         if self.embedding_size != self.hidden_size:
-            mapping.update({'embeddings.embedding_hidden_mapping_in.weight': f'{self.prefix}.encoder.embedding_hidden_mapping_in.weight',
-                            'embeddings.embedding_hidden_mapping_in.bias': f'{self.prefix}.encoder.embedding_hidden_mapping_in.bias'})
+            mapping.update({'embeddings.embedding_hidden_mapping_in.weight': f'bert.encoder.embedding_hidden_mapping_in.weight',
+                            'embeddings.embedding_hidden_mapping_in.bias': f'bert.encoder.embedding_hidden_mapping_in.bias'})
         return mapping

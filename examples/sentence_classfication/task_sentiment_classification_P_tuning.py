@@ -172,7 +172,7 @@ class Evaluator(Callback):
             # 可以监控该其他的token是否更新了，理论上只微调这几个token，那剩余的token是不更新的
             # 如果random_mask了，那该值还是会更新的，需verify_finetune_few=True来观察
             change = model.bert.embeddings.word_embeddings.weight[1:9].sum().cpu().item()
-            not_change = model.bert.embeddings.word_embeddings.weight[200:].sum().cpu().item() # 取
+            not_change = model.bert.embeddings.word_embeddings.weight[200:].sum().cpu().item()
             if not verify_finetune_few:
                 log_warn_once('You may set `verify_finetune_few`=True to see not_change the same')
             print(f'change: {change}, not_change: {not_change}')

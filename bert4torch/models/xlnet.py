@@ -13,7 +13,6 @@ class XLNET(Transformer_XL):
         kwargs['rel_shift_opt'] = 'xlnet'
         super().__init__(*args, **kwargs)
         self.model_type = 'xlnet'
-        self.prefix = 'transformer'
     
     def relative_positional_encoding(self, qlen, klen, device):
         # 生成pos_emb, 这里使用sincos的位置编码, transformer_xl里面有-1
@@ -58,7 +57,7 @@ class XLNET(Transformer_XL):
     def load_variable(self, state_dict, name):
         # 加载单个变量的函数
         variable = state_dict[name]
-        if name in {f'{self.prefix}.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
+        if name in {f'transformer.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -66,7 +65,7 @@ class XLNET(Transformer_XL):
     def load_trans_ckpt(self, checkpoint):
         state_dict = torch.load(checkpoint, map_location='cpu')
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.prefix}.layer.%d.' % i
+            prefix_i = f'transformer.layer.%d.' % i
             mapping = {
                     prefix_i + 'rel_attn.q': f'encoderLayer.{i}.multiHeadAttention.q.weight',
                     prefix_i + 'rel_attn.k': f'encoderLayer.{i}.multiHeadAttention.k.weight',
@@ -87,7 +86,7 @@ class XLNET(Transformer_XL):
     def save_trans_ckpt(self):
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.prefix}.layer.%d.' % i
+            prefix_i = f'transformer.layer.%d.' % i
             mapping = {
                     f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'rel_attn.q',
                     f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'rel_attn.k',
@@ -107,12 +106,12 @@ class XLNET(Transformer_XL):
 
     def variable_mapping(self):
         mapping = {
-            'embeddings.weight': f'{self.prefix}.word_embedding.weight',
+            'embeddings.weight': f'transformer.word_embedding.weight',
             'lm_head.weight': 'lm_loss.weight',
             'lm_head.bias': 'lm_loss.bias',
         }
         for i in range(self.num_hidden_layers):
-            prefix_i = f'{self.prefix}.layer.%d.' % i
+            prefix_i = f'transformer.layer.%d.' % i
             mapping.update({
                             f'encoderLayer.{i}.multiHeadAttention.r_r_bias': prefix_i + 'rel_attn.r_r_bias',
                             f'encoderLayer.{i}.multiHeadAttention.r_s_bias': prefix_i + 'rel_attn.r_s_bias',

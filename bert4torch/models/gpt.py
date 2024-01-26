@@ -18,7 +18,6 @@ class GPT(Decoder):
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         self.model_type = 'gpt'
-        self.prefix = 'gpt'
 
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
@@ -117,7 +116,6 @@ class GPT2(Decoder):
         super(GPT2, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         self.model_type = 'gpt2'
-        self.prefix = 'gpt2'
 
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
@@ -211,7 +209,6 @@ class GPT2_ML(Decoder):
                                 'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
         self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.model_type = 'gpt2_ml'
-        self.prefix = 'gpt2_ml'
     
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)

@@ -12,11 +12,10 @@ class ERNIE(BERT):
         self.embeddings = self.ErnieEmbeddings(**self.get_kw('vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
                                                        'shared_segment_embeddings', 'dropout_rate', 'conditional_size', **kwargs))
         self.model_type = 'ernie'
-        self.prefix = 'ernie'
 
     def variable_mapping(self):
-        mapping = super(ERNIE, self).variable_mapping()
-        mapping.update({'mlmDecoder.weight': f'{self.prefix}.embeddings.word_embeddings.weight',
+        mapping = super(ERNIE, self).variable_mapping(prefix='ernie')
+        mapping.update({'mlmDecoder.weight': 'ernie.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias'})
         for k, v in mapping.items():
             if ('LayerNorm.weight' in v) or ('LayerNorm.bias' in v):
@@ -26,7 +25,7 @@ class ERNIE(BERT):
             del mapping[del_key]
         
         if self.use_task_id:
-            mapping['embeddings.task_type_embeddings.weight'] = f'{self.prefix}.embeddings.task_type_embeddings.weight'
+            mapping['embeddings.task_type_embeddings.weight'] = 'ernie.embeddings.task_type_embeddings.weight'
         return mapping
 
     class ErnieEmbeddings(BertEmbeddings):

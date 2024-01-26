@@ -12,7 +12,6 @@ class Bloom(Decoder):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
         self.model_type = 'bloom'
-        self.prefix = 'bloom'
 
     def load_trans_ckpt(self, checkpoint):
         '''原始权重中qkv是一个全连接, 需要拆分成q,k,v'''

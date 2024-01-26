@@ -190,6 +190,7 @@ class AutoRegressiveDecoder(object):
             # encoder-decoder传入的encoder_hidden_states和encoder_attention_mask
             if isinstance(input_, torch.Tensor):
                 input_new = input_
+                self.input_seqlen = torch.zeros(input_new.shape[0], dtype=torch.long).to(self.device)
             elif isinstance(input_, (list, tuple, np.ndarray)):
                 # 单条样本为[1,2,3]格式，需转为[[1,2,3]]
                 input_ = input_ if self.use_batch else [input_]

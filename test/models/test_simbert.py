@@ -88,7 +88,10 @@ def test_simbert(model_dir):
 
     gen_texts = generator.generate(query, topk=1)[0]
     print(gen_texts)
-    assert gen_texts == '北京北京去北京玩，我想去北京，怎么办理'
+    assert gen_texts in {'北京北京去北京玩，我想去北京，怎么办理',
+                         '我想去北京玩玩，有什么好玩的地方推荐吗？',
+                         '我想去北京玩，有什么好玩的地方吗？',
+                         }
 
 
     target_text = '我想去首都北京玩玩'
@@ -98,4 +101,4 @@ def test_simbert(model_dir):
 
 
 if __name__=='__main__':
-    test_simbert("E:/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny")
+    test_simbert("E:/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base")

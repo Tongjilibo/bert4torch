@@ -33,7 +33,7 @@ def get_hf_model(model_dir):
                                        "E:/pretrain_ckpt/glm/chatglm2-6B",
                                        "E:/pretrain_ckpt/glm/chatglm2-6B-int4",
                                        "E:/pretrain_ckpt/glm/chatglm2-6B-32k",
-                                       "E:/pretrain_ckpt/glm/chatglm3-6b",
+                                       "E:/pretrain_ckpt/glm/chatglm3-6B",
                                        "E:/pretrain_ckpt/glm/chatglm3-6B-32k"])
 @torch.inference_mode()
 def test_glm(model_dir):
@@ -68,4 +68,4 @@ def test_glm(model_dir):
 
 
 if __name__=='__main__':
-    test_glm("E:/pretrain_ckpt/glm/chatglm-6B")
+    test_glm("E:/pretrain_ckpt/glm/chatglm3-6B")

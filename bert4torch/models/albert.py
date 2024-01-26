@@ -8,7 +8,6 @@ class ALBERT(BERT):
         super(ALBERT, self).__init__(*args, **kwargs)
         self.encoderLayer = nn.ModuleList([self.encoderLayer[0]])  # 取上述的第一行
         self.model_type = 'albert'
-        self.prefix = 'albert'
 
     def apply_main_layers(self, **model_kwargs):
         """BERT的主体是基于Self-Attention的模块（和BERT区别是始终使用self.encoderLayer[0]）；
@@ -33,15 +32,15 @@ class ALBERT(BERT):
 
     def variable_mapping(self):
         mapping = {
-            'embeddings.word_embeddings.weight': f'{self.prefix}.embeddings.word_embeddings.weight',
-            'embeddings.position_embeddings.weight': f'{self.prefix}.embeddings.position_embeddings.weight',
-            'embeddings.segment_embeddings.weight': f'{self.prefix}.embeddings.token_type_embeddings.weight',
-            'embeddings.layerNorm.weight': f'{self.prefix}.embeddings.LayerNorm.weight',
-            'embeddings.layerNorm.bias': f'{self.prefix}.embeddings.LayerNorm.bias',
-            'embeddings.embedding_hidden_mapping_in.weight': f'{self.prefix}.encoder.embedding_hidden_mapping_in.weight',
-            'embeddings.embedding_hidden_mapping_in.bias': f'{self.prefix}.encoder.embedding_hidden_mapping_in.bias',
-            'pooler.weight': f'{self.prefix}.pooler.weight',
-            'pooler.bias': f'{self.prefix}.pooler.bias',
+            'embeddings.word_embeddings.weight': 'albert.embeddings.word_embeddings.weight',
+            'embeddings.position_embeddings.weight': 'albert.embeddings.position_embeddings.weight',
+            'embeddings.segment_embeddings.weight': 'albert.embeddings.token_type_embeddings.weight',
+            'embeddings.layerNorm.weight': 'albert.embeddings.LayerNorm.weight',
+            'embeddings.layerNorm.bias': 'albert.embeddings.LayerNorm.bias',
+            'embeddings.embedding_hidden_mapping_in.weight': 'albert.encoder.embedding_hidden_mapping_in.weight',
+            'embeddings.embedding_hidden_mapping_in.bias': 'albert.encoder.embedding_hidden_mapping_in.bias',
+            'pooler.weight': 'albert.pooler.weight',
+            'pooler.bias': 'albert.pooler.bias',
             'nsp.weight': 'sop_classifier.classifier.weight',  # 用名字nsp来替换sop
             'nsp.bias': 'sop_classifier.classifier.bias',
             'mlmDense.weight': 'predictions.dense.weight',
@@ -53,7 +52,7 @@ class ALBERT(BERT):
             'mlmDecoder.bias': 'predictions.decoder.bias'
         }
         i = 0
-        prefix_i = f'{self.prefix}.encoder.albert_layer_groups.{i}.albert_layers.{i}.'
+        prefix_i = f'albert.encoder.albert_layer_groups.{i}.albert_layers.{i}.'
         mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attention.query.weight',
                         f'encoderLayer.{i}.multiHeadAttention.q.bias': prefix_i + 'attention.query.bias',
                         f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attention.key.weight',
@@ -104,7 +103,7 @@ class ALBERT_Unshared(ALBERT):
 
     def variable_mapping(self):
         mapping = super().variable_mapping()
-        prefix_0 = f'{self.prefix}.encoder.albert_layer_groups.0.albert_layers.0.'
+        prefix_0 = f'albert.encoder.albert_layer_groups.0.albert_layers.0.'
         for i in range(1, self.num_hidden_layers):
             mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_0 + 'attention.query.weight',
                             f'encoderLayer.{i}.multiHeadAttention.q.bias': prefix_0 + 'attention.query.bias',

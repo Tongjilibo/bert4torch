@@ -52,7 +52,7 @@ def test_bart(ckpt_dir):
             encoder_output = model.encoder.predict([token_ids])  # [encoder_hiddenstates, encoder_attention_mask]
             output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
             return tokenizer.decode(output_ids.cpu().numpy())
-    autotitle = AutoTitle(bos_token_id=102, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)
+    autotitle = AutoTitle(bos_token_id=102, eos_token_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
     bert4torch_outputs = []
     for text in texts:
         bert4torch_outputs.append(autotitle.generate(text))

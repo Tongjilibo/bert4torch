@@ -1,4 +1,5 @@
 '''测试bert和transformer的结果比对'''
+import torch
 import pytest
 from sentence_transformers import SentenceTransformer
 from bert4torch.pipelines import Text2Vec

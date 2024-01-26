@@ -16,7 +16,6 @@ class Encoder(BERT):
         # encoder需要返回encoder_attention_mask
         self.encoder_attention_mask = None
         self.model_type = 'encoder'
-        self.prefix = 'encoder'
     
     def forward(self, *inputs, **model_kwargs):
         """因为encoder需要返回encoder_attention_mask，因此这里从新定义一下，多返回一个参数
@@ -36,7 +35,6 @@ class Decoder(LM_Mask, BERT):
         super().__init__(*args, **kwargs)
         self.is_decoder = True
         self.model_type = 'decoder'
-        self.prefix = 'decoder'
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
         self.final_layernorm = final_layernorm
@@ -101,22 +99,22 @@ class Decoder(LM_Mask, BERT):
     def load_variable(self, state_dict, name):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[name]
-        if name in {f'{self.prefix}.embeddings.word_embeddings.weight', 'lm_head.weight'}:
+        if name in {f'decoder.embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
         
     def variable_mapping(self):
-        raw_mapping = super().variable_mapping()
+        raw_mapping = super().variable_mapping(prefix='decoder')
         mapping = {}
         for k, v in raw_mapping.items():
             mapping[k.replace('encoderLayer', 'decoderLayer')] = v
         
         if self.final_layernorm:
-            mapping.update({'LayerNormFinal.weight': f'{self.prefix}.LayerNormFinal.weight',
-                            'LayerNormFinal.bias': f'{self.prefix}.LayerNormFinal.bias'})
+            mapping.update({'LayerNormFinal.weight': f'decoder.LayerNormFinal.weight',
+                            'LayerNormFinal.bias': f'decoder.LayerNormFinal.bias'})
         if self.with_lm and (not self.tie_emb_prj_weight):  # 当且仅当未绑定权重的时候
-            mapping.update({'lm_head.weight': f'{self.prefix}.lm_head.weight'})
+            mapping.update({'lm_head.weight': f'decoder.lm_head.weight'})
         return mapping
 
     def _prepare_generation(self, **kwargs):
@@ -145,7 +143,6 @@ class Transformer(BERT_BASE):
         self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
         self.is_encoder_decoder = True
         self.model_type = 'transformer'
-        self.prefix = 'transformer'
 
         # encoder
         self.encoder = Encoder(*args, **kwargs)

@@ -1,6 +1,7 @@
 from bert4torch.models.bert import BERT
 from bert4torch.snippets import delete_arguments
 import re
+from functools import partial
 
 
 class RoFormer(BERT):
@@ -11,10 +12,10 @@ class RoFormer(BERT):
         kwargs.update({'p_bias': 'rotary'})  # 指定在attention阶段使用rotary编码
         super(RoFormer, self).__init__(*args, **kwargs)
         self.model_type = 'roformer'
-        self.prefix = 'roformer'
-    
+        self.load_variable = partial(super().load_variable, prefix='roformer')
+
     def variable_mapping(self):
-        mapping =  super().variable_mapping()
+        mapping =  super().variable_mapping(prefix='roformer')
         del mapping['embeddings.position_embeddings.weight'] # 没有位置编码
         return mapping
 

@@ -11,7 +11,6 @@ class Qwen(InternLM):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model_type = 'qwen'
-        self.prefix = 'qwen'
         for layer in self.decoderLayer:
             layer.multiHeadAttention.o.register_parameter('bias', None)
 
