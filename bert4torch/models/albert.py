@@ -73,9 +73,8 @@ class ALBERT(BERT):
 
         return mapping
 
-    def load_variable(self, state_dict, old_key, new_key):
+    def load_variable(self, variable, old_key, new_key):
         # 加载单个变量的函数
-        variable = state_dict[old_key]
         if old_key in {
             'albert.embeddings.word_embeddings.weight',
             'predictions.bias',

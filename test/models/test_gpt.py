@@ -59,4 +59,4 @@ def test_gpt(model_dir):
 
 
 if __name__=='__main__':
-    test_gpt('E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-large')
+    test_gpt('E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-base')

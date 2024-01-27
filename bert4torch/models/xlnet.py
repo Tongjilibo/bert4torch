@@ -54,9 +54,8 @@ class XLNET(Transformer_XL):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, state_dict, old_key, new_key):
+    def load_variable(self, variable, old_key, new_key):
         # 加载单个变量的函数
-        variable = state_dict[old_key]
         if old_key in {f'transformer.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
             return self.load_embeddings(variable)
         else:

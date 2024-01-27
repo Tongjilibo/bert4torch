@@ -182,11 +182,11 @@ class Transformer_XL(BERT):
         model_kwargs['encoded_layers'] = encoded_layers
         return model_kwargs
     
-    def load_variable(self, state_dict, old_key, new_key):
+    def load_variable(self, variable, old_key, new_key):
         # 这里由于预训练模型使用了AdapterEmbedding，因此暂不支持
         if (self.keep_tokens is not None) or (self.compound_tokens is not None):
             raise ValueError('Custom keep_tokens and compound_tokens is not yet supported in Transformer_XL')
-        return state_dict[old_key]
+        return variable
 
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)

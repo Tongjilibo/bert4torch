@@ -9,6 +9,7 @@ import inspect
 from torch4keras.snippets import *
 from torch.utils.checkpoint import CheckpointFunction
 import shutil
+import re
 
 
 def insert_arguments(**arguments):
@@ -304,8 +305,8 @@ def copytree(src:str, dst:str, ignore_copy_files:str=None, dirs_exist_ok=False):
             return to_ignore
         
         for file_ in content:
-            for postfix in ignore_copy_files:
-                if postfix in file_:
+            for pattern in ignore_copy_files:
+                if re.search(pattern, file_):
                     to_ignore.append(file_)
         return to_ignore
 

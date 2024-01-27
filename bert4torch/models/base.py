@@ -5,7 +5,7 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters
+from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters, JsonConfig
 from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree
 import warnings
 from typing import Union, Optional
@@ -13,6 +13,7 @@ from torch4keras.model import *
 from tqdm import tqdm
 import gc
 import copy
+import re
 
 
 class BERT_BASE(nn.Module):
@@ -221,7 +222,7 @@ class BERT_BASE(nn.Module):
 
             # 2. model中有，且ckpt中有，正常加载
             if old_key in ckpt_state_dict:
-                state_dict_new[new_key] = self.load_variable(ckpt_state_dict, old_key, new_key)
+                state_dict_new[new_key] = self.load_variable(ckpt_state_dict[old_key], old_key, new_key)
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
                 if old_key in over_keys:
                     over_keys.remove(old_key)
@@ -306,12 +307,12 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, save_dir:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True, ignore_tied_parameters=False):
+    def save_pretrained(self, save_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True, ignore_tied_parameters=False):
         '''按照预训练模型的key来保存模型, 可供transformers包加载
            1. 按照variable_mapping()逆向来保存权重
            2. 各个模型存在save_trans_ckpt()的也要执行, 如部分大模型需要把q,k,v合并为qkv
 
-           :param save_dir: str, 保存的文件夹路径
+           :param save_path: str, 保存的文件/文件夹路径
            :param weight_map: dict, 部分大模型会有pytorch_model.bin.index.json文件, 对应其中的weight_map字段
                               可`from bert4torch.snippets import JsonConfig
                                  weight_map = JsonConfig(config_path).weight_map`来加载
@@ -334,19 +335,24 @@ class BERT_BASE(nn.Module):
         for k in list(state_dict.keys()):
             state_dict[mapping.get(k, k)] = state_dict.pop(k)
         
+        # 如果save_path是文件夹，则把对应的其他文件copy过去
+        save_dir = None if re.search('\.[a-zA-z0-9]+$', save_path) else save_path
+
         # 把checkpoint_path所在目录下，除了权重文件的其他文件copy过去
-        if write_to_disk and hasattr(self, 'checkpoint_path') and self.checkpoint_path is not None:
-            if os.path.isfile(self.checkpoint_path):
-                src = os.path.dirname(self.checkpoint_path)
-            else:
-                src = self.checkpoint_path
-            # 如果目录下文件存在也会强制覆盖
-            copytree(src, save_dir, ignore_copy_files=['.bin', '.safetensors'], dirs_exist_ok=True)
+        checkpoint_dir = os.path.dirname(self.checkpoint_path) if os.path.isfile(self.checkpoint_path) else self.checkpoint_path
+        if write_to_disk and hasattr(self, 'checkpoint_path') and (self.checkpoint_path is not None) and save_dir:
+            copytree(checkpoint_dir, save_dir, ignore_copy_files=['\.bin$', '\.safetensors$'], dirs_exist_ok=True)  # 如果目录下文件存在也会强制覆盖
+
+        # checkpoint shards对应的.index.json
+        bin_index_json = [os.path.join(checkpoint_dir, i) for i in os.listdir(checkpoint_dir) if i.endswith('.index.json')]
+        bin_index_json = bin_index_json[0] if bin_index_json else ''
+        if (save_dir is not None) and os.path.exists(bin_index_json):
+            weight_map = weight_map or JsonConfig(bin_index_json).get('weight_map')
 
         # 保存为单文件
         if weight_map is None:
             if write_to_disk:
-                save_checkpoint(state_dict, os.path.join(save_dir, 'pytorch_model.bin'))
+                save_checkpoint(state_dict, os.path.join(save_dir, 'pytorch_model.bin') if save_dir else save_path)
             else:
                 return state_dict
         
@@ -364,7 +370,7 @@ class BERT_BASE(nn.Module):
                 for k in list(state_dict.keys()):
                     if k in param_names:
                         single_ckpt[k] = state_dict.pop(k)
-                save_checkpoint(single_ckpt, os.path.join(save_dir, save_file))
+                save_checkpoint(single_ckpt, os.path.join(save_dir or save_path, save_file))
         
     def apply_embeddings(self, *inputs, **model_kwargs):
         raise NotImplementedError
