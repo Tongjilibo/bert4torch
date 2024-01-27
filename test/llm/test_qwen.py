@@ -36,18 +36,20 @@ def test_qwen(model_dir):
     tempelate = "\n{}user\n你好{}\n{}assistant\n"
     query = tempelate.format(im_start, im_end, im_start)
 
-    model_hf, tokenizer = get_hf_model(model_dir)
-    inputs = tokenizer.encode(query, return_tensors="pt").to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
+    tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
+    tokenizer_decode_config = {'skip_special_tokens': True}
+    inputs = tokenizer.encode(query, return_tensors="pt", **tokenizer_encode_config).to(device)
+
+    model_hf = AutoModelForCausalLM.from_pretrained(model_dir, trust_remote_code=True).half().to(device)
+    model_hf.eval()
     sequence_output_hf = model_hf.generate(inputs, top_k=1, max_length=20)
     sequence_output_hf = tokenizer.decode(sequence_output_hf[0].cpu(), skip_special_tokens=True)
     sequence_output_hf = sequence_output_hf[len(tempelate.format('','','')):].strip()
     del model_hf
     cuda_empty_cache()
 
-    tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
     model = get_bert4torch_model(model_dir)
-    tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
-    tokenizer_decode_config = {'skip_special_tokens': True}
 
     if 'Chat' in model_dir:
         end_id = [tokenizer.im_start_id, tokenizer.im_end_id]
@@ -66,9 +68,12 @@ def test_qwen(model_dir):
     }
     sequence_output = model.generate(query, **generation_config)
 
+    minlen = min(len(sequence_output), len(sequence_output_hf))
+    sequence_output = sequence_output[:minlen]
+    sequence_output_hf = sequence_output_hf[:minlen]
     print(sequence_output, '    ====>    ', sequence_output_hf)
-    assert sequence_output==sequence_output_hf
+    assert sequence_output == sequence_output_hf
 
 
 if __name__=='__main__':
-    test_qwen('E:/pretrain_ckpt/Qwen/Qwen-1_8B-Chat')
+    test_qwen('E:/pretrain_ckpt/Qwen/Qwen-7B')

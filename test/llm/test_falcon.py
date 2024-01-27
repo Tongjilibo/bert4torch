@@ -33,7 +33,7 @@ def test_falcon(model_dir):
     sequence_output_hf = tokenizer.decode(sequence_output_hf[0].cpu(), skip_special_tokens=True)
 
 
-    model = get_bert4torch_model(model_dir)
+    model = get_bert4torch_model(model_dir).half()
     generation_config = {
         'tokenizer': tokenizer,
         'tokenizer_config': {'skip_special_tokens': True},
@@ -53,4 +53,4 @@ def test_falcon(model_dir):
 
 
 if __name__=='__main__':
-    test_falcon('E:/pretrain_ckpt/falcon/falcon-rw-1b')
+    test_falcon('E:/pretrain_ckpt/falcon/falcon-7b')

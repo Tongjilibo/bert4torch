@@ -96,25 +96,31 @@ class Decoder(LM_Mask, BERT):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, state_dict, old_key, new_key):
+    def load_variable(self, state_dict, old_key, new_key, prefix='decoder'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         variable = state_dict[old_key]
-        if old_key in {f'decoder.embeddings.word_embeddings.weight', 'lm_head.weight'}:
+        mapping = self.variable_mapping()
+
+        if old_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
             return self.load_embeddings(variable)
+        elif new_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'} and \
+            (state_dict.get(mapping[new_key]) is not None):
+            # bert4torch中new_key相对固定, 能cover住绝大多数Decoder子类
+            return self.load_embeddings(state_dict.get(mapping[new_key]))
         else:
             return variable
         
-    def variable_mapping(self):
-        raw_mapping = super().variable_mapping(prefix='decoder')
+    def variable_mapping(self, prefix='decoder'):
+        raw_mapping = super().variable_mapping(prefix=prefix)
         mapping = {}
         for k, v in raw_mapping.items():
             mapping[k.replace('encoderLayer', 'decoderLayer')] = v
         
         if self.final_layernorm:
-            mapping.update({'LayerNormFinal.weight': f'decoder.LayerNormFinal.weight',
-                            'LayerNormFinal.bias': f'decoder.LayerNormFinal.bias'})
+            mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
+                            'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias'})
         if self.with_lm and (not self.tie_emb_prj_weight):  # 当且仅当未绑定权重的时候
-            mapping.update({'lm_head.weight': f'decoder.lm_head.weight'})
+            mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
 
     def _prepare_generation(self, **kwargs):

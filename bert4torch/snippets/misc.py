@@ -60,6 +60,19 @@ def cal_ts_num(tensor_shape):
     print(cal_num)
 
 
+def get_state_dict_dtype(state_dict):
+    """
+    Returns the first found floating dtype in `state_dict` if there is one, otherwise returns the first dtype.
+    """
+    for t in state_dict.values():
+        if t.is_floating_point():
+            return t.dtype
+
+    # if no floating dtype was found return whatever the first dtype is
+    else:
+        return next(state_dict.values()).dtype
+
+
 def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dtype:
     """设置默认权重类型"""
     if not isinstance(model_name, str):
