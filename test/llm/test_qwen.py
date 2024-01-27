@@ -76,4 +76,4 @@ def test_qwen(model_dir):
 
 
 if __name__=='__main__':
-    test_qwen('E:/pretrain_ckpt/Qwen/Qwen-7B')
+    test_qwen('E:/pretrain_ckpt/Qwen/Qwen-1_8B-Chat')
