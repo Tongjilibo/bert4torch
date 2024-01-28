@@ -23,6 +23,7 @@ from bert4torch.models.bloom import *
 from bert4torch.models.qwen import *
 from bert4torch.models.internlm import *
 from bert4torch.models.falcon import *
+from bert4torch.models.deepseek import *
 
 
 def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', 
@@ -83,7 +84,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     config['add_trainer'] = add_trainer
 
 
-
     models = {
         'bert': BERT,
         'roberta': BERT,  
@@ -126,7 +126,8 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         'bloom': Bloom,
         'qwen': Qwen,
         'internlm': InternLM,
-        'falcon': Falcon
+        'falcon': Falcon,
+        'deepseek': DeepSeek
     }
 
     model = model or config.get('model', 'bert')

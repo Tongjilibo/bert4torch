@@ -5,3 +5,4 @@ from bert4torch.layers.global_point import *
 from bert4torch.layers.misc import *
 from bert4torch.layers.position_encoding import *
 from bert4torch.layers.transformer_block import *
+from bert4torch.layers.moe import *
