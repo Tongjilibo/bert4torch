@@ -7,7 +7,7 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 setup(
     name='bert4torch',
-    version='v0.4.6',
+    version='v0.4.7',
     description='an elegant bert4torch',
     long_description=long_description,
     long_description_content_type="text/markdown",

@@ -14,6 +14,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.optim as optim
+import numpy as np
+
 
 maxlen = 64
 batch_size = 64
@@ -21,7 +23,6 @@ config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_c
 checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-loss_weight_recover_steps = 6000 # 控制权重的分配，前期实体识别的权重高一些，建议也可以设置为model.total_steps
 
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
@@ -57,8 +58,6 @@ def trans_ij2k(seq_len, i, j):
     if (i > seq_len - 1) or (j > seq_len - 1) or (i > j):
         return 0
     return int(0.5*(2*seq_len-i+1)*i+(j-i))
-map_ij2k = {(i, j): trans_ij2k(maxlen, i, j) for i in range(maxlen) for j in range(maxlen) if j >= i}
-map_k2ij = {v: k for k, v in map_ij2k.items()}
 
 def search(pattern, sequence):
     """从sequence中寻找子串pattern
@@ -73,18 +72,24 @@ def search(pattern, sequence):
     return -1
 
 def collate_fn(batch):
-    pair_len = maxlen * (maxlen+1)//2
     # batch_entity_labels: [btz, pair_len]
     # batch_head_labels: [btz, rel_size, pair_len]
     # batch_tail_labels: [btz, rel_size, pair_len]
-    batch_entity_labels = torch.zeros((len(batch), pair_len), dtype=torch.long, device=device)
-    batch_head_labels = torch.zeros((len(batch), len(predicate2id), pair_len), dtype=torch.long, device=device)
-    batch_tail_labels = torch.zeros((len(batch), len(predicate2id), pair_len), dtype=torch.long, device=device)
-
     batch_token_ids = []
-    for i, d in enumerate(batch):
+    batch_entity_labels = []
+    batch_head_labels = []
+    batch_tail_labels = []
+    batch_mask = []
+    for d in batch:
         token_ids = tokenizer.encode(d['text'])[0][1:-1][:maxlen]  # 这里要限制取前max_len个
-        batch_token_ids.append(token_ids)
+        map_ij2k = {(i, j): trans_ij2k(len(token_ids), i, j) for i in range(len(token_ids)) for j in range(len(token_ids)) if j >= i}
+        mask = [0 if token_ids[j]==0 else 1 for i in range(len(token_ids)) for j in range(len(token_ids)) if j >= i]
+
+        pair_len = len(token_ids) * (len(token_ids)+1) // 2
+        entity_labels = np.zeros(pair_len)
+        head_labels = np.zeros((len(predicate2id), pair_len))
+        tail_labels = np.zeros((len(predicate2id), pair_len))
+
         # 整理三元组 {s: [(o, p)]}
         for s, p, o in d['spo_list']:
             s = tokenizer.encode(s)[0][1:-1]
@@ -94,19 +99,28 @@ def collate_fn(batch):
             oh = search(o, token_ids)
             if sh != -1 and oh != -1:
                 st, ot = sh+len(s)-1, oh+len(o)-1
-                batch_entity_labels[i, map_ij2k[sh, st]] = 1
-                batch_entity_labels[i, map_ij2k[oh, ot]] = 1
+                entity_labels[map_ij2k[sh, st]] = 1
+                entity_labels[map_ij2k[oh, ot]] = 1
                 if sh <= oh:
-                    batch_head_labels[i, p, map_ij2k[sh, oh]] = 1
+                    head_labels[p, map_ij2k[sh, oh]] = 1
                 else:
-                    batch_head_labels[i, p, map_ij2k[oh, sh]] = 2
+                    head_labels[p, map_ij2k[oh, sh]] = 2
                 if st <= ot:
-                    batch_tail_labels[i, p, map_ij2k[st, ot]] = 1
+                    tail_labels[p, map_ij2k[st, ot]] = 1
                 else:
-                    batch_tail_labels[i, p, map_ij2k[ot, st]] = 2
-
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, length=maxlen), dtype=torch.long, device=device)
-    return [batch_token_ids], [batch_entity_labels, batch_head_labels, batch_tail_labels]
+                    tail_labels[p, map_ij2k[ot, st]] = 2
+        batch_token_ids.append(token_ids)
+        batch_entity_labels.append(entity_labels)
+        batch_head_labels.append(head_labels)
+        batch_tail_labels.append(tail_labels)
+        batch_mask.append(mask)
+    
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
+    batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels), dtype=torch.long, device=device)
+    batch_head_labels = torch.tensor(sequence_padding(batch_head_labels, seq_dims=2), dtype=torch.long, device=device)
+    batch_tail_labels = torch.tensor(sequence_padding(batch_tail_labels, seq_dims=2), dtype=torch.long, device=device)
+    batch_mask = torch.tensor(sequence_padding(batch_mask), dtype=torch.long, device=device)
+    return [batch_token_ids], [batch_entity_labels, batch_head_labels, batch_tail_labels, batch_mask]
 
 train_dataset = MyDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -142,18 +156,22 @@ class MyLoss(nn.CrossEntropyLoss):
         super().__init__(**kwargs)
     def forward(self, y_preds, y_trues):
         loss_list = []
-        for y_pred, y_true in zip(y_preds, y_trues):
+        for y_pred, y_true in zip(y_preds, y_trues[:3]):
+            mask = y_trues[-1]
+            if len(y_true.shape) == 3:
+                mask = mask.unsqueeze(1).repeat(1, y_true.shape[1], 1)
             loss = super().forward(y_pred.view(-1, y_pred.size()[-1]), y_true.view(-1))
-            loss_list.append(loss)
+            loss_list.append((loss*mask.view(-1)).sum() / mask.sum())
         
         z = (2 * len(predicate2id) + 1)
-        w_ent = max(1 / z + 1 - model.global_step / loss_weight_recover_steps, 1 / z)
-        w_rel = min((len(predicate2id) / z) * model.global_step / loss_weight_recover_steps, (len(predicate2id) / z))
+        total_steps = 6000 # 前期实体识别的权重高一些，建议也可以设置为model.total_steps
+        w_ent = max(1 / z + 1 - model.global_step / total_steps, 1 / z)
+        w_rel = min((len(predicate2id) / z) * model.global_step / total_steps, (len(predicate2id) / z))
         loss = w_ent*loss_list[0] + w_rel*loss_list[1] + w_rel*loss_list[2]
 
         return {'loss': loss, 'entity_loss': loss_list[0], 'head_loss': loss_list[1], 'tail_loss': loss_list[2]}
 
-model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), 1e-4))
+model.compile(loss=MyLoss(reduction='none'), optimizer=optim.Adam(model.parameters(), 1e-4))
 
 def extract_spoes(text):
     """抽取输入text所包含的三元组
@@ -177,7 +195,9 @@ def extract_spoes(text):
     tokens = tokenizer.tokenize(text)[1:-1]
     mapping = tokenizer.rematch(text, tokens)
     token_ids = tokenizer.encode(text)[0][1:-1]
-    token_ids_ts = torch.tensor(sequence_padding([token_ids], length=maxlen), dtype=torch.long, device=device)
+    token_ids_ts = torch.tensor([token_ids], dtype=torch.long, device=device)
+    map_ij2k = {(i, j): trans_ij2k(len(token_ids), i, j) for i in range(len(token_ids)) for j in range(len(token_ids)) if j >= i}
+    map_k2ij = {v: k for k, v in map_ij2k.items()}
     outputs = model.predict([token_ids_ts])
     outputs = [o[0].argmax(dim=-1) for o in outputs]
     # 抽取entity
@@ -279,7 +299,10 @@ class Evaluator(Callback):
 
 
 if __name__ == '__main__':
-    evaluator = Evaluator()
-    model.fit(train_dataloader, steps_per_epoch=None, epochs=20, callbacks=[evaluator])
-else:
-    model.load_weights('best_model.pt')
+
+    if True:
+        evaluator = Evaluator()
+        model.fit(train_dataloader, steps_per_epoch=500, epochs=20, callbacks=[evaluator])
+    else:
+        model.load_weights('best_model.pt')
+        f1, precision, recall = evaluate(train_dataset.data)

@@ -204,7 +204,7 @@ class MultiHeadAttentionLayer(nn.Module):
         return outputs + (past_key_value,) if self.is_decoder else outputs
         
     def repeat_kv(self, hidden_states):
-        if hasattr(self, 'multi_query_group_num'):
+        if hasattr(self, 'multi_query_group_num') and self.multi_query_group_num > 1:
             hidden_states = hidden_states.unsqueeze(2)
             hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
             hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
