@@ -93,6 +93,19 @@ class ChatOpenaiApi(Chat):
     :param generation_config: dict, 模型generate的参数设置
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
+
+    Example
+    --------------------------
+    请求体：
+    {
+        "messages": [
+            {"content": "你好", "role": "user"},
+            {"content": "你好，我是法律大模型", "role": "assistant"},
+            {"content": "基金从业可以购买股票吗", "role": "user"}
+            ],
+        "model": "default",
+        "stream": True
+    }
     """
     def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', **kwargs):
         super().__init__(model_path, **kwargs)
@@ -120,18 +133,6 @@ class ChatOpenaiApi(Chat):
         router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=_ModelList)
         router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse)
         self.app.include_router(router)
-
-        log_info('''The request post format should be 
-            {
-                "messages": [
-                    {"content": "你好", "role": "user"},
-                    {"content": "你好，我是法律大模型", "role": "assistant"},
-                    {"content": "基金从业可以购买股票吗", "role": "user"}
-                    ],
-                "model": "default",
-                "stream": True
-            }
-            ''')
         
     def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs):
         import uvicorn
@@ -269,6 +270,16 @@ class ChatOpenaiClient:
 
 class ChatOpenaiClientSseclient:
     '''调用openai接口的client, 流式请求
+    请求体：
+    {
+        "messages": [
+            {"content": "你好", "role": "user"},
+            {"content": "你好，我是法律大模型", "role": "assistant"},
+            {"content": "基金从业可以购买股票吗", "role": "user"}
+            ],
+        "model": "default",
+        "stream": True
+    }
     '''
     def __init__(self, url) -> None:
         self.url = url
@@ -278,17 +289,6 @@ class ChatOpenaiClientSseclient:
             raise ImportError('No module found, you may `pip install sseclient-py`')
         
         self.sseclient = sseclient
-        log_info('''The body format should be 
-            {
-                "messages": [
-                    {"content": "你好", "role": "user"},
-                    {"content": "你好，我是法律大模型", "role": "assistant"},
-                    {"content": "基金从业可以购买股票吗", "role": "user"}
-                    ],
-                "model": "default",
-                "stream": True
-            }
-            ''')
    
     def stream_chat(self, body):
         '''接口调用'''
