@@ -43,10 +43,6 @@ def is_pydantic_available():
     return is_package_available('pydantic')
 
 
-def is_safetensors_available():
-    return is_package_available("safetensors")
-
-
 def is_trl_available():
     return is_package_available("trl")
 

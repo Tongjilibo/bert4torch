@@ -6,8 +6,6 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch4keras.snippets import *
 import random
-from pathlib import Path
-from .import_utils import is_safetensors_available
 
 is_py2 = six.PY2
 
@@ -362,43 +360,193 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 
-def snapshot_download(
-    repo_id: str,
-    revision: str = None,
-    cache_dir: Union[str, Path, None] = None,
-    library_name: str = None,
-    library_version: str = None,
-    user_agent: Union[Dict, str, None] = None,
-) -> str:
-    """
-    Download pretrained model from https://huggingface.co/
-    """
-    from huggingface_hub import HfApi, hf_hub_download
-    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+def entity_extract_rule_placeholder(self, text, **pat_config):
+    ''' 按照预设的正则规则来解析实体, 允许占位符
+    '''
+    placeholder = pat_config.get('placeholder')
+    result = []
+    if placeholder is not None:
+        pattern = pat_config.pop('pattern')
+        for ph, pv in placeholder.items():
+            if isinstance(pv, str):
+                result.extend(entity_extract_rule(text, pattern.replace(ph, pv), **pat_config))
+            elif isinstance(pv, (tuple,list)):
+                for pv_i in pv:
+                    result.extend(entity_extract_rule(text, pattern.replace(ph, pv_i), **pat_config))
+    else:
+        result.extend(entity_extract_rule(text, **pat_config))
+    return result
 
-    if cache_dir is None:
-        cache_dir = HUGGINGFACE_HUB_CACHE
-    if isinstance(cache_dir, Path):
-        cache_dir = str(cache_dir)
-    log_info(f'Download {repo_id} to {cache_dir}')
 
-    _api = HfApi()
-    model_info = _api.model_info(repo_id=repo_id, revision=revision)
+def entity_extract_rule(text, pattern=None, label=None, start=0, end=-1, dotall=True, 
+            replace_pattern=None, extract_pattern=None, minlen=None, maxlen=None, 
+            exist_subword:Union[list,str,tuple]=None, 
+            noexist_subword:Union[list,str,tuple]=None, 
+            prefix_exist_subword:list[tuple]=None, 
+            prefix_noexist_subword:list[tuple]=None, 
+            postfix_exist_subword:list[tuple]=None, 
+            postfix_noexist_subword:list[tuple]=None, 
+            **kwargs):
+    ''' 按照预设的正则规则来从字符串中提取实体 
 
-    storage_folder = os.path.join(cache_dir, repo_id.replace("/", "_"))
-    for model_file in model_info.siblings:
-        filename = os.path.join(*model_file.rfilename.split("/"))
-        if filename.endswith(".h5") or filename.endswith(".ot") or filename.endswith(".msgpack"):
+    :param text: 待提取的字符串
+    :param pattern: 提取的正则
+    :param label: 对应的标签
+    :param start/end: 是否对text进行截断
+    :param dotall: 正则识别时候是否忽略\n
+    :param replace_pattern: 对正则识别出来的结果二次修正, 比如去除前缀, 去除后缀
+    :param extract_pattern: 对正则识别出来的结果二次修正, 比如仅保留其中部分要素
+    :param minlen: 最短长度，低于长度（含）则不认为是有效实体
+    :param maxlen: 最长长度，超过长度（含）则不认为是有效实体
+    :param exist_subword: 必须包含的subword
+    :param noexist_subword: 必须不含的subword
+    :param prefix_exist_subword: 必须包含的prefix subword, 格式为[('subword', distance)]
+    :param prefix_noexist_subword: 必须不包含的prefix subword
+    :param postfix_exist_subword: 必须包含的postfix subword, 格式为[('subword', distance)]
+    :param postfix_noexist_subword: 必须不包含的postfix subword
+
+    Example
+    ------------------------------------
+    text = '甲方：中国工商银行 乙方：中国农业银行 注册地址：上海市世纪大道1379号'
+    config = {'pattern': '甲方(:|：)(.*?)乙方',
+            'label': '甲方',
+            'replace_pattern': ['^甲方(:|：)', '乙方$']}
+    res = ner_extract_rule(text, **config)
+    print(res)
+    # [{'context': '中国工商银行 ', 'raw_context': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
+    '''
+    def adjust_start_end(context, new_context, start):
+        if new_context in context:
+            start += context.index(new_context)
+            end = start + len(new_context)
+            return new_context, start, end
+        else:
+            log_warn(f'{new_context} <------- not in -------> {context}')
+            return context, start, start+len(context)
+
+    # 截取一下
+    if start != 0:
+        text = text[start:]
+    if end != -1:
+        text = text[:end]
+
+    if dotall:
+        # 中间可以匹配换行符
+        iters = re.finditer(pattern, text, re.DOTALL)
+    else:
+        # 中间不可匹配换行
+        iters = re.finditer(pattern, text)
+
+    result = []
+    for iter in iters:
+        context = raw_context = iter.group()
+        start, end = iter.start(), iter.end()
+
+        # 提取的pattern
+        if extract_pattern is not None:
+            if isinstance(extract_pattern, str):
+                extract_pattern = [extract_pattern]
+            for pat in extract_pattern:
+                if re.search(pat, context):
+                    new_context = next(re.finditer(pat, context)).group()
+                    context, start, end = adjust_start_end(context, new_context, start)
+
+        # 删除的pattern
+        if replace_pattern is not None:
+            if isinstance(replace_pattern, str):
+                replace_pattern = [replace_pattern]
+            for rep_pat in replace_pattern:
+                if re.search(rep_pat, context):
+                    new_context = re.sub(rep_pat, '', context)
+                    context, start, end = adjust_start_end(context, new_context, start)
+
+        # 太短
+        if (minlen is not None) and (len(context) <= minlen):
             continue
-        path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            cache_dir=storage_folder,
-            # force_filename=filename,
-            library_name=library_name,
-            library_version=library_version,
-            user_agent=user_agent,
-        )
-        if os.path.exists(path + ".lock"):
-            os.remove(path + ".lock")
-    return storage_folder
+        
+        # 超长
+        if (maxlen is not None) and (len(context) >= maxlen):
+            continue
+        
+        # exist_subword: 必须存在的subword
+        if exist_subword is not None:
+            if isinstance(exist_subword, str) and (not re.search(exist_subword, context)):
+                continue
+            elif isinstance(exist_subword, (tuple, list)):
+                continue_tag= False
+                for item in exist_subword:
+                    if not re.search(item, context):
+                        continue_tag = True
+                        break
+                if continue_tag:
+                    continue
+
+        # noexist_subword: 必须不存在的subword
+        if noexist_subword is not None:
+            if isinstance(noexist_subword, str) and re.search(noexist_subword, context):
+                continue
+            elif isinstance(noexist_subword, (tuple, list)):
+                continue_tag= False
+                for item in noexist_subword:
+                    if re.search(item, context):
+                        continue_tag = True
+                        break
+                if continue_tag:
+                    continue
+        
+        # prefix_exist_subword: prefix中必须存在的subword
+        if prefix_exist_subword is not None:
+            assert isinstance(prefix_exist_subword, (tuple, list)), 'prefix_exist_subword only accept tuple/list format'
+            prefix_exist_subword = [prefix_exist_subword] if isinstance(prefix_exist_subword[0], str) else prefix_exist_subword
+            continue_tag= False
+            for item, offset in prefix_exist_subword:
+                if not re.search(item, text[start-offset:start]):
+                    continue_tag = True
+                    break
+            if continue_tag:
+                continue
+
+        # prefix_noexist_subword: prefix中必须不存在的subword
+        if prefix_noexist_subword is not None:
+            assert isinstance(prefix_noexist_subword, (tuple, list)), 'prefix_noexist_subword only accept tuple/list format'
+            prefix_noexist_subword = [prefix_noexist_subword] if isinstance(prefix_noexist_subword[0], str) else prefix_noexist_subword
+            continue_tag= False
+            for item, offset in prefix_noexist_subword:
+                if re.search(item, text[start-offset:start]):
+                    continue_tag = True
+                    break
+            if continue_tag:
+                continue
+        
+        # postfix_exist_subword: postfix中必须存在的subword
+        if postfix_exist_subword is not None:
+            assert isinstance(postfix_exist_subword, (tuple, list)), 'postfix_exist_subword only accept tuple/list format'
+            postfix_exist_subword = [postfix_exist_subword] if isinstance(postfix_exist_subword[0], str) else postfix_exist_subword
+            continue_tag= False
+            for item, offset in postfix_exist_subword:
+                if not re.search(item, text[end:end+offset]):
+                    continue_tag = True
+                    break
+            if continue_tag:
+                continue
+
+        # postfix_noexist_subword: postfix中必须不存在的subword
+        if postfix_noexist_subword is not None:
+            assert isinstance(postfix_noexist_subword, (tuple, list)), 'postfix_noexist_subword only accept tuple/list format'
+            postfix_noexist_subword = [postfix_noexist_subword] if isinstance(postfix_noexist_subword[0], str) else postfix_noexist_subword
+            continue_tag= False
+            for item, offset in postfix_noexist_subword:
+                if re.search(item, text[end:end+offset]):
+                    continue_tag = True
+                    break
+            if continue_tag:
+                continue
+        
+        assert context == text[start:end]
+        result.append({'context': context, 
+                        'raw_context': raw_context,
+                        'start': start, 
+                        'end': end, 
+                        'label': label,
+                        **kwargs})
+    return result

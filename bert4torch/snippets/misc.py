@@ -10,6 +10,7 @@ from torch4keras.snippets import *
 from torch.utils.checkpoint import CheckpointFunction
 import shutil
 import re
+from pathlib import Path
 
 
 def insert_arguments(**arguments):
@@ -313,3 +314,45 @@ def copytree(src:str, dst:str, ignore_copy_files:str=None, dirs_exist_ok=False):
     if src:
         os.makedirs(src, exist_ok=True)
     shutil.copytree(src, dst, ignore=_ignore_copy_files, dirs_exist_ok=dirs_exist_ok)
+
+
+def snapshot_download(
+    repo_id: str,
+    revision: str = None,
+    cache_dir: Union[str, Path, None] = None,
+    library_name: str = None,
+    library_version: str = None,
+    user_agent: Union[Dict, str, None] = None,
+) -> str:
+    """
+    Download pretrained model from https://huggingface.co/
+    """
+    from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+
+    if cache_dir is None:
+        cache_dir = HUGGINGFACE_HUB_CACHE
+    if isinstance(cache_dir, Path):
+        cache_dir = str(cache_dir)
+    log_info(f'Download {repo_id} to {cache_dir}')
+
+    _api = HfApi()
+    model_info = _api.model_info(repo_id=repo_id, revision=revision)
+
+    storage_folder = os.path.join(cache_dir, repo_id.replace("/", "_"))
+    for model_file in model_info.siblings:
+        filename = os.path.join(*model_file.rfilename.split("/"))
+        if filename.endswith(".h5") or filename.endswith(".ot") or filename.endswith(".msgpack"):
+            continue
+        path = hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            cache_dir=storage_folder,
+            # force_filename=filename,
+            library_name=library_name,
+            library_version=library_version,
+            user_agent=user_agent,
+        )
+        if os.path.exists(path + ".lock"):
+            os.remove(path + ".lock")
+    return storage_folder
