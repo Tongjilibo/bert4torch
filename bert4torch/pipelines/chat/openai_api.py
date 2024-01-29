@@ -93,19 +93,6 @@ class ChatOpenaiApi(Chat):
     :param generation_config: dict, 模型generate的参数设置
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
-
-    Example
-    --------------------------
-    请求体：
-    {
-        "messages": [
-            {"content": "你好", "role": "user"},
-            {"content": "你好，我是法律大模型", "role": "assistant"},
-            {"content": "基金从业可以购买股票吗", "role": "user"}
-            ],
-        "model": "default",
-        "stream": True
-    }
     """
     def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', **kwargs):
         super().__init__(model_path, **kwargs)
@@ -229,7 +216,22 @@ class ChatOpenaiApi(Chat):
 
 
 class ChatOpenaiClient:
-    '''使用openai来调用'''
+    '''使用openai来调用
+    
+    Example
+    --------------------------------------------
+    messages = [
+            {"content": "你好", "role": "user"},
+            {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+            {"content": "你可以做什么？", "role": "user"}
+            ]
+    client = ChatOpenaiClient('http://127.0.0.1:8000')
+    # 流式
+    for token in client.stream_chat(messages):
+        print(token, end='', flush=True)
+    # 非流式
+    print(client.chat(messages))
+    '''
     def __init__(self, base_url) -> None:
         from openai import OpenAI
         self.client = OpenAI(base_url=base_url, api_key="EMPTY")
@@ -270,16 +272,20 @@ class ChatOpenaiClient:
 
 class ChatOpenaiClientSseclient:
     '''调用openai接口的client, 流式请求
-    请求体：
-    {
-        "messages": [
+
+    Example
+    --------------------------------------------
+    messages = [
             {"content": "你好", "role": "user"},
-            {"content": "你好，我是法律大模型", "role": "assistant"},
-            {"content": "基金从业可以购买股票吗", "role": "user"}
-            ],
-        "model": "default",
-        "stream": True
-    }
+            {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+            {"content": "你可以做什么？", "role": "user"}
+            ]
+    client = ChatOpenaiClientSseclient('http://127.0.0.1:8000')
+    # 测试打印
+    client.stream_chat_cli(body)
+    # 流式
+    for token in client.stream_chat(body):
+        print(token, end='', flush=True)
     '''
     def __init__(self, url) -> None:
         self.url = url

@@ -378,15 +378,11 @@ def entity_extract_rule_placeholder(self, text, **pat_config):
     return result
 
 
-def entity_extract_rule(text, pattern=None, label=None, start=0, end=-1, dotall=True, 
-            replace_pattern=None, extract_pattern=None, minlen=None, maxlen=None, 
-            exist_subword:Union[list,str,tuple]=None, 
-            noexist_subword:Union[list,str,tuple]=None, 
-            prefix_exist_subword:list[tuple]=None, 
-            prefix_noexist_subword:list[tuple]=None, 
-            postfix_exist_subword:list[tuple]=None, 
-            postfix_noexist_subword:list[tuple]=None, 
-            **kwargs):
+def entity_extract_rule(text:str, pattern:str=None, label:str=None, start:int=0, end:int=-1, dotall:bool=True, 
+            replace_pattern:Optional[Union[str,list]]=None, extract_pattern:Optional[Union[str,list]]=None, minlen:int=None, maxlen:int=None, 
+            exist_subword:Union[list,str,tuple]=None, noexist_subword:Union[list,str,tuple]=None, 
+            prefix_exist_subword:List[tuple]=None, prefix_noexist_subword:List[tuple]=None, 
+            postfix_exist_subword:List[tuple]=None, postfix_noexist_subword:List[tuple]=None, **kwargs):
     ''' 按照预设的正则规则来从字符串中提取实体 
 
     :param text: 待提取的字符串
@@ -413,7 +409,8 @@ def entity_extract_rule(text, pattern=None, label=None, start=0, end=-1, dotall=
             'replace_pattern': ['^甲方(:|：)', '乙方$']}
     res = ner_extract_rule(text, **config)
     print(res)
-    # [{'context': '中国工商银行 ', 'raw_context': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
+    
+    # return: [{'context': '中国工商银行 ', 'raw_context': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
     '''
     def adjust_start_end(context, new_context, start):
         if new_context in context:

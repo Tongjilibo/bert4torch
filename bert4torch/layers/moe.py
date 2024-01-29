@@ -96,11 +96,11 @@ class DeepseekMoE(nn.Module):
         config = DottableDict(config)
         self.config = config
         self.num_experts_per_tok = config.num_experts_per_tok
-        self.experts = nn.ModuleList([LlamaFeedForward(config, intermediate_size = config.moe_intermediate_size) for i in range(config.n_routed_experts)])
+        self.experts = nn.ModuleList([LlamaFeedForward(config.hidden_size, intermediate_size = config.moe_intermediate_size) for i in range(config.n_routed_experts)])
         self.gate = MoEGate(config)
         if config.n_shared_experts is not None:
             intermediate_size = config.moe_intermediate_size * config.n_shared_experts
-            self.shared_experts = LlamaFeedForward(config=config, intermediate_size = intermediate_size)
+            self.shared_experts = LlamaFeedForward(config.hidden_size, intermediate_size = intermediate_size)
     
     def forward(self, hidden_states):
         identity = hidden_states

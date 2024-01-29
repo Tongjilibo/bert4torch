@@ -45,6 +45,14 @@ class DeepSeek(Decoder):
             })
 
             if i >= self.first_k_dense_replace and i % self.moe_layer_freq == 0:
+                mapping.update(
+                    {
+                        f'decoderLayer.{i}.feedForward.gate.weight': f"model.layers.{i}.mlp.gate.weight",
+                        f'decoderLayer.{i}.feedForward.shared_experts.outputDense.weight': f"model.layers.{i}.mlp.shared_experts.down_proj.weight",
+                        f'decoderLayer.{i}.feedForward.shared_experts.intermediateDense.weight': f"model.layers.{i}.mlp.shared_experts.gate_proj.weight",
+                        f'decoderLayer.{i}.feedForward.shared_experts.intermediateDense2.weight': f"model.layers.{i}.mlp.shared_experts.up_proj.weight"
+                    }
+                )
                 for j in range(self.n_routed_experts):
                     mapping.update(
                         {
