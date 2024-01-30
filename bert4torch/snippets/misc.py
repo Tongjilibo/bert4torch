@@ -165,7 +165,7 @@ def cuda_empty_cache(device=None):
             torch.cuda.ipc_collect()
 
 
-class GenerateSpeed:
+class GenerateSpeed(Timeit):
     '''上下文管理器，计算token生成的速度
 
     Example
@@ -177,35 +177,9 @@ class GenerateSpeed:
         gs(tokens_len)
     '''
     def __enter__(self):
-        self.count = None
-        self.start_tm = time.time()
+        super().__enter__()
+        self.template = 'Generate speed: {:.2f} token/s'
         return self
-
-    def __call__(self, count):
-        self.count = count
-
-    def set(self, count:int):
-        self.count = count
-
-    def start(self):
-        '''自定义开始记录的地方'''
-        self.start_tm = time.time()
-    
-    def end(self, count:int=None):
-        if count is not None:
-            self.count = count
-        
-        end_tm = time.time()
-        consume = end_tm - self.start_tm
-        if self.count is None:
-            consume = format_time(consume, hhmmss=False)
-            log_info(f'Cost {consume}')
-        else:
-            speed = self.count / consume
-            log_info(f'Generate speed: {speed:.2f} token/s')
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.end()
 
 
 class WebServing(object):
