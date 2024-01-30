@@ -19,7 +19,7 @@ model = model.to(device)
 generation_config = {
     'tokenizer': tokenizer,
     'tokenizer_config': {"add_special_tokens": False, 'skip_special_tokens': True},
-    'bos_token_id':  tokenizer.bos_token_id, 
+    'bos_token_id':  None, 
     'eos_token_id': tokenizer.eos_token_id,
     'max_new_tokens': 100,
     'top_k': 1

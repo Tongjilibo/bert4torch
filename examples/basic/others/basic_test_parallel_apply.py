@@ -117,7 +117,7 @@ train_samples = parallel_apply(
             iterable=corpus,
             workers=8,
             max_queue_size=2000,
-            dummy=False,  # windows设置为True使用多进程
+            dummy=False,  # windows设置为True
             callback=None,
             unordered=False
         )

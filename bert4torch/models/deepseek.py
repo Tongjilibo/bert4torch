@@ -1,9 +1,10 @@
 from bert4torch.layers import DeepseekMoE
 from bert4torch.models.transformer import Decoder
+from bert4torch.layers import LlamaFeedForward
 
 
 class DeepSeek(Decoder):
-    '''InternLM: https://github.com/InternLM/InternLM
+    '''DeepSeek: https://github.com/deepseek-ai/DeepSeek-MoE
     模型结构: 基本和llama基本一致, 只是各个linear层多了bias; 和Qwen基本一致, 除了o有bias
     1) FeedForward和Llama一致, 三个dense层
     2) 除了qkvo有bias, 其余均没有bias
@@ -23,6 +24,9 @@ class DeepSeek(Decoder):
         for layer_idx, layer in enumerate(self.decoderLayer):
             if layer_idx >= self.first_k_dense_replace and layer_idx % self.moe_layer_freq == 0:
                 layer.feedForward = DeepseekMoE(**kwargs)
+            else:
+                layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
+
         self.LayerNormFinal.register_parameter('bias', None)
 
     def variable_mapping(self):
