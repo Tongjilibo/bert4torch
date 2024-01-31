@@ -607,6 +607,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     '''
     def __init__(self, model, tokenizer=None, tokenizer_config:dict=None, tokenizer_encode_config:dict=None, tokenizer_decode_config:dict=None, 
                  mode:str='random_sample', default_rtype:str='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
+        model.eval()
         kwargs = self._default_generation_config(tokenizer, model, kwargs)  # 对部分参数进行默认设置
         super().__init__(**kwargs)
 
@@ -725,55 +726,61 @@ class SeqGeneration(AutoRegressiveDecoder):
             else:
                 states.update({'use_states': True})
 
-            # next_inputs：step=0时候输入全部，>=1时候输入last_token
-            next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=self.step==0)
+            if self.step == 0:
+                # next_inputs：step=0时候输入全部
+                next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=True)
 
-            # past_token_ids: inputs+output_ids
-            if self.step >= 1:
+                # position_ids: 在第0步如果padding在左侧，则需要自定义position_ids
+                if self.use_batch and (self.pad_mode in {'pre', 'left'}):
+                    # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
+                    states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
+
+            elif self.step >= 1:
+                # next_inputs：>=1时候输入last_token
+                next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=False)
+
+                # past_token_ids: inputs+output_ids
                 states['past_token_ids'] = self._prepare_next_inputs(inputs, output_ids)[0]
-            
-            # position_ids: 在第0步如果padding在左侧，则需要自定义position_ids, >=1步则取last_token
-            if self.use_batch and (self.step==0) and (self.pad_mode in {'pre', 'left'}):
-                # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-                #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
-                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
-            elif states.get('position_ids') is not None:
-                states['position_ids'] = states['position_ids'][:, -1:] + 1
 
-            # attention_mask: 根据token_ids生成的，因此这里重置下
-            if states.get('pad_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
-                attention_mask = states['pad_attention_mask']
-                states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-                del states['pad_attention_mask']
+                # position_ids: >=1步则取last_token
+                if states.get('position_ids') is not None:
+                    states['position_ids'] = states['position_ids'][:, -1:] + 1
 
-            # shape和size不一致: step=1时候，beam_search的btz=束宽, 或者要返回多个结果
-            if (self.mode == 'beam_search' or self.n > 1) and (self.step == 1):
-                btz = len(self.flag)
-                if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
-                    repeat_size = btz // states['past_key_values'][0][0].shape[0]
+                # attention_mask: 根据token_ids生成的，因此这里重置下
+                if states.get('pad_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
+                    attention_mask = states['pad_attention_mask']
+                    states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
+                    del states['pad_attention_mask']
+
+                # shape和size不一致: step=1时候，beam_search的btz=束宽, 或者要返回多个结果
+                if (self.mode == 'beam_search' or self.n > 1) and (self.step == 1):
+                    btz = len(self.flag)
+                    if (states.get('past_key_values') is not None) and states['past_key_values'][0][0].shape[0] != btz:
+                        repeat_size = btz // states['past_key_values'][0][0].shape[0]
+                        for l_i, past_key_value in enumerate(states['past_key_values']):
+                            states['past_key_values'][l_i] = (past_key_value[0].repeat_interleave(repeat_size, dim=0), past_key_value[1].repeat_interleave(repeat_size, dim=0))
+                    if (states.get('cross_past_key_values') is not None) and states['cross_past_key_values'][0][0].shape[0] != btz:
+                        repeat_size = btz // states['cross_past_key_values'][0][0].shape[0]
+                        for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
+                            states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat_interleave(repeat_size, dim=0), cross_past_key_value[1].repeat_interleave(repeat_size, dim=0))
+                    if (states.get('attention_mask') is not None) and states['attention_mask'].shape[0] != btz:
+                        repeat_size = btz // states['attention_mask'].shape[0]
+                        states['attention_mask'] = states['attention_mask'].repeat_interleave(repeat_size, dim=0)
+                    if (states.get('position_ids') is not None) and states['position_ids'].shape[0] != btz:
+                        repeat_size = btz // states['position_ids'].shape[0]
+                        states['position_ids'] = states['position_ids'].repeat_interleave(repeat_size, dim=0)
+
+                # 已经有序列完成，仅保留未完成序列
+                if hasattr(self, 'flag') and (self.flag is not None) and (self.flag.sum().item() > 0):
+                    states['attention_mask'] = states['attention_mask'][self.flag]
+                    if (len(states['position_ids']) > 1):
+                        states['position_ids'] = states['position_ids'][self.flag]
                     for l_i, past_key_value in enumerate(states['past_key_values']):
-                        states['past_key_values'][l_i] = (past_key_value[0].repeat_interleave(repeat_size, dim=0), past_key_value[1].repeat_interleave(repeat_size, dim=0))
-                if (states.get('cross_past_key_values') is not None) and states['cross_past_key_values'][0][0].shape[0] != btz:
-                    repeat_size = btz // states['cross_past_key_values'][0][0].shape[0]
-                    for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
-                        states['cross_past_key_values'][l_i] = (cross_past_key_value[0].repeat_interleave(repeat_size, dim=0), cross_past_key_value[1].repeat_interleave(repeat_size, dim=0))
-                if (states.get('attention_mask') is not None) and states['attention_mask'].shape[0] != btz:
-                    repeat_size = btz // states['attention_mask'].shape[0]
-                    states['attention_mask'] = states['attention_mask'].repeat_interleave(repeat_size, dim=0)
-                if (states.get('position_ids') is not None) and states['position_ids'].shape[0] != btz:
-                    repeat_size = btz // states['position_ids'].shape[0]
-                    states['position_ids'] = states['position_ids'].repeat_interleave(repeat_size, dim=0)
-
-            # 已经有序列完成，仅保留未完成序列
-            if hasattr(self, 'flag') and (self.flag is not None):
-                states['attention_mask'] = states['attention_mask'][self.flag]
-                if (len(states['position_ids']) > 1):
-                    states['position_ids'] = states['position_ids'][self.flag]
-                for l_i, past_key_value in enumerate(states['past_key_values']):
-                    states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
-                if 'cross_past_key_values' in states:
-                    for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
-                        states['cross_past_key_values'][l_i] = (cross_past_key_value[0][self.flag], cross_past_key_value[1][self.flag])
+                        states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
+                    if 'cross_past_key_values' in states:
+                        for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
+                            states['cross_past_key_values'][l_i] = (cross_past_key_value[0][self.flag], cross_past_key_value[1][self.flag])
 
             logits, states = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
