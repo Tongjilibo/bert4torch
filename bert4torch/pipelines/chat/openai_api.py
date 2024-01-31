@@ -121,9 +121,9 @@ class ChatOpenaiApi(Chat):
         router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse)
         self.app.include_router(router)
         
-    def run(self, host: str = "0.0.0.0", port: int = 8000, **kwargs):
+    def run(self, app:str=None, host:str="0.0.0.0", port:int=8000, **kwargs):
         import uvicorn
-        uvicorn.run(self.app, host=host, port=port, **kwargs)
+        uvicorn.run(app or self.app, host=host, port=port, **kwargs)
 
     async def list_models(self):
         model_card = _ModelCard(id=self.name)
