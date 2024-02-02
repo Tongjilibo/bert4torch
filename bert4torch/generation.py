@@ -216,7 +216,8 @@ class AutoRegressiveDecoder(object):
             max_new_tokens = self.max_new_tokens
         elif self.max_new_tokens is None:
             # 这里用max是因为batch_generate时候self.input_seqlen是多个
-            max_new_tokens = max(0, self.max_length-self.input_seqlen.max().item())
+            input_seqlen = self.input_seqlen.max().item() if len(self.input_seqlen) > 1 else self.input_seqlen.item()
+            max_new_tokens = max(0, self.max_length-input_seqlen)
 
         if (states is not None) and (states.get('past_key_values') is not None):
             past_key_values_lenghth = states.get('past_key_values')[0][0].shape[2]
@@ -670,6 +671,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         def concat_token_ids(token_ids, output_ids):
             '''把非padding部分concat在一起
             '''
+            if output_ids.numel() == 0:
+                return token_ids
+
             if not self.use_batch:
                 return torch.cat([token_ids, output_ids], 1)
             
@@ -741,7 +745,8 @@ class SeqGeneration(AutoRegressiveDecoder):
                 next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=False)
 
                 # past_token_ids: inputs+output_ids
-                states['past_token_ids'] = self._prepare_next_inputs(inputs, output_ids)[0]
+                if self.decoder.model_type == 'glm':
+                    states['past_token_ids'] = self._prepare_next_inputs(inputs, output_ids)[0]
 
                 # position_ids: >=1步则取last_token
                 if states.get('position_ids') is not None:

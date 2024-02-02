@@ -21,29 +21,34 @@ class MultiHeadAttentionLayer(nn.Module):
     '''多头注意力
     '''
     def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 output_attentions=False, bias=True, p_bias=None, use_dynamic_ntk=False, flash_attention=False, use_logn_attn=None, **kwargs):
+                 output_attentions=False, bias=True, p_bias=None, use_dynamic_ntk=False, flash_attention=None, use_logn_attn=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.is_decoder = kwargs.get('is_decoder', False)
-        self.is_causal = kwargs.get('is_causal', self.is_decoder)
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = bias
         self.p_bias = p_bias
         self.use_dynamic_ntk = use_dynamic_ntk
+        
         # 获取flash_attention的配置项
-        self.flash_attention = None
-        if (flash_attention in {True, 'sdpa'}) and (int(torch.__version__.split('.')[0]) < 2):
+        self.flash_attention_config = kwargs.get('flash_attention_config', dict())
+        self.is_causal = kwargs.get('is_causal', False) or self.flash_attention_config.pop('is_causal', False)
+        if flash_attention is True:
+            flash_attention = 'sdpa'
+        if (flash_attention == 'sdpa') and (int(torch.__version__.split('.')[0]) < 2):
             log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
+            self.flash_attention = None
         elif (flash_attention == 'xformers') and (not is_xformers_available()):
             log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
+            self.flash_attention = None
         elif (flash_attention == 'flash_attn_2') and (not is_flash_attn_available()):
             log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
+            self.flash_attention = None
         else:
             self.flash_attention = flash_attention
-            self.flash_attention_config = kwargs.get('flash_attention_config', None)
         
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = max_position = kwargs.get('max_position')
@@ -171,8 +176,10 @@ class MultiHeadAttentionLayer(nn.Module):
             context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
         # SDPA
         elif self.flash_attention == 'sdpa':
-            # 目前falcon和baichuan中均以attn_mask传入，如果仅传入is_casual=Ture结果不对
-            if self.flash_attention_config is None:
+            # is_causal=True 仅适用于qlen=klen，且单条样本时（多条样本mask必须使用）
+            if attention_mask.size(0)==1 and query_layer.shape[2] == key_layer.shape[2]:
+                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
+            elif len(self.flash_attention_config) == 0:
                 # 默认方式
                 context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
             else:

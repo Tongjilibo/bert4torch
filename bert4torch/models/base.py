@@ -139,7 +139,8 @@ class BERT_BASE(nn.Module):
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
         :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
         """
-        self.eval()
+        if self.training:
+            self.eval()
         return self.forward(*inputs, **model_kwargs)
 
     def init_model_weights(self, module):

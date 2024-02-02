@@ -171,7 +171,7 @@ class RoPEPositionEncoding(nn.Module):
     :param rope_rank: 排序的方式，目前支持'adjacent', 'updown'两种
     :param ntk_alpha: ntk外推的alpha
     """
-    def __init__(self, embedding_size, rope_rank='adjacent', ntk_alpha=1.0, rope_ratio=1.0, sinusoid_base=10000.0, **kwargs):
+    def __init__(self, embedding_size, max_seq_len_cache=2048, rope_rank='adjacent', ntk_alpha=1.0, rope_ratio=1.0, sinusoid_base=10000.0, **kwargs):
         super(RoPEPositionEncoding, self).__init__()
         self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
@@ -181,28 +181,40 @@ class RoPEPositionEncoding(nn.Module):
         self.ntk_alpha = ntk_alpha  # ntk外推
         self.rope_ratio = rope_ratio  # chatglm中32k的插值
         self.sinusoid_base = sinusoid_base
-    
+        self.max_seq_len_cache = max_seq_len_cache
+        self._set_cos_sin_cache(max_seq_len_cache)
+
     def reset_ntk_alpha(self, ntk_alpha):
         if ntk_alpha != self.ntk_alpha:
             self.ntk_alpha = ntk_alpha
             self.max_seq_len_cache = -1
         
-    def initialize(self, max_position):
-        position_embeddings = get_sinusoid_encoding_table(max_position, self.embedding_size, base=self.sinusoid_base,
+    def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
+        self.max_seq_len_cache = seq_len
+        position_embeddings = get_sinusoid_encoding_table(seq_len, self.embedding_size, base=self.sinusoid_base,
                                                           ntk_alpha=self.ntk_alpha, rope_ratio=self.rope_ratio)  # [seq_len, hdsz]
 
         if self.rope_rank == 'adjacent':
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
-            cos_position = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-            sin_position = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+            cos_cache = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+            sin_cache = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
         elif self.rope_rank in {'updown', 'half'}:  # 目前chatglm和llama系列有部分使用
             # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
-            cos_position = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
-            sin_position = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
+            cos_cache = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
+            sin_cache = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
         else:
             raise ValueError('Args `rope_rank` only support `adjacent` and `updown/half` mode')
-        return cos_position, sin_position
-    
+
+        self._register_buffer(cos_cache, sin_cache, device, dtype)
+
+    def _register_buffer(self, cos_cache, sin_cache, device=None, dtype=None):
+        if device is not None:
+            cos_cache, sin_cache = cos_cache.to(device), sin_cache.to(device)
+        if dtype is not None:
+            cos_cache, sin_cache = cos_cache.to(dtype), sin_cache.to(dtype)
+        self.register_buffer("cos_cache", cos_cache, persistent=False)
+        self.register_buffer("sin_cache", sin_cache, persistent=False)
+
     def forward(self, qw, position_ids=None, seq_dim=-2):
         # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
@@ -215,18 +227,18 @@ class RoPEPositionEncoding(nn.Module):
         # 超过缓存长度
         seq_len = position_ids.max() + 1 if position_ids is not None else qw.shape[seq_dim]
         if seq_len > self.max_seq_len_cache:
-            cos_position, sin_position = self.initialize(seq_len)
-            self.cos_position, self.sin_position = cos_position.type_as(qw).to(qw.device), sin_position.type_as(qw).to(qw.device)
-            self.max_seq_len_cache = seq_len
+            self._set_cos_sin_cache(seq_len, qw.device, qw.dtype)
+        if (self.cos_cache.dtype != qw.dtype) or (self.cos_cache.device != qw.device):
+            self._register_buffer(self.cos_cache, self.sin_cache, qw.device, qw.dtype)
 
         # 传入position_ids来获取cos和sin, 主要是在use_states时候能直接取到对应位置的编码
         if position_ids is not None:
             # position_ids: [btz, seq_len]
-            cos = F.embedding(position_ids, self.cos_position)  # [btz, seq_len, hdsz]
-            sin = F.embedding(position_ids, self.sin_position)
+            cos = F.embedding(position_ids, self.cos_cache)  # [btz, seq_len, hdsz]
+            sin = F.embedding(position_ids, self.sin_cache)
         else:
-            cos = self.cos_position[:seq_len]  # [seq_len, hdsz]
-            sin = self.sin_position[:seq_len]
+            cos = self.cos_cache[:seq_len]  # [seq_len, hdsz]
+            sin = self.sin_cache[:seq_len]
 
         if cos.dim() < qw.dim():
             cos = cos.unsqueeze(seq_dim-1)
