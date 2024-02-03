@@ -8,6 +8,7 @@ from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_pad
 from bert4torch.activations import get_activation
 import copy
 from packaging import version
+from typing import Union
 
 
 class BERT(BERT_BASE):
@@ -93,15 +94,13 @@ class BERT(BERT_BASE):
         else:
             return layer(**model_kwargs)
 
-    def apply_embeddings(self, *inputs, **model_kwargs):
+    def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
         """BERT的embedding，可接受"位置参数/关键字参数"形式
 
         :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有), additional_input(若有)]
         :param model_kwargs: Dict[torch.Tensor], 字典输入项，和inputs是二选一的
         :return: Dict[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
-        """
-        assert isinstance(inputs, (tuple, list)), f'Inputs only support list,tuple format but passed {type(inputs)}'
-        
+        """        
         # ========================= token_ids =========================
         index_ = 0
         if model_kwargs.get('input_ids') is not None:
@@ -206,7 +205,6 @@ class BERT(BERT_BASE):
         else:
             additional_embs = None
         additional_embs = [additional_embs] if isinstance(additional_embs, torch.Tensor) else additional_embs
-        assert (additional_embs is None) or isinstance(additional_embs, (tuple, list))
 
         # 进入embedding层
         hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)

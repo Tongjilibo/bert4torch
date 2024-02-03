@@ -374,7 +374,7 @@ class AutoRegressiveDecoder(object):
         assert self.top_k is not None, 'Arg `topk` means beam_size anc can not be None'
         inputs = self._trans2tensors(inputs)
         btz = inputs[0].shape[0]
-        output_ids = self.first_output_ids.repeat(btz, 1)
+        output_ids = self.first_output_ids.repeat(btz, 1) if btz > 1 else self.first_output_ids
         output_scores = torch.zeros(btz, device=self.device)
         results = []
 
@@ -418,7 +418,7 @@ class AutoRegressiveDecoder(object):
         assert self.top_k is not None, 'Arg `top_k` means beam_size anc can not be None'
         inputs = self._trans2tensors(inputs)
         btz = inputs[0].shape[0]
-        output_ids = self.first_output_ids.repeat(btz, 1)
+        output_ids = self.first_output_ids.repeat(btz, 1) if btz > 1 else self.first_output_ids
         output_scores = torch.zeros(btz, device=self.device)
         results = []
         for step in self._define_stopping_criteria(states):
@@ -446,9 +446,10 @@ class AutoRegressiveDecoder(object):
         probas, states = self.predict(inputs, output_ids, states, 'probas')  # 计算当前概率
         probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
         if step == 0:  # 第1步预测后将结果重复n次
-            probas = probas.repeat([self.n]+[1]*(len(probas.shape)-1))
-            inputs = [i.repeat([self.n]+[1]*(len(i.shape)-1)) for i in inputs]
-            output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
+            if self.n > 1:
+                probas = probas.repeat([self.n]+[1]*(len(probas.shape)-1))
+                inputs = [i.repeat([self.n]+[1]*(len(i.shape)-1)) for i in inputs]
+                output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
         if self.top_k is not None:
             k_indices = probas.argsort(dim=-1, descending=True)[:, :self.top_k]  # 仅保留topk
             probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
@@ -516,9 +517,8 @@ class AutoRegressiveDecoder(object):
         """
         self.set_generation_config(generation_config)
         inputs = self._trans2tensors(inputs_raw)  # 对输入进行处理
-        output_ids = self.first_output_ids
         btz = inputs[0].shape[0]
-        output_ids = self.first_output_ids.repeat(btz, 1)
+        output_ids = self.first_output_ids.repeat(btz, 1) if btz > 1 else self.first_output_ids
         results = []
 
         if self.use_batch:
@@ -606,9 +606,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
-    def __init__(self, model, tokenizer=None, tokenizer_config:dict=None, tokenizer_encode_config:dict=None, tokenizer_decode_config:dict=None, 
-                 mode:str='random_sample', default_rtype:str='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
-        model.eval()
+    def __init__(self, model, tokenizer=None, tokenizer_config:dict=None, mode:str='random_sample', 
+                 default_rtype:str='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
+        if model.training:
+            model.eval()
         kwargs = self._default_generation_config(tokenizer, model, kwargs)  # 对部分参数进行默认设置
         super().__init__(**kwargs)
 
@@ -618,8 +619,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         # tokenizer参数
         self.tokenizer = tokenizer
         self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
-        self.tokenizer_encode_config = tokenizer_encode_config or self.clear_tokenizer_config(tokenizer_config, 'encode')
-        self.tokenizer_decode_config = tokenizer_decode_config or self.clear_tokenizer_config(tokenizer_config, 'decode')
+        self.tokenizer_encode_config = kwargs.get('tokenizer_encode_config') or self.clear_tokenizer_config(tokenizer_config, 'encode')
+        self.tokenizer_decode_config = kwargs.get('tokenizer_decode_config') or self.clear_tokenizer_config(tokenizer_config, 'decode')
 
         assert mode in {'random_sample', 'beam_search'}, 'Args `mode` only support `random_sample/beam_search`.'
         self.mode = mode
@@ -719,7 +720,6 @@ class SeqGeneration(AutoRegressiveDecoder):
         :params inputs: 原始输入，在整个预测过程中均不改变
         :params outputs_ids: 输出的ids，随着预测进行，逐步增长
         '''
-        assert isinstance(inputs, (tuple, list))
         if states is not None:
             assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
         
@@ -727,7 +727,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         if self.use_states:
             if states is None:
                 states = {'use_states': True}
-            else:
+            elif states.get('use_states') is not True:
                 states.update({'use_states': True})
 
             if self.step == 0:

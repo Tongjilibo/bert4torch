@@ -2,8 +2,9 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from bert4torch.activations import get_activation
-from bert4torch.layers.position_encoding import SinusoidalPositionEncoding
+from bert4torch.layers import SinusoidalPositionEncoding
 from bert4torch.snippets import torch_div, take_along_dim
+from typing import Union
 
 
 class LayerNorm(nn.Module):
@@ -103,7 +104,7 @@ class BertEmbeddings(nn.Module):
 
         # LayerNorm
         self.layerNorm = LayerNorm(embedding_size, eps=kwargs.get('layer_norm_eps', 1e-12), conditional_size=conditional_size, **kwargs)
-        self.dropout = nn.Dropout(dropout_rate)
+        self.dropout = nn.Dropout(dropout_rate) if dropout_rate > 0 else lambda x: x
 
         # 如果embedding_size != hidden_size，则再有一个linear(适用于albert矩阵分解)
         if embedding_size != hidden_size:
@@ -124,7 +125,7 @@ class BertEmbeddings(nn.Module):
         position_embeddings = alpha * embeddings_x + (1 - alpha) * embeddings_y
         return position_embeddings.reshape(btz, seqlen, -1)  # [btz, seq_len, embed_size]
 
-    def apply_embeddings(self, token_ids, segment_ids, position_ids, additional_embs, **kwargs):
+    def apply_embeddings(self, token_ids:torch.Tensor, segment_ids:torch.Tensor, position_ids:torch.Tensor, additional_embs:Union[tuple, list]=None, **kwargs):
         '''单独拆分出来，方便下游继承和修改'''
         # word embedding
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):
@@ -174,7 +175,8 @@ class BertEmbeddings(nn.Module):
         if attention_mask is not None:
             embeddings *= attention_mask[:, 0, 0, :, None]
 
-        embeddings = self.dropout(embeddings)
+        if hasattr(self, 'dropout'):
+            embeddings = self.dropout(embeddings)
 
         if hasattr(self, 'embedding_hidden_mapping_in'):
             embeddings = self.embedding_hidden_mapping_in(embeddings)

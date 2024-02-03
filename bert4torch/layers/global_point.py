@@ -1,7 +1,6 @@
 from torch import nn
 import torch
 from bert4torch.layers.position_encoding import RoPEPositionEncoding
-from bert4torch.activations import get_activation
 
 
 class GlobalPointer(nn.Module):

@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 from bert4torch.activations import get_activation
 from bert4torch.layers.core import LayerNorm
@@ -69,6 +68,7 @@ class AdaptiveEmbedding(nn.Module):
 
 
 class BlockIdentity(nn.Module):
+    ''' A placeholder identity operator that is argument-insensitive. '''
     def __init__(self, *args, **kwargs):
         super(BlockIdentity, self).__init__()
 
@@ -84,6 +84,9 @@ class BlockIdentity(nn.Module):
 
 
 class BERT_WHITENING():
+    ''' 论文：https://arxiv.org/abs/2103.15316
+        Github: https://github.com/bojone/BERT-whitening 
+    '''
     def __init__(self):
         self.kernel = None
         self.bias = None

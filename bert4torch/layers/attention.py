@@ -74,7 +74,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else k_inner_dim, bias=bias)
         self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else v_inner_dim, bias=bias)
         self.o = nn.Linear(v_inner_dim, hidden_size, bias=bias)
-        self.dropout = nn.Dropout(attention_probs_dropout_prob)
+        self.dropout = nn.Dropout(attention_probs_dropout_prob) if attention_probs_dropout_prob > 0 else lambda x: x
 
         if self.p_bias == 'typical_relative':  # nezha
             self.relative_positions_encoding = RelativePositionsEncoding(qlen=max_position, klen=max_position,
@@ -86,10 +86,11 @@ class MultiHeadAttentionLayer(nn.Module):
             self.position_encoding_2d_v2 = kwargs.get('position_encoding_2d_v2', False)
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d or self.position_encoding_2d_v2 else self.attention_head_size
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, 
+                                                                    max_seq_len_cache=max_position, 
                                                                     rope_rank=kwargs.get('rope_rank', 'adjacent'), 
                                                                     ntk_alpha=kwargs.get('ntk_alpha', 1.0),
                                                                     rope_ratio=kwargs.get('rope_ratio', 1.0),
-                                                                    sinusoid_base=kwargs.get('sinusoid_base', 10000.0))
+                                                                    rope_theta=kwargs.get('rope_theta', 10000.0))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 

@@ -384,24 +384,26 @@ class BERT_BASE(nn.Module):
     
     def apply_on_layer_begin(self, l_i, **model_kwargs):
         '''新增对layer block输入进行操作的函数'''
-        if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
-            model_kwargs['past_key_value'] = None
-        else:
+        if model_kwargs.get('use_states') is not True:
+            return model_kwargs
+        
+        if model_kwargs.get('past_key_values') is not None:
             model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
 
-        if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
-            model_kwargs['cross_past_key_value'] = None
-        else:
+        if ('encoder_hidden_states' in model_kwargs) and model_kwargs.get('cross_past_key_values') is not None:
             model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
         return model_kwargs
     
     def apply_on_layer_end(self, l_i, **model_kwargs):
         '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
-        if model_kwargs.get('past_key_value', None) is not None:
+        if model_kwargs.get('use_states') is not True:
+            return model_kwargs
+
+        if model_kwargs.get('past_key_value') is not None:
             if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
                 model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
             model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
-        if model_kwargs.get('cross_past_key_value', None) is not None:
+        if model_kwargs.get('cross_past_key_value') is not None:
             if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
                 model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
             model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']

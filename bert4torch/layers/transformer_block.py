@@ -40,6 +40,7 @@ class BertLayer(nn.Module):
 
     def forward(self, hidden_states=None, attention_mask=None, position_ids=None, conditional_emb=None, encoder_hidden_states=None, 
                 encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
+        return_tensors = dict()
         # ============== self attention ==============
         x = self.attnLayerNorm(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
@@ -54,7 +55,7 @@ class BertLayer(nn.Module):
             residual = x if self.apply_residual_post_layernorm else hidden_states
             hidden_states = self.dropout_add(cross_attn_output[0], residual)
             if model_kwargs.get('use_states', False):
-                model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
+                return_tensors['cross_past_key_value'] = cross_attn_output[-1]
             hidden_states = self.crossLayerNorm(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
 
         # ============== feedforward ==============
@@ -65,9 +66,9 @@ class BertLayer(nn.Module):
         hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
         
         if self.is_decoder and model_kwargs.get('use_states', False):
-            model_kwargs['past_key_value'] = self_attn_output[-1]
-        model_kwargs['hidden_states'] = hidden_states
-        return model_kwargs
+            return_tensors['past_key_value'] = self_attn_output[-1]
+        return_tensors['hidden_states'] = hidden_states
+        return return_tensors
 
     def dropout_add(self, x: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
         out = F.dropout(x, p=self.dropout_rate, training=self.training)

@@ -1,7 +1,7 @@
 from bert4torch.models.bert import BERT
 from bert4torch.snippets import insert_arguments, delete_arguments
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
-from bert4torch.layers import  BlockIdentity, XlnetLayer
+from bert4torch.layers import BlockIdentity, XlnetLayer
 from torch import nn
 import torch
 import copy
