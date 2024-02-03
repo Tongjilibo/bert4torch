@@ -776,8 +776,8 @@ class SeqGeneration(AutoRegressiveDecoder):
                         repeat_size = btz // states['position_ids'].shape[0]
                         states['position_ids'] = states['position_ids'].repeat_interleave(repeat_size, dim=0)
 
-                # 已经有序列完成，仅保留未完成序列
-                if hasattr(self, 'flag') and (self.flag is not None) and (self.flag.sum().item() > 0):
+                # 已经有序列完成，仅保留未完成序列(self.flag中True表示未完成序列)
+                if hasattr(self, 'flag') and (self.flag is not None) and (self.flag==0).sum().item() > 0:
                     states['attention_mask'] = states['attention_mask'][self.flag]
                     if (len(states['position_ids']) > 1):
                         states['position_ids'] = states['position_ids'][self.flag]

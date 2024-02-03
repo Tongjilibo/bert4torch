@@ -12,7 +12,7 @@
   "multi_query_group_num": 4,
   "pad_token_id": 0,
   "layer_norm_eps": 1e-05,
-  "sinusoid_base": 5000000.0,
+  "rope_theta": 5000000.0,
   "tie_word_embeddings": false,
   "torch_dtype": "bfloat16",
   "vocab_size": 64000,

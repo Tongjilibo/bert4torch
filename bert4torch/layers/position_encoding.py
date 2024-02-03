@@ -215,7 +215,7 @@ class RoPEPositionEncoding(nn.Module):
         self.register_buffer("cos_cache", cos_cache, persistent=False)
         self.register_buffer("sin_cache", sin_cache, persistent=False)
 
-    def forward(self, qw, position_ids=None, seq_dim=-2):
+    def forward(self, qw, position_ids=None, seq_len=None, seq_dim=-2):
         # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
@@ -225,7 +225,8 @@ class RoPEPositionEncoding(nn.Module):
             qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
         
         # 超过缓存长度
-        seq_len = position_ids.max() + 1 if position_ids is not None else qw.shape[seq_dim]
+        if seq_len is None:
+            seq_len = position_ids.max() + 1 if position_ids is not None else qw.shape[seq_dim]
         if seq_len > self.max_seq_len_cache:
             self._set_cos_sin_cache(seq_len, qw.device, qw.dtype)
         if (self.cos_cache.dtype != qw.dtype) or (self.cos_cache.device != qw.device):

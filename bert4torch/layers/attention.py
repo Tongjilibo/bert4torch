@@ -162,8 +162,9 @@ class MultiHeadAttentionLayer(nn.Module):
             past_key_value = (key_layer, value_layer)
 
         # multi_query_attention
-        key_layer = self.repeat_kv(key_layer)
-        value_layer = self.repeat_kv(value_layer)
+        if hasattr(self, 'multi_query_group_num') and self.multi_query_group_num > 1:
+            key_layer = self.repeat_kv(key_layer)
+            value_layer = self.repeat_kv(value_layer)
 
         # longlora
         if hasattr(self, 'longlora_group_size'):
@@ -209,12 +210,11 @@ class MultiHeadAttentionLayer(nn.Module):
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
         return outputs + (past_key_value,) if self.is_decoder else outputs
-        
+    
     def repeat_kv(self, hidden_states):
-        if hasattr(self, 'multi_query_group_num') and self.multi_query_group_num > 1:
-            hidden_states = hidden_states.unsqueeze(2)
-            hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
-            hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
+        hidden_states = hidden_states.unsqueeze(2)
+        hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+        hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
         return hidden_states
 
     def longlora_shift(self, query_states, key_states, value_states, attention_mask):
@@ -267,6 +267,10 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
         ''' 执行rotary相对位置编码 '''
+        kv_seq_len = key_layer.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+        
         if self.use_dynamic_ntk:
             # rotary的ntk，其实仅仅在step=1时候会触发
             kv_seq_len = key_layer.shape[2] + 0 if past_key_value is None else past_key_value[0].shape[2]
@@ -278,10 +282,10 @@ class MultiHeadAttentionLayer(nn.Module):
         if self.position_encoding_2d:  # chatglm独有逻辑
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-            q1 = self.relative_positions_encoding(q1, position_ids[:, 0, :])
-            k1 = self.relative_positions_encoding(k1, position_ids[:, 0, :])
-            q2 = self.relative_positions_encoding(q2, position_ids[:, 1, :])
-            k2 = self.relative_positions_encoding(k2, position_ids[:, 1, :])
+            q1 = self.relative_positions_encoding(q1, position_ids[:, 0, :], kv_seq_len)
+            k1 = self.relative_positions_encoding(k1, position_ids[:, 0, :], kv_seq_len)
+            q2 = self.relative_positions_encoding(q2, position_ids[:, 1, :], kv_seq_len)
+            k2 = self.relative_positions_encoding(k2, position_ids[:, 1, :], kv_seq_len)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
         elif self.position_encoding_2d_v2:  # chatglm2的独有逻辑
@@ -289,13 +293,14 @@ class MultiHeadAttentionLayer(nn.Module):
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
             q1 = torch.cat([q1[..., ::2], q1[..., 1::2]], dim=-1)
             k1 = torch.cat([k1[..., ::2], k1[..., 1::2]], dim=-1)
-            q1 = self.relative_positions_encoding(q1, position_ids)
-            k1 = self.relative_positions_encoding(k1, position_ids)
+            q1 = self.relative_positions_encoding(q1, position_ids, kv_seq_len)
+            k1 = self.relative_positions_encoding(k1, position_ids, kv_seq_len)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
         else:  # 原rotary逻辑
-            query_layer = self.relative_positions_encoding(query_layer, position_ids)
-            key_layer = self.relative_positions_encoding(key_layer, position_ids)
+            query_layer = self.relative_positions_encoding(query_layer, position_ids, kv_seq_len)
+            key_layer = self.relative_positions_encoding(key_layer, position_ids, kv_seq_len)
+        
         if past_key_value is not None:  # 过了rope再concat
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)

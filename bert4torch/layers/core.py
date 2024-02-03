@@ -49,7 +49,7 @@ class LayerNorm(nn.Module):
         # RMSnorm: t5、大模型系列均使用
         elif self.norm_mode == 'rmsnorm':
             variance = hidden_states.float().pow(2).mean(-1, keepdim=True)
-            o = (hidden_states.float() * torch.rsqrt(variance + self.eps)).type_as(hidden_states)
+            o = (hidden_states.float() * torch.rsqrt(variance + self.eps))
         # 自行实现的LayerNorm
         else:
             u = hidden_states.mean(-1, keepdim=True)
