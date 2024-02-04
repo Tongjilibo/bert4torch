@@ -82,8 +82,7 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.p_bias == 'rotary':  # roformer, llama, chatglm
             # position_encoding_2d 目前仅在chatglm中使用
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
-            self.position_encoding_2d_v2 = kwargs.get('position_encoding_2d_v2', False)
-            embedding_size = self.attention_head_size//2 if self.position_encoding_2d or self.position_encoding_2d_v2 else self.attention_head_size
+            embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, 
                                                                     max_seq_len_cache=max_position, 
                                                                     rope_rank=kwargs.get('rope_rank', 'adjacent'), 
@@ -273,7 +272,6 @@ class MultiHeadAttentionLayer(nn.Module):
         
         if self.use_dynamic_ntk:
             # rotary的ntk，其实仅仅在step=1时候会触发
-            kv_seq_len = key_layer.shape[2] + 0 if past_key_value is None else past_key_value[0].shape[2]
             if kv_seq_len == query_layer.shape[-2]:
                 context_value = math.log(kv_seq_len / self.max_position, 2) + 1
                 ntk_alpha = 2 ** math.ceil(context_value) - 1
@@ -282,16 +280,11 @@ class MultiHeadAttentionLayer(nn.Module):
         if self.position_encoding_2d:  # chatglm独有逻辑
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-            q1, k1 = self.relative_positions_encoding([q1, k1], position_ids[:, 0, :], kv_seq_len)
-            q2, k2 = self.relative_positions_encoding([q2, k2], position_ids[:, 1, :], kv_seq_len)
-            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
-            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
-        elif self.position_encoding_2d_v2:  # chatglm2的独有逻辑
-            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
-            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-            q1 = torch.cat([q1[..., ::2], q1[..., 1::2]], dim=-1)
-            k1 = torch.cat([k1[..., ::2], k1[..., 1::2]], dim=-1)
-            q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
+            if len(position_ids.shape) == 3:
+                q1, k1 = self.relative_positions_encoding([q1, k1], position_ids[:, 0, :], kv_seq_len)
+                q2, k2 = self.relative_positions_encoding([q2, k2], position_ids[:, 1, :], kv_seq_len)
+            else:
+                q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
         else:  # 原rotary逻辑

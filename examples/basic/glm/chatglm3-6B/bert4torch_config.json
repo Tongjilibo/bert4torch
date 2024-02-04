@@ -15,7 +15,7 @@
     "eos_token_id": 2,
     "pad_token_id": 0,
     "rmsnorm": true,
-    "rope_rank": "updown",
-    "position_encoding_2d_v2": true,
+    "rope_rank": "adjacent",
+    "position_encoding_2d": true,
     "flash_attention": true
 }
