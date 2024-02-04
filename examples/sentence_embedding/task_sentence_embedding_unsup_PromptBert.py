@@ -17,33 +17,27 @@ from bert4torch.callbacks import Callback
 from torch.utils.data import DataLoader
 from scipy.stats import pearsonr, spearmanr
 import numpy as np
-import sys
+import argparse
 import jieba
 jieba.initialize()
 
 
 # =============================基本参数=============================
-model_type, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-# model_type, task_name, dropout_rate = 'BERT', 'ATEC', 0.3  # debug使用
-print(model_type, task_name, dropout_rate)
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_type', default='BERT', choices=['BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'])
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+parser.add_argument('--dropout_rate', default=0.1, type=float)
+args = parser.parse_args()
+model_type = args.model_type
+pooling = args.pooling
+task_name = args.task_name
+dropout_rate = args.dropout_rate
 
-assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
-assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
-if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
-    model_name = 'bert'
-elif model_type in {'RoFormer'}:
-    model_name = 'roformer'
-elif model_type in {'NEZHA'}:
-    model_name = 'nezha'
-
-dropout_rate = float(dropout_rate)
+model_name = {'BERT': 'bert', 'RoBERTa': 'bert', 'SimBERT': 'bert', 'RoFormer': 'roformer', 'NEZHA': 'nezha'}[model_type]
 batch_size = 32
 template_len = 15
-
-if task_name == 'PAWSX':
-    maxlen = 128 + template_len
-else:
-    maxlen = 64 + template_len
+maxlen = template_len + (128 if task_name == 'PAWSX' else 64)
 
 # bert配置
 model_dir = {

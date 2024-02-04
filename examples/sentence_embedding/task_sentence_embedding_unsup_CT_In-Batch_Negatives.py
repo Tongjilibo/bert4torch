@@ -19,33 +19,26 @@ import copy
 import numpy as np
 from tqdm import tqdm
 import sys
+import argparse
 import jieba
 jieba.initialize()
 
 
 # =============================基本参数=============================
-model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.1  # debug使用
-print(model_type, pooling, task_name, dropout_rate)
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_type', default='BERT', choices=['BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'])
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+parser.add_argument('--dropout_rate', default=0.1)
+args = parser.parse_args()
+model_type = args.model_type
+pooling = args.pooling
+task_name = args.task_name
+dropout_rate = float(args.dropout_rate)
 
-# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
-assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
-assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
-if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
-    model_name = 'bert'
-elif model_type in {'RoFormer'}:
-    model_name = 'roformer'
-elif model_type in {'NEZHA'}:
-    model_name = 'nezha'
-
-dropout_rate = float(dropout_rate)
+model_name = {'BERT': 'bert', 'RoBERTa': 'bert', 'SimBERT': 'bert', 'RoFormer': 'roformer', 'NEZHA': 'nezha'}[model_type]
 batch_size = 32
-
-if task_name == 'PAWSX':
-    maxlen = 128
-else:
-    maxlen = 64
+maxlen = 128 if task_name == 'PAWSX' else 64
 
 # bert配置
 model_dir = {

@@ -12,15 +12,17 @@ from torch.utils.data import DataLoader
 from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
 from tqdm import tqdm
-import sys
+import argparse
 import numpy as np
 
+
 # =============================基本参数=============================
-# pooling, task_name = sys.argv[1:]  # 传入参数
-pooling, task_name = 'cls', 'ATEC'  # debug使用
-print('pooling: ', pooling, ' task_name: ', task_name)
-assert task_name in ['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B']
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
+parser = argparse.ArgumentParser()
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+args = parser.parse_args()
+pooling = args.pooling
+task_name = args.task_name
 
 maxlen = 64 if task_name != 'PAWSX' else 128
 batch_size = 32
@@ -29,8 +31,6 @@ checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_
 dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)

@@ -12,28 +12,24 @@ from bert4torch.layers import BERT_WHITENING
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
-import numpy as np
 import scipy.stats
-import sys
+import argparse
 import jieba
 jieba.initialize()
 
+
 # =============================基本参数=============================
-# model_type, pooling, task_name, n_components = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, n_components = 'BERT', 'cls', 'ATEC', -1  # debug使用
-print(model_type, pooling, task_name, n_components)
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_type', default='BERT', choices=['BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'])
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+parser.add_argument('--n_components', default=-1, type=int)
+args = parser.parse_args()
+model_type = args.model_type
+pooling = args.pooling
+task_name = args.task_name
+n_components = args.n_components
 
-assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
-assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
-if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
-    model_name = 'bert'
-elif model_type in {'RoFormer'}:
-    model_name = 'roformer'
-elif model_type in {'NEZHA'}:
-    model_name = 'nezha'
-
-n_components = int(n_components)
 if n_components < 0:
     if model_type.endswith('large'):
         n_components = 1024
@@ -44,12 +40,9 @@ if n_components < 0:
     else:
         n_components = 768
 
+model_name = {'BERT': 'bert', 'RoBERTa': 'bert', 'SimBERT': 'bert', 'RoFormer': 'roformer', 'NEZHA': 'nezha'}[model_type]
 batch_size = 128
-
-if task_name == 'PAWSX':
-    maxlen = 128
-else:
-    maxlen = 64
+maxlen = 128 if task_name == 'PAWSX' else 64
 
 # bert配置
 model_dir = {
@@ -65,7 +58,6 @@ checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
 data_path = 'E:/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 
 
 # =============================加载数据集=============================

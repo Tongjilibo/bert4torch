@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
-from typing import Any
+from typing import Any, Literal
 import unicodedata
 from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize, sequence_padding
@@ -56,6 +56,24 @@ def whitespace_tokenize(text):
         return []
     tokens = text.split()
     return tokens
+
+
+class TokenizerDictOutput(dict):
+    '''tokenizer以字典方式输出'''
+    def to(self, device):
+        for k, v in self.items():
+            if isinstance(v, torch.Tensor):
+                self[k] = v.to(device)
+        return self
+
+
+class TokenizerListOutput(list):
+    '''tokenizer以列表方式输出'''
+    def to(self, device):
+        for i, v in enumerate(self):
+            if isinstance(v, torch.Tensor):
+                self[i] = v.to(device)
+        return self
 
 
 class TokenizerBase(object):
@@ -167,8 +185,8 @@ class TokenizerBase(object):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.encode(*args, **kwds)
         
-    def encode(self, first_texts, second_texts=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False, 
-               return_tensors=None, return_dict=False, **kwargs):
+    def encode(self, first_texts:str, second_texts:str=None, maxlen:int=None, pattern:str='S*E*E', truncate_from:Literal['left', 'right']='right', 
+               return_offsets:bool=False, return_tensors:Literal[True, 'pt', 'np']=None, return_dict:bool=False, **kwargs):
         '''可以处理多条或者单条
         '''
         maxlen = maxlen or kwargs.get('max_length')  # 兼容transformers的参数
@@ -207,9 +225,9 @@ class TokenizerBase(object):
         
         # 是否以字典形式输出
         if return_dict:
-            return dict(encode_outputs)
+            return TokenizerDictOutput(encode_outputs)
         else:
-            return [value for value in encode_outputs.values()]
+            return TokenizerListOutput([value for value in encode_outputs.values()])
 
     def id_to_token(self, i):
         """id序列为对应的token

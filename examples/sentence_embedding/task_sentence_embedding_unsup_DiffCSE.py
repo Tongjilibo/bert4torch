@@ -1,7 +1,20 @@
 #! -*- coding: utf-8 -*-
-# DiffCSE中文测试：model, electra部分的gennerator和discriminator都是用的同样的bert模型
-# 源项目: https://github.com/voidism/DiffCSE
-# 原项目是btz *2 来做mask
+'''
+DiffCSE中文测试：model, electra部分的gennerator和discriminator都是用的同样的bert模型
+- 源项目: https://github.com/voidism/DiffCSE
+- 原项目是btz *2 来做mask
+
+思路简介：simcse loss + 带条件的句子差异预测模型loss
+1. 有三个模型：句向量encoder，mlm生成器generator, 判断mlm预测结果是否正确的discriminator
+2. 句向量阶段：句向量loss和simcse一样，以batch中对应的样本对为正例，不对应的样本对为负例
+3. generator阶段：
+   - 将mask后的input_ids(g_input)送入generator中进行mlm预测得到g_pred，比较g_input和g_pred，得到预测是否一致g_label
+   - generator只是加噪得到x''的一种方式，目的就是想结合句向量判断哪些地方加噪            
+4. discriminator阶段： 目的就是带句向量条件下尽量预测出g_label
+    4.1 用句向量替换discriminator的cls位向量
+    4.2 对last_hidden_state接一个2分类得到d_logit，与g_label做loss，表示该位置是否被替换过
+'''
+
 
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
@@ -16,34 +29,26 @@ from torch import optim, nn
 import torch
 from bert4torch.snippets import ListDataset
 import torch.nn.functional as F
-import sys
+import argparse
 import jieba
 jieba.initialize()
 
 
 # =============================基本参数=============================
-# model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'ATEC', 0.3  # debug使用
-print(model_type, pooling, task_name, dropout_rate)
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_type', default='BERT', choices=['BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'])
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+parser.add_argument('--dropout_rate', default=0.1, type=float)
+args = parser.parse_args()
+model_type = args.model_type
+pooling = args.pooling
+task_name = args.task_name
+dropout_rate = args.dropout_rate
 
-assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
-assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
-if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
-    model_name = 'bert'
-elif model_type in {'RoFormer'}:
-    model_name = 'roformer'
-elif model_type in {'NEZHA'}:
-    model_name = 'nezha'
-
-dropout_rate = float(dropout_rate)
+model_name = {'BERT': 'bert', 'RoBERTa': 'bert', 'SimBERT': 'bert', 'RoFormer': 'roformer', 'NEZHA': 'nezha'}[model_type]
 batch_size = 32
-
-if task_name == 'PAWSX':
-    maxlen = 128
-else:
-    maxlen = 64
-
+maxlen = 128 if task_name == 'PAWSX' else 64
 lambda_weight = 0.05  # electra部分loss权重
 
 # bert配置
@@ -139,7 +144,7 @@ def collate_fn(batch):
     # mlm_inputs和mlm_outputs
     mlm_inputs, mlm_labels = mask_tokens(input_ids)
     attention_mask = input_ids.gt(0).long()
-    return [input_ids, mlm_inputs], [labels, mlm_labels, attention_mask]
+    return [input_ids, mlm_inputs, attention_mask], [labels, mlm_labels, attention_mask]
 train_dataloader = DataLoader(ListDataset(data=train_texts), shuffle=True, batch_size=batch_size, collate_fn=collate_fn)
 
 # 加载测试数据集
@@ -214,9 +219,9 @@ class Model(BaseModel):
         self.electra_head = nn.Linear(self.bert.configs['hidden_size'], 2)
         self.sim = Similarity(temp=0.05)
     
-    def forward(self, input_ids, mlm_inputs):
+    def forward(self, input_ids, mlm_inputs, attention_mask):
+        # ======================句向量截断
         # 和ESimCSE一致的计算逻辑
-        attention_mask = input_ids.gt(0).long()
         hidden_state1, pooler = self.bert([input_ids])
         reps = get_pool_emb(hidden_state1, pooler, attention_mask, self.pool_method)
         if self.pool_method == 'cls':
@@ -227,13 +232,18 @@ class Model(BaseModel):
         embeddings_b = reps[batch_size:]
         scores = self.sim(embeddings_a.unsqueeze(1), embeddings_b.unsqueeze(0)) # [btz, btz]
 
-        # Calculate loss for conditional ELECTRA
+        # ======================generator阶段
+        # 利用generator来mlm预测
         with torch.no_grad():
             g_pred = generator([mlm_inputs])[1].argmax(-1)  # [btz, seq_len]
         g_pred[:, 0] = tokenizer._token_start_id
+        # generator预测出来和mask输入不一致的地方
         e_labels = (g_pred != input_ids) * attention_mask
+
+        # ======================discriminator阶段
+        # 把预测出来的padding mask掉
         e_inputs = g_pred * attention_mask
-        # cls位置需要用句向量替换，从v0.2.8开始几个apply_的返回值是字典，修改了下格式
+        # 条件ELECTRA：cls位置需要用句向量替换，从v0.2.8开始几个apply_的返回值是字典，修改了下格式
         outputs = self.discriminator.apply_embeddings(e_inputs)
         outputs['hidden_states'] = torch.cat([reps.unsqueeze(1), outputs['hidden_states'][:, 1:, :]], dim=1)
         outputs = self.discriminator.apply_main_layers(**outputs)

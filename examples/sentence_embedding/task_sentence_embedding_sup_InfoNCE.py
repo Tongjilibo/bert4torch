@@ -15,15 +15,17 @@ from sklearn.metrics.pairwise import paired_cosine_distances
 from scipy.stats import spearmanr
 import random
 from tqdm import tqdm
-import sys
+import argparse
 import numpy as np
 
+
 # =============================基本参数=============================
-# pooling, task_name = sys.argv[1:]  # 传入参数
-pooling, task_name = 'cls', 'ATEC'  # debug使用
-print('pooling: ', pooling, ' task_name: ', task_name)
-assert task_name in ['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B']
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
+parser = argparse.ArgumentParser()
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+args = parser.parse_args()
+pooling = args.pooling
+task_name = args.task_name
 
 maxlen = 64 if task_name != 'PAWSX' else 128
 batch_size = 32

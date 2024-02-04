@@ -16,10 +16,72 @@ from torch import optim, nn
 import torch
 import random
 import copy
-import sys
+import argparse
 from bert4torch.snippets import ListDataset
 import jieba
 jieba.initialize()
+
+
+# =============================基本参数=============================
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_type', default='BERT', choices=['BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'])
+parser.add_argument('--pooling', default='cls', choices=['first-last-avg', 'last-avg', 'cls', 'pooler'])
+parser.add_argument('--task_name', default='ATEC', choices=['ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'])
+parser.add_argument('--dropout_rate', default=0.1, type=float)
+args = parser.parse_args()
+model_type = args.model_type
+pooling = args.pooling
+task_name = args.task_name
+dropout_rate = args.dropout_rate
+
+model_name = {'BERT': 'bert', 'RoBERTa': 'bert', 'SimBERT': 'bert', 'RoFormer': 'roformer', 'NEZHA': 'nezha'}[model_type]
+batch_size = 32
+maxlen = 128 if task_name == 'PAWSX' else 64
+
+# bert配置
+model_dir = {
+    'BERT': 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
+    'RoBERTa': 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
+    'NEZHA': 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
+    'RoFormer': 'E:/pretrain_ckpt/roformer/sushen@roformer_v1_base',
+    'SimBERT': 'E:/pretrain_ckpt/simbert/sushen@simbert_chinese_base',
+}[model_type]
+
+config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
+checkpoint_path = f'{model_dir}/pytorch_model.bin'
+dict_path = f'{model_dir}/vocab.txt'
+data_path = 'E:/data/corpus/sentence_embedding/'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# =============================加载数据集=============================
+# 建立分词器
+if model_type in ['RoFormer']:
+    tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
+else:
+    tokenizer = Tokenizer(dict_path, do_lower_case=True)
+
+all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
+print(all_names)
+
+def load_data(filenames):
+    """加载数据（带标签）
+    单条格式：(文本1, 文本2, 标签)
+    """
+    D = []
+    for filename in filenames:
+        with open(filename, encoding='utf-8') as f:
+            for l in f:
+                l = l.strip().split('\t')
+                if len(l) == 3:
+                    D.append((l[0], l[1], float(l[2])))
+    return D
+
+all_texts = load_data(all_names)
+train_texts = [j for i in all_texts for j in i[:2]]
+
+if task_name != 'PAWSX':
+    np.random.shuffle(train_texts)
+    train_texts = train_texts[:10000]
 
 class CollateFunc(object):
     '''对句子进行复制，和抽取负对
@@ -93,76 +155,6 @@ class CollateFunc(object):
             return [batch_tokens_list, batch_pos_tokens_list, batch_neg_tokens_list], labels
         else:
             return [batch_tokens_list, batch_pos_tokens_list], labels
-
-
-# =============================基本参数=============================
-model_type, pooling, task_name, dropout_rate = sys.argv[1:]  # 传入参数
-# model_type, pooling, task_name, dropout_rate = 'BERT', 'cls', 'STS-B', 0.3  # debug使用
-print(model_type, pooling, task_name, dropout_rate)
-
-# 选用NEZHA和RoFormer选哟修改build_transformer_model的model参数
-assert model_type in {'BERT', 'RoBERTa', 'NEZHA', 'RoFormer', 'SimBERT'}
-assert pooling in {'first-last-avg', 'last-avg', 'cls', 'pooler'}
-assert task_name in {'ATEC', 'BQ', 'LCQMC', 'PAWSX', 'STS-B'}
-if model_type in {'BERT', 'RoBERTa', 'SimBERT'}:
-    model_name = 'bert'
-elif model_type in {'RoFormer'}:
-    model_name = 'roformer'
-elif model_type in {'NEZHA'}:
-    model_name = 'nezha'
-
-dropout_rate = float(dropout_rate)
-batch_size = 32
-
-if task_name == 'PAWSX':
-    maxlen = 128
-else:
-    maxlen = 64
-
-# bert配置
-model_dir = {
-    'BERT': 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
-    'RoBERTa': 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
-    'NEZHA': 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
-    'RoFormer': 'E:/pretrain_ckpt/roformer/sushen@roformer_v1_base',
-    'SimBERT': 'E:/pretrain_ckpt/simbert/sushen@simbert_chinese_base',
-}[model_type]
-
-config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
-checkpoint_path = f'{model_dir}/pytorch_model.bin'
-dict_path = f'{model_dir}/vocab.txt'
-data_path = 'E:/data/corpus/sentence_embedding/'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-# =============================加载数据集=============================
-# 建立分词器
-if model_type in ['RoFormer']:
-    tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
-else:
-    tokenizer = Tokenizer(dict_path, do_lower_case=True)
-
-all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]
-print(all_names)
-
-def load_data(filenames):
-    """加载数据（带标签）
-    单条格式：(文本1, 文本2, 标签)
-    """
-    D = []
-    for filename in filenames:
-        with open(filename, encoding='utf-8') as f:
-            for l in f:
-                l = l.strip().split('\t')
-                if len(l) == 3:
-                    D.append((l[0], l[1], float(l[2])))
-    return D
-
-all_texts = load_data(all_names)
-train_texts = [j for i in all_texts for j in i[:2]]
-
-if task_name != 'PAWSX':
-    np.random.shuffle(train_texts)
-    train_texts = train_texts[:10000]
 
 train_call_func = CollateFunc(tokenizer, max_len=maxlen, q_size=64, dup_rate=0.15)
 train_dataloader = DataLoader(ListDataset(data=train_texts), shuffle=True, batch_size=batch_size, collate_fn=train_call_func)
