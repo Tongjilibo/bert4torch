@@ -4,7 +4,8 @@
 import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
-from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
+from bert4torch.generation import SeqGeneration
+from bert4torch.snippets import Timeit2
 import time
 import os
 
@@ -22,29 +23,29 @@ texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']
 
 tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
 encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
-generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
+generation = SeqGeneration(encoder, tokenizer, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
                            mode='random_sample', maxlen=2048, default_rtype='logits', use_states=True)
 
 
 print('===============single================')
-start = time.time()
+ti = Timeit2()
 for text in texts:
     response = generation.generate(text, topk=50, topp=0.7, temperature=0.95)
     print(response)
-print(f'Consume: {time.time()-start}s')
+ti('single')
 
 
 print('===============batch_cache================')
-start = time.time()
 response = generation.generate(texts, topk=50, topp=0.7, temperature=0.95)
 print(response)
-print(f'Consume: {time.time()-start}s')
+ti('batch_cache')
 
 
 print('===============batch_nocache================')
-start = time.time()
 generation = SeqGeneration(encoder, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
                            mode='random_sample', maxlen=2048, default_rtype='logits', use_states=False)
+ti.restart()
 response = generation.generate(texts, topk=50, topp=0.7, temperature=0.95)
 print(response)
-print(f'Consume: {time.time()-start}s')
+ti('batch_nocache')
+ti.end()

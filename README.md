@@ -78,13 +78,9 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20240204| 0.4.7          | 0.1.9|修改`save_pretrained`用于保存文件夹, 增加GenerateSpeed用于统计token生成速度，修复t5在use_states=True时候的错误, 修改层次编码的bug, 增加deepseek_moe模型，修复generation并发错误，优化大模型耗时|
 |20240116| 0.4.6          | 0.1.8|bug修复，增加`save_pretrained`用于保存`transformer`格式的权重, 增加部分`embedding`模型|
 |20240111| 0.4.5          | 0.1.7|`training`时候不生成`past_key_values`, 增加`streamlit`的example, 修复句向量`max`时的bug, `batch_generate`合并到`generate`, 修改`generation`的默认参数名(兼容过去的参数名), 多轮对话中可保留`past_key_values`, 把`attention`中的`mask`补齐逻辑移到`apply_embedding`中, 增加`uie`的`pipeline`，增加`PtuningV2Trainer`|
-|20231228| 0.4.4          | 0.1.7|新增`pipelines`模块，把`chat`整理进去，并新增`Text2Vec`模块用于向量生成，新增`snapshot_download`用于hf模型下载|
-|20231224| 0.4.3          | 0.1.7|在`chat`中增加常见chat模型, 简化大模型调用的代码逻辑|
-|20231219| 0.4.2          | 0.1.7|参数`checkpoint_path`支持传入文件夹地址，增加`chat`模块用于快速发布demo/api, 支持加载`.safetensors`, `meta`的device提示报错|
-|20231210| 0.4.1          | 0.1.6.post2|增加longlora, 增加test模块，适配torch4keras==0.1.6(监控fit过程，有报错则发送邮件提醒; 解决torch2.0的compile冲突问题; 修复clip_grad_norm的bug)|
-|20231126| 0.4.0          | 0.1.5     |修复flash_attn的bug, stream_generate支持仅输出last_token|
 
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 

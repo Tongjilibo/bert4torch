@@ -36,9 +36,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # 获取flash_attention的配置项
         self.flash_attention_config = kwargs.get('flash_attention_config', dict())
         self.is_causal = kwargs.get('is_causal', False) or self.flash_attention_config.pop('is_causal', False)
-        if (flash_attention is None) and (int(torch.__version__.split('.')[0]) >= 2):
-            flash_attention = 'sdpa'
-        elif ((flash_attention is True) or (flash_attention == 'sdpa')) and (int(torch.__version__.split('.')[0]) < 2):
+        if ((flash_attention is True) or (flash_attention == 'sdpa')) and (int(torch.__version__.split('.')[0]) < 2):
             log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
             flash_attention = None
         elif (flash_attention == 'xformers') and (not is_xformers_available()):
@@ -176,10 +174,10 @@ class MultiHeadAttentionLayer(nn.Module):
             context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
         # SDPA
         elif self.flash_attention in {True, 'sdpa'}:
-            # is_causal=True 仅适用于qlen=klen，且单条样本时（多条样本mask必须使用）
-            if attention_mask.size(0)==1 and (query_layer.shape[2] == key_layer.shape[2]):
-                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
-            elif len(self.flash_attention_config) == 0:
+            # # is_causal=True 仅适用于qlen=klen，且单条样本时（多条样本mask必须使用）
+            # if attention_mask.size(0)==1 and (query_layer.shape[2] == key_layer.shape[2]):
+            #     context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
+            if len(self.flash_attention_config) == 0:
                 # 默认方式
                 context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
             else:

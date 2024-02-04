@@ -271,11 +271,11 @@ def test_yi(model_dir):
 
 
 if __name__=='__main__':
-    # test_baichuan('E:/pretrain_ckpt/llama/Baichuan-7B')
-    # test_belle('E:/pretrain_ckpt/llama/belle-llama-7b-2m')
-    # test_chinese_llama_alpaca('E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b')
-    # test_vicuna('E:/pretrain_ckpt/llama/lmsys@vicuna-7b-v1.5')
-    # test_ziya('E:/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1')
-    # test_llama2('E:/pretrain_ckpt/llama/llama-2-7b-chat')
-    # test_llama('E:/pretrain_ckpt/llama/llama-7b')
+    test_baichuan('E:/pretrain_ckpt/llama/Baichuan-7B')
+    test_belle('E:/pretrain_ckpt/llama/belle-llama-7b-2m')
+    test_chinese_llama_alpaca('E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b')
+    test_vicuna('E:/pretrain_ckpt/llama/lmsys@vicuna-7b-v1.5')
+    test_ziya('E:/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1')
+    test_llama2('E:/pretrain_ckpt/llama/llama-2-7b-chat')
+    test_llama('E:/pretrain_ckpt/llama/llama-7b')
     test_yi("E:/pretrain_ckpt/llama/01-ai@Yi-6B")
