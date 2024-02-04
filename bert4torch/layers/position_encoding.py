@@ -2,6 +2,7 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
+from typing import Union, List
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, base=10000.0, ntk_alpha=1.0, rope_ratio=1.0, padding_idx=None):
@@ -176,7 +177,7 @@ class RoPEPositionEncoding(nn.Module):
         self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
         # 支持两种方式，一种是奇偶相邻排列，一种是上下排列, 目前只在chatglm中看到updown排列
-        assert rope_rank in {'adjacent', 'updown'}, "rank kwarg only support 'adjacent' and 'updown' "
+        assert rope_rank in {'adjacent', 'updown', 'rotate_half'}, "rank kwarg only support 'adjacent/updown/rotate_half' "
         self.rope_rank = rope_rank
         self.ntk_alpha = ntk_alpha  # ntk外推
         self.rope_ratio = rope_ratio  # chatglm中32k的插值
@@ -198,12 +199,10 @@ class RoPEPositionEncoding(nn.Module):
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
             cos_cache = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
             sin_cache = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
-        elif self.rope_rank in {'updown', 'half'}:  # 目前chatglm和llama系列有部分使用
+        elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
             # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
             cos_cache = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
             sin_cache = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
-        else:
-            raise ValueError('Args `rope_rank` only support `adjacent` and `updown/half` mode')
 
         self._register_buffer(cos_cache, sin_cache, device, dtype)
 
@@ -215,23 +214,38 @@ class RoPEPositionEncoding(nn.Module):
         self.register_buffer("cos_cache", cos_cache, persistent=False)
         self.register_buffer("sin_cache", sin_cache, persistent=False)
 
-    def forward(self, qw, position_ids=None, seq_len=None, seq_dim=-2):
-        # MultiHeadAttentionLayer中qw是[btz, n_heads, seq_len, head_size]
-        # GlobalPointer中*转置*后qw是[btz, n_heads, seq_len, head_size]
-        # EfficientGlobalPointer中qw是[btz, seq_len, head_size]
+    def rotate_and_compute(self, x, cos, sin):
+        # MultiHeadAttentionLayer中x是[btz, n_heads, seq_len, head_size]
+        # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
+        # EfficientGlobalPointer中x是[btz, seq_len, head_size]
         if self.rope_rank == 'adjacent':
-            qw2 = torch.stack([-qw[..., 1::2], qw[..., ::2]], dim=-1).reshape_as(qw)
-        elif self.rope_rank in {'updown', 'half'}:  # 目前仅chatglm使用
-            qw2 = torch.cat([-qw[..., qw.shape[-1]//2:], qw[..., :qw.shape[-1]//2]], dim=-1)  # cat和stack+reshape是结果不同的
-        
+            x2 = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1).reshape_as(x)
+        elif self.rope_rank in {'updown', 'rotate_half'}:
+            # 其实就是rotate_half，注意cat和stack+reshape是结果不同的
+            x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
+        return x * cos + x2 * sin
+
+    def forward(self, qk:Union[torch.Tensor, List], position_ids=None, seq_len=None, seq_dim=-2):
+        '''修改了原有的q和k重复走一遍embedding，实现加速'''
+        if isinstance(qk, list):
+            device, dtype = qk[0].device, qk[0].dtype
+        else:
+            device, dtype = qk.device, qk.dtype
+
         # 超过缓存长度
         if seq_len is None:
-            seq_len = position_ids.max() + 1 if position_ids is not None else qw.shape[seq_dim]
+            if position_ids is not None:
+                seq_len = position_ids.max() + 1
+            elif isinstance(qk, list):
+                seq_len = qk[0].shape[seq_dim]
+            elif isinstance(qk, torch.Tensor):
+                seq_len = qk.shape[seq_dim]
+        
         if seq_len > self.max_seq_len_cache:
-            self._set_cos_sin_cache(seq_len, qw.device, qw.dtype)
-        if (self.cos_cache.dtype != qw.dtype) or (self.cos_cache.device != qw.device):
-            self._register_buffer(self.cos_cache, self.sin_cache, qw.device, qw.dtype)
-
+            self._set_cos_sin_cache(seq_len, device, dtype)
+        if (self.cos_cache.dtype != dtype) or (self.cos_cache.device != device):
+            self._register_buffer(self.cos_cache, self.sin_cache, device, dtype)
+        
         # 传入position_ids来获取cos和sin, 主要是在use_states时候能直接取到对应位置的编码
         if position_ids is not None:
             # position_ids: [btz, seq_len]
@@ -241,10 +255,14 @@ class RoPEPositionEncoding(nn.Module):
             cos = self.cos_cache[:seq_len]  # [seq_len, hdsz]
             sin = self.sin_cache[:seq_len]
 
-        if cos.dim() < qw.dim():
+        if cos.dim() < qk[0].dim() if isinstance(qk, list) else qk.dim():
             cos = cos.unsqueeze(seq_dim-1)
             sin = sin.unsqueeze(seq_dim-1)
-        return qw * cos + qw2 * sin
+
+        if isinstance(qk, list):
+            return [self.rotate_and_compute(x, cos, sin) for x in qk]
+        else:
+            return self.rotate_and_compute(qk, cos, sin)
 
 
 class XlnetPositionsEncoding(nn.Module):

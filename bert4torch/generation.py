@@ -781,11 +781,9 @@ class SeqGeneration(AutoRegressiveDecoder):
                     states['attention_mask'] = states['attention_mask'][self.flag]
                     if (len(states['position_ids']) > 1):
                         states['position_ids'] = states['position_ids'][self.flag]
-                    for l_i, past_key_value in enumerate(states['past_key_values']):
-                        states['past_key_values'][l_i] = (past_key_value[0][self.flag], past_key_value[1][self.flag])
+                    states['past_key_values'] = [(kv[0][self.flag], kv[1][self.flag]) for kv in states['past_key_values']]
                     if 'cross_past_key_values' in states:
-                        for l_i, cross_past_key_value in enumerate(states['cross_past_key_values']):
-                            states['cross_past_key_values'][l_i] = (cross_past_key_value[0][self.flag], cross_past_key_value[1][self.flag])
+                        states['cross_past_key_values'] = [(kv[0][self.flag], kv[1][self.flag]) for kv in states['cross_past_key_values']]
 
             logits, states = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq

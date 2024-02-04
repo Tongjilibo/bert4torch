@@ -36,19 +36,18 @@ class MultiHeadAttentionLayer(nn.Module):
         # 获取flash_attention的配置项
         self.flash_attention_config = kwargs.get('flash_attention_config', dict())
         self.is_causal = kwargs.get('is_causal', False) or self.flash_attention_config.pop('is_causal', False)
-        if flash_attention is True:
+        if (flash_attention is None) and (int(torch.__version__.split('.')[0]) >= 2):
             flash_attention = 'sdpa'
-        if (flash_attention == 'sdpa') and (int(torch.__version__.split('.')[0]) < 2):
+        elif ((flash_attention is True) or (flash_attention == 'sdpa')) and (int(torch.__version__.split('.')[0]) < 2):
             log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-            self.flash_attention = None
+            flash_attention = None
         elif (flash_attention == 'xformers') and (not is_xformers_available()):
             log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-            self.flash_attention = None
+            flash_attention = None
         elif (flash_attention == 'flash_attn_2') and (not is_flash_attn_available()):
             log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
-            self.flash_attention = None
-        else:
-            self.flash_attention = flash_attention
+            flash_attention = None
+        self.flash_attention = flash_attention
         
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = max_position = kwargs.get('max_position')
@@ -177,9 +176,9 @@ class MultiHeadAttentionLayer(nn.Module):
         if (self.flash_attention == 'xformers') and self.training:
             context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
         # SDPA
-        elif self.flash_attention == 'sdpa':
+        elif self.flash_attention in {True, 'sdpa'}:
             # is_causal=True 仅适用于qlen=klen，且单条样本时（多条样本mask必须使用）
-            if attention_mask.size(0)==1 and query_layer.shape[2] == key_layer.shape[2]:
+            if attention_mask.size(0)==1 and (query_layer.shape[2] == key_layer.shape[2]):
                 context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
             elif len(self.flash_attention_config) == 0:
                 # 默认方式
@@ -283,10 +282,8 @@ class MultiHeadAttentionLayer(nn.Module):
         if self.position_encoding_2d:  # chatglm独有逻辑
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-            q1 = self.relative_positions_encoding(q1, position_ids[:, 0, :], kv_seq_len)
-            k1 = self.relative_positions_encoding(k1, position_ids[:, 0, :], kv_seq_len)
-            q2 = self.relative_positions_encoding(q2, position_ids[:, 1, :], kv_seq_len)
-            k2 = self.relative_positions_encoding(k2, position_ids[:, 1, :], kv_seq_len)
+            q1, k1 = self.relative_positions_encoding([q1, k1], position_ids[:, 0, :], kv_seq_len)
+            q2, k2 = self.relative_positions_encoding([q2, k2], position_ids[:, 1, :], kv_seq_len)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
         elif self.position_encoding_2d_v2:  # chatglm2的独有逻辑
@@ -294,13 +291,11 @@ class MultiHeadAttentionLayer(nn.Module):
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
             q1 = torch.cat([q1[..., ::2], q1[..., 1::2]], dim=-1)
             k1 = torch.cat([k1[..., ::2], k1[..., 1::2]], dim=-1)
-            q1 = self.relative_positions_encoding(q1, position_ids, kv_seq_len)
-            k1 = self.relative_positions_encoding(k1, position_ids, kv_seq_len)
+            q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
         else:  # 原rotary逻辑
-            query_layer = self.relative_positions_encoding(query_layer, position_ids, kv_seq_len)
-            key_layer = self.relative_positions_encoding(key_layer, position_ids, kv_seq_len)
+            query_layer, key_layer = self.relative_positions_encoding([query_layer, key_layer], position_ids, kv_seq_len)
         
         if past_key_value is not None:  # 过了rope再concat
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
