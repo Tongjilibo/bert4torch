@@ -1,8 +1,19 @@
 #! -*- coding: utf-8 -*-
+'''
 # ESimCSE 中文测试
+
+- 论文: https://arxiv.org/pdf/2109.04380.pdf
+- 官方实现: https://github.com/caskcsg/sentemb/tree/main/ESimCSE
+- 第三方实现: https://github.com/shuxinyin/SimCSE-Pytorch（和原文实现有差异）
+
 # |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
 # |      ESimCSE    |  34.05  | 50.54|  71.58  |  12.53  |  71.27  |
 
+思路简介
+1. 正例：对样本进行部分word重复作为正例，比如"花呗每天收利息吗" <-> "花呗每天天收利息吗吗"
+2. 负例：把之前训练的样本缓存，每次从中间取出btz样本作为负例
+...
+'''
 from bert4torch.snippets import sequence_padding
 from tqdm import tqdm
 import numpy as np
@@ -185,25 +196,28 @@ class Model(BaseModel):
         self.scale = scale
     
     def forward(self, *token_ids_list):
-        reps = []
+        reps = []  # [句向量，pos句向量，neg句向量]
+        # 句向量和正样本
         for token_ids in token_ids_list[:2]:
             hidden_state1, pooler = self.encoder([token_ids])
             rep = get_pool_emb(hidden_state1, pooler, token_ids.gt(0).long(), self.pool_method)
             reps.append(rep)
-        if len(token_ids_list) == 3:  # 负样本
+
+        # 负样本
+        if len(token_ids_list) == 3:
             hidden_state1, pooler = self.momentum_encoder([token_ids_list[2]])
             rep = get_pool_emb(hidden_state1, pooler, token_ids.gt(0).long(), self.pool_method)
             reps.append(rep)
-        embeddings_a = reps[0]
-        embeddings_b = torch.cat(reps[1:])
-        scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz]
+        
+        embeddings_a = reps[0]  # [btz, hdsz]
+        embeddings_b = torch.cat(reps[1:])  # pos: [btz, hdsz] / pos+neg: [btz*btz, hdsz]
+        scores = self.cos_sim(embeddings_a, embeddings_b) * self.scale  # [btz, btz] / [btz, btz*2]
         return scores
     
+    @torch.no_grad()
     def encode(self, token_ids):
-        self.eval()
-        with torch.no_grad():
-            hidden_state, pooler = self.encoder([token_ids])
-            output = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
+        hidden_state, pooler = self.encoder([token_ids])
+        output = get_pool_emb(hidden_state, pooler, token_ids.gt(0).long(), self.pool_method)
         return output
 
     @staticmethod
@@ -243,6 +257,7 @@ class Evaluator(Callback):
 def evaluate(dataloader):
     # 模型预测
     # 标准化，相似度，相关系数
+    model.eval()
     sims_list, labels = [], []
     for (a_token_ids, b_token_ids), label in tqdm(dataloader):
         a_vecs = model.encode(a_token_ids)
