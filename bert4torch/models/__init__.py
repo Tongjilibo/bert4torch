@@ -1,6 +1,6 @@
 from typing import Union
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, get_state_dict_dtype, load_checkpoint
+from bert4torch.snippets import set_default_torch_dtype, init_empty_weights
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -160,7 +160,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
 
     # 生成网络结构
     if skip_init:
-        from accelerate import init_empty_weights
         with init_empty_weights():
             transformer = MODEL(**config)
     else:
