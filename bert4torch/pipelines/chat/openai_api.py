@@ -14,11 +14,11 @@ from bert4torch.snippets import log_info, log_warn, cuda_empty_cache, AnyClass
 from bert4torch.snippets import is_fastapi_available, is_pydantic_available, is_sseclient_available
 from packaging import version
 from .base import Chat
-
+import gc
 
 FastAPI, BaseModel, Field= object, object, AnyClass
 if is_fastapi_available():
-    from fastapi import FastAPI, HTTPException, APIRouter
+    from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks
     from fastapi.middleware.cors import CORSMiddleware
 if is_pydantic_available():
     from pydantic import BaseModel, Field
@@ -94,13 +94,16 @@ class ChatOpenaiApi(Chat):
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     """
-    def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', **kwargs):
+    def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', 
+                 max_callapi_interval=24*3600, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
         super().__init__(model_path, **kwargs)
         assert is_fastapi_available(), "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
         import sse_starlette
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
             log_warn('Module `sse_starlette` above 1.8 not support stream output')
+        self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
+        self.offload_when_nocall = offload_when_nocall
         self.EventSourceResponse = EventSourceResponse
         self.name = name
         self.role_user = 'user'
@@ -129,7 +132,7 @@ class ChatOpenaiApi(Chat):
         model_card = _ModelCard(id=self.name)
         return _ModelList(data=[model_card])
 
-    async def create_chat_completion(self, request: _ChatCompletionRequest):
+    async def create_chat_completion(self, request: _ChatCompletionRequest, background_tasks: BackgroundTasks):
         if request.temperature:
             self.generation_config['temperature'] = request.temperature
         if request.top_p:
@@ -161,6 +164,12 @@ class ChatOpenaiApi(Chat):
             log_warn(f'prev_messages={len(prev_messages)}%2 != 0, use current query without history instead.')
         
         input_text = self.build_prompt(query, history)
+        self.model = self.build_model()
+        
+        # 后台任务
+        self.last_callapi_timestamp = time.time()
+        if self.offload_when_nocall is not None:
+            background_tasks.add_task(self.check_last_call)
 
         # 流式输出
         if request.stream:
@@ -213,6 +222,25 @@ class ChatOpenaiApi(Chat):
         chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
         yield '[DONE]'
+
+    def check_last_call(self):
+        '''检测距离上一次调用超出规定时间段'''
+        while True:
+            now = time.time()
+            if now - self.last_callapi_timestamp > self.max_callapi_interval:  # 超出调用间隔
+                if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
+                    # 如果没有调用，将模型转移到CPU
+                    self.model.to('cpu')  
+                    log_info(f"Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
+                    gc.collect()
+                    cuda_empty_cache()
+                elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
+                    self.model = None
+                    del self.model
+                    log_info(f"Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
+                    gc.collect()
+                    cuda_empty_cache()
+            time.sleep(10*60)  # 每10min检查一次
 
 
 class ChatOpenaiClient:

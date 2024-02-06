@@ -2,7 +2,7 @@ import os
 import torch
 from typing import Union, Optional
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available
+from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info
 from packaging import version
 
 if is_streamlit_available():
@@ -20,7 +20,7 @@ class Chat:
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     '''
-    def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, **kwargs):
+    def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, create_model_at_startup=True, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_path = model_path
         self.checkpoint_path = model_path
@@ -30,7 +30,8 @@ class Chat:
         self.quantization_config = quantization_config
         self.tokenizer = self.build_tokenizer()
         self.generation_config['tokenizer'] = self.tokenizer
-        self.model = self.build_model()
+        if create_model_at_startup:
+            self.model = self.build_model()
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
@@ -48,14 +49,20 @@ class Chat:
         return AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
 
     def build_model(self):
-        model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
-        # 半精度
-        if self.half:
-            model = model.half()
-        # 量化
-        if self.quantization_config is not None:
-            model = model.quantize(**self.quantization_config)
-        return model.to(self.device)
+        if (not hasattr(self, 'model')) or (self.model is None):
+            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
+            # 半精度
+            if self.half:
+                model = model.half()
+            # 量化
+            if self.quantization_config is not None:
+                model = model.quantize(**self.quantization_config)
+            return model.to(self.device)
+        elif self.device not in str(self.model.device):
+            log_info(f'Moving model from cpu to {self.device}')
+            return self.model.to(self.device)
+        else:
+            return self.model
     
     def process_response(self, response:Union[str,tuple,list], history:Optional[list]=None):
         '''对response进行后处理，可自行继承后来自定义'''
@@ -72,12 +79,14 @@ class Chat:
             prompt = self.build_prompt(query, history)
         elif isinstance(query, list):
             prompt = [self.build_prompt(q, history) for q in query]
+        self.model = self.build_model()
         response = self.model.generate(prompt, **self.generation_config)
         return self.process_response(response, history=history)
 
     def stream_chat(self, query:str, history=[]):
         '''单条样本stream输出预测的结果'''
         prompt = self.build_prompt(query, history)
+        self.model = self.build_model()
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response(response, history)
 
@@ -117,6 +126,7 @@ class ChatCli(Chat):
                 continue
             
             prompt = self.build_prompt(query, history)
+            self.model = self.build_model()
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
                     response = self.process_response(response, history)
@@ -178,6 +188,7 @@ class ChatWebGradio(Chat):
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
+        self.model = self.build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response(response, history)
             chatbot[-1] = (input, response)
@@ -190,6 +201,7 @@ class ChatWebGradio(Chat):
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
+        self.model = self.build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response(response, history)
         chatbot[-1] = (input, response)
