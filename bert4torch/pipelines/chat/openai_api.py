@@ -96,6 +96,9 @@ class ChatOpenaiApi(Chat):
     """
     def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', 
                  max_callapi_interval=24*3600, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
+        self.offload_when_nocall = offload_when_nocall
+        if offload_when_nocall is not None:
+            kwargs['create_model_at_startup'] = False
         super().__init__(model_path, **kwargs)
         assert is_fastapi_available(), "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
@@ -103,7 +106,6 @@ class ChatOpenaiApi(Chat):
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
             log_warn('Module `sse_starlette` above 1.8 not support stream output')
         self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
-        self.offload_when_nocall = offload_when_nocall
         self.EventSourceResponse = EventSourceResponse
         self.name = name
         self.role_user = 'user'
@@ -167,8 +169,8 @@ class ChatOpenaiApi(Chat):
         self.model = self.build_model()
         
         # 后台任务
-        self.last_callapi_timestamp = time.time()
         if self.offload_when_nocall is not None:
+            self.last_callapi_timestamp = time.time()
             background_tasks.add_task(self.check_last_call)
 
         # 流式输出

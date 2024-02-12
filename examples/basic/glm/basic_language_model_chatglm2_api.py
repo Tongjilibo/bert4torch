@@ -47,7 +47,9 @@ if __name__ == '__main__':
     generation_config  = {'mode':'random_sample',
                         'max_length':2048, 
                         'default_rtype':'logits', 
-                        'use_states':True
+                        'use_states':True,
+                        'offload_when_nocall': 'cpu',
+                        'max_callapi_interval': 30
                         }
 
     chat = ChatGlm2OpenaiApi(model_path, **generation_config)

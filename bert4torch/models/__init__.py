@@ -56,11 +56,10 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     :param verbose: int, 是否显示加载权重的[WARNING]信息, 默认为1表示显示未加载的, 2表示显示所有不匹配的, 0表示不显示
 
     > 大模型参数
-    :param skip_init: bool, 是否初始化, 默认为False
-    :param low_cpu_mem_usage: bool, 是否初始化, 默认为False, 同skip_init, 仅需要设置一个即可
+    :param skip_init/low_cpu_mem_usage: bool, 是否初始化, 默认为False
     :param device_map: None/str/dict, 为不同Module指定不同的device, 默认为None表示加载到cpu中, 不同于transformer自动分配, 这里需手动指定dict
     :param torch_dtype: 指定权重的dtype
-    :param flash_attention: bool, 是否使用flash_attention, 即torch2的scaled_dot_product_attention(), 默认为False
+    :param flash_attention: bool/str, 是否使用flash_attention, 默认为None
     :param use_logn_attn: bool, 在attention模块中是否使用logn_attn
     :param multi_query_group_num: int, 使用MQA的头数
     :param ntk_alpha: float, rope外推使用ntk方法时的alhpa参数
@@ -82,7 +81,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
     skip_init = True if device_map is not None else skip_init  # 指定了device_map, 就必须skip_init
     torch_dtype = config.pop('torch_dtype', None)
     config['add_trainer'] = add_trainer
-
+    checkpoint_path = checkpoint_path or config.get('checkpoint_path')
 
     models = {
         'bert': BERT,
@@ -159,7 +158,7 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         torch_dtype, dtype_orig = set_default_torch_dtype(torch_dtype, model)
 
     # 生成网络结构
-    if skip_init:
+    if skip_init and (checkpoint_path is not None):
         with init_empty_weights():
             transformer = MODEL(**config)
     else:
@@ -178,7 +177,6 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
         torch.set_default_dtype(dtype_orig)
     
     # 权重加载
-    checkpoint_path = checkpoint_path or config.get('checkpoint_path')
     transformer.checkpoint_path = checkpoint_path
     if checkpoint_path is not None:
         transformer.from_pretrained(checkpoint_path, mapping=config.get('mapping'), skip_init=skip_init, 
