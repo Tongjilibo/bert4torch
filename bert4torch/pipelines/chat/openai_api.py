@@ -16,10 +16,12 @@ from packaging import version
 from .base import Chat
 import gc
 
-FastAPI, BaseModel, Field= object, object, AnyClass
 if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks
     from fastapi.middleware.cors import CORSMiddleware
+else:
+    FastAPI, BaseModel, Field = object, object, AnyClass
+
 if is_pydantic_available():
     from pydantic import BaseModel, Field
 
@@ -93,9 +95,12 @@ class ChatOpenaiApi(Chat):
     :param generation_config: dict, 模型generate的参数设置
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
+    :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
+    :param max_callapi_interval: int, 最长调用间隔
+    :param scheduler_interval: int, 定时任务的执行间隔
     """
     def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', 
-                 max_callapi_interval=24*3600, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
+                 max_callapi_interval=24*3600, scheduler_interval=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
         self.offload_when_nocall = offload_when_nocall
         if offload_when_nocall is not None:
             kwargs['create_model_at_startup'] = False
@@ -106,12 +111,13 @@ class ChatOpenaiApi(Chat):
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
             log_warn('Module `sse_starlette` above 1.8 not support stream output')
         self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
+        self.scheduler_interval = scheduler_interval
         self.EventSourceResponse = EventSourceResponse
         self.name = name
         self.role_user = 'user'
         self.role_assistant = 'assistant'
         self.role_system = 'system'
-        self.app = FastAPI(lifespan=lifespan)
+        self.app = FastAPI()
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -120,21 +126,33 @@ class ChatOpenaiApi(Chat):
             allow_headers=["*"],
         )
 
+        # 启用后台任务，监控接口调用次数
+        if offload_when_nocall is not None:
+            self.app.add_event_handler("startup", self.startup_event)
+            self.app.add_event_handler("shutdown", lambda: self.shutdown_event(self.app.state.scheduler))
+        
         # 添加路由
         router = APIRouter()
         router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=_ModelList)
         router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse)
         self.app.include_router(router)
-        
-    def run(self, app:str=None, host:str="0.0.0.0", port:int=8000, **kwargs):
-        import uvicorn
-        uvicorn.run(app or self.app, host=host, port=port, **kwargs)
+
+    def startup_event(self):
+        from apscheduler.schedulers.background import BackgroundScheduler  
+        scheduler = BackgroundScheduler()  
+        scheduler.add_job(self.check_last_call, 'interval', seconds=self.scheduler_interval)
+        scheduler.start()
+        self.app.state.scheduler = scheduler  # 将调度器存储在app的状态中，以便在shutdown时使用  
+    
+    def shutdown_event(scheduler):  
+        if scheduler:  
+            scheduler.shutdown()
 
     async def list_models(self):
         model_card = _ModelCard(id=self.name)
         return _ModelList(data=[model_card])
 
-    async def create_chat_completion(self, request: _ChatCompletionRequest, background_tasks: BackgroundTasks):
+    async def create_chat_completion(self, request: _ChatCompletionRequest):
         if request.temperature:
             self.generation_config['temperature'] = request.temperature
         if request.top_p:
@@ -171,7 +189,6 @@ class ChatOpenaiApi(Chat):
         # 后台任务
         if self.offload_when_nocall is not None:
             self.last_callapi_timestamp = time.time()
-            background_tasks.add_task(self.check_last_call)
 
         # 流式输出
         if request.stream:
@@ -227,22 +244,30 @@ class ChatOpenaiApi(Chat):
 
     def check_last_call(self):
         '''检测距离上一次调用超出规定时间段'''
-        while True:
-            now = time.time()
-            if now - self.last_callapi_timestamp > self.max_callapi_interval:  # 超出调用间隔
-                if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
-                    # 如果没有调用，将模型转移到CPU
-                    self.model.to('cpu')  
-                    log_info(f"Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
-                    gc.collect()
-                    cuda_empty_cache()
-                elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
-                    self.model = None
-                    del self.model
-                    log_info(f"Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
-                    gc.collect()
-                    cuda_empty_cache()
-            time.sleep(10*60)  # 每10min检查一次
+        now = time.time()
+
+        if not hasattr(self, 'model')  or (self.model is None):
+            return
+        elif not hasattr(self, 'last_callapi_timestamp'):
+            self.last_callapi_timestamp = now
+        elif now - self.last_callapi_timestamp > self.max_callapi_interval:  # 超出调用间隔
+            if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
+                # 如果没有调用，将模型转移到CPU
+                self.model.to('cpu')  
+                log_info(f"Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
+                gc.collect()
+                cuda_empty_cache()
+            elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
+                self.model = None
+                del self.model
+                log_info(f"Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
+                gc.collect()
+                cuda_empty_cache()
+
+    def run(self, app:str=None, host:str="0.0.0.0", port:int=8000, **kwargs):
+        '''主程序入口'''
+        import uvicorn
+        uvicorn.run(app or self.app, host=host, port=port, **kwargs)
 
 
 class ChatOpenaiClient:

@@ -4,6 +4,7 @@ from typing import Union, Optional
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info
 from packaging import version
+import gc
 
 if is_streamlit_available():
     import streamlit as st
@@ -51,6 +52,8 @@ class Chat:
     def build_model(self):
         if (not hasattr(self, 'model')) or (self.model is None):
             model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
+            model.eval()
+
             # 半精度
             if self.half:
                 model = model.half()
@@ -60,7 +63,9 @@ class Chat:
             return model.to(self.device)
         elif self.device not in str(self.model.device):
             log_info(f'Moving model from cpu to {self.device}')
-            return self.model.to(self.device)
+            self.model = self.model.to(self.device)
+            gc.collect()
+            return self.model
         else:
             return self.model
     

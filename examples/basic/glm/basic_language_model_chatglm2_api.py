@@ -49,7 +49,8 @@ if __name__ == '__main__':
                         'default_rtype':'logits', 
                         'use_states':True,
                         'offload_when_nocall': 'cpu',
-                        'max_callapi_interval': 30
+                        'max_callapi_interval': 30,
+                        'scheduler_interval': 10
                         }
 
     chat = ChatGlm2OpenaiApi(model_path, **generation_config)
