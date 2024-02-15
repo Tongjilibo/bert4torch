@@ -6,7 +6,7 @@ import numpy as np
 import os
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import get_pool_emb, sequence_padding, JsonConfig
+from bert4torch.snippets import get_pool_emb, sequence_padding, JsonConfig, get_config_path
 from bert4torch.tokenizers import Tokenizer
 from tqdm.autonotebook import trange
 
@@ -41,14 +41,7 @@ class Text2Vec:
         return tokenizer
 
     def build_model(self, model_config):
-        config_path = None
-        for _config in ['bert4torch_config.json', 'config.json']:
-            config_path = os.path.join(self.model_path, _config)
-            if os.path.exists(config_path):
-                break
-        if config_path is None:
-            raise FileNotFoundError('bert4torch_config.json or config.json not found')
-
+        config_path = get_config_path(self.model_path)  # 获取config文件路径
         checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
         checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path
         model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **model_config).to(self.device)

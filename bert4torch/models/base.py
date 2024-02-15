@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters, JsonConfig
-from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree
+from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree, get_checkpoint_path
 import warnings
 from typing import Union, Optional
 from torch4keras.model import *
@@ -196,7 +196,7 @@ class BERT_BASE(nn.Module):
         """
         return load_checkpoint(checkpoint)
 
-    def from_pretrained_single(self, checkpoint:str=None, mapping:dict=None, skip_init:bool=False, 
+    def from_pretrained_single(self, checkpoint:Union[str, os.PathLike]=None, mapping:dict=None, skip_init:bool=False, 
                                device_map:dict=None, torch_dtype=None, verbose=1):
         """加载预训练模型(单个权重文件)，根据mapping从checkpoint加载权重"""
         # 加载模型文件, 并可专业些转换
@@ -249,21 +249,12 @@ class BERT_BASE(nn.Module):
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
-    def from_pretrained(self, checkpoints:Union[str,list], mapping:dict=None, skip_init:bool=False, 
+    def from_pretrained(self, checkpoints:Union[str, os.PathLike, list], mapping:dict=None, skip_init:bool=False, 
                         device_map:dict=None, torch_dtype=None, verbose=1):
         """加载预训练模型(单个/多个ckpt)"""
         # 文件夹，则默认加载所有以.bin结尾的权重
         if isinstance(checkpoints, str) and os.path.isdir(checkpoints):
-            for postfix in ['.bin', '.safetensors']:  # 优先查找bin格式权重
-                ckpt_names = [i for i in os.listdir(checkpoints) if i.endswith(postfix)]
-                if len(ckpt_names) > 0:
-                    checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith(postfix)]
-                    break
-            if len(ckpt_names) == 0:
-                raise FileNotFoundError(f'No weights found in {checkpoints}')
-            if verbose:
-                # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
-                log_info(f"Load model weights from {ckpt_names}")
+            checkpoints = get_checkpoint_path(checkpoints, verbose)
 
         # 单个权重文件
         if isinstance(checkpoints, str):

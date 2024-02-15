@@ -1,6 +1,6 @@
 from typing import Union
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, init_empty_weights
+from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, get_config_path
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -24,14 +24,16 @@ from bert4torch.models.qwen import *
 from bert4torch.models.internlm import *
 from bert4torch.models.falcon import *
 from bert4torch.models.deepseek import *
+from typing import Union, Literal
 
 
-def build_transformer_model(config_path=None, checkpoint_path=None, model=None, application='encoder', 
-                            add_trainer=False, verbose=1, **kwargs) -> Union[BERT_BASE, BERT, Transformer]:
+def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint_path:Union[str, os.PathLike, list]=None, model:Union[str, BERT_BASE]=None, 
+                            application:Literal['encoder', 'lm', 'unilm']='encoder', 
+                            add_trainer:bool=False, verbose:int=1, **kwargs) -> Union[BERT_BASE, BERT, Transformer]:
     """根据配置文件构建模型, 可选加载checkpoint权重
 
-    :param config_path: str, 模型的config文件地址
-    :param checkpoint_path: str/list[str], 模型文件地址, 默认值None表示不加载预训练模型
+    :param config_path: str, 模型的config文件地址, 大部分模型都提供了bert4torch_config.json
+    :param checkpoint_path: str/list[str], 模型文件/文件夹地址, 默认值None表示不加载预训练模型
     :param model: str, 加载的模型结构, 这里Model也可以基于nn.Module自定义后传入, 默认为'bert'
     :param application: str, 模型应用, 支持encoder, lm和unilm格式, 默认为'encoder'
     :param segment_vocab_size: int, type_token_ids数量, 默认为2, 如不传入segment_ids则需设置为0
@@ -66,6 +68,17 @@ def build_transformer_model(config_path=None, checkpoint_path=None, model=None, 
 
     :return: A pytorch model instance
     """
+    # 是否从remote下载
+    if checkpoint_path is not None:
+        is_local = os.path.exists(checkpoint_path) and os.path.isdir(checkpoint_path)
+        if is_local:
+            # checkpoint_path是本地文件夹，允许config_path为None
+            config_path = get_config_path(checkpoint_path, allow_none=True) if config_path is None else None
+        else:
+            # checkpoint_path是remote_url，则需要下载
+            from transformers.utils import download_url
+            resolved_archive_file = download_url(checkpoint_path)
+
     config = DottableDict()
     if config_path is not None:
         config.update(json.load(open(config_path)))

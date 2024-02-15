@@ -330,3 +330,30 @@ def snapshot_download(
         if os.path.exists(path + ".lock"):
             os.remove(path + ".lock")
     return storage_folder
+
+
+def get_config_path(model_dir:str, allow_none=False):
+    '''获取文件夹下的config文件路径'''
+    config_path = None
+    for _config in ['bert4torch_config.json', 'config.json']:
+        config_path = os.path.join(model_dir, _config)
+        if os.path.exists(config_path):
+            break
+    if (not allow_none) and (config_path is None):
+        raise FileNotFoundError('bert4torch_config.json or config.json not found')
+    return config_path
+
+
+def get_checkpoint_path(checkpoints:str, verbose=1):
+    '''获取该文件夹下的ckpt文件、文件列表'''
+    for postfix in ['.bin', '.safetensors']:  # 优先查找bin格式权重
+        ckpt_names = [i for i in os.listdir(checkpoints) if i.endswith(postfix)]
+        if len(ckpt_names) > 0:
+            checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith(postfix)]
+            break
+    if len(ckpt_names) == 0:
+        raise FileNotFoundError(f'No weights found in {checkpoints}')
+    if verbose:
+        # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
+        log_info(f"Load model weights from {ckpt_names}")
+    return checkpoints
