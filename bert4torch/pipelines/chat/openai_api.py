@@ -15,6 +15,7 @@ from bert4torch.snippets import is_fastapi_available, is_pydantic_available, is_
 from packaging import version
 from .base import Chat
 import gc
+import threading
 
 if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks
@@ -98,6 +99,25 @@ class ChatOpenaiApi(Chat):
     :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
     :param max_callapi_interval: int, 最长调用间隔
     :param scheduler_interval: int, 定时任务的执行间隔
+
+    Example
+    ------------------------
+    # 以chatglm2的api部署为例
+    from bert4torch.pipelines import ChatGlm2OpenaiApi
+
+    model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+    generation_config  = {'mode':'random_sample',
+                        'max_length':2048, 
+                        'default_rtype':'logits', 
+                        'use_states':True
+                        }
+    chat = ChatGlm2OpenaiApi(model_path, **generation_config)
+    chat.run()
+
+    # TODO:
+    1. 在后续调用服务，模型从cpu转到cuda上时，内存不下降，猜测是因为不同线程中操作导致的
+    2. 偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误
+    3. 如何offload到disk上，不占用内存和显存
     """
     def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', 
                  max_callapi_interval=24*3600, scheduler_interval=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
@@ -117,7 +137,16 @@ class ChatOpenaiApi(Chat):
         self.role_user = 'user'
         self.role_assistant = 'assistant'
         self.role_system = 'system'
-        self.app = FastAPI()
+
+        if offload_when_nocall is None:
+            self.app = FastAPI(lifespan=lifespan)
+        else:
+            # 启用后台任务，监控接口调用次数
+            self.app = FastAPI()
+            self.app.add_event_handler("startup", self.startup_event)
+            self.app.add_event_handler("shutdown", lambda: self.shutdown_event(self.app.state.scheduler))
+            self.lock = threading.Lock()
+
         self.app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
@@ -126,11 +155,6 @@ class ChatOpenaiApi(Chat):
             allow_headers=["*"],
         )
 
-        # 启用后台任务，监控接口调用次数
-        if offload_when_nocall is not None:
-            self.app.add_event_handler("startup", self.startup_event)
-            self.app.add_event_handler("shutdown", lambda: self.shutdown_event(self.app.state.scheduler))
-        
         # 添加路由
         router = APIRouter()
         router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=_ModelList)
@@ -184,10 +208,12 @@ class ChatOpenaiApi(Chat):
             log_warn(f'prev_messages={len(prev_messages)}%2 != 0, use current query without history instead.')
         
         input_text = self.build_prompt(query, history)
-        self.model = self.build_model()
         
-        # 后台任务
-        if self.offload_when_nocall is not None:
+        if self.offload_when_nocall is None:
+            self.model = self.build_model()
+        else:
+            with self.lock:
+                self.model = self.build_model()
             self.last_callapi_timestamp = time.time()
 
         # 流式输出
@@ -252,17 +278,19 @@ class ChatOpenaiApi(Chat):
             self.last_callapi_timestamp = now
         elif now - self.last_callapi_timestamp > self.max_callapi_interval:  # 超出调用间隔
             if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
-                # 如果没有调用，将模型转移到CPU
-                self.model.to('cpu')  
-                log_info(f"Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
-                gc.collect()
-                cuda_empty_cache()
+                with self.lock:
+                    # 如果没有调用，将模型转移到CPU
+                    self.model.to('cpu')  
+                    log_info(f"Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
+                    gc.collect()
+                    cuda_empty_cache()
             elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
-                self.model = None
-                del self.model
-                log_info(f"Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
-                gc.collect()
-                cuda_empty_cache()
+                with self.lock:
+                    self.model = None
+                    del self.model
+                    log_info(f"Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
+                    gc.collect()
+                    cuda_empty_cache()
 
     def run(self, app:str=None, host:str="0.0.0.0", port:int=8000, **kwargs):
         '''主程序入口'''

@@ -51,6 +51,7 @@ class Chat:
 
     def build_model(self):
         if (not hasattr(self, 'model')) or (self.model is None):
+            # 初始化
             model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
             model.eval()
 
@@ -60,14 +61,16 @@ class Chat:
             # 量化
             if self.quantization_config is not None:
                 model = model.quantize(**self.quantization_config)
-            return model.to(self.device)
+            self.model = model.to(self.device)
+
         elif self.device not in str(self.model.device):
+            # 切换device到cuda上
             log_info(f'Moving model from cpu to {self.device}')
-            self.model = self.model.to(self.device)
+            self.model.to(self.device)
             gc.collect()
-            return self.model
-        else:
-            return self.model
+            cuda_empty_cache()
+            
+        return self.model
     
     def process_response(self, response:Union[str,tuple,list], history:Optional[list]=None):
         '''对response进行后处理，可自行继承后来自定义'''
