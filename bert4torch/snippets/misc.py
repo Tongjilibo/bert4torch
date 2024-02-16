@@ -297,6 +297,7 @@ def snapshot_download(
     library_name: str = None,
     library_version: str = None,
     user_agent: Union[Dict, str, None] = None,
+    filter_filename: Union[str, list] = None
 ) -> str:
     """
     Download pretrained model from https://huggingface.co/
@@ -313,15 +314,19 @@ def snapshot_download(
     _api = HfApi()
     model_info = _api.model_info(repo_id=repo_id, revision=revision)
 
-    storage_folder = os.path.join(cache_dir, repo_id.replace("/", "_"))
+    cache_dir = os.path.join(cache_dir, repo_id.replace("/", "_"))
+    storage_folder = None
     for model_file in model_info.siblings:
         filename = os.path.join(*model_file.rfilename.split("/"))
+        # 非目标文件则跳过
+        if (filter_filename is not None) and (not re.search(filter_filename, filename)):
+            continue
         if filename.endswith(".h5") or filename.endswith(".ot") or filename.endswith(".msgpack"):
             continue
         path = hf_hub_download(
             repo_id=repo_id,
             filename=filename,
-            cache_dir=storage_folder,
+            cache_dir=cache_dir,
             # force_filename=filename,
             library_name=library_name,
             library_version=library_version,
@@ -329,6 +334,8 @@ def snapshot_download(
         )
         if os.path.exists(path + ".lock"):
             os.remove(path + ".lock")
+        if path.endswith('config.json'):
+            storage_folder = os.path.dirname(path)
     return storage_folder
 
 

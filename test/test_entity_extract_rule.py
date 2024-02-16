@@ -1,3 +1,4 @@
+'''测试规则提取实体'''
 from bert4torch.snippets import entity_extract_rule
 from pprint import pprint
 

@@ -1,3 +1,4 @@
+'''测试GenerateSpeed功能, 统计token的生成速度'''
 from bert4torch.snippets import GenerateSpeed
 from transformers import AutoTokenizer, FalconForCausalLM
 import torch

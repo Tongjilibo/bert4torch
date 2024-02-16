@@ -1,6 +1,6 @@
 from typing import Union
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, get_config_path
+from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, get_config_path, snapshot_download
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -67,17 +67,36 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
     :param ntk_alpha: float, rope外推使用ntk方法时的alhpa参数
 
     :return: A pytorch model instance
+
+    Example
+    ----------------------
+    支持几种加载方式
+    1. 仅指定config_path: 从头初始化模型结构, 不加载预训练模型
+       model = build_transformer_model('./model/bert4torch_config.json')
+
+    2. 仅指定checkpoint_path: 
+        2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json/config.json文件
+            model = build_transformer_model(checkpoint_path='./model')
+        2.2 文件路径/列表: 文件路径即权重路径/列表, 需要注意config所需参数必须通过*kwargs制定, 否则报错
+            model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
+        2.3 model_name: hf上预训练权重名称, 会自动下载bert4torch_config.json文件
+            model = build_transformer_model(checkpoint_path='bert-base-chinese')
+
+    3. 同时指定config_path和checkpoint_path: 
+        model = build_transformer_model('./model/bert4torch_config.json', './model/pytorch_model.bin')
     """
-    # 是否从remote下载
-    if checkpoint_path is not None:
-        is_local = os.path.exists(checkpoint_path) and os.path.isdir(checkpoint_path)
-        if is_local:
-            # checkpoint_path是本地文件夹，允许config_path为None
+    # 从hf上下载
+    if (checkpoint_path is not None) and isinstance(checkpoint_path, str):
+        if os.path.isfile(checkpoint_path):
+            pass
+        elif os.path.isdir(checkpoint_path):
             config_path = get_config_path(checkpoint_path, allow_none=True) if config_path is None else None
         else:
-            # checkpoint_path是remote_url，则需要下载
-            from transformers.utils import download_url
-            resolved_archive_file = download_url(checkpoint_path)
+            # 从hf下载bert4torch_config.json文件
+            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filter_filename=checkpoint_path)
+            config_path = get_config_path(config_dir, allow_none=True) if config_path is None else None
+            # 从hf下载模型
+            checkpoint_path = snapshot_download(checkpoint_path)
 
     config = DottableDict()
     if config_path is not None:

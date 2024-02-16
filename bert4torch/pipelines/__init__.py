@@ -5,3 +5,4 @@
 from .chat import *
 from .text2vec import *
 from .uie_predictor import UIEPredictor
+from .fill_mask import FillMask
