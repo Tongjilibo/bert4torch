@@ -82,7 +82,8 @@ class PtuningV2Trainer(BaseModel):
     
     @torch.no_grad()
     def predict(self, inputs, **inputs_kwargs):
-        self.eval()
+        if self.training:
+            self.eval()
         token_ids = inputs[0]
         # use_states=False时候，每次都重新生成past_key_values
         # use_states=True时候，仅在第0步生成past_key_values

@@ -366,25 +366,32 @@ def get_local_checkpoint_path(model_dir:str, verbose=1) -> list:
     return model_dir
 
 
-def justify_checkpoint_config_path(checkpoint_path, config_path):
+def check_checkpoint_config_path(checkpoint_path, config_path):
     '''修正checkpint_path和config_path
     1. model_name: 从hf下载
     2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
     3. local_dir且config_path为None: 重新在local_dir找对应的config_path
     '''
-    if (checkpoint_path is not None) and isinstance(checkpoint_path, str):
+    if checkpoint_path is None:
+        pass
+
+    elif isinstance(checkpoint_path, str):
         if os.path.isfile(checkpoint_path):
             # 本地文件
             config_dir = os.path.dirname(checkpoint_path)
         elif os.path.isdir(checkpoint_path):
             # 本地文件夹
             config_dir = checkpoint_path
-        else:
-            # model_name
+        else:  # model_name
             # 从hf下载bert4torch_config.json文件
-            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filter_filename=checkpoint_path)
+            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filter_filename=checkpoint_path.split('/')[-1])
+            config_dir = config_dir or checkpoint_path  # 如果未维护使用config.json即可
             # 从hf下载模型
             checkpoint_path = snapshot_download(checkpoint_path)
+        config_path = get_local_config_path(config_dir, allow_none=True) if config_path is None else None
+
+    elif isinstance(checkpoint_path, (tuple,list)):
+        config_dir = os.path.dirname(checkpoint_path[0])
         config_path = get_local_config_path(config_dir, allow_none=True) if config_path is None else None
 
     return checkpoint_path, config_path

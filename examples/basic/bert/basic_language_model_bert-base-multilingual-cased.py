@@ -9,7 +9,6 @@ import torch
 from torch.nn.functional import softmax
 
 root_model_path = "E:\\pretrain_ckpt\\bert\\bert-base-multilingual-cased"
-vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 

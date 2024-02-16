@@ -24,8 +24,6 @@ class Chat:
     def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, create_model_at_startup=True, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model_path = model_path
-        self.checkpoint_path = model_path
-        self.config_path = os.path.join(model_path, 'bert4torch_config.json')
         self.generation_config = generation_config if generation_config is not None else kwargs
         self.half = half
         self.quantization_config = quantization_config
@@ -52,7 +50,7 @@ class Chat:
     def build_model(self):
         if (not hasattr(self, 'model')) or (self.model is None):
             # 初始化
-            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
+            model = build_transformer_model(checkpoint_path=self.model_path)
             model.eval()
 
             # 半精度
