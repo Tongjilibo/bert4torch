@@ -2,50 +2,26 @@
 '''
 from typing import List, Union, Dict
 import numpy as np
-import os
 import torch
-from bert4torch.models import build_transformer_model
-from bert4torch.snippets import get_config_path, sequence_padding
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.snippets import sequence_padding
+from .base import PipeLineBase
 from tqdm.autonotebook import trange
 
 
-class FillMask:
+class FillMask(PipeLineBase):
     '''mlm预测
     :param model_path: str, 模型所在文件夹地址
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
-    '''
-    def __init__(self, model_path, device=None, **kwargs) -> None:
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f'model_path: {model_path} does not exists')
-        
-        self.model_path = model_path
-        if device is None:
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        else:
-            self.device = device
-        self.tokenizer = self.build_tokenizer()
-        self.model = self.build_model(kwargs)
-        self.config = self.model.config
-    
-    def build_tokenizer(self):
-        vocab_path = os.path.join(self.model_path, 'vocab.txt')
-        if os.path.exists(vocab_path):
-            tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-        else:
-            from transformers import AutoTokenizer
-            tokenizer = AutoTokenizer(self.model_path)
-        return tokenizer
 
+    Example:
+    -----------------
+    model = FillMask('/home/pretrain_ckpt/bert/bert-base-chinese')
+    res = model.predict(["今天[MASK]气不错，[MASK]情很好", '[MASK]学技术是第一生产力'])
+    '''
     def build_model(self, model_config):
-        config_path = get_config_path(self.model_path)  # 获取config文件路径
-        checkpoint_path = [os.path.join(self.model_path, i) for i in os.listdir(self.model_path) if i.endswith('.bin')]
-        checkpoint_path = checkpoint_path[0] if len(checkpoint_path) == 1 else checkpoint_path
         model_config['with_mlm'] = 'softmax'
-        model = build_transformer_model(config_path, checkpoint_path, return_dict=True, **model_config).to(self.device)
-        model.eval()
-        return model
+        return super().build_model(model_config)
         
     @torch.inference_mode()
     def predict(

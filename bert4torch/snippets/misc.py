@@ -339,8 +339,8 @@ def snapshot_download(
     return storage_folder
 
 
-def get_config_path(model_dir:str, allow_none=False):
-    '''获取文件夹下的config文件路径'''
+def get_local_config_path(model_dir:str, allow_none=False):
+    '''获取local文件夹下的config文件路径'''
     config_path = None
     for _config in ['bert4torch_config.json', 'config.json']:
         config_path = os.path.join(model_dir, _config)
@@ -351,16 +351,40 @@ def get_config_path(model_dir:str, allow_none=False):
     return config_path
 
 
-def get_checkpoint_path(checkpoints:str, verbose=1):
-    '''获取该文件夹下的ckpt文件、文件列表'''
+def get_local_checkpoint_path(model_dir:str, verbose=1) -> list:
+    '''获取该local文件夹下的ckpt文件、文件列表'''
     for postfix in ['.bin', '.safetensors']:  # 优先查找bin格式权重
-        ckpt_names = [i for i in os.listdir(checkpoints) if i.endswith(postfix)]
+        ckpt_names = [i for i in os.listdir(model_dir) if i.endswith(postfix)]
         if len(ckpt_names) > 0:
-            checkpoints = [os.path.join(checkpoints, i) for i in os.listdir(checkpoints) if i.endswith(postfix)]
+            model_dir = [os.path.join(model_dir, i) for i in os.listdir(model_dir) if i.endswith(postfix)]
             break
     if len(ckpt_names) == 0:
-        raise FileNotFoundError(f'No weights found in {checkpoints}')
+        raise FileNotFoundError(f'No weights found in {model_dir}')
     if verbose:
         # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
         log_info(f"Load model weights from {ckpt_names}")
-    return checkpoints
+    return model_dir
+
+
+def justify_checkpoint_config_path(checkpoint_path, config_path):
+    '''修正checkpint_path和config_path
+    1. model_name: 从hf下载
+    2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
+    3. local_dir且config_path为None: 重新在local_dir找对应的config_path
+    '''
+    if (checkpoint_path is not None) and isinstance(checkpoint_path, str):
+        if os.path.isfile(checkpoint_path):
+            # 本地文件
+            config_dir = os.path.dirname(checkpoint_path)
+        elif os.path.isdir(checkpoint_path):
+            # 本地文件夹
+            config_dir = checkpoint_path
+        else:
+            # model_name
+            # 从hf下载bert4torch_config.json文件
+            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filter_filename=checkpoint_path)
+            # 从hf下载模型
+            checkpoint_path = snapshot_download(checkpoint_path)
+        config_path = get_local_config_path(config_dir, allow_none=True) if config_path is None else None
+
+    return checkpoint_path, config_path

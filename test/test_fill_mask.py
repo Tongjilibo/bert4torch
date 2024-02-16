@@ -9,6 +9,7 @@ def test_fill_mask(model_dir):
     assert res[1]['pred_token'] == ['科']
     return res
 
+
 if __name__ == '__main__':
     from pprint import pprint
     res = test_fill_mask('/Users/lb/Documents/pretrain_ckpt/bert/bert-base-chinese')

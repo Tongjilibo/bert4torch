@@ -1,6 +1,6 @@
 from typing import Union
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, get_config_path, snapshot_download
+from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, justify_checkpoint_config_path
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -85,18 +85,8 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
     3. 同时指定config_path和checkpoint_path: 
         model = build_transformer_model('./model/bert4torch_config.json', './model/pytorch_model.bin')
     """
-    # 从hf上下载
-    if (checkpoint_path is not None) and isinstance(checkpoint_path, str):
-        if os.path.isfile(checkpoint_path):
-            pass
-        elif os.path.isdir(checkpoint_path):
-            config_path = get_config_path(checkpoint_path, allow_none=True) if config_path is None else None
-        else:
-            # 从hf下载bert4torch_config.json文件
-            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filter_filename=checkpoint_path)
-            config_path = get_config_path(config_dir, allow_none=True) if config_path is None else None
-            # 从hf下载模型
-            checkpoint_path = snapshot_download(checkpoint_path)
+    # 校验checkpoint_path, config_path
+    checkpoint_path, config_path = justify_checkpoint_config_path(checkpoint_path, config_path)
 
     config = DottableDict()
     if config_path is not None:

@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters, JsonConfig
-from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree, get_checkpoint_path
+from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree, get_local_checkpoint_path
 import warnings
 from typing import Union, Optional
 from torch4keras.model import *
@@ -254,7 +254,7 @@ class BERT_BASE(nn.Module):
         """加载预训练模型(单个/多个ckpt)"""
         # 文件夹，则默认加载所有以.bin结尾的权重
         if isinstance(checkpoints, str) and os.path.isdir(checkpoints):
-            checkpoints = get_checkpoint_path(checkpoints, verbose)
+            checkpoints = get_local_checkpoint_path(checkpoints, verbose)
 
         # 单个权重文件
         if isinstance(checkpoints, str):
