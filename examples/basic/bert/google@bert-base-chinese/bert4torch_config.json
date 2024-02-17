@@ -12,5 +12,6 @@
     "num_hidden_layers": 12,
     "pad_token_id": 0,
     "type_vocab_size": 2,
-    "vocab_size": 21128
-  }
+    "vocab_size": 21128,
+	"tie_emb_prj_weight": true
+}

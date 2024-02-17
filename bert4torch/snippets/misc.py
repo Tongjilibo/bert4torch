@@ -12,6 +12,10 @@ import shutil
 import re
 from pathlib import Path
 
+if os.environ.get('SAFETENSORS_FIRST', False):
+    SAFETENSORS_BINS = ['.safetensors', '.bin']  # 优先查找safetensors格式权重
+else:
+    SAFETENSORS_BINS = ['.bin', '.safetensors']  # 优先查找bin格式权重
 
 def insert_arguments(**arguments):
     """装饰器，为类方法增加参数（主要用于类的__init__方法）"""
@@ -290,14 +294,82 @@ def copytree(src:str, dst:str, ignore_copy_files:str=None, dirs_exist_ok=False):
     shutil.copytree(src, dst, ignore=_ignore_copy_files, dirs_exist_ok=dirs_exist_ok)
 
 
+def try_to_load_from_cache(
+    repo_id: str,
+    filename: str,
+    cache_dir: Union[str, Path, None] = None,
+    revision: Optional[str] = None,
+    repo_type: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Explores the cache to return the latest cached file for a given revision if found.
+
+    This function will not raise any exception if the file in not cached.
+
+    Args:
+        cache_dir (`str` or `os.PathLike`):
+            The folder where the cached files lie.
+        repo_id (`str`):
+            The ID of the repo on huggingface.co.
+        filename (`str`):
+            The filename to look for inside `repo_id`.
+        revision (`str`, *optional*):
+            The specific model version to use. Will default to `"main"` if it's not provided and no `commit_hash` is
+            provided either.
+        repo_type (`str`, *optional*):
+            The type of the repo.
+
+    Returns:
+        `Optional[str]` or `_CACHED_NO_EXIST`:
+            Will return `None` if the file was not cached. Otherwise:
+            - The exact path to the cached file if it's found in the cache
+            - A special value `_CACHED_NO_EXIST` if the file does not exist at the given commit hash and this fact was
+              cached.
+    """
+    if revision is None:
+        revision = "main"
+
+    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+    if cache_dir is None:
+        cache_dir = HUGGINGFACE_HUB_CACHE
+
+    object_id = repo_id.replace("/", "--")
+    if repo_type is None:
+        repo_type = "model"
+    repo_cache = os.path.join(cache_dir, f"{repo_type}s--{object_id}")
+    if not os.path.isdir(repo_cache):
+        # No cache for this model
+        return None
+    for subfolder in ["refs", "snapshots"]:
+        if not os.path.isdir(os.path.join(repo_cache, subfolder)):
+            return None
+
+    # Resolve refs (for instance to convert main to the associated commit sha)
+    cached_refs = os.listdir(os.path.join(repo_cache, "refs"))
+    if revision in cached_refs:
+        with open(os.path.join(repo_cache, "refs", revision)) as f:
+            revision = f.read()
+
+    if os.path.isfile(os.path.join(repo_cache, ".no_exist", revision, filename)):
+        return object()
+
+    cached_shas = os.listdir(os.path.join(repo_cache, "snapshots"))
+    if revision not in cached_shas:
+        # No cache for this revision and we won't try to return a random revision
+        return None
+
+    cached_file = os.path.join(repo_cache, "snapshots", revision, filename)
+    return cached_file if os.path.isfile(cached_file) else None
+
+
 def snapshot_download(
     repo_id: str,
+    filename: str = None,
     revision: str = None,
     cache_dir: Union[str, Path, None] = None,
     library_name: str = None,
     library_version: str = None,
-    user_agent: Union[Dict, str, None] = None,
-    filter_filename: Union[str, list] = None
+    user_agent: Union[Dict, str, None] = None
 ) -> str:
     """
     Download pretrained model from https://huggingface.co/
@@ -309,60 +381,120 @@ def snapshot_download(
         cache_dir = HUGGINGFACE_HUB_CACHE
     if isinstance(cache_dir, Path):
         cache_dir = str(cache_dir)
-    log_info(f'Download {repo_id} to {cache_dir}')
+    repo_cache = os.path.join(cache_dir, f'models--{repo_id.replace("/", "--")}')
 
-    _api = HfApi()
-    model_info = _api.model_info(repo_id=repo_id, revision=revision)
-
-    cache_dir = os.path.join(cache_dir, repo_id.replace("/", "_"))
     storage_folder = None
-    for model_file in model_info.siblings:
-        filename = os.path.join(*model_file.rfilename.split("/"))
-        # 非目标文件则跳过
-        if (filter_filename is not None) and (not re.search(filter_filename, filename)):
-            continue
-        if filename.endswith(".h5") or filename.endswith(".ot") or filename.endswith(".msgpack"):
-            continue
-        path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            cache_dir=cache_dir,
-            # force_filename=filename,
-            library_name=library_name,
-            library_version=library_version,
-            user_agent=user_agent,
-        )
-        if os.path.exists(path + ".lock"):
-            os.remove(path + ".lock")
-        if path.endswith('config.json'):
-            storage_folder = os.path.dirname(path)
-    return storage_folder
+    if filename is None:
+        # 下载repo下所有文件
+        bert4torch_filenames = os.path.join(repo_cache, 'bert4torch_filenames.json')
+        if os.path.exists(bert4torch_filenames):
+            file_names = json.load(open(bert4torch_filenames, "r", encoding='utf-8'))
+        else:
+            model_info = HfApi().model_info(repo_id=repo_id, revision=revision)
+            file_names = []
+            for model_file in model_info.siblings:
+                file_name = model_file.rfilename
+                if file_name.endswith(".h5") or file_name.endswith(".ot") or file_name.endswith(".msgpack"):
+                    continue
+                file_names.append(file_name)
+            # 仅下载safetensors格式的
+            if any([i.endswith('.safetensors') for i in file_names]) and is_safetensors_available():
+                file_names = [i for i in file_names if not i.endswith('.bin')]
+            else:  # 仅下载pytorch_model_*.bin
+                file_names = [i for i in file_names if not i.endswith('.safetensors')]
+            json.dump(file_names, open(bert4torch_filenames, 'w', encoding='utf-8'), ensure_ascii=False, indent=4)
+
+        for file_name in file_names:           
+            # 从cache中恢复
+            resolved_file = try_to_load_from_cache(repo_id, file_name, cache_dir=cache_dir)
+            if resolved_file is not None:
+                if resolved_file is object():
+                    raise EnvironmentError(f"Could not locate {file_name}.")
+                elif resolved_file.endswith('config.json'):
+                    storage_folder = os.path.dirname(resolved_file)
+                    log_info_once(f'Resume {repo_id} from {storage_folder}')
+            else:
+                # 下载指定文件
+                resolved_file = hf_hub_download(
+                    repo_id=repo_id,
+                    filename=file_name,
+                    cache_dir=cache_dir,
+                    # force_filename=filename,
+                    library_name=library_name,
+                    library_version=library_version,
+                    user_agent=user_agent,
+                )
+                if resolved_file.endswith('config.json'):
+                    storage_folder = os.path.dirname(resolved_file)
+                    log_info(f'Download {repo_id} to {storage_folder}')
+            if os.path.exists(resolved_file + ".lock"):
+                os.remove(resolved_file + ".lock")
+        return storage_folder
+    else:
+        # 从cache中恢复
+        resolved_file = try_to_load_from_cache(repo_id, filename, cache_dir=cache_dir)
+        if resolved_file is not None:
+            if resolved_file is object():
+                raise EnvironmentError(f"Could not locate {filename}.")
+            else:
+                log_info(f'Resume {repo_id} from {resolved_file}')
+        else:
+            # 下载指定文件
+            resolved_file = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                cache_dir=cache_dir,
+                # force_filename=filename,
+                library_name=library_name,
+                library_version=library_version,
+                user_agent=user_agent,
+            )
+            log_info(f'Download {repo_id} to {resolved_file}')
+        return resolved_file
 
 
 def get_local_config_path(model_dir:str, allow_none=False):
     '''获取local文件夹下的config文件路径'''
     config_path = None
-    for _config in ['bert4torch_config.json', 'config.json']:
-        config_path = os.path.join(model_dir, _config)
-        if os.path.exists(config_path):
-            break
-    if (not allow_none) and (config_path is None):
-        raise FileNotFoundError('bert4torch_config.json or config.json not found')
+    # 文件
+    if os.path.isfile(model_dir):
+        if model_dir.endswith('config.json'):
+            return model_dir
+        else:
+            model_dir = os.path.dirname(model_dir)
+
+    # 文件夹
+    if os.path.isdir(model_dir):
+        for _config in ['bert4torch_config.json', 'config.json']:
+            config_path = os.path.join(model_dir, _config)
+            if os.path.exists(config_path):
+                break
+        if (not allow_none) and (config_path is None):
+            raise FileNotFoundError('bert4torch_config.json or config.json not found')
     return config_path
 
 
 def get_local_checkpoint_path(model_dir:str, verbose=1) -> list:
     '''获取该local文件夹下的ckpt文件、文件列表'''
-    for postfix in ['.bin', '.safetensors']:  # 优先查找bin格式权重
-        ckpt_names = [i for i in os.listdir(model_dir) if i.endswith(postfix)]
-        if len(ckpt_names) > 0:
-            model_dir = [os.path.join(model_dir, i) for i in os.listdir(model_dir) if i.endswith(postfix)]
-            break
-    if len(ckpt_names) == 0:
-        raise FileNotFoundError(f'No weights found in {model_dir}')
-    if verbose:
-        # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
-        log_info(f"Load model weights from {ckpt_names}")
+    # 文件
+    if os.path.isfile(model_dir):
+        if model_dir.endswith('.bin') or model_dir.endswith('.safetensors'):
+            return model_dir
+        else:
+            model_dir = os.path.dirname(model_dir)
+
+    # 文件夹
+    if os.path.isdir(model_dir):
+        for postfix in SAFETENSORS_BINS:
+            ckpt_names = [i for i in os.listdir(model_dir) if i.endswith(postfix)]
+            if len(ckpt_names) > 0:
+                model_dir = [os.path.join(model_dir, i) for i in os.listdir(model_dir) if i.endswith(postfix)]
+                break
+        if len(ckpt_names) == 0:
+            raise FileNotFoundError(f'No weights found in {model_dir}')
+        if verbose:
+            # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
+            log_info(f"Load model weights from {ckpt_names}")
     return model_dir
 
 
@@ -384,7 +516,8 @@ def check_checkpoint_config_path(checkpoint_path, config_path):
             config_dir = checkpoint_path
         else:  # model_name
             # 从hf下载bert4torch_config.json文件
-            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filter_filename=checkpoint_path.split('/')[-1])
+            filename = checkpoint_path.split('/')[-1] + '/bert4torch_config.json'
+            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filename=filename)
             config_dir = config_dir or checkpoint_path  # 如果未维护使用config.json即可
             # 从hf下载模型
             checkpoint_path = snapshot_download(checkpoint_path)
