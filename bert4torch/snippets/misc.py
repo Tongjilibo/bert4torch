@@ -453,78 +453,89 @@ def snapshot_download(
         return resolved_file
 
 
-def get_local_config_path(model_dir:str, allow_none=False):
+def get_config_path(pretrained_model_name_or_path:str, allow_none=False):
     '''获取local文件夹下的config文件路径'''
     config_path = None
     # 文件
-    if os.path.isfile(model_dir):
-        if model_dir.endswith('config.json'):
-            return model_dir
+    if os.path.isfile(pretrained_model_name_or_path):
+        if pretrained_model_name_or_path.endswith('config.json'):
+            return pretrained_model_name_or_path
         else:
-            model_dir = os.path.dirname(model_dir)
+            pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
 
     # 文件夹
-    if os.path.isdir(model_dir):
+    if os.path.isdir(pretrained_model_name_or_path):
         for _config in ['bert4torch_config.json', 'config.json']:
-            config_path = os.path.join(model_dir, _config)
+            config_path = os.path.join(pretrained_model_name_or_path, _config)
             if os.path.exists(config_path):
                 break
         if (not allow_none) and (config_path is None):
             raise FileNotFoundError('bert4torch_config.json or config.json not found')
+
+    # model_name: 从hf下载bert4torch_config.json文件
+    else:    
+        filename = pretrained_model_name_or_path.split('/')[-1] + '/bert4torch_config.json'
+        config_path = snapshot_download('Tongjilibo/bert4torch_config', filename=filename)
+
     return config_path
 
 
-def get_local_checkpoint_path(model_dir:str, verbose=1) -> list:
+def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], verbose=1) -> list:
     '''获取该local文件夹下的ckpt文件、文件列表'''
-    # 文件
-    if os.path.isfile(model_dir):
-        if model_dir.endswith('.bin') or model_dir.endswith('.safetensors'):
-            return model_dir
-        else:
-            model_dir = os.path.dirname(model_dir)
+    if pretrained_model_name_or_path is None:
+        return pretrained_model_name_or_path
+    
+    # 文件列表
+    elif isinstance(pretrained_model_name_or_path, (tuple,list)):
+        return pretrained_model_name_or_path
 
+    # 文件
+    elif os.path.isfile(pretrained_model_name_or_path):
+        if pretrained_model_name_or_path.endswith('.bin') or pretrained_model_name_or_path.endswith('.safetensors'):
+            return pretrained_model_name_or_path
+        else:
+            pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
+
+    # model_name: 从hf下载模型
+    elif not os.path.isdir(pretrained_model_name_or_path):
+        pretrained_model_name_or_path = snapshot_download(pretrained_model_name_or_path)
+    
     # 文件夹
-    if os.path.isdir(model_dir):
+    if os.path.isdir(pretrained_model_name_or_path):
         for postfix in SAFETENSORS_BINS:
-            ckpt_names = [i for i in os.listdir(model_dir) if i.endswith(postfix)]
+            ckpt_names = [i for i in os.listdir(pretrained_model_name_or_path) if i.endswith(postfix)]
             if len(ckpt_names) > 0:
-                model_dir = [os.path.join(model_dir, i) for i in os.listdir(model_dir) if i.endswith(postfix)]
+                pretrained_model_name_or_path = [os.path.join(pretrained_model_name_or_path, i) \
+                                                 for i in os.listdir(pretrained_model_name_or_path) if i.endswith(postfix)]
                 break
         if len(ckpt_names) == 0:
-            raise FileNotFoundError(f'No weights found in {model_dir}')
-        if verbose:
-            # 仅传入文件夹时候打印权重列表，因为如果指定单个文件或者文件列表，在外面已经可以查看了
-            log_info(f"Load model weights from {ckpt_names}")
-    return model_dir
+            raise FileNotFoundError(f'No weights found in {pretrained_model_name_or_path}')    
+    return pretrained_model_name_or_path
 
 
-def check_checkpoint_config_path(checkpoint_path, config_path):
+def check_checkpoint_config_path(checkpoint_path:Union[str,list], config_path:Union[str,list]):
     '''修正checkpint_path和config_path
     1. model_name: 从hf下载
     2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
     3. local_dir且config_path为None: 重新在local_dir找对应的config_path
     '''
-    if checkpoint_path is None:
-        pass
-
-    elif isinstance(checkpoint_path, str):
-        if os.path.isfile(checkpoint_path):
-            # 本地文件
+    config_dir = None
+    if checkpoint_path is not None:
+        # 本地文件列表
+        if isinstance(checkpoint_path, (tuple,list)):
+            config_dir = os.path.dirname(checkpoint_path[0])
+        # 本地文件
+        elif os.path.isfile(checkpoint_path):
             config_dir = os.path.dirname(checkpoint_path)
+        # 本地文件夹
         elif os.path.isdir(checkpoint_path):
-            # 本地文件夹
             config_dir = checkpoint_path
-        else:  # model_name
-            # 从hf下载bert4torch_config.json文件
-            filename = checkpoint_path.split('/')[-1] + '/bert4torch_config.json'
-            config_dir = snapshot_download('Tongjilibo/bert4torch_config', filename=filename)
-            config_dir = config_dir or checkpoint_path  # 如果未维护使用config.json即可
-            # 从hf下载模型
-            checkpoint_path = snapshot_download(checkpoint_path)
-        config_path = get_local_config_path(config_dir, allow_none=True) if config_path is None else None
+        # model_name
+        else:
+            config_dir = checkpoint_path
 
-    elif isinstance(checkpoint_path, (tuple,list)):
-        config_dir = os.path.dirname(checkpoint_path[0])
-        config_path = get_local_config_path(config_dir, allow_none=True) if config_path is None else None
-
+    config_path = config_path if config_path is not None else config_dir
+    config_path = get_config_path(config_path, allow_none=True)
+    checkpoint_path = get_checkpoint_path(checkpoint_path)
+        
     return checkpoint_path, config_path
