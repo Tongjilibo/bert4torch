@@ -16,6 +16,8 @@ if os.environ.get('SAFETENSORS_FIRST', False):
     SAFETENSORS_BINS = ['.safetensors', '.bin']  # 优先查找safetensors格式权重
 else:
     SAFETENSORS_BINS = ['.bin', '.safetensors']  # 优先查找bin格式权重
+_CACHED_NO_EXIST = object()
+
 
 def insert_arguments(**arguments):
     """装饰器，为类方法增加参数（主要用于类的__init__方法）"""
@@ -351,7 +353,7 @@ def try_to_load_from_cache(
             revision = f.read()
 
     if os.path.isfile(os.path.join(repo_cache, ".no_exist", revision, filename)):
-        return object()
+        return _CACHED_NO_EXIST
 
     cached_shas = os.listdir(os.path.join(repo_cache, "snapshots"))
     if revision not in cached_shas:
@@ -375,6 +377,7 @@ def snapshot_download(
     Download pretrained model from https://huggingface.co/
     """
     from huggingface_hub import HfApi, hf_hub_download
+    from huggingface_hub.utils import EntryNotFoundError
     from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
     if cache_dir is None:
@@ -408,8 +411,8 @@ def snapshot_download(
             # 从cache中恢复
             resolved_file = try_to_load_from_cache(repo_id, file_name, cache_dir=cache_dir)
             if resolved_file is not None:
-                if resolved_file is object():
-                    raise EnvironmentError(f"Could not locate {file_name}.")
+                if resolved_file is _CACHED_NO_EXIST:
+                    log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
                 elif resolved_file.endswith('config.json'):
                     storage_folder = os.path.dirname(resolved_file)
                     log_info_once(f'Resume {repo_id} from {storage_folder}')
@@ -434,22 +437,29 @@ def snapshot_download(
         # 从cache中恢复
         resolved_file = try_to_load_from_cache(repo_id, filename, cache_dir=cache_dir)
         if resolved_file is not None:
-            if resolved_file is object():
-                raise EnvironmentError(f"Could not locate {filename}.")
+            if resolved_file is _CACHED_NO_EXIST:
+                log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
+                resolved_file = None
             else:
                 log_info(f'Resume {repo_id} from {resolved_file}')
         else:
             # 下载指定文件
-            resolved_file = hf_hub_download(
-                repo_id=repo_id,
-                filename=filename,
-                cache_dir=cache_dir,
-                # force_filename=filename,
-                library_name=library_name,
-                library_version=library_version,
-                user_agent=user_agent,
-            )
-            log_info(f'Download {repo_id} to {resolved_file}')
+            try:
+                resolved_file = hf_hub_download(
+                    repo_id=repo_id,
+                    filename=filename,
+                    cache_dir=cache_dir,
+                    # force_filename=filename,
+                    library_name=library_name,
+                    library_version=library_version,
+                    user_agent=user_agent,
+                )
+                log_info(f'Download {repo_id} to {resolved_file}')
+            except EntryNotFoundError:
+                log_error(
+                    f"{repo_id} does not appear to have a file named {filename}. Checkout "
+                    f"'https://huggingface.co/{repo_id}/tree/main' for available files."
+                )
         return resolved_file
 
 

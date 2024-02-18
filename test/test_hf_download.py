@@ -1,14 +1,15 @@
 '''测试从huggingface上下载模型'''
 from bert4torch.models import build_transformer_model
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel
 import torch
 import pytest
 
 
-@pytest.mark.parametrize("model_name", ["bert-base-chinese"])
+@pytest.mark.parametrize("model_name", ["bert-base-chinese",
+                                        "hfl/chinese-bert-wwm-ext"])
 def test_hf_download(model_name):
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = build_transformer_model(checkpoint_path=model_name, with_mlm='softmax')
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     inputtext = "今天[MASK]情很好"
     encoded_input = tokenizer(inputtext, return_tensors='pt')
@@ -25,4 +26,5 @@ def test_hf_download(model_name):
 
 
 if __name__=='__main__':
-    test_hf_download("bert-base-chinese")
+    test_hf_download('hfl/chinese-bert-wwm-ext')
+    # AutoModel.from_pretrained('hfl/chinese-bert-wwm-ext')

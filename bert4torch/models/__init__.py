@@ -90,6 +90,9 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
     # 校验checkpoint_path, config_path
     config_path = get_config_path(config_path if config_path is not None else checkpoint_path)
     checkpoint_path = get_checkpoint_path(checkpoint_path)
+    if (config_path is None) and (checkpoint_path is not None):
+        # 没有找到bert4torch_config.json，则从local的checkpoint_path去找
+        config_path = get_config_path(checkpoint_path)
 
     config = DottableDict()
     if config_path is not None:

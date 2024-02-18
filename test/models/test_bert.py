@@ -27,7 +27,8 @@ def get_hf_model(model_dir):
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/bert/google@bert-base-chinese",
                                        "E:/pretrain_ckpt/bert/bert-base-multilingual-cased",
-                                       "E:/pretrain_ckpt/bert/hfl@macbert-base"])
+                                       "E:/pretrain_ckpt/bert/hfl@macbert-base",
+                                       "E:/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext"])
 @torch.inference_mode()
 def test_bert(model_dir):
     model = get_bert4torch_model(model_dir)
@@ -45,4 +46,4 @@ def test_bert(model_dir):
 
 
 if __name__=='__main__':
-    test_bert("E:/pretrain_ckpt/bert/hfl@macbert-base")
+    test_bert("E:/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext")
