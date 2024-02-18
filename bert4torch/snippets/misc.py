@@ -454,7 +454,16 @@ def snapshot_download(
 
 
 def get_config_path(pretrained_model_name_or_path:str, allow_none=False):
-    '''获取local文件夹下的config文件路径'''
+    '''获取local文件夹下的config文件路径
+    1. model_name: 从hf下载
+    2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
+    3. local_dir且config_path为None: 重新在local_dir找对应的config_path
+    '''
+    if pretrained_model_name_or_path is None:
+        return pretrained_model_name_or_path
+    elif isinstance(pretrained_model_name_or_path, (tuple,list)):
+        pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path[0])
+
     config_path = None
     # 文件
     if os.path.isfile(pretrained_model_name_or_path):
@@ -481,7 +490,11 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False):
 
 
 def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], verbose=1) -> list:
-    '''获取该local文件夹下的ckpt文件、文件列表'''
+    '''获取该local文件夹下的ckpt文件、文件列表
+    1. model_name: 从hf下载
+    2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
+    3. local_dir且config_path为None: 重新在local_dir找对应的config_path
+    '''
     if pretrained_model_name_or_path is None:
         return pretrained_model_name_or_path
     
@@ -511,31 +524,3 @@ def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], verbose=1
         if len(ckpt_names) == 0:
             raise FileNotFoundError(f'No weights found in {pretrained_model_name_or_path}')    
     return pretrained_model_name_or_path
-
-
-def check_checkpoint_config_path(checkpoint_path:Union[str,list], config_path:Union[str,list]):
-    '''修正checkpint_path和config_path
-    1. model_name: 从hf下载
-    2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
-    3. local_dir且config_path为None: 重新在local_dir找对应的config_path
-    '''
-    config_dir = None
-    if checkpoint_path is not None:
-        # 本地文件列表
-        if isinstance(checkpoint_path, (tuple,list)):
-            config_dir = os.path.dirname(checkpoint_path[0])
-        # 本地文件
-        elif os.path.isfile(checkpoint_path):
-            config_dir = os.path.dirname(checkpoint_path)
-        # 本地文件夹
-        elif os.path.isdir(checkpoint_path):
-            config_dir = checkpoint_path
-        # model_name
-        else:
-            config_dir = checkpoint_path
-
-    config_path = config_path if config_path is not None else config_dir
-    config_path = get_config_path(config_path, allow_none=True)
-    checkpoint_path = get_checkpoint_path(checkpoint_path)
-        
-    return checkpoint_path, config_path

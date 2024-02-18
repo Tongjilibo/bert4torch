@@ -91,9 +91,9 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 ## 6. 预训练权重
 - 若无说明则使用权重自带的`pytorch_model.bin`和`config.json`
 
-| 模型分类| 模型名称 | 权重来源| 权重链接 | 备注(若有)|
-| ----- | ----- | ----- | ----- | ----- |
-| bert| bert-base-chinese| 谷歌bert的torch版 | [torch](https://huggingface.co/bert-base-chinese) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) |
+| 模型分类| 模型名称 | 权重来源| 权重链接 | 备注(若有)|pretrained_model_name|
+| ----- | ----- | ----- | ----- | ----- | ----- |
+| bert| bert-base-chinese| 谷歌bert的torch版 | [torch](https://huggingface.co/bert-base-chinese) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) | bert-base-chinese|
 |     | chinese_L-12_H-768_A-12| 谷歌 | [github](https://github.com/google-research/bert), [tf](https://storage.googleapis.com/bert_models/2018_11_03/chinese_L-12_H-768_A-12.zip) | [转换命令](https://huggingface.co/docs/transformers/v4.28.1/en/converting_tensorflow_models), [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json) |
 |     | chinese-bert-wwm-ext| HFL | [tf/torch](https://github.com/ymcui/Chinese-BERT-wwm)，[torch](https://huggingface.co/hfl/chinese-bert-wwm-ext)| |
 |     | bert-base-multilingual-cased| huggingface | [torch](https://huggingface.co/bert-base-multilingual-cased) | [config](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/google@bert-base-chinese/bert4torch_config.json) |

@@ -1,6 +1,6 @@
 from typing import Union
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, check_checkpoint_config_path
+from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, get_checkpoint_path, get_config_path
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -88,7 +88,8 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
         model = build_transformer_model(config_path, checkpoint_path)
     """
     # 校验checkpoint_path, config_path
-    checkpoint_path, config_path = check_checkpoint_config_path(checkpoint_path, config_path)
+    config_path = get_config_path(config_path if config_path is not None else checkpoint_path)
+    checkpoint_path = get_checkpoint_path(checkpoint_path)
 
     config = DottableDict()
     if config_path is not None:
