@@ -1,21 +1,24 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：gpt2_ml的效果测试
-# 项目链接(tf版本)：https://github.com/imcaspar/gpt2-ml
-# bert4torch_config.json见文件夹
+# 基本测试：中文GPT模型，base版本，华为开源的
+# 权重链接: https://pan.baidu.com/s/1-FB0yl1uxYDCGIRvU1XNzQ 提取码: xynn，这里使用的是转pytorch后的模型文件
+# 参考项目：https://github.com/bojone/chinese-gen
 
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
-config_path = 'E:/pretrain_ckpt/gpt2/imcaspar@gpt2-ml_15g_corpus_torch/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/gpt2/imcaspar@gpt2-ml_15g_corpus_torch/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/gpt2/imcaspar@gpt2-ml_15g_corpus_torch/vocab.txt'
+config_path = 'E:/pretrain_ckpt/gpt/huawei_noah@chinese_nezha_gpt_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = 'E:/pretrain_ckpt/gpt/huawei_noah@chinese_nezha_gpt_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'E:/pretrain_ckpt/gpt/huawei_noah@chinese_nezha_gpt_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
+tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)  # 建立模型，加载权重
+model = build_transformer_model(
+    config_path=config_path,
+    checkpoint_path=checkpoint_path
+).to(device)  # 建立模型，加载权重
 
 
 class ArticleCompletion(AutoRegressiveDecoder):
@@ -24,11 +27,11 @@ class ArticleCompletion(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='logits')
     def predict(self, inputs, output_ids, states):
         token_ids = torch.cat([inputs[0], output_ids], 1)
-        logits = model.predict([token_ids])
-        return logits[:, -1, :]
+        _, mlm_scores = model.predict([token_ids])
+        return mlm_scores[:, -1, :]
 
     def generate(self, text, n=1, topp=0.95):
-        token_ids, _ = tokenizer.encode(text)
+        token_ids = tokenizer.encode(text)[0][:-1]
         results = self.random_sample([token_ids], n=n, topp=topp)  # 基于随机采样
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
@@ -41,9 +44,7 @@ article_completion = ArticleCompletion(
     device=device
 )
 
-for text in [u'今天天气不错', u'双十一', u'科学空间']:
-    print(article_completion.generate(text))
-    
+print(article_completion.generate(u'今天天气不错'))
 """
 部分结果：
 >>> article_completion.generate(u'今天天气不错')

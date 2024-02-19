@@ -13,9 +13,9 @@ import jieba
 jieba.initialize()
 
 # 模型路径
-config_path = 'E:/pretrain_ckpt/gpt2/cpm@cpm_lm_2.6b/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/gpt2/cpm@cpm_lm_2.6b/pytorch_model.bin'
-spm_path = 'E:/pretrain_ckpt/gpt2/cpm@cpm_lm_2.6b/chinese_vocab.model'
+config_path = 'E:/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/bert4torch_config.json'
+checkpoint_path = 'E:/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/pytorch_model.bin'
+spm_path = 'E:/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/chinese_vocab.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def pre_tokenize(text):

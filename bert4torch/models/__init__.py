@@ -28,7 +28,7 @@ from typing import Union, Literal
 
 
 def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint_path:Union[str, os.PathLike, list]=None, model:Union[str, BERT_BASE]=None, 
-                            application:Literal['encoder', 'lm', 'unilm']='encoder', 
+                            application:Literal['encoder', 'lm', 'unilm']=None, 
                             add_trainer:bool=False, verbose:int=1, **kwargs) -> Union[BERT_BASE, BERT, Transformer]:
     """根据配置文件构建模型, 可选加载checkpoint权重
 
@@ -168,7 +168,7 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
         raise ValueError('Args `model` type should be string or BERT_BASE')
 
     # 使用 lm/unilm
-    application = application.lower()
+    application = (application or config.get('application', 'encoder')).lower()
     if application in ['lm', 'unilm'] and model in ['electra', 't5', ]:
         raise ValueError(f'"{model}" model can not be used as "{application}" application.\n')
     if application == 'lm':

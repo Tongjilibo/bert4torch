@@ -1,4 +1,5 @@
 from bert4torch.models.bert import BERT
+from bert4torch.snippets import modify_variable_mapping
 
 
 class NEZHA(BERT):
@@ -10,3 +11,11 @@ class NEZHA(BERT):
         kwargs.update({'p_bias': 'typical_relative', 'max_relative_position': kwargs.get('max_relative_position', 64)})
         super(NEZHA, self).__init__(*args, **kwargs)
         self.model_type = 'nezha'
+
+    def load_trans_ckpt(self, checkpoint):
+        state_dict = super().load_trans_ckpt(checkpoint)
+        mapping = {}
+        if ('cls.predictions.bias' in state_dict) and ('cls.predictions.decoder.bias' not in state_dict):
+            mapping['mlmDecoder.bias'] = 'cls.predictions.bias'
+        self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)
+        return state_dict

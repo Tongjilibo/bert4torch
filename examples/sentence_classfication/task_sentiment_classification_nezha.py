@@ -17,7 +17,7 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/config.json'
+config_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base/vocab.txt'
 
@@ -69,7 +69,7 @@ class Model(BaseModel):
         super().__init__()
         self.pool_method = pool_method
         # 指定好model=nezha和对应的ckpt地址
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='nezha', with_pool=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
