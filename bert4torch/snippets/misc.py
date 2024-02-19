@@ -371,11 +371,16 @@ def snapshot_download(
     cache_dir: Union[str, Path, None] = None,
     library_name: str = None,
     library_version: str = None,
-    user_agent: Union[Dict, str, None] = None
+    user_agent: Union[Dict, str, None] = None,
+    **kwargs
 ) -> str:
     """
     Download pretrained model from https://huggingface.co/
     """
+    _commit_hash = kwargs.get('_commit_hash', None)
+    force_download = kwargs.get('force_download', False)
+    local_files_only = kwargs.get('local_files_only', False)
+
     from huggingface_hub import HfApi, hf_hub_download
     from huggingface_hub.utils import EntryNotFoundError
     from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -390,7 +395,7 @@ def snapshot_download(
     if filename is None:
         # 下载repo下所有文件
         bert4torch_filenames = os.path.join(repo_cache, 'bert4torch_filenames.json')
-        if os.path.exists(bert4torch_filenames):
+        if os.path.exists(bert4torch_filenames) and local_files_only:
             file_names = json.load(open(bert4torch_filenames, "r", encoding='utf-8'))
         else:
             model_info = HfApi().model_info(repo_id=repo_id, revision=revision)
@@ -407,21 +412,24 @@ def snapshot_download(
                 file_names = [i for i in file_names if not i.endswith('.safetensors')]
             json.dump(file_names, open(bert4torch_filenames, 'w', encoding='utf-8'), ensure_ascii=False, indent=4)
 
-        for file_name in file_names:           
+        for file_name in file_names:
             # 从cache中恢复
-            resolved_file = try_to_load_from_cache(repo_id, file_name, cache_dir=cache_dir)
-            if resolved_file is not None:
-                if resolved_file is _CACHED_NO_EXIST:
-                    log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
-                elif resolved_file.endswith('config.json'):
-                    storage_folder = os.path.dirname(resolved_file)
-                    log_info_once(f'Resume {repo_id} from {storage_folder}')
+            if (_commit_hash is not None and not force_download) or local_files_only:
+                resolved_file = try_to_load_from_cache(repo_id, file_name, cache_dir=cache_dir, revision=_commit_hash)
+                if resolved_file is not None:
+                    if resolved_file is _CACHED_NO_EXIST:
+                        log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
+                    elif resolved_file.endswith('config.json'):
+                        storage_folder = os.path.dirname(resolved_file)
+                        log_info_once(f'Resume {repo_id} from {storage_folder}')
             else:
                 # 下载指定文件
                 resolved_file = hf_hub_download(
                     repo_id=repo_id,
                     filename=file_name,
                     cache_dir=cache_dir,
+                    revision=revision,
+                    force_download=force_download,
                     # force_filename=filename,
                     library_name=library_name,
                     library_version=library_version,
@@ -435,13 +443,14 @@ def snapshot_download(
         return storage_folder
     else:
         # 从cache中恢复
-        resolved_file = try_to_load_from_cache(repo_id, filename, cache_dir=cache_dir)
-        if resolved_file is not None:
-            if resolved_file is _CACHED_NO_EXIST:
-                log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
-                resolved_file = None
-            else:
-                log_info(f'Resume {repo_id} from {resolved_file}')
+        if (_commit_hash is not None and not force_download) or local_files_only:
+            resolved_file = try_to_load_from_cache(repo_id, filename, cache_dir=cache_dir, revision=_commit_hash)
+            if resolved_file is not None:
+                if resolved_file is _CACHED_NO_EXIST:
+                    log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
+                    resolved_file = None
+                else:
+                    log_info(f'Resume {repo_id} from {resolved_file}')
         else:
             # 下载指定文件
             try:
@@ -449,6 +458,8 @@ def snapshot_download(
                     repo_id=repo_id,
                     filename=filename,
                     cache_dir=cache_dir,
+                    revision=revision,
+                    force_download=force_download,
                     # force_filename=filename,
                     library_name=library_name,
                     library_version=library_version,
@@ -460,10 +471,11 @@ def snapshot_download(
                     f"{repo_id} does not appear to have a file named {filename}. Checkout "
                     f"'https://huggingface.co/{repo_id}/tree/main' for available files."
                 )
+                resolved_file = None
         return resolved_file
 
 
-def get_config_path(pretrained_model_name_or_path:str, allow_none=False):
+def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwargs) -> str:
     '''获取local文件夹下的config文件路径
     1. model_name: 从hf下载
     2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
@@ -492,14 +504,18 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False):
             raise FileNotFoundError('bert4torch_config.json or config.json not found')
 
     # model_name: 从hf下载bert4torch_config.json文件
-    else:    
-        filename = pretrained_model_name_or_path.split('/')[-1] + '/bert4torch_config.json'
-        config_path = snapshot_download('Tongjilibo/bert4torch_config', filename=filename)
+    else:
+        # 独立的repo
+        if pretrained_model_name_or_path.startswith('Tongjilibo/'):
+            config_path = snapshot_download(pretrained_model_name_or_path, filename='bert4torch_config.json', **kwargs)
+        else:
+            filename = pretrained_model_name_or_path.split('/')[-1] + '/bert4torch_config.json'
+            config_path = snapshot_download('Tongjilibo/bert4torch_config', filename=filename, **kwargs)
 
     return config_path
 
 
-def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], verbose=1) -> list:
+def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], **kwargs) -> Union[str,list]:
     '''获取该local文件夹下的ckpt文件、文件列表
     1. model_name: 从hf下载
     2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
@@ -521,7 +537,7 @@ def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], verbose=1
 
     # model_name: 从hf下载模型
     elif not os.path.isdir(pretrained_model_name_or_path):
-        pretrained_model_name_or_path = snapshot_download(pretrained_model_name_or_path)
+        pretrained_model_name_or_path = snapshot_download(pretrained_model_name_or_path, **kwargs)
     
     # 文件夹
     if os.path.isdir(pretrained_model_name_or_path):

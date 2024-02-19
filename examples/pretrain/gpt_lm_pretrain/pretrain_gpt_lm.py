@@ -20,7 +20,7 @@ batch_size = 8
 epochs = 10000
 
 # 模型配置
-root_path = 'E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-base/'
+root_path = 'E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base/'
 config_path = root_path + 'bert4torch_config.json'
 checkpoint_path = root_path + 'pytorch_model.bin'
 dict_path = root_path + 'bert4torch_vocab.txt'
