@@ -77,12 +77,12 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
     2. 仅指定checkpoint_path: 
         2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json/config.json文件
             model = build_transformer_model(checkpoint_path='./model')
-        2.2 文件路径/列表: 文件路径即权重路径/列表, 需要注意config所需参数必须通过*kwargs制定, 否则报错
+        2.2 文件路径/列表: 文件路径即权重路径/列表, config会从同级目录下寻找
             model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
         2.3 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
             model = build_transformer_model(checkpoint_path='bert-base-chinese')
 
-    3. 同时指定config_path和checkpoint_path: 
+    3. 同时指定config_path和checkpoint_path(本地路径名或model_name): 
         config_path = './model/bert4torch_config.json'  # 或'bert-base-chinese'
         checkpoint_path = './model/pytorch_model.bin'  # 或'bert-base-chinese'
         model = build_transformer_model(config_path, checkpoint_path)

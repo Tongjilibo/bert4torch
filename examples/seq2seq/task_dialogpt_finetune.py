@@ -2,7 +2,8 @@
 # 数据集在examples/datasets目录下
 # 基于苏神的NEZHA模型做闲聊任务Finetune
 # 参考苏神博客 https://kexue.fm/archives/7718
-# base测试: https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/basic_language_model_nezha_gpt_dialog.py
+# base测试: basic_language_model_nezha_gpt_dialog.py
+# 已转换的权重下载：https://huggingface.co/Tongjilibo/nezha_gpt_dialog
 
 import os
 import json
@@ -18,7 +19,7 @@ from bert4torch.tokenizers import Tokenizer
 
 # 一些基础配置
 base_path = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog'
-config_path = os.path.join(base_path, 'config.json')
+config_path = os.path.join(base_path, 'bert4torch_config.json')
 checkpoint_path = os.path.join(base_path, 'pytorch_model.bin')
 dict_path = os.path.join(base_path, 'vocab.txt')
 

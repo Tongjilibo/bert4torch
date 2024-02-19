@@ -2,6 +2,8 @@
 """通义千问Qwen的测试
 阿里云的通义千问: https://github.com/QwenLM/Qwen-7B
 bert4torch_config.json见readme
+- [Qwen-7B](https://huggingface.co/Qwen/Qwen-7B)
+- [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
 """
 from transformers import AutoTokenizer
 from bert4torch.pipelines import ChatQwenCli

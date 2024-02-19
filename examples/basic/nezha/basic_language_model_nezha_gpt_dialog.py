@@ -1,6 +1,7 @@
 #! -*- coding: utf-8 -*-
 # NEZHA模型做闲聊任务，这里只提供了测试脚本
 # 源项目：https://github.com/bojone/nezha_gpt_dialog
+# 已转换的权重下载：https://huggingface.co/Tongjilibo/nezha_gpt_dialog
 
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
@@ -8,7 +9,7 @@ from bert4torch.generation import AutoRegressiveDecoder
 import torch
 
 # nezha配置
-config_path = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/config.json'
+config_path = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/vocab.txt'
 

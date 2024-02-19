@@ -19,7 +19,7 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/pretrain_ckpt/albert/brightmart@albert_small_zh/config.json'
+config_path = 'E:/pretrain_ckpt/albert/brightmart@albert_small_zh/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/albert/brightmart@albert_small_zh/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/albert/brightmart@albert_small_zh/vocab.txt'
 
@@ -68,7 +68,7 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path, checkpoint_path, model='albert', with_pool=True)  # 建立模型，加载权重
+        self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)  # 建立模型，加载权重
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 

@@ -1,3 +1,0 @@
-- [falcon-rw-1b](https://huggingface.co/tiiuae/falcon-rw-1b)
-- [falcon-7b](https://huggingface.co/tiiuae/falcon-7b)
-- [falcon-7b-instruct](https://huggingface.co/tiiuae/falcon-7b-instruct)

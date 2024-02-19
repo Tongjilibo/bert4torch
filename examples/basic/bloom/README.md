@@ -1,2 +1,0 @@
-- [bloom-560m](https://huggingface.co/bigscience/bloom-560m)
-- [bloomz-560m](https://huggingface.co/bigscience/bloomz-560m)

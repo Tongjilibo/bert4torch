@@ -56,9 +56,9 @@
 |     |[basic_language_model_PromptCLUE.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_PromptCLUE.py): 测试[PromptCLUE](https://github.com/clue-ai/PromptCLUE)模型。
 |     |[basic_language_model_t5_uer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_t5_uer.py)：测试[uer-t5-small](https://huggingface.co/uer/t5-small-chinese-cluecorpussmall)和[uer-t5-base](https://huggingface.co/uer/t5-base-chinese-cluecorpussmall)的生成效果。
 |     |[basic_language_model_t5_pegasus.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_t5_pegasus.py)：测试[t5_pegasus](https://github.com/ZhuiyiTechnology/t5-pegasus)的生成效果。
-|transformer_xl|[basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/transformer_xl/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
 |wobert|[basic_language_model_wobert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/wobert/basic_language_model_wobert.py): 测试wobert模型。
 | xlnet|[basic_language_model_xlnet.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/basic_language_model_xlnet.py): 测试xlnet模型。
+|      |[basic_language_model_transformer_xl.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/xlnet/basic_language_model_transformer_xl.py): 测试transformer_xl模型，做了一些简化，仅有英文预训练模型。
 
 
 ## 2. LLM

@@ -90,7 +90,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 ## 6. 预训练权重
 - `空`表示可直接使用预训练权重的`config.json`
-- 预训练模型加载代码
+- 预训练模型支持多种代码加载方式
 ```python
 from bert4torch.models import build_transformer_model
 
@@ -101,13 +101,13 @@ model = build_transformer_model('./model/bert4torch_config.json')
 ## 2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json/config.json文件
 model = build_transformer_model(checkpoint_path='./model')
 
-## 2.2 文件路径/列表: 文件路径即权重路径/列表, 需要注意config所需参数必须通过*kwargs制定, 否则报错
+## 2.2 文件路径/列表: 文件路径即权重路径/列表, config会从同级目录下寻找
 model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
 
 ## 2.3 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
 model = build_transformer_model(checkpoint_path='bert-base-chinese')
 
-# 3. 同时指定config_path和checkpoint_path: 
+# 3. 同时指定config_path和checkpoint_path(本地路径名或model_name): 
 config_path = './model/bert4torch_config.json'  # 或'bert-base-chinese'
 checkpoint_path = './model/pytorch_model.bin'  # 或'bert-base-chinese'
 model = build_transformer_model(config_path, checkpoint_path)
@@ -121,13 +121,15 @@ model = build_transformer_model(config_path, checkpoint_path)
 |     | bert-base-multilingual-cased| huggingface | [bert-base-multilingual-cased](https://huggingface.co/bert-base-multilingual-cased) | [config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/bert-base-multilingual-cased) |
 |     | macbert | HFL| [github](https://github.com/ymcui/MacBERT)，[hfl/chinese-macbert-base](https://huggingface.co/hfl/chinese-macbert-base), [hfl/chinese-macbert-large](https://huggingface.co/hfl/chinese-macbert-large) |空; [base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-macbert-base); [large](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-macbert-large)|
 |     | wobert| 追一科技| [tf](https://github.com/ZhuiyiTechnology/WoBERT)，[junnyu/wobert_chinese_base](https://huggingface.co/junnyu/wobert_chinese_base)，[junnyu/wobert_chinese_plus_base](https://huggingface.co/junnyu/wobert_chinese_plus_base) |空; [plus_base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/wobert_chinese_plus_base); [base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/wobert_chinese_base)|
-|roberta|chinese-roberta-wwm-ext | HFL | [github](https://github.com/ymcui/Chinese-BERT-wwm)，[hfl/chinese-roberta-wwm-ext](https://huggingface.co/hfl/chinese-roberta-wwm-ext), [hfl/chinese-roberta-wwm-large](https://huggingface.co/hfl/chinese-roberta-wwm-ext-large) |空; [base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext-base); [large](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext-large) |
+|roberta|chinese-roberta-wwm-ext | HFL | [github](https://github.com/ymcui/Chinese-BERT-wwm)，[hfl/chinese-roberta-wwm-ext](https://huggingface.co/hfl/chinese-roberta-wwm-ext), [hfl/chinese-roberta-wwm-large](https://huggingface.co/hfl/chinese-roberta-wwm-ext-large) |空; [base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext); [large](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext-large) |
 |     |roberta-small/tiny| 追一科技 & UER| [tf](https://github.com/ZhuiyiTechnology/pretrained-models)，[torch](https://huggingface.co/uer) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/convert_roberta-small.py) |
 |     |roberta-base| huggingface | [roberta-base](https://huggingface.co/roberta-base) | [config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roberta-base) |
 |     | guwenbert| ethanyt |[ethanyt/guwenbert-base](https://huggingface.co/ethanyt/guwenbert-base) | [config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/guwenbert-base)|
-| albert|albert| brightmart| [github](https://github.com/brightmart/albert_zh)，[torch](https://huggingface.co/voidful)，[torch](https://github.com/lonePatient/albert_pytorch) | |
+| albert|albert| brightmart| [github](https://github.com/brightmart/albert_zh)，[voidful/albert_chinese_tiny](https://huggingface.co/voidful/albert_chinese_tiny)，[voidful/albert_chinese_small](https://huggingface.co/voidful/albert_chinese_small), [voidful/albert_chinese_base](https://huggingface.co/voidful/albert_chinese_base), [voidful/albert_chinese_large](https://huggingface.co/voidful/albert_chinese_large), [voidful/albert_chinese_xlarge](https://huggingface.co/voidful/albert_chinese_xlarge), [voidful/albert_chinese_xxlarge](https://huggingface.co/voidful/albert_chinese_xxlarge), [torch](https://github.com/lonePatient/albert_pytorch) | [tiny](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/albert_chinese_tiny)，[small](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/albert_chinese_small), [base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/albert_chinese_base), [large](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/albert_chinese_large), [xlarge](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/albert_chinese_xlarge), [xxlarge](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/albert_chinese_xxlarge)|
 | nezha|NEZHA | 华为| [tf](https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/NEZHA-TensorFlow)，[torch](https://github.com/lonePatient/NeZha_Chinese_PyTorch) | |
+|      |nezha_gpt_dialog| bojone| [github](https://github.com/bojone/nezha_gpt_dialog), [Tongjilibo/nezha_gpt_dialog](https://huggingface.co/Tongjilibo/nezha_gpt_dialog) | |
 | xlnet|chinese-xlnet | HFL | [github](https://github.com/ymcui/Chinese-XLNet), [hfl/chinese-xlnet-base](https://huggingface.co/hfl/chinese-xlnet-base) | [config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-xlnet-base)|
+||tranformer_xl|huggingface|[transfo-xl/transfo-xl-wt103](https://huggingface.co/transfo-xl/transfo-xl-wt103)|[config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/transfo-xl-wt103)|
 |deberta| Erlangshen-DeBERTa-v2| IDEA | [IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese](https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese/tree/main) | |
 | electra|Chinese-ELECTRA | HFL | [github](https://github.com/ymcui/Chinese-ELECTRA)，[hfl/chinese-electra-base-discriminator](https://huggingface.co/hfl/chinese-electra-base-discriminator) | |
 | ernie|ernie | 百度文心| [paddle](https://github.com/PaddlePaddle/ERNIE)，[nghuyong/ernie-1.0-base-zh](https://huggingface.co/nghuyong/ernie-1.0-base-zh), [nghuyong/ernie-3.0-base-zh](https://huggingface.co/nghuyong/ernie-3.0-base-zh)| |
@@ -135,7 +137,7 @@ model = build_transformer_model(config_path, checkpoint_path)
 |         |roformer_v2 | 追一科技| [github](https://github.com/ZhuiyiTechnology/roformer-v2)，[junnyu/roformer_v2_chinese_char_base](https://huggingface.co/junnyu/roformer_v2_chinese_char_base)|[config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roformer_v2_chinese_char_base) |
 | simbert|simbert | 追一科技| [github](https://github.com/ZhuiyiTechnology/simbert)，[Tongjilibo/simbert-chinese-base](https://huggingface.co/Tongjilibo/simbert-chinese-base), [Tongjilibo/simbert-chinese-small](https://huggingface.co/Tongjilibo/simbert-chinese-small), [Tongjilibo/simbert-chinese-tiny](https://huggingface.co/Tongjilibo/simbert-chinese-tiny) | |
 |        |simbert_v2/roformer-sim | 追一科技| [github](https://github.com/ZhuiyiTechnology/roformer-sim)，[junnyu/roformer_chinese_sim_char_base](https://huggingface.co/junnyu/roformer_chinese_sim_char_base)，[junnyu/roformer_chinese_sim_char_ft_base](https://huggingface.co/junnyu/roformer_chinese_sim_char_ft_base)，[junnyu/roformer_chinese_sim_char_small](https://huggingface.co/junnyu/roformer_chinese_sim_char_small)，[junnyu/roformer_chinese_sim_char_ft_small](https://huggingface.co/junnyu/roformer_chinese_sim_char_ft_small)|[base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roformer_chinese_sim_char_base), [ft_base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roformer_chinese_sim_char_ft_base), [small](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roformer_chinese_sim_char_small), [ft_small](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roformer_chinese_sim_char_ft_small) |
-| gau|GAU-alpha | 追一科技| [tf](https://github.com/ZhuiyiTechnology/GAU-alpha)| [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/gau/convert_GAU_alpha.py) |
+| gau|GAU-alpha | 追一科技| [github](https://github.com/ZhuiyiTechnology/GAU-alpha), [Tongjilibo/chinese_GAU-alpha-char_L-24_H-768](https://huggingface.co/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/tree/main) | |
 | uie| uie | 百度| [github](https://github.com/universal-ie/UIE), [torch](https://github.com/HUSTAI/uie_pytorch) | [转换脚本](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/convert_uie.py) |
 | gpt |CDial-GPT| thu-coai| [github](https://github.com/thu-coai/CDial-GPT), [thu-coai/CDial-GPT_LCCC-base](https://huggingface.co/thu-coai/CDial-GPT_LCCC-base), [thu-coai/CDial-GPT_LCCC-large](https://huggingface.co/thu-coai/CDial-GPT_LCCC-large) | [base](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/CDial-GPT_LCCC-base), [large](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/CDial-GPT_LCCC-large) |
 | gpt2| cmp_lm(26亿)|清华 | [github](https://github.com/TsinghuaAI/CPM-1-Generate), [TsinghuaAI/CPM-Generate](https://huggingface.co/TsinghuaAI/CPM-Generate) | [config](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/CPM-Generate) |
