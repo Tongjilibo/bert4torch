@@ -2,6 +2,8 @@
 """书生浦语InternLM的测试
 Github: https://github.com/InternLM/InternLM
 bert4torch_config.json见readme
+
+[1] internlm-chat-7b模型：https://huggingface.co/internlm/internlm-chat-7b
 """
 
 
