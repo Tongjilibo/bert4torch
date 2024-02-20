@@ -88,9 +88,9 @@ def collate_fn(batch):
         for label in entity_labels + head_labels + tail_labels:
             if not label:  # 至少要有一个标签
                 label.add((0, 0))  # 如果没有则用0填充
-        entity_labels = sequence_padding([list(l) for l in entity_labels])  # [subject/object=2, 实体个数, 实体起终点]
-        head_labels = sequence_padding([list(l) for l in head_labels])  # [关系个数, 该关系下subject/object配对数, subject/object起点]
-        tail_labels = sequence_padding([list(l) for l in tail_labels])  # [关系个数, 该关系下subject/object配对数, subject/object终点]
+        entity_labels = sequence_padding([list(l) for l in entity_labels])  # [subject|object=2, 实体个数, 实体起终点]
+        head_labels = sequence_padding([list(l) for l in head_labels])  # [关系个数, 该关系下subject|object配对数, subject|object起点=2]
+        tail_labels = sequence_padding([list(l) for l in tail_labels])  # [关系个数, 该关系下subject|object配对数, subject|object终点=2]
         # 构建batch
         batch_token_ids.append(token_ids)
         batch_segment_ids.append(segment_ids)
@@ -100,9 +100,9 @@ def collate_fn(batch):
 
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    # batch_entity_labels: [btz, subject/object=2, 实体个数, 实体起终点]
-    # batch_head_labels: [btz, 关系个数, 该关系下subject/object配对数, subject/object起点]
-    # batch_tail_labels: [btz, 关系个数, 该关系下subject/object配对数, subject/object终点]
+    # batch_entity_labels: [btz, subject|object=2, 实体个数, 实体起终点]                     [btz, 2, n, 2]
+    # batch_head_labels: [btz, 关系个数, 该关系下subject|object配对数, subject|object起点=2]  [btz, 49, k, 2]
+    # batch_tail_labels: [btz, 关系个数, 该关系下subject|object配对数, subject|object终点=2]  [btz, 49, k, 2]
     batch_entity_labels = torch.tensor(sequence_padding(batch_entity_labels, seq_dims=2), dtype=torch.float, device=device)
     batch_head_labels = torch.tensor(sequence_padding(batch_head_labels, seq_dims=2), dtype=torch.float, device=device)
     batch_tail_labels = torch.tensor(sequence_padding(batch_tail_labels, seq_dims=2), dtype=torch.float, device=device)
