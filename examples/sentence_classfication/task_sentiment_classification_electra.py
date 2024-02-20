@@ -18,7 +18,7 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/config.json'
+config_path = 'E:/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/bert4torch_config.json'
 checkpoint_path = 'E:/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/vocab.txt'
 
@@ -68,7 +68,7 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         # 指定好model和对应的ckpt地址
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='electra')
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(768, 2)
 
