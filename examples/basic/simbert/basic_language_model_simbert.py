@@ -1,8 +1,20 @@
 #! -*- coding: utf-8 -*-
+'''
 # SimBERT/RoFormer-Sim测试相似问生成效果，以及句子之间相似度效果
 # 官方项目：https://github.com/ZhuiyiTechnology/simbert
 # 官方项目：https://github.com/ZhuiyiTechnology/roformer-sim
-# simbert权重转换脚本可见：https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/simbert/convert_simbert.py
+# 权重链接：
+simbert
+    https://huggingface.co/Tongjilibo/simbert-chinese-base
+    https://huggingface.co/Tongjilibo/simbert-chinese-small
+    https://huggingface.co/Tongjilibo/simbert-chinese-tiny
+
+simbert_v2 需要配合bert4torch_config.json: 见readme链接
+    https://huggingface.co/junnyu/roformer_chinese_sim_char_base
+    https://huggingface.co/junnyu/roformer_chinese_sim_char_ft_base
+    https://huggingface.co/junnyu/roformer_chinese_sim_char_small
+    https://huggingface.co/junnyu/roformer_chinese_sim_char_ft_small
+'''
 
 import torch
 from bert4torch.models import build_transformer_model, BaseModel
