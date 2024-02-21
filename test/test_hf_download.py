@@ -1,6 +1,6 @@
 '''测试从huggingface上下载模型'''
-import os
-os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
+# import os
+# os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import get_config_path
 from transformers import AutoTokenizer, AutoModel, AutoConfig

@@ -16,7 +16,7 @@ def test_albert(model_dir):
     # ==========================bert4torch调用==========================
     # 加载模型，请更换成自己的路径
     vocab_path = model_dir + "/vocab.txt"
-    config_path = model_dir + "/config.json"
+    config_path = model_dir + "/bert4torch_config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     # 建立分词器

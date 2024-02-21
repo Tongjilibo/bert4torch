@@ -78,9 +78,9 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20240221| 0.4.8          | 0.2.0|fastapi发布服务允许闲时offload到cpu, `build_transformer_model`允许从hf下载, 添加`FillMask`的pipeline, 添加`SequenceClassificationTrainer`|
 |20240204| 0.4.7          | 0.1.9|修改`save_pretrained`用于保存文件夹, 增加GenerateSpeed用于统计token生成速度，修复t5在use_states=True时候的错误, 修改层次编码的bug, 增加deepseek_moe模型，修复generation并发错误，优化大模型耗时|
 |20240116| 0.4.6          | 0.1.8|bug修复，增加`save_pretrained`用于保存`transformer`格式的权重, 增加部分`embedding`模型|
-|20240111| 0.4.5          | 0.1.7|`training`时候不生成`past_key_values`, 增加`streamlit`的example, 修复句向量`max`时的bug, `batch_generate`合并到`generate`, 修改`generation`的默认参数名(兼容过去的参数名), 多轮对话中可保留`past_key_values`, 把`attention`中的`mask`补齐逻辑移到`apply_embedding`中, 增加`uie`的`pipeline`，增加`PtuningV2Trainer`|
 
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
@@ -173,7 +173,10 @@ model = build_transformer_model(config_path, checkpoint_path)
 
 *注：
 1. `高亮格式`(如`bert-base-chinese`)的表示可直接`build_transformer_model()`联网下载
-2. 可通过`HF_ENDPOINT=https://hf-mirror.com python your_script.py`指定国内镜像网站加速下载, 或在python代码开头如下设置
+2. 国内镜像网站加速下载
+   - `HF_ENDPOINT=https://hf-mirror.com python your_script.py`
+   - `export HF_ENDPOINT=https://hf-mirror.com`后再执行python代码
+   - 在python代码开头如下设置
     ```python
     import os
     os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
