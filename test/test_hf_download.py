@@ -1,4 +1,6 @@
 '''测试从huggingface上下载模型'''
+import os
+os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import get_config_path
 from transformers import AutoTokenizer, AutoModel, AutoConfig
@@ -35,7 +37,7 @@ def test_hf_download(model_name):
                                         'junnyu/wobert_chinese_base',
                                         'junnyu/wobert_chinese_plus_base',
                                         'hfl/chinese-roberta-wwm-ext',
-                                        'hfl/chinese-roberta-wwm-large',
+                                        'hfl/chinese-roberta-wwm-ext-large',
                                         'Tongjilibo/chinese_roberta_L-4_H-312_A-12',
                                         'Tongjilibo/chinese_roberta_L-6_H-384_A-12',
                                         'roberta-base',
@@ -144,6 +146,6 @@ def test_download_config(model_name):
 
 
 if __name__=='__main__':
-    # test_hf_download('hfl/chinese-bert-wwm-ext')
+    test_hf_download('hfl/chinese-bert-wwm-ext')
     # AutoModel.from_pretrained('hfl/chinese-bert-wwm-ext')
-    test_download_config('transfo-xl/transfo-xl-wt103')
+    # test_download_config('hfl/chinese-roberta-wwm-ext-large')

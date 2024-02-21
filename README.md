@@ -120,7 +120,7 @@ model = build_transformer_model(config_path, checkpoint_path)
 |     | bert-base-multilingual-cased| google-bert | [`bert-base-multilingual-cased`](https://huggingface.co/bert-base-multilingual-cased) | [`bert-base-multilingual-cased`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/bert-base-multilingual-cased) |
 |     | macbert | HFL| [github](https://github.com/ymcui/MacBERT)，[`hfl/chinese-macbert-base`](https://huggingface.co/hfl/chinese-macbert-base), [`hfl/chinese-macbert-large`](https://huggingface.co/hfl/chinese-macbert-large) |[`chinese-macbert-base`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-macbert-base), [`chinese-macbert-large`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-macbert-large)|
 |     | wobert| 追一科技| [github](https://github.com/ZhuiyiTechnology/WoBERT)，[`junnyu/wobert_chinese_base`](https://huggingface.co/junnyu/wobert_chinese_base)，[`junnyu/wobert_chinese_plus_base`](https://huggingface.co/junnyu/wobert_chinese_plus_base) |[`wobert_chinese_base`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/wobert_chinese_base), [`wobert_chinese_plus_base`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/wobert_chinese_plus_base)|
-|roberta|chinese-roberta-wwm-ext | HFL | [github](https://github.com/ymcui/Chinese-BERT-wwm)，[`hfl/chinese-roberta-wwm-ext`](https://huggingface.co/hfl/chinese-roberta-wwm-ext), [`hfl/chinese-roberta-wwm-large`](https://huggingface.co/hfl/chinese-roberta-wwm-ext-large) |[`chinese-roberta-wwm-ext`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext), [`chinese-roberta-wwm-large`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext-large) |
+|roberta|chinese-roberta-wwm-ext | HFL | [github](https://github.com/ymcui/Chinese-BERT-wwm)，[`hfl/chinese-roberta-wwm-ext`](https://huggingface.co/hfl/chinese-roberta-wwm-ext), [`hfl/chinese-roberta-wwm-ext-large`](https://huggingface.co/hfl/chinese-roberta-wwm-ext-large) |[`chinese-roberta-wwm-ext`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext), [`chinese-roberta-wwm-ext-large`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/chinese-roberta-wwm-ext-large) |
 |     |roberta-small/tiny| 追一科技| [github](https://github.com/ZhuiyiTechnology/pretrained-models)，[`Tongjilibo/chinese_roberta_L-4_H-312_A-12`](https://huggingface.co/Tongjilibo/chinese_roberta_L-4_H-312_A-12), [`Tongjilibo/chinese_roberta_L-6_H-384_A-12`](https://huggingface.co/Tongjilibo/chinese_roberta_L-6_H-384_A-12) | |
 |     |roberta-base| FacebookAI | [`roberta-base`](https://huggingface.co/roberta-base) | [`roberta-base`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/roberta-base) |
 |     | guwenbert| ethanyt |[`ethanyt/guwenbert-base`](https://huggingface.co/ethanyt/guwenbert-base) | [`guwenbert-base`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/guwenbert-base)|
@@ -171,7 +171,14 @@ model = build_transformer_model(config_path, checkpoint_path)
 |          | bge |BAAI| [`BAAI/bge-large-en-v1.5`](https://huggingface.co/BAAI/bge-large-en-v1.5), [`BAAI/bge-large-zh-v1.5`](https://huggingface.co/BAAI/bge-large-zh-v1.5) | [`bge-large-en-v1.5`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/bge-large-en-v1.5), [`bge-large-zh-v1.5`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/bge-large-zh-v1.5)|
 |          | gte |thenlper| [`thenlper/gte-large-zh`](https://huggingface.co/thenlper/gte-large-zh), [`thenlper/gte-base-zh`](https://huggingface.co/thenlper/gte-base-zh) |[`gte-base-zh`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/gte-base-zh), [`gte-large-zh`](https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/gte-large-zh)|
 
-*注：`高亮格式`(如`bert-base-chinese`)的表示可直接`build_transformer_model()`加载(联网下载)*
+*注：
+1. `高亮格式`(如`bert-base-chinese`)的表示可直接`build_transformer_model()`联网下载
+2. 可通过`HF_ENDPOINT=https://hf-mirror.com python your_script.py`指定国内镜像网站加速下载, 或在python代码开头如下设置
+    ```python
+    import os
+    os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
+    ```
+
 ## 7. 鸣谢
 
 - 感谢苏神实现的[bert4keras](https://github.com/bojone/bert4keras)，本实现有不少地方参考了bert4keras的源码，在此衷心感谢大佬的无私奉献;

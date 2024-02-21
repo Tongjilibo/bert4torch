@@ -17,6 +17,7 @@ if os.environ.get('SAFETENSORS_FIRST', False):
 else:
     SAFETENSORS_BINS = ['.bin', '.safetensors']  # 优先查找bin格式权重
 _CACHED_NO_EXIST = object()
+HF_ENDPOINT = os.environ.get('HF_ENDPOINT')
 
 
 def insert_arguments(**arguments):
@@ -394,9 +395,9 @@ def snapshot_download(
     storage_folder = None
     if filename is None:
         # 下载repo下所有文件
-        bert4torch_filenames = os.path.join(repo_cache, 'bert4torch_filenames.json')
-        if os.path.exists(bert4torch_filenames) and local_files_only:
-            file_names = json.load(open(bert4torch_filenames, "r", encoding='utf-8'))
+        b4t_filenames_path = os.path.join(repo_cache, 'bert4torch_filenames.json')
+        if os.path.exists(b4t_filenames_path) and local_files_only:
+            file_names = json.load(open(b4t_filenames_path, "r", encoding='utf-8'))
         else:
             model_info = HfApi().model_info(repo_id=repo_id, revision=revision)
             file_names = []
@@ -410,7 +411,8 @@ def snapshot_download(
                 file_names = [i for i in file_names if not i.endswith('.bin')]
             else:  # 仅下载pytorch_model_*.bin
                 file_names = [i for i in file_names if not i.endswith('.safetensors')]
-            json.dump(file_names, open(bert4torch_filenames, 'w', encoding='utf-8'), ensure_ascii=False, indent=4)
+            os.makedirs(os.path.dirname(b4t_filenames_path), exist_ok=True)
+            json.dump(file_names, open(b4t_filenames_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=4)
 
         for file_name in file_names:
             # 从cache中恢复
@@ -425,15 +427,15 @@ def snapshot_download(
             else:
                 # 下载指定文件
                 resolved_file = hf_hub_download(
-                    repo_id=repo_id,
-                    filename=file_name,
-                    cache_dir=cache_dir,
-                    revision=revision,
-                    force_download=force_download,
-                    # force_filename=filename,
-                    library_name=library_name,
-                    library_version=library_version,
-                    user_agent=user_agent,
+                    repo_id = repo_id,
+                    filename = file_name,
+                    cache_dir = cache_dir,
+                    revision = revision,
+                    force_download = force_download,
+                    # force_filename = filename,
+                    library_name = library_name,
+                    library_version = library_version,
+                    user_agent = user_agent,
                 )
                 if resolved_file.endswith('config.json'):
                     storage_folder = os.path.dirname(resolved_file)
@@ -455,15 +457,16 @@ def snapshot_download(
             # 下载指定文件
             try:
                 resolved_file = hf_hub_download(
-                    repo_id=repo_id,
-                    filename=filename,
-                    cache_dir=cache_dir,
-                    revision=revision,
-                    force_download=force_download,
-                    # force_filename=filename,
-                    library_name=library_name,
-                    library_version=library_version,
-                    user_agent=user_agent,
+                    repo_id = repo_id,
+                    filename = filename,
+                    cache_dir = cache_dir,
+                    revision = revision,
+                    force_download = force_download,
+                    # force_filename = filename,
+                    library_name = library_name,
+                    library_version = library_version,
+                    user_agent = user_agent,
+                    endpoint = HF_ENDPOINT
                 )
                 log_info(f'Download {repo_id} to {resolved_file}')
             except EntryNotFoundError:
