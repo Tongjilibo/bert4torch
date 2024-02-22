@@ -393,8 +393,8 @@ def snapshot_download(
     repo_cache = os.path.join(cache_dir, f'models--{repo_id.replace("/", "--")}')
 
     storage_folder = None
+    # 下载repo下所有文件
     if filename is None:
-        # 下载repo下所有文件
         b4t_filenames_path = os.path.join(repo_cache, 'bert4torch_filenames.json')
         if os.path.exists(b4t_filenames_path) and local_files_only:
             file_names = json.load(open(b4t_filenames_path, "r", encoding='utf-8'))
@@ -439,10 +439,12 @@ def snapshot_download(
                 )
                 if resolved_file.endswith('config.json'):
                     storage_folder = os.path.dirname(resolved_file)
-                    log_info(f'Download {repo_id} to {storage_folder}')
+                    log_info_once(f'Download {repo_id} to {storage_folder}')
             if os.path.exists(resolved_file + ".lock"):
                 os.remove(resolved_file + ".lock")
         return storage_folder
+
+    # 下载指定文件
     else:
         # 从cache中恢复
         if (_commit_hash is not None and not force_download) or local_files_only:
@@ -452,7 +454,7 @@ def snapshot_download(
                     log_error_once(f"Could not locate {filename} inside https://huggingface.co/{repo_id}/tree/main")
                     resolved_file = None
                 else:
-                    log_info(f'Resume {repo_id} from {resolved_file}')
+                    log_info_once(f'Resume {repo_id} from {resolved_file}')
         else:
             # 下载指定文件
             try:
@@ -468,7 +470,7 @@ def snapshot_download(
                     user_agent = user_agent,
                     endpoint = HF_ENDPOINT
                 )
-                log_info(f'Download {repo_id} to {resolved_file}')
+                log_info_once(f'Download {repo_id} to {resolved_file}')
             except EntryNotFoundError:
                 log_error(
                     f"{repo_id} does not appear to have a file named {filename}. Checkout "
