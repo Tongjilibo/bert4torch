@@ -1,6 +1,6 @@
 from typing import Union
 from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, init_empty_weights, get_checkpoint_path, get_config_path
+from bert4torch.snippets import set_default_torch_dtype, get_checkpoint_path, get_config_path, is_accelerate_available
 from bert4torch.models.albert import *
 from bert4torch.models.bart import *
 from bert4torch.models.base import *
@@ -187,9 +187,14 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
 
     # 生成网络结构
     if skip_init and (checkpoint_path is not None):
-        with init_empty_weights():
-            transformer = MODEL(**config)
-    else:
+        if is_accelerate_available():
+            from accelerate import init_empty_weights
+            with init_empty_weights():
+                transformer = MODEL(**config)
+        else:
+            skip_init = False  # 若accelerate包不存在则先初始化模型参数
+            log_warn('Package `accelerate` not available, use `pip install accelerate`')
+    if not skip_init:
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
 
