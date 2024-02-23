@@ -1,15 +1,14 @@
 import torch
 from torch import nn
 from torch4keras.model import BaseModel
-from bert4torch.models import build_transformer_model
 from bert4torch.snippets import get_pool_emb
 
 
 class SequenceClassificationTrainer(BaseModel):
-    def __init__(self, model_path, num_labels=2, classifier_dropout=None, pool_strategy='cls', **kwargs):
+    def __init__(self, model, num_labels=2, classifier_dropout=None, pool_strategy='cls', **kwargs):
         super().__init__()
-        self.module = build_transformer_model(checkpoint_path=model_path, return_dict=True, **kwargs)
-        self.config = self.module.config
+        self.model = model
+        self.config = self.model.config
         self.pad_token_id = kwargs.get('pad_token_id', 0)
         self.num_labels = num_labels
         self.pool_strategy = pool_strategy
@@ -17,7 +16,7 @@ class SequenceClassificationTrainer(BaseModel):
         self.classifier = nn.Linear(self.config.hidden_size, num_labels)
 
     def forward(self, *args, **kwarg):
-        output = self.module(*args, **kwarg)
+        output = self.model(*args, **kwarg)
 
         if len(args) > 0:
             attention_mask = (args[0] != self.pad_token_id).long()
