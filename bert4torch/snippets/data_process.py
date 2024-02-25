@@ -403,14 +403,14 @@ def entity_extract_rule(text:str, pattern:str=None, label:str=None, start:int=0,
 
     Example
     ------------------------------------
-    text = '甲方：中国工商银行 乙方：中国农业银行 注册地址：上海市世纪大道1379号'
-    config = {'pattern': '甲方(:|：)(.*?)乙方',
-            'label': '甲方',
-            'replace_pattern': ['^甲方(:|：)', '乙方$']}
-    res = ner_extract_rule(text, **config)
-    print(res)
-    
-    # return: [{'context': '中国工商银行 ', 'raw_context': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
+    >>> text = '甲方：中国工商银行 乙方：中国农业银行 注册地址：上海市世纪大道1379号'
+    >>> config = {'pattern': '甲方(:|：)(.*?)乙方',
+    >>>         'label': '甲方',
+    >>>         'replace_pattern': ['^甲方(:|：)', '乙方$']}
+    >>> res = ner_extract_rule(text, **config)
+    >>> print(res)
+
+    >>> # return: [{'context': '中国工商银行 ', 'raw_context': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
     '''
     def adjust_start_end(context, new_context, start):
         if new_context in context:

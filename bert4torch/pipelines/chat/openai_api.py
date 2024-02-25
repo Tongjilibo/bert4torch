@@ -102,19 +102,19 @@ class ChatOpenaiApi(Chat):
 
     Example
     ------------------------
-    # 以chatglm2的api部署为例
-    from bert4torch.pipelines import ChatGlm2OpenaiApi
+    >>> # 以chatglm2的api部署为例
+    >>> from bert4torch.pipelines import ChatGlm2OpenaiApi
 
-    model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
-    generation_config  = {'mode':'random_sample',
-                        'max_length':2048, 
-                        'default_rtype':'logits', 
-                        'use_states':True
-                        }
-    chat = ChatGlm2OpenaiApi(model_path, **generation_config)
-    chat.run()
+    >>> model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+    >>> generation_config  = {'mode':'random_sample',
+    >>>                     'max_length':2048, 
+    >>>                     'default_rtype':'logits', 
+    >>>                     'use_states':True
+    >>>                     }
+    >>> chat = ChatGlm2OpenaiApi(model_path, **generation_config)
+    >>> chat.run()
 
-    # TODO:
+    TODO:
     1. 在后续调用服务，模型从cpu转到cuda上时，内存不下降，猜测是因为不同线程中操作导致的
     2. 偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误
     3. 如何offload到disk上，不占用内存和显存
@@ -303,17 +303,18 @@ class ChatOpenaiClient:
     
     Example
     --------------------------------------------
-    messages = [
-            {"content": "你好", "role": "user"},
-            {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
-            {"content": "你可以做什么？", "role": "user"}
-            ]
-    client = ChatOpenaiClient('http://127.0.0.1:8000')
-    # 流式
-    for token in client.stream_chat(messages):
-        print(token, end='', flush=True)
-    # 非流式
-    print(client.chat(messages))
+    >>> messages = [
+    >>>         {"content": "你好", "role": "user"},
+    >>>         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+    >>>         {"content": "你可以做什么？", "role": "user"}
+    >>>         ]
+    >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
+    >>> 
+    >>> # 流式
+    >>> for token in client.stream_chat(messages):
+    >>>     print(token, end='', flush=True)
+    >>> # 非流式
+    >>> print(client.chat(messages))
     '''
     def __init__(self, base_url) -> None:
         from openai import OpenAI
@@ -358,17 +359,17 @@ class ChatOpenaiClientSseclient:
 
     Example
     --------------------------------------------
-    messages = [
-            {"content": "你好", "role": "user"},
-            {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
-            {"content": "你可以做什么？", "role": "user"}
-            ]
-    client = ChatOpenaiClientSseclient('http://127.0.0.1:8000')
-    # 测试打印
-    client.stream_chat_cli(body)
-    # 流式
-    for token in client.stream_chat(body):
-        print(token, end='', flush=True)
+    >>> messages = [
+    >>>         {"content": "你好", "role": "user"},
+    >>>         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+    >>>         {"content": "你可以做什么？", "role": "user"}
+    >>>         ]
+    >>> client = ChatOpenaiClientSseclient('http://127.0.0.1:8000')
+    >>> # 测试打印
+    >>> client.stream_chat_cli(body)
+    >>> # 流式
+    >>> for token in client.stream_chat(body):
+    >>>     print(token, end='', flush=True)
     '''
     def __init__(self, url) -> None:
         self.url = url
@@ -396,7 +397,7 @@ class ChatOpenaiClientSseclient:
             print(token, end='', flush=True)
 
 
-def extend_with_chat_openai_api(InputModel):
+def extend_with_chat_openai_api(InputModel) -> ChatOpenaiApi:
     """添加ChatWebDemo"""
     class ChatDemo(InputModel, ChatOpenaiApi):
         pass

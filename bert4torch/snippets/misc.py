@@ -177,11 +177,11 @@ class GenerateSpeed(Timeit):
 
     Example
     -----------------------------------------------------
-    from bert4torch.snippets import GenerateSpeed
-    with GenerateSpeed() as gs:
-        response = model.generate(query, **generation_config)
-        tokens_len = len(tokenizer(response, return_tensors='pt')['input_ids'][0])
-        gs(tokens_len)
+    >>> from bert4torch.snippets import GenerateSpeed
+    >>> with GenerateSpeed() as gs:
+    >>>     response = model.generate(query, **generation_config)
+    >>>     tokens_len = len(tokenizer(response, return_tensors='pt')['input_ids'][0])
+    >>>     gs(tokens_len)
     '''
     def __enter__(self):
         super().__enter__()

@@ -152,7 +152,7 @@ class ChatCli(Chat):
             cuda_empty_cache()
 
 
-def extend_with_cli(InputModel):
+def extend_with_cli(InputModel) -> ChatCli:
     """添加ChatCliDemo"""
     class ChatDemo(InputModel, ChatCli):
         pass
@@ -245,7 +245,7 @@ class ChatWebGradio(Chat):
         demo.queue().launch(**launch_configs)
 
 
-def extend_with_web_gradio(InputModel):
+def extend_with_web_gradio(InputModel) -> ChatWebGradio:
     """添加ChatWebDemo"""
     class ChatDemo(InputModel, ChatWebGradio):
         pass
@@ -321,7 +321,7 @@ class ChatWebStreamlit(Chat):
             st.session_state.states = self.generation_config.get('states')
 
 
-def extend_with_web_streamlit(InputModel):
+def extend_with_web_streamlit(InputModel) -> ChatWebStreamlit:
     """添加ChatWebDemo"""
     class ChatDemo(InputModel, ChatWebStreamlit):
         pass
