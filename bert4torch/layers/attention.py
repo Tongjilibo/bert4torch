@@ -174,10 +174,10 @@ class MultiHeadAttentionLayer(nn.Module):
             context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
         # SDPA
         elif self.flash_attention in {True, 'sdpa'}:
-            # # is_causal=True 仅适用于qlen=klen，且单条样本时（多条样本mask必须使用）
-            # if attention_mask.size(0)==1 and (query_layer.shape[2] == key_layer.shape[2]):
-            #     context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
-            if len(self.flash_attention_config) == 0:
+            # is_causal=True 适用于qlen=klen, 测试下来is_causal=True训练更快
+            if self.is_causal and (query_layer.shape[2] == key_layer.shape[2]):
+                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
+            elif len(self.flash_attention_config) == 0:
                 # 默认方式
                 context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
             else:
