@@ -4,8 +4,8 @@
 
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.callbacks import Callback
-from bert4torch.snippets import sequence_padding, Logger, Tensorboard, text_segmentate, ListDataset, Evaluator, EarlyStopping, seed_everything, get_pool_emb
+from bert4torch.callbacks import Callback, Evaluator, EarlyStopping, Logger, Tensorboard
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything, get_pool_emb
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -158,7 +158,7 @@ def inference(texts):
 if __name__ == '__main__':
     if choice == 'train':
         evaluator = MyEvaluator(monitor='val/acc', checkpoint_path='./model.pt')
-        early_stop = EarlyStopping(monitor='val/acc', patience=5, verbose=1, mode='max', restore_best_weights=True)
+        early_stop = EarlyStopping(monitor='val/acc', patience=5, verbose=1, min_max='max', restore_best_weights=True)
         callbacks = [evaluator, Logger('./log/test.log'), Tensorboard('./tensorboard/'), early_stop]
         model.fit(train_dataloader, epochs=10, steps_per_epoch=50, callbacks=callbacks)
     else:

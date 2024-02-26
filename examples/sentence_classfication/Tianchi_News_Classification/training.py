@@ -180,7 +180,7 @@ def do_train(df_train):
         callbacks = [
             AdversarialTraining('fgm'),
             Evaluator(model, valid_dataloader, fold),
-            EarlyStopping(monitor='val_f1', patience=5, verbose=1, mode='max'), # 需要在Evaluator后面
+            EarlyStopping(monitor='val_f1', patience=5, verbose=1, min_max='max'), # 需要在Evaluator后面
         ]
         model.fit(
             train_dataloader,
