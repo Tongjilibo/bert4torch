@@ -381,8 +381,8 @@ def entity_extract_rule_placeholder(self, text, **pat_config):
 def entity_extract_rule(text:str, pattern:str=None, label:str=None, start:int=0, end:int=-1, dotall:bool=True, 
             replace_pattern:Optional[Union[str,list]]=None, extract_pattern:Optional[Union[str,list]]=None, minlen:int=None, maxlen:int=None, 
             exist_subword:Union[list,str,tuple]=None, noexist_subword:Union[list,str,tuple]=None, 
-            prefix_exist_subword:List[tuple]=None, prefix_noexist_subword:List[tuple]=None, 
-            postfix_exist_subword:List[tuple]=None, postfix_noexist_subword:List[tuple]=None, **kwargs):
+            prefix_exist_subword:List[Tuple[str,int]]=None, prefix_noexist_subword:List[Tuple[str,int]]=None, 
+            postfix_exist_subword:List[Tuple[str,int]]=None, postfix_noexist_subword:List[Tuple[str,int]]=None, **kwargs):
     ''' 按照预设的正则规则来从字符串中提取实体 
 
     :param text: 待提取的字符串
