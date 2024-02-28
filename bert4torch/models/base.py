@@ -8,7 +8,7 @@ from bert4torch.layers import LayerNorm
 from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters, JsonConfig
 from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree
 import warnings
-from typing import Union, Optional
+from typing import Union, Optional, Callable
 from torch4keras.model import *
 from tqdm import tqdm
 import gc
@@ -196,7 +196,7 @@ class BERT_BASE(nn.Module):
         """
         return load_checkpoint(checkpoint)
 
-    def from_pretrained_single(self, checkpoint:Union[str, os.PathLike]=None, mapping:dict=None, skip_init:bool=False, 
+    def from_pretrained_single(self, checkpoint:Union[str, os.PathLike]=None, mapping:Union[dict,Callable]=None, skip_init:bool=False, 
                                device_map:dict=None, torch_dtype=None, verbose=1):
         """加载预训练模型(单个权重文件)，根据mapping从checkpoint加载权重"""
         # 加载模型文件, 并可专业些转换
@@ -207,9 +207,14 @@ class BERT_BASE(nn.Module):
         model_params = set([i[0] for i in self.named_parameters()])  # 可更新的变量
         # 如果ckpt和model中同时存在，且不在预设的mapping中，则更新mapping
         # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
-        for layer_name in model_params:
-            if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
-                mapping.update({layer_name: layer_name})
+        if isinstance(mapping, dict):
+            for layer_name in model_params:
+                if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
+                    mapping.update({layer_name: layer_name})
+        elif isinstance(mapping, Callable):
+            mapping = {mapping(k):k for k in ckpt_state_dict}
+        else:
+            raise TypeError(f'Args `mapping`={type(mapping)} not supported')
 
         state_dict_new = {}  # 用new_key作为key整理后的权重字典
         missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
@@ -249,7 +254,7 @@ class BERT_BASE(nn.Module):
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
-    def from_pretrained(self, checkpoints:Union[str, os.PathLike, list], mapping:dict=None, skip_init:bool=False, 
+    def from_pretrained(self, checkpoints:Union[str, os.PathLike, list], mapping:Union[dict, Callable]=None, skip_init:bool=False, 
                         device_map:dict=None, torch_dtype=None, verbose=1):
         """加载预训练模型(单个/多个ckpt)"""
         # 单个权重文件
@@ -295,7 +300,7 @@ class BERT_BASE(nn.Module):
         """
         return self.state_dict()
 
-    def save_pretrained(self, save_path:str, weight_map:dict=None, mapping:dict=None, write_to_disk:bool=True, ignore_tied_parameters=False):
+    def save_pretrained(self, save_path:str, weight_map:dict=None, mapping:Union[dict,Callable]=None, write_to_disk:bool=True, ignore_tied_parameters=False):
         '''按照预训练模型的key来保存模型, 可供transformers包加载
            1. 按照variable_mapping()逆向来保存权重
            2. 各个模型存在save_trans_ckpt()的也要执行, 如部分大模型需要把q,k,v合并为qkv
@@ -304,11 +309,10 @@ class BERT_BASE(nn.Module):
            :param weight_map: dict, 部分大模型会有pytorch_model.bin.index.json文件, 对应其中的weight_map字段
                               可`from bert4torch.snippets import JsonConfig
                                  weight_map = JsonConfig(config_path).weight_map`来加载
-           :param mapping: dict, 一般来说为None, 也允许用户自行指定映射关系（一般不需要）
+           :param mapping: dict/func, 一般来说为None, 也允许用户自行指定映射关系（一般不需要）
            :param write_to_disk: bool, 是否写入硬盘，一般都是True, 该参数主要是为了在Trainer().save_pretrained
            :param ignore_tied_parameters: bool, 保存时候忽视tied_parameters
         '''
-        mapping = mapping or self.variable_mapping()
         state_dict = self.save_trans_ckpt()
         
         if ignore_tied_parameters:
@@ -320,8 +324,12 @@ class BERT_BASE(nn.Module):
                     if tied_parameter in state_dict:
                         state_dict.pop(tied_parameter)
         
+        mapping = mapping or self.variable_mapping()
         for k in list(state_dict.keys()):
-            state_dict[mapping.get(k, k)] = state_dict.pop(k)
+            if isinstance(mapping, dict):
+                state_dict[mapping.get(k, k)] = state_dict.pop(k)
+            elif isinstance(mapping, Callable):
+                state_dict[mapping(k)] = state_dict.pop(k)
         
         # 如果save_path是文件夹，则把对应的其他文件copy过去
         save_dir = None if re.search('\.[a-zA-z0-9]+$', save_path) else save_path
