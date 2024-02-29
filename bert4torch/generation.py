@@ -134,7 +134,10 @@ class AutoRegressiveDecoder(object):
 
                 # repetition_penalty
                 if self.repetition_penalty != 1.0:
-                    past_token_ids = inputs[0] if states is None else states['past_token_ids']
+                    if states is None or states.get('past_token_ids') is None:
+                        past_token_ids = inputs[0]
+                    else:
+                        past_token_ids = states['past_token_ids']
                     prediction = (repetition_penalty_func(past_token_ids, prediction[0], self.repetition_penalty), prediction[1])
 
                 if default_rtype == 'logits':
