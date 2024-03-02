@@ -13,6 +13,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 import glob
+import json
+from tqdm import tqdm
 
 # 基本参数
 maxlen = 256
@@ -28,25 +30,29 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
 
+class MyDataset(ListDataset):
+    @staticmethod
+    def load_data(file_paths):
+        result = []
+        for file_path in file_paths:
+            data = open(file_path, encoding='utf-8').readlines()
+            for line in tqdm(data, desc=file_path.split('\\')[-1]):
+                result.append(json.loads(line))
+        return result
+
 def collate_fn(batch):
     """单条样本格式：[CLS]篇章[SEP]答案[SEP]问题[SEP]
     """
     batch_token_ids, batch_segment_ids = [], []
-    for txt in batch:
-        text = open(txt, encoding='utf-8').read()
-        text = text.split('\n')
-        if len(text) > 1:
-            title = text[0]
-            content = '\n'.join(text[1:])
-            token_ids, segment_ids = tokenizer.encode(content, title, maxlen=maxlen)
-            batch_token_ids.append(token_ids)
-            batch_segment_ids.append(segment_ids)
-
+    for line in batch:
+        token_ids, segment_ids = tokenizer.encode(line['content'], line['title'], maxlen=maxlen)
+        batch_token_ids.append(token_ids)
+        batch_segment_ids.append(segment_ids)
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], batch_token_ids
 
-train_dataloader = DataLoader(ListDataset(glob.glob('F:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
+train_dataloader = DataLoader(MyDataset(glob.glob('F:/data/corpus/sentence_classification/THUCNews/*.jsonl')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 encoder = build_transformer_model(config_path, checkpoint_path, add_trainer=True).to(device)  # 建立模型，加载权重
