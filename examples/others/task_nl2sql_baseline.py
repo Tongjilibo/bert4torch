@@ -175,7 +175,7 @@ def collate_fn(batch):
     cop = torch.tensor(sequence_padding(cop, length=x1.shape[1]), dtype=torch.long, device=device)
     return [x1, h, hm], [sel, conn, csel, cop, xm, hm]
 
-datadir = 'E:/data/corpus/other/ZhuiyiTechnology_NL2SQL'
+datadir = 'F:/data/corpus/other/ZhuiyiTechnology_NL2SQL'
 train_dataloader = DataLoader(MyDataset(*read_data(f'{datadir}/train/train.json', f'{datadir}/train/train.tables.json')), 
                               batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_data, valid_table = read_data(f'{datadir}/val/val.json', f'{datadir}/val/val.tables.json')

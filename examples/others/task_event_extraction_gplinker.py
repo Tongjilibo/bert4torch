@@ -27,10 +27,10 @@ dict_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt
 model_name = 'Chinese_roberta_wwm_ext'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-train_path = 'E:/data/corpus/event_extraction/duee/duee_train.json'
-valid_path = 'E:/data/corpus/event_extraction/duee/duee_dev.json'
-test_path = 'E:/data/corpus/event_extraction/duee/duee_test2.json'
-schema_path = 'E:/data/corpus/event_extraction/duee/duee_event_schema.json'
+train_path = 'F:/data/corpus/event_extraction/duee/duee_train.json'
+valid_path = 'F:/data/corpus/event_extraction/duee/duee_dev.json'
+test_path = 'F:/data/corpus/event_extraction/duee/duee_test2.json'
+schema_path = 'F:/data/corpus/event_extraction/duee/duee_event_schema.json'
 best_model_save_path = './'
 optimizer_name = 'adam'
 best_e_weigths_save_path = os.path.join(best_model_save_path, 'best_model.{}.e.weights.pt'.format(optimizer_name))

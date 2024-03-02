@@ -99,8 +99,8 @@ def collate_fn(batch):
     return [batch_token_ids, batch_label_token_ids], [masks, batch_start_labels, batch_end_labels, batch_span_labels]
 
 # 转换数据集
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('E:/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('F:/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
 
 class LabelFusionForToken(nn.Module):
     def __init__(self, hidden_size):

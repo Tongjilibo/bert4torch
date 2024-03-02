@@ -84,7 +84,7 @@ def get_data(filename):
             train_samples.append((random.choice(list(others['1'])), sent1, random.choice(list(others['0']))))
     return train_samples
 
-train_data = get_data(f'E:/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data')
+train_data = get_data(f'F:/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 class MyDataset(ListDataset):
@@ -117,8 +117,8 @@ def collate_fn_eval(batch):
     return (batch_token1_ids, batch_token2_ids), batch_labels.flatten()
 
 # 加载数据集
-valid_dataloader = DataLoader(MyDataset(f'E:/data/corpus/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
-test_dataloader = DataLoader(MyDataset(f'E:/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
+valid_dataloader = DataLoader(MyDataset(f'F:/data/corpus/sentence_embedding/{task_name}/{task_name}.valid.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
+test_dataloader = DataLoader(MyDataset(f'F:/data/corpus/sentence_embedding/{task_name}/{task_name}.test.data'), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 建立模型
 class Model(BaseModel):
@@ -180,7 +180,7 @@ class Evaluator(Callback):
         print(f'valid_consine: {val_consine:.5f}, test_consine: {test_consine:.5f}, best_val_consine: {self.best_val_consine:.5f}\n')
         
         # 重新生成dataloader，重新random选择样本
-        train_data = get_data(f'E:/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data')
+        train_data = get_data(f'F:/data/corpus/sentence_embedding/{task_name}/{task_name}.train.data')
         model.train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
     # 定义评价函数

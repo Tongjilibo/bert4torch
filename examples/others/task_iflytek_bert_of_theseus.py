@@ -64,8 +64,8 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 转换数据集
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/sentence_classification/CLUEdataset/iflytek/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('E:/data/corpus/sentence_classification/CLUEdataset/iflytek/dev.json'), batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/sentence_classification/CLUEdataset/iflytek/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('F:/data/corpus/sentence_classification/CLUEdataset/iflytek/dev.json'), batch_size=batch_size, collate_fn=collate_fn) 
 
 class BERT_THESEUS(BERT):
     def __init__(self, **kwargs):

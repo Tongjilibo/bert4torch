@@ -37,9 +37,9 @@ def load_data(filename):
     return D
 
 # 加载数据集
-train_data = load_data('E:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
-valid_data = load_data('E:/data/corpus/sentence_classification/sentiment/sentiment.valid.data')
-test_data = load_data('E:/data/corpus/sentence_classification/sentiment/sentiment.test.data')
+train_data = load_data('F:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
+valid_data = load_data('F:/data/corpus/sentence_classification/sentiment/sentiment.valid.data')
+test_data = load_data('F:/data/corpus/sentence_classification/sentiment/sentiment.test.data')
 
 # 模拟标注和非标注数据
 train_frac = 0.01  # 标注数据的比例

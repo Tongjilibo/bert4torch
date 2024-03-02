@@ -111,10 +111,10 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/seq2seq/ape210k/train.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-valid_dataset = MyDataset('E:/data/corpus/seq2seq/ape210k/valid.ape.json')
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/seq2seq/ape210k/train.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+valid_dataset = MyDataset('F:/data/corpus/seq2seq/ape210k/valid.ape.json')
 # valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-# test_dataloader = DataLoader(MyDataset('E:/data/corpus/seq2seq/ape210k/test.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+# test_dataloader = DataLoader(MyDataset('F:/data/corpus/seq2seq/ape210k/test.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
 
 model = build_transformer_model(

@@ -81,8 +81,8 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 
-train_dataloader = DataLoader(MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-eval_dataloader = DataLoader(MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=EVAL_BATCH_SIZE, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+eval_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=EVAL_BATCH_SIZE, collate_fn=collate_fn) 
 
 
 # Instantiate the model (we build the model here so that the seed also control new weights initialization)

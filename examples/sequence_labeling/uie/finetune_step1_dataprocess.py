@@ -86,6 +86,6 @@ def preprocess(input_path, save_path, mode):
     with open(data_path, 'w', encoding='utf-8') as fp:
         fp.write("\n".join([json.dumps(i, ensure_ascii=False) for i in result]))
 
-preprocess("E:/data/corpus/ner/china-people-daily-ner-corpus/example.train", './data/mid_data', "train")
-preprocess("E:/data/corpus/ner/china-people-daily-ner-corpus/example.dev", './data/mid_data', "dev")
-preprocess("E:/data/corpus/ner/china-people-daily-ner-corpus/example.test", './data/mid_data', "test")
+preprocess("F:/data/corpus/ner/china-people-daily-ner-corpus/example.train", './data/mid_data', "train")
+preprocess("F:/data/corpus/ner/china-people-daily-ner-corpus/example.dev", './data/mid_data', "dev")
+preprocess("F:/data/corpus/ner/china-people-daily-ner-corpus/example.test", './data/mid_data', "test")

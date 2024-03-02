@@ -66,11 +66,11 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 # 加载数据集
-train_dataset = MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+train_dataset = MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
 train_sampler = DistributedSampler(train_dataset)
 train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=batch_size, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构，这里loss并不是放在模型里计算的
 class Model(nn.Module):

@@ -31,12 +31,12 @@ dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def process_data():
-    if os.path.exists('E:/data/corpus/qa/CIPS-SOGOU/train_data_list_format.json'):
+    if os.path.exists('F:/data/corpus/qa/CIPS-SOGOU/train_data_list_format.json'):
         return
 
     # 标注数据
-    webqa_data = json.load(open('E:/data/corpus/qa/WebQA.json', encoding='utf-8'))
-    sogou_data = json.load(open('E:/data/corpus/qa/SogouQA.json', encoding='utf-8'))
+    webqa_data = json.load(open('F:/data/corpus/qa/WebQA.json', encoding='utf-8'))
+    sogou_data = json.load(open('F:/data/corpus/qa/SogouQA.json', encoding='utf-8'))
 
     # 筛选数据
     seps, strips = u'\n。！？!?；;，, ', u'；;，, '
@@ -59,8 +59,8 @@ def process_data():
     # 划分valid
     train_data = [data[j] for i, j in enumerate(random_order) if i % 10 != 0]
     valid_data = [data[j] for i, j in enumerate(random_order) if i % 10 == 0]
-    json.dump(train_data, open('E:/data/corpus/qa/CIPS-SOGOU/train_data_list_format.json', 'w'), indent=4)
-    json.dump(valid_data, open('E:/data/corpus/qa/CIPS-SOGOU/valid_data_list_format.json', 'w'), indent=4)
+    json.dump(train_data, open('F:/data/corpus/qa/CIPS-SOGOU/train_data_list_format.json', 'w'), indent=4)
+    json.dump(valid_data, open('F:/data/corpus/qa/CIPS-SOGOU/valid_data_list_format.json', 'w'), indent=4)
 
 process_data()
 
@@ -97,9 +97,9 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/qa/CIPS-SOGOU/train_data_list_format.json'), 
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/qa/CIPS-SOGOU/train_data_list_format.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('E:/data/corpus/qa/CIPS-SOGOU/valid_data_list_format.json')
+valid_dataset = MyDataset('F:/data/corpus/qa/CIPS-SOGOU/valid_data_list_format.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 model = build_transformer_model(

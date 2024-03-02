@@ -27,7 +27,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
 
-with open('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
+with open('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
     for l in f:
         l = json.loads(l)
         if l['predicate'] not in predicate2id:
@@ -122,9 +122,9 @@ def collate_fn(batch):
     batch_mask = torch.tensor(sequence_padding(batch_mask), dtype=torch.long, device=device)
     return [batch_token_ids], [batch_entity_labels, batch_head_labels, batch_tail_labels, batch_mask]
 
-train_dataset = MyDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
+train_dataset = MyDataset('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
+valid_dataset = MyDataset('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构

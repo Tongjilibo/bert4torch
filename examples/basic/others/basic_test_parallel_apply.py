@@ -109,7 +109,7 @@ def func(inputs):
     
     return tokens_ids, _pieces2word, _dist_inputs, _grid_labels, _grid_mask2d, _entity_text
 
-corpus = load_data('E:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+corpus = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
 
 start = time.time()
 train_samples = parallel_apply(

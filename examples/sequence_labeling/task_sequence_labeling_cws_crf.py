@@ -43,7 +43,7 @@ def load_data(filename):
     return D
 
 # 标注数据
-data = load_data('E:/data/corpus/cws/icwb2-data/training/pku_training.utf8')
+data = load_data('F:/data/corpus/cws/icwb2-data/training/pku_training.utf8')
 
 # 保存一个随机序（供划分valid用）
 if not os.path.exists('./random_order.json'):

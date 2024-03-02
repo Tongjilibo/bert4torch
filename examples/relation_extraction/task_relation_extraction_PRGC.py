@@ -37,7 +37,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 加载标签字典
 predicate2id, id2predicate = {}, {}
 
-with open('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
+with open('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_schemas', encoding='utf-8') as f:
     for l in f:
         l = json.loads(l)
         if l['predicate'] not in predicate2id:
@@ -186,9 +186,9 @@ def collate_fn_test(data):
     token_ids = torch.tensor(sequence_padding(token_ids, length=maxlen), dtype=torch.long, device=device)
     return token_ids, spoes, tokens
 
-train_dataset = MyDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
+train_dataset = MyDataset('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/train_data.json')
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyTestDataset('E:/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
+valid_dataset = MyTestDataset('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/dev_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn_test) 
 
 

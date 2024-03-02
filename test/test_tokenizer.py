@@ -18,7 +18,7 @@ def compare(data_path, tokenizer, tokenizer_b4t, truncation=False):
 
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"])
-@pytest.mark.parametrize("data_path", ['E:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+@pytest.mark.parametrize("data_path", ['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
 def test_bert_tokenizer(model_dir, data_path):
     '''测试bert的tokenizer'''
     print('Test BertTokenizer')
@@ -28,7 +28,7 @@ def test_bert_tokenizer(model_dir, data_path):
 
 
 @pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base"])
-@pytest.mark.parametrize("data_path", ['E:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+@pytest.mark.parametrize("data_path", ['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
 def test_xlnet_tokenizer(model_dir, data_path):
     '''测试xlnet的tokenizer'''
     print('Test SpTokenizer')
@@ -39,5 +39,5 @@ def test_xlnet_tokenizer(model_dir, data_path):
 
 
 if __name__ == '__main__':
-    test_bert_tokenizer("E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12", 'E:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
-    test_xlnet_tokenizer("E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base", 'E:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
+    test_bert_tokenizer("E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12", 'F:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
+    test_xlnet_tokenizer("E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base", 'F:/data/corpus/sentence_classification/sentiment/sentiment.train.data')

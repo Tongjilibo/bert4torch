@@ -46,7 +46,7 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], batch_token_ids
 
-train_dataloader = DataLoader(ListDataset(glob.glob('E:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
+train_dataloader = DataLoader(ListDataset(glob.glob('F:/data/corpus/sentence_classification/THUCNews/*/*.txt')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 encoder = build_transformer_model(config_path, checkpoint_path, add_trainer=True).to(device)  # 建立模型，加载权重

@@ -51,9 +51,9 @@ def collate_fn(batch):
     return (batch_token_ids, batch_segment_ids), batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/sentence_embedding/LCQMC/LCQMC.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('E:/data/corpus/sentence_embedding/LCQMC/LCQMC.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
-test_dataloader = DataLoader(MyDataset('E:/data/corpus/sentence_embedding/LCQMC/LCQMC.test.data'), batch_size=batch_size, collate_fn=collate_fn)
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/sentence_embedding/LCQMC/LCQMC.train.data'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('F:/data/corpus/sentence_embedding/LCQMC/LCQMC.valid.data'), batch_size=batch_size, collate_fn=collate_fn)
+test_dataloader = DataLoader(MyDataset('F:/data/corpus/sentence_embedding/LCQMC/LCQMC.test.data'), batch_size=batch_size, collate_fn=collate_fn)
 
 # 定义bert上的模型结构
 class Model(BaseModel):

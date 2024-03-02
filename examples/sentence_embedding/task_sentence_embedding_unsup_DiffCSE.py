@@ -63,7 +63,7 @@ model_dir = {
 config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
-data_path = 'E:/data/corpus/sentence_embedding/'
+data_path = 'F:/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # =============================加载数据集=============================

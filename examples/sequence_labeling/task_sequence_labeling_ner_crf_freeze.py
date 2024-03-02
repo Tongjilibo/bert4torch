@@ -77,8 +77,8 @@ def collate_fn(batch):
     return batch_token_ids, batch_labels
 
 # 转换数据集
-train_data = load_data('E:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
-valid_data = load_data('E:/data/corpus/ner/china-people-daily-ner-corpus/example.dev')
+train_data = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+valid_data = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.dev')
 train_dataloader = DataLoader(ListDataset(data=train_data), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_dataloader = DataLoader(ListDataset(data=valid_data), batch_size=batch_size, collate_fn=collate_fn) 
 

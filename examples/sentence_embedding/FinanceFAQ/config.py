@@ -3,7 +3,7 @@ config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_c
 checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
 dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 
-data_dir = 'E:/data/corpus/qa/FinanceFAQ'
+data_dir = 'F:/data/corpus/qa/FinanceFAQ'
 q_std_file = f'{data_dir}/q_std_file.tsv'  # 标准问数据
 q_corpus_file = f'{data_dir}/q_corpus_file.tsv'  # 所有语料数据
 q_sim_file = f'{data_dir}/q_sim_file.tsv'

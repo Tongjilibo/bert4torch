@@ -86,7 +86,7 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_token_ids
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('E:/data/corpus/pretrain/金庸小说/*.txt'), 
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/pretrain/金庸小说/*.txt'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 建模

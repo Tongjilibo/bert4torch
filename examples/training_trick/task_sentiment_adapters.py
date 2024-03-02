@@ -59,13 +59,13 @@ def collate_fn(batch):
 
 # 加载数据集
 train_dataloader = DataLoader(
-    MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.train.data']),
+    MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data']),
     batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 valid_dataloader = DataLoader(
-    MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']),
+    MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']),
     batch_size=batch_size, collate_fn=collate_fn)
 test_dataloader = DataLoader(
-    MyDataset(['E:/data/corpus/sentence_classification/sentiment/sentiment.test.data']), batch_size=batch_size,
+    MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.test.data']), batch_size=batch_size,
     collate_fn=collate_fn)
 
 
