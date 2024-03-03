@@ -4,7 +4,8 @@ import numpy as np
 import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from torch4keras.snippets import *
+from typing import Optional, Union, List, Tuple
+from torch4keras.snippets import log_warn
 import random
 
 is_py2 = six.PY2
