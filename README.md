@@ -13,6 +13,20 @@
 [Torch4keras](https://github.com/Tongjilibo/torch4keras) |
 [Examples](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 
+## 目录
+- [目录](#目录)
+- [1. 下载安装](#1-下载安装)
+- [2. 功能](#2-功能)
+- [3. 快速上手](#3-快速上手)
+- [4. 版本和更新历史](#4-版本和更新历史)
+  - [4.1 版本历史](#41-版本历史)
+  - [4.2 更新历史](#42-更新历史)
+- [5. 预训练权重](#5-预训练权重)
+- [6. 鸣谢](#6-鸣谢)
+- [7. 引用](#7-引用)
+- [8. 其他](#8-其他)
+  
+
 ## 1. 下载安装
 
 安装稳定版
@@ -74,8 +88,8 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/README.md)，[教程示例](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials)，[实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)，[bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
 
-## 4. 版本历史
-
+## 4. 版本和更新历史
+### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
 |20240221| 0.4.8          | 0.2.0|fastapi发布服务允许闲时offload到cpu, `build_transformer_model`允许从hf下载, 添加`FillMask`的pipeline, 添加`SequenceClassificationTrainer`|
@@ -84,11 +98,11 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
-## 5. 更新历史：
+### 4.2 更新历史
 
 [更多历史](https://github.com/Tongjilibo/bert4torch/blob/master/docs/History.md)
 
-## 6. 预训练权重
+## 5. 预训练权重
 - 预训练模型支持多种代码加载方式
 ```python
 from bert4torch.models import build_transformer_model
@@ -182,12 +196,12 @@ model = build_transformer_model(config_path, checkpoint_path)
     os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
     ```
 
-## 7. 鸣谢
+## 6. 鸣谢
 
 - 感谢苏神实现的[bert4keras](https://github.com/bojone/bert4keras)，本实现有不少地方参考了bert4keras的源码，在此衷心感谢大佬的无私奉献;
 - 其次感谢项目[bert4pytorch](https://github.com/MuQiuJun-AI/bert4pytorch)，也是在该项目的指引下给了我用pytorch来复现bert4keras的想法和思路。
 
-## 8. 引用
+## 7. 引用
 
 ```
 @misc{bert4torch,
@@ -198,7 +212,7 @@ model = build_transformer_model(config_path, checkpoint_path)
 }
 ```
 
-## 9. 其他
+## 8. 其他
 
 - Wechat & Star History Chart
 
