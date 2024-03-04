@@ -35,7 +35,6 @@ import os
 
 
 # 基本参数
-mode = 'train'
 max_source_length = 64
 max_target_length = 64
 lr = 2e-2
@@ -130,8 +129,8 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/prompt/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('F:/data/corpus/prompt/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 if choice == 'default':
     encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
@@ -188,7 +187,7 @@ class Evaluator(Callback):
         # # 保存最优
         # if score_dict['bleu-4'] > self.best:
         #     self.best = score_dict['bleu-4']
-        #     model.save_weights('./best_model.pt', trainable_only=True)  # 仅保存PrefixEncoder权重
+        #     model.save_weights('./model.pt', trainable_only=True)  # 仅保存PrefixEncoder权重
         # score_dict['best'] = self.best
         # print(score_dict)
     
@@ -223,13 +222,21 @@ class Evaluator(Callback):
 if __name__ == '__main__':
     evaluator = Evaluator()
     logger = Logger('./log.log', interval=100)
+    mode = 'train'  # train evaluate inference
 
     if mode == 'train':
         model.fit(train_dataloader, steps_per_epoch=steps_per_epoch, epochs=epochs, callbacks=[evaluator, logger])
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
 
-    else:
+    elif mode == 'evaluate':
         model.load_weights('./model.pt', strict=False)
         score_dict = evaluator.evaluate(dev_dataloader)
         print(score_dict)
+
+    else:
+        model.load_weights('./model.pt', strict=False)
+        query = '类型#裤*版型#宽松*风格#性感*图案#线条*裤型#阔腿裤'
+        for response in generation.stream_generate(query, topk=50, topp=0.7, temperature=0.95):
+            os.system('clear')
+            print(response[0], flush=True)

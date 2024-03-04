@@ -379,8 +379,8 @@ class BERT_BASE(nn.Module):
     
     def apply_on_layer_begin(self, l_i, **model_kwargs):
         '''新增对layer block输入进行操作的函数'''
-        if model_kwargs.get('use_states') is not True:
-            return model_kwargs
+        # if model_kwargs.get('use_states') is not True:
+        #     return model_kwargs
         
         if model_kwargs.get('past_key_values') is not None:
             model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
