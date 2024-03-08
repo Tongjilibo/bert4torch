@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import Union, Optional
+from typing import Union, Optional, List, Tuple
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info
 from packaging import version
@@ -16,27 +16,28 @@ else:
 
 class Chat:
     '''聊天类
-    :param model_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
+    :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
     :param half: bool, 是否半精度
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     '''
-    def __init__(self, model_path, half=True, quantization_config=None, generation_config=None, create_model_at_startup=True, **kwargs):
+    def __init__(self, checkpoint_path:str, half:bool=True, quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.model_path = model_path
+        self.checkpoint_path = checkpoint_path
+        self.config_path = kwargs.get('config_path', checkpoint_path)
         self.generation_config = generation_config if generation_config is not None else kwargs
         self.half = half
         self.quantization_config = quantization_config
         self.tokenizer = self.build_tokenizer()
         self.generation_config['tokenizer'] = self.tokenizer
         if create_model_at_startup:
-            self.model = self.build_model()
+            self.model = self._build_model()
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
         return self.generation_config.get('states') is None
     
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[Tuple]) -> str:
         '''对query和history进行处理，生成进入模型的text
         :param query: str, 最近的一次user的input
         :param history: List, 历史对话记录，格式为[(input1, response1), (input2, response2)]
@@ -45,21 +46,25 @@ class Chat:
     
     def build_tokenizer(self):
         from transformers import AutoTokenizer
-        return AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
+        return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True)
 
     def build_model(self):
-        if (not hasattr(self, 'model')) or (self.model is None):
-            # 初始化
-            model = build_transformer_model(checkpoint_path=self.model_path)
-            model.eval()
+        '''方便外部继承'''
+        # 初始化
+        model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
+        model.eval()
 
-            # 半精度
-            if self.half:
-                model = model.half()
-            # 量化
-            if self.quantization_config is not None:
-                model = model.quantize(**self.quantization_config)
-            self.model = model.to(self.device)
+        # 半精度
+        if self.half:
+            model = model.half()
+        # 量化
+        if self.quantization_config is not None:
+            model = model.quantize(**self.quantization_config)
+        return model.to(self.device)
+
+    def _build_model(self):
+        if (not hasattr(self, 'model')) or (self.model is None):
+            self.model = self.build_model()
 
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
@@ -70,7 +75,7 @@ class Chat:
             
         return self.model
     
-    def process_response(self, response:Union[str,tuple,list], history:Optional[list]=None):
+    def process_response(self, response:Union[str,tuple,list], history:List[Tuple]=None):
         '''对response进行后处理，可自行继承后来自定义'''
         if isinstance(response, str):
             return response
@@ -80,19 +85,19 @@ class Chat:
             return response[0]
         return response
 
-    def chat(self, query:Union[str,list], history=[]):
+    def chat(self, query:Union[str,list], history:List[Tuple]=[]):
         if isinstance(query, str):
             prompt = self.build_prompt(query, history)
         elif isinstance(query, list):
             prompt = [self.build_prompt(q, history) for q in query]
-        self.model = self.build_model()
+        self.model = self._build_model()
         response = self.model.generate(prompt, **self.generation_config)
         return self.process_response(response, history=history)
 
-    def stream_chat(self, query:str, history=[]):
+    def stream_chat(self, query:str, history:List[Tuple]=[]):
         '''单条样本stream输出预测的结果'''
         prompt = self.build_prompt(query, history)
-        self.model = self.build_model()
+        self.model = self._build_model()
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response(response, history)
 
@@ -112,7 +117,7 @@ class ChatCli(Chat):
             prompt += f"\n\nAssistant：{response}"
         return prompt
 
-    def run(self, stream=True):
+    def run(self, stream:bool=True):
         import platform
         os_name = platform.system()
         previous_history, history = [], []
@@ -132,7 +137,7 @@ class ChatCli(Chat):
                 continue
             
             prompt = self.build_prompt(query, history)
-            self.model = self.build_model()
+            self.model = self._build_model()
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
                     response = self.process_response(response, history)
@@ -163,7 +168,7 @@ class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
     '''
-    def __init__(self, *args, max_length=4096, **kwargs):
+    def __init__(self, *args, max_length:int=4096, **kwargs):
         super().__init__(*args, **kwargs)
         import gradio as gr
         self.gr = gr
@@ -182,7 +187,7 @@ class ChatWebGradio(Chat):
         cuda_empty_cache()  # 清理显存
         return [], []
 
-    def set_generation_config(self, max_length, top_p, temperature, repetition_penalty):
+    def set_generation_config(self, max_length:int, top_p:float, temperature:float, repetition_penalty:float):
         '''根据web界面的参数修改生成参数'''
         self.generation_config['max_length'] = max_length
         self.generation_config['top_p'] = top_p
@@ -194,7 +199,7 @@ class ChatWebGradio(Chat):
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
-        self.model = self.build_model()
+        self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response(response, history)
             chatbot[-1] = (input, response)
@@ -207,7 +212,7 @@ class ChatWebGradio(Chat):
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
         input_text = self.build_prompt(input, history)
-        self.model = self.build_model()
+        self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response(response, history)
         chatbot[-1] = (input, response)
@@ -267,8 +272,8 @@ class ChatWebStreamlit(Chat):
         self.max_length = max_length
 
     @st.cache_resource
-    def build_model(_self):
-        return super().build_model()
+    def _build_model(_self):
+        return super()._build_model()
     
     @st.cache_resource
     def build_tokenizer(_self):

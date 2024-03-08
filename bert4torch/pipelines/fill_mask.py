@@ -10,7 +10,7 @@ from tqdm.autonotebook import trange
 
 class FillMask(PipeLineBase):
     '''mlm预测
-    :param model_path: str, 模型所在文件夹地址
+    :param checkpoint_path: str, 模型所在文件夹地址
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
 

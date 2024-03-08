@@ -11,7 +11,7 @@ import re
 
 
 class UIEPredictor(object):
-    def __init__(self, model_path, schema, device=None, position_prob=0.5, max_seq_len=512, batch_size=64, split_sentence=False):
+    def __init__(self, checkpoint_path, schema, device=None, position_prob=0.5, max_seq_len=512, batch_size=64, split_sentence=False):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self._device = device
@@ -20,9 +20,9 @@ class UIEPredictor(object):
         self._batch_size = batch_size
         self._split_sentence = split_sentence
         self.set_schema(schema)
-        self._tokenizer = Tokenizer(os.path.join(model_path, 'vocab.txt'), do_lower_case=True)
-        self.model = build_transformer_model(config_path=os.path.join(model_path, 'config.json'), 
-                                             checkpoint_path=model_path, model='uie', with_pool=True).to(self._device)
+        self._tokenizer = Tokenizer(os.path.join(checkpoint_path, 'vocab.txt'), do_lower_case=True)
+        self.model = build_transformer_model(config_path=os.path.join(checkpoint_path, 'config.json'), 
+                                             checkpoint_path=checkpoint_path, model='uie', with_pool=True).to(self._device)
 
     def set_schema(self, schema):
         if isinstance(schema, dict) or isinstance(schema, str):

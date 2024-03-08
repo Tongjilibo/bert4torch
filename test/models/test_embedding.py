@@ -31,7 +31,7 @@ def test_embedding(model_dir):
 
 
     print('=========================================bert4torch====================================')
-    text2vec = Text2Vec(model_path=model_dir)
+    text2vec = Text2Vec(checkpoint_path=model_dir)
     b4t_embeddings_1 = text2vec.encode(sentences_1, normalize_embeddings=True)
     b4t_embeddings_2 = text2vec.encode(sentences_2, normalize_embeddings=True)
     b4t_similarity = b4t_embeddings_1 @ b4t_embeddings_2.T

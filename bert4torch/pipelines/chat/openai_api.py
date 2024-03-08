@@ -91,7 +91,7 @@ class _ChatCompletionResponse(BaseModel):
 class ChatOpenaiApi(Chat):
     """OpenAi的api
 
-    :param model_path: str, 模型所在的文件夹地址
+    :param checkpoint_path: str, 模型所在的文件夹地址
     :param name: str, 模型名称
     :param generation_config: dict, 模型generate的参数设置
     :param route_api: str, api的路由
@@ -105,13 +105,13 @@ class ChatOpenaiApi(Chat):
     >>> # 以chatglm2的api部署为例
     >>> from bert4torch.pipelines import ChatGlm2OpenaiApi
 
-    >>> model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+    >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
     >>> generation_config  = {'mode':'random_sample',
     >>>                     'max_length':2048, 
     >>>                     'default_rtype':'logits', 
     >>>                     'use_states':True
     >>>                     }
-    >>> chat = ChatGlm2OpenaiApi(model_path, **generation_config)
+    >>> chat = ChatGlm2OpenaiApi(checkpoint_path, **generation_config)
     >>> chat.run()
 
     TODO:
@@ -119,12 +119,12 @@ class ChatOpenaiApi(Chat):
     2. 偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误
     3. 如何offload到disk上，不占用内存和显存
     """
-    def __init__(self, model_path, name='default', route_api='/chat/completions', route_models='/models', 
-                 max_callapi_interval=24*3600, scheduler_interval=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
+    def __init__(self, checkpoint_path:str, name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
+                 max_callapi_interval:int=24*3600, scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
         self.offload_when_nocall = offload_when_nocall
         if offload_when_nocall is not None:
             kwargs['create_model_at_startup'] = False
-        super().__init__(model_path, **kwargs)
+        super().__init__(checkpoint_path, **kwargs)
         assert is_fastapi_available(), "No module found, use `pip install fastapi`"
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
         import sse_starlette
@@ -210,10 +210,10 @@ class ChatOpenaiApi(Chat):
         input_text = self.build_prompt(query, history)
         
         if self.offload_when_nocall is None:
-            self.model = self.build_model()
+            self.model = self._build_model()
         else:
             with self.lock:
-                self.model = self.build_model()
+                self.model = self._build_model()
             self.last_callapi_timestamp = time.time()
 
         # 流式输出

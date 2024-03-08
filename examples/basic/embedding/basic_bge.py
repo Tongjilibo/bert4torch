@@ -15,7 +15,7 @@ print(similarity)
 
 print('=========================================bert4torch====================================')
 from bert4torch.pipelines import Text2Vec
-text2vec = Text2Vec(model_path=root_model_path, device='cuda')
+text2vec = Text2Vec(checkpoint_path=root_model_path, device='cuda')
 embeddings_1 = text2vec.encode(sentences_1, normalize_embeddings=True)
 embeddings_2 = text2vec.encode(sentences_2, normalize_embeddings=True)
 similarity = embeddings_1 @ embeddings_2.T

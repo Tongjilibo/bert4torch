@@ -276,7 +276,7 @@ ChatChineseAlphaLLaMAOpenaiApi = extend_with_chat_openai_api(ChatChineseAlphaLLa
 class ChatBelle(Chat):
     def build_tokenizer(self):
         from transformers import AutoTokenizer
-        return AutoTokenizer.from_pretrained(self.model_path, use_fast=False)
+        return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
     def build_prompt(self, query, history) -> str:
         prompt = ''

@@ -11,8 +11,9 @@ from tqdm.autonotebook import trange
 class PipeLineBase:
     '''基类
     '''
-    def __init__(self, model_path, device=None, **kwargs) -> None:        
-        self.model_path = model_path
+    def __init__(self, checkpoint_path:str, device:str=None, **kwargs) -> None:        
+        self.checkpoint_path = checkpoint_path
+        self.config_path = kwargs.get('config_path') or checkpoint_path
         if device is None:
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         else:
@@ -22,15 +23,15 @@ class PipeLineBase:
         self.config = self.model.config
     
     def build_tokenizer(self):
-        vocab_path = os.path.join(self.model_path, 'vocab.txt')
+        vocab_path = os.path.join(self.checkpoint_path, 'vocab.txt')
         if os.path.exists(vocab_path):
             tokenizer = Tokenizer(vocab_path, do_lower_case=True)
         else:
             from transformers import AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+            tokenizer = AutoTokenizer.from_pretrained(self.checkpoint_path)
         return tokenizer
 
     def build_model(self, model_config):
-        model = build_transformer_model(checkpoint_path=self.model_path, return_dict=True, **model_config).to(self.device)
+        model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, return_dict=True, **model_config).to(self.device)
         model.eval()
         return model

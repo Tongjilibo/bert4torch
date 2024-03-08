@@ -11,7 +11,7 @@ import os
 def test_uie(model_dir):
     # 情感倾向分类
     schema = '情感倾向[正向，负向]'
-    ie = UIEPredictor(model_path=model_dir, schema=schema)
+    ie = UIEPredictor(checkpoint_path=model_dir, schema=schema)
     ie.set_schema(schema)
     res = ie('这个产品用起来真的很流畅，我非常喜欢')
     print(res)

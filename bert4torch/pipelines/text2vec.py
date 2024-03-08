@@ -11,12 +11,12 @@ from .base import PipeLineBase
 
 class Text2Vec(PipeLineBase):
     '''句向量, 目前支持m3e, bge, simbert, text2vec-base-chinese
-    :param model_path: str, 模型所在文件夹地址
+    :param checkpoint_path: str, 模型所在文件夹地址
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
     '''
-    def __init__(self, model_path, device=None, **kwargs) -> None:
-        super().__init__(model_path, device, **kwargs)
+    def __init__(self, checkpoint_path, device=None, **kwargs) -> None:
+        super().__init__(checkpoint_path, device, **kwargs)
         self.pool_strategy = self.config.get('pool_strategy', 'cls')
         
     @torch.inference_mode()
