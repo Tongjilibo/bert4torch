@@ -103,11 +103,14 @@ class Chat:
 
 
 class ChatCli(Chat):
-    '''在命令行中交互的demo'''
+    '''在命令行中交互的demo
+    :param init_str: str, 对话问候句
+    :param history_maxlen: int, 保留的历史对话轮次
+    '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.init_str = "输入内容进行对话，clear清空对话历史，stop终止程序"
-        self.history_maxlen = 3
+        self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")
+        self.history_maxlen = kwargs.get('history_maxlen', 0)
 
     def build_cli_text(self, history):
         '''构建命令行终端显示的text'''
@@ -120,7 +123,7 @@ class ChatCli(Chat):
     def run(self, stream:bool=True):
         import platform
         os_name = platform.system()
-        previous_history, history = [], []
+        cli_pre_history, history = [], []
         clear_command = 'cls' if os_name == 'Windows' else 'clear'
         print(self.init_str)
         while True:
@@ -128,7 +131,7 @@ class ChatCli(Chat):
             if query.strip() == "stop":
                 break
             if query.strip() == "clear":
-                previous_history, history = [], []
+                cli_pre_history, history = [], []
                 if 'states' in self.generation_config:
                     self.generation_config.pop('states')
                 cuda_empty_cache()
@@ -141,19 +144,22 @@ class ChatCli(Chat):
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
                     response = self.process_response(response, history)
-                    new_history = history + [(query, response)]
+                    cli_new_history = history + [(query, response)]
                     os.system(clear_command)
-                    print(self.build_cli_text(previous_history + new_history), flush=True)
+                    print(self.build_cli_text(cli_pre_history + cli_new_history), flush=True)
             else:
                 response = self.model.generate(prompt, **self.generation_config)
                 response = self.process_response(response, history)
-                new_history = history + [(query, response)]
+                cli_new_history = history + [(query, response)]
             
             os.system(clear_command)
-            print(self.build_cli_text(previous_history + new_history), flush=True)
-            history = new_history[-self.history_maxlen:]
-            if len(new_history) > self.history_maxlen:
-                previous_history += new_history[:-self.history_maxlen]
+            print(self.build_cli_text(cli_pre_history + cli_new_history), flush=True)
+            if self.history_maxlen > 0:
+                history = cli_new_history[-self.history_maxlen:]
+                if len(cli_new_history) > self.history_maxlen:
+                    cli_pre_history += cli_new_history[:-self.history_maxlen]
+            else:
+                cli_pre_history += cli_new_history
             cuda_empty_cache()
 
 
