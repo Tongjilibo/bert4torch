@@ -5,6 +5,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info
 from packaging import version
 import gc
+import time
+
 
 if is_streamlit_available():
     import streamlit as st
@@ -68,7 +70,8 @@ class Chat:
 
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
-            log_info(f'Moving model from cpu to {self.device}')
+            cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+            log_info(f'{cur} - Moving model from cpu to {self.device}')
             self.model.to(self.device)
             gc.collect()
             cuda_empty_cache()

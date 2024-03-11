@@ -1,8 +1,10 @@
 #! -*- coding: utf-8 -*-
-# 基本测试：chatglm2的对话测试, openai格式的api
+# 基本测试：qwen的对话测试, openai格式的api
 
-from bert4torch.pipelines import ChatGlm2OpenaiApi
+from bert4torch.pipelines import ChatQwenOpenaiApi
 from bert4torch.pipelines import ChatOpenaiClient, ChatOpenaiClientSseclient
+from transformers import AutoTokenizer
+
 
 def call_openai(stream=True):
     url = 'http://127.0.0.1:8000'
@@ -43,12 +45,26 @@ def call_sseclient():
 
 
 if __name__ == '__main__':
-    model_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
-    generation_config  = {'mode':'random_sample',
-                        'max_length':2048, 
-                        'default_rtype':'logits', 
-                        'use_states':True
-                        }
 
-    chat = ChatGlm2OpenaiApi(model_path, **generation_config)
+    model_path = 'E:/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'
+    # model_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B-Chat'
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
+    tokenizer_decode_config = {'skip_special_tokens': True}
+    end_id = [tokenizer.im_start_id, tokenizer.im_end_id]
+    generation_config = {
+        'end_id': end_id, 
+        'mode': 'random_sample', 
+        'tokenizer_config': {**tokenizer_encode_config, **tokenizer_decode_config}, 
+        'max_length': 256, 
+        'default_rtype': 'logits', 
+        'use_states': True,
+        'offload_when_nocall': 'cpu',
+        'max_callapi_interval': 30,
+        'scheduler_interval': 10
+    }
+
+
+    chat = ChatQwenOpenaiApi(model_path, **generation_config)
     chat.run()

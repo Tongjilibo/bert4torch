@@ -17,6 +17,7 @@ from .base import Chat
 import gc
 import threading
 
+
 if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks
     from fastapi.middleware.cors import CORSMiddleware
@@ -271,7 +272,6 @@ class ChatOpenaiApi(Chat):
     def check_last_call(self):
         '''检测距离上一次调用超出规定时间段'''
         now = time.time()
-
         if not hasattr(self, 'model')  or (self.model is None):
             return
         elif not hasattr(self, 'last_callapi_timestamp'):
@@ -280,15 +280,17 @@ class ChatOpenaiApi(Chat):
             if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
                 with self.lock:
                     # 如果没有调用，将模型转移到CPU
-                    self.model.to('cpu')  
-                    log_info(f"Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
+                    self.model.to('cpu')
+                    cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+                    log_info(f"{cur} - Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
                     gc.collect()
                     cuda_empty_cache()
             elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
                 with self.lock:
                     self.model = None
                     del self.model
-                    log_info(f"Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
+                    cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+                    log_info(f"{cur} - Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
                     gc.collect()
                     cuda_empty_cache()
 
@@ -320,10 +322,10 @@ class ChatOpenaiClient:
         from openai import OpenAI
         self.client = OpenAI(base_url=base_url, api_key="EMPTY")
     
-    def stream_chat(self, messages, max_length=None, temperature=None, top_p=None):
+    def stream_chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None):
         '''流式返回'''
         response = self.client.chat.completions.create(
-            model='default',
+            model=model,
             messages=messages,
             stream=True,
             max_tokens=max_length,
@@ -336,10 +338,10 @@ class ChatOpenaiClient:
             if content is not None:
                 yield content
 
-    def chat(self, messages, max_length=None, temperature=None, top_p=None):
+    def chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None):
         '''一次性返回'''
         response = self.client.chat.completions.create(
-            model='default',
+            model=model,
             messages=messages,
             stream=False,
             max_tokens=max_length,
