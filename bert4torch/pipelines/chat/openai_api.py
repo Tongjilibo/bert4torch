@@ -19,7 +19,8 @@ import threading
 
 
 if is_fastapi_available():
-    from fastapi import FastAPI, HTTPException, APIRouter, BackgroundTasks
+    from fastapi import FastAPI, HTTPException, APIRouter, Depends
+    from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
     from fastapi.middleware.cors import CORSMiddleware
 else:
     FastAPI, BaseModel, Field = object, object, AnyClass
@@ -100,6 +101,7 @@ class ChatOpenaiApi(Chat):
     :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
     :param max_callapi_interval: int, 最长调用间隔
     :param scheduler_interval: int, 定时任务的执行间隔
+    :param api_keys: List[str], api keys的list
 
     Example
     ------------------------
@@ -121,7 +123,8 @@ class ChatOpenaiApi(Chat):
     3. 如何offload到disk上，不占用内存和显存
     """
     def __init__(self, checkpoint_path:str, name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
-                 max_callapi_interval:int=24*3600, scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, **kwargs):
+                 max_callapi_interval:int=24*3600, scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, 
+                 api_keys:List[str]=None, **kwargs):
         self.offload_when_nocall = offload_when_nocall
         if offload_when_nocall is not None:
             kwargs['create_model_at_startup'] = False
@@ -133,6 +136,7 @@ class ChatOpenaiApi(Chat):
             log_warn('Module `sse_starlette` above 1.8 not support stream output')
         self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
         self.scheduler_interval = scheduler_interval
+        self.api_keys = api_keys
         self.EventSourceResponse = EventSourceResponse
         self.name = name
         self.role_user = 'user'
@@ -159,9 +163,29 @@ class ChatOpenaiApi(Chat):
         # 添加路由
         router = APIRouter()
         router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=_ModelList)
-        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse)
+        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse, 
+                             dependencies=[Depends(self.check_api_key)])
         self.app.include_router(router)
 
+    async def check_api_key(self, auth: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))):
+        if self.api_keys is not None:
+            if auth is None or (token := auth.credentials) not in self.api_keys:
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "error": {
+                            "message": "",
+                            "type": "invalid_request_error",
+                            "param": None,
+                            "code": "invalid_api_key",
+                        }
+                    },
+                )
+            return token
+        else:
+            # api_keys not set; allow all
+            return None
+    
     def startup_event(self):
         from apscheduler.schedulers.background import BackgroundScheduler  
         scheduler = BackgroundScheduler()  
@@ -178,6 +202,9 @@ class ChatOpenaiApi(Chat):
         return _ModelList(data=[model_card])
 
     async def create_chat_completion(self, request: _ChatCompletionRequest):
+        if request.model != self.name:
+            raise HTTPException(status_code=404, detail="Invalid model")
+
         if request.temperature:
             self.generation_config['temperature'] = request.temperature
         if request.top_p:
