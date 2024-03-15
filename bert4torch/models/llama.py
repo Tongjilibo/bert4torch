@@ -2,6 +2,7 @@ from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
 from bert4torch.layers import BlockIdentity, LlamaFeedForward, NormHead
 import torch
+import re
 
 
 class LLaMA(Decoder):
@@ -85,3 +86,7 @@ class Baichuan(LLaMA):
                 if qkv:
                     state_dict[new_key] = torch.cat(qkv)
         return state_dict
+    
+    def variable_mapping(self):
+        mapping = super().variable_mapping()
+        return {k:v for k, v in mapping.items() if not re.search('(q|k|v)_proj.weight', v)}

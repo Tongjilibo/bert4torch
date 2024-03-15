@@ -2,6 +2,7 @@
 """
 基本测试：baichuan模型的测试 https://github.com/baichuan-inc/Baichuan-7B
 """
+from bert4torch.pipelines import ChatBaichuanCli
 
 choice = 'Baichuan2-7B-Chat'
 
@@ -30,7 +31,6 @@ else:
 include_input = not with_prompt
 
 
-from bert4torch.pipelines import ChatBaichuanCli
 generation_config = {
     'end_id': 2, 
     'mode':'random_sample', 
