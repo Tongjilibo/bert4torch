@@ -3,6 +3,7 @@ from bert4torch.snippets import delete_arguments, modify_variable_mapping
 from bert4torch.layers import BlockIdentity, LlamaFeedForward, NormHead
 import torch
 
+
 class LLaMA(Decoder):
     '''LLaMA
     链接: https://github.com/facebookresearch/llama
@@ -26,11 +27,40 @@ class LLaMA(Decoder):
         # 修改lm_head，目前在Baichuan2中使用
         if kwargs.get('norm_head') is True:
             self.lm_head = NormHead(self.hidden_size, self.vocab_size)
+    
+    def variable_mapping(self):
+        '''映射到权重格式
+        llama一般有两种格式, 一种是huggingface格式, 一种是pth格式, 这里的映射是以hf格式为准
+        '''
+        mapping = {
+            'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
+            'lm_head.weight': 'lm_head.weight',
+            'LayerNormFinal.weight': 'model.norm.weight',
+            }
 
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
+            f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
+            })
+        return mapping
+
+
+class Baichuan(LLaMA):
+    '''Baichuan
+    单独拎出来是因为qkv是合并的权重W_pack
+    '''
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
         # baichuan的qkv权重是合在一起的W_pack, 单独处理
-        variable_map = {}
         for i in range(self.num_hidden_layers):
             mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight'}
             for old_key, new_key in mapping.items():
@@ -40,14 +70,6 @@ class LLaMA(Decoder):
                 for i_k, i_v in zip(['q','k', 'v'], qkv):
                     state_dict[new_key.format(i, i_k)] = i_v
                 state_dict.pop(old_key)
-            
-            # belle
-            old_key = 'model.layers.{}.self_attn.{}_proj.weight'
-            new_key = 'decoderLayer.{}.multiHeadAttention.{}.weight'
-            for i_k in ['q', 'k', 'v']:
-                if state_dict.get(old_key.format(i, i_k)) is not None:
-                    variable_map[new_key.format(i, i_k)] = old_key.format(i, i_k)
-        self.variable_mapping = modify_variable_mapping(self.variable_mapping, **variable_map)
         return state_dict
     
     def save_trans_ckpt(self):
@@ -63,25 +85,3 @@ class LLaMA(Decoder):
                 if qkv:
                     state_dict[new_key] = torch.cat(qkv)
         return state_dict
-    
-    def variable_mapping(self):
-        '''映射到权重格式
-        llama一般有两种格式, 一种是huggingface格式, 一种是pth格式, 这里的映射是以hf格式为准
-        '''
-        mapping = {
-            'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
-            'LayerNormFinal.weight': 'model.norm.weight',
-            }
-
-        for i in range(self.num_hidden_layers):
-            mapping.update( 
-            {
-            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
-            f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
-            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
-            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
-            f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
-            f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
-            })
-        return mapping

@@ -1,5 +1,6 @@
 ## 更新历史
 
+- **20240315**: 把baichuan从llama中剥离
 - **20240216**: fastapi发布服务允许闲时offload到cpu, `build_transformer_model`允许从hf下载, 添加`FillMask`的pipeline, 添加`SequenceClassificationTrainer`
 - **20240204**：增加deepseek_moe模型，修复generation并发错误，优化大模型耗时
 - **20240121**：修改`save_pretrained`用于保存文件夹, 增加GenerateSpeed用于统计token生成速度，修复t5在use_states=True时候的错误, 修改层次编码的bug

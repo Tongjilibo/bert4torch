@@ -132,6 +132,7 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
         'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
         'llama': LLaMA,
+        'baichuan': Baichuan,
         'glm': GLM,
         'chatglm': GLM,
         'glm2': GLM2,

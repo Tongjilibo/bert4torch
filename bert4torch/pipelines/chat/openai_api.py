@@ -23,7 +23,8 @@ if is_fastapi_available():
     from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
     from fastapi.middleware.cors import CORSMiddleware
 else:
-    FastAPI, BaseModel, Field = object, object, AnyClass
+    FastAPI, BaseModel, Field, Depends = object, object, AnyClass, AnyClass
+    HTTPAuthorizationCredentials, HTTPBearer = AnyClass, AnyClass
 
 if is_pydantic_available():
     from pydantic import BaseModel, Field
