@@ -335,15 +335,15 @@ class BERT_BASE(nn.Module):
         save_dir = None if re.search('\.[a-zA-z0-9]+$', save_path) else save_path
 
         # 把checkpoint_path所在目录下，除了权重文件的其他文件copy过去
-        checkpoint_dir = os.path.dirname(self.checkpoint_path) if os.path.isfile(self.checkpoint_path) else self.checkpoint_path
         if write_to_disk and hasattr(self, 'checkpoint_path') and (self.checkpoint_path is not None) and save_dir:
+            checkpoint_dir = os.path.dirname(self.checkpoint_path) if os.path.isfile(self.checkpoint_path) else self.checkpoint_path
             copytree(checkpoint_dir, save_dir, ignore_copy_files=['\.bin$', '\.safetensors$'], dirs_exist_ok=True)  # 如果目录下文件存在也会强制覆盖
 
-        # checkpoint shards对应的.index.json
-        bin_index_json = [os.path.join(checkpoint_dir, i) for i in os.listdir(checkpoint_dir) if i.endswith('.index.json')]
-        bin_index_json = bin_index_json[0] if bin_index_json else ''
-        if (save_dir is not None) and os.path.exists(bin_index_json):
-            weight_map = weight_map or JsonConfig(bin_index_json).get('weight_map')
+            # checkpoint shards对应的.index.json
+            bin_index_json = [os.path.join(checkpoint_dir, i) for i in os.listdir(checkpoint_dir) if i.endswith('.index.json')]
+            bin_index_json = bin_index_json[0] if bin_index_json else ''
+            if (save_dir is not None) and os.path.exists(bin_index_json):
+                weight_map = weight_map or JsonConfig(bin_index_json).get('weight_map')
 
         # 保存为单文件
         if weight_map is None:
