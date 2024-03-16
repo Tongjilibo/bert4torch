@@ -11,7 +11,8 @@
 
 [Documentation](https://bert4torch.readthedocs.io) |
 [Torch4keras](https://github.com/Tongjilibo/torch4keras) |
-[Examples](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
+[Examples](https://github.com/Tongjilibo/bert4torch/blob/master/examples) |
+[build_MiniLLM_from_scratch](https://github.com/Tongjilibo/build_MiniLLM_from_scratch)
 
 ## 目录
 - [目录](#目录)
@@ -92,6 +93,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 ### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20240316| 0.4.9          |0.2.1 |增加get_weight_decay_optim_groups函数, attention中允许is_causal，修改repetition_penalty的bug，把baichuan从llama中剥离，[torch4keras-v0.2.1](https://github.com/Tongjilibo/torch4keras/releases/tag/v0.2.1)更新特性|
 |20240221| 0.4.8          | 0.2.0|fastapi发布服务允许闲时offload到cpu, `build_transformer_model`允许从hf下载, 添加`FillMask`的pipeline, 添加`SequenceClassificationTrainer`|
 |20240204| 0.4.7          | 0.1.9|修改`save_pretrained`用于保存文件夹, 增加GenerateSpeed用于统计token生成速度，修复t5在use_states=True时候的错误, 修改层次编码的bug, 增加deepseek_moe模型，修复generation并发错误，优化大模型耗时|
 |20240116| 0.4.6          | 0.1.8|bug修复，增加`save_pretrained`用于保存`transformer`格式的权重, 增加部分`embedding`模型|
