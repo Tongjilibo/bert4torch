@@ -218,7 +218,7 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
     config_path = None
     # 文件
     if os.path.isfile(pretrained_model_name_or_path):
-        if pretrained_model_name_or_path.endswith('config.json'):
+        if pretrained_model_name_or_path.endswith('.json'):
             return pretrained_model_name_or_path
         else:
             pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)

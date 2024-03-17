@@ -93,8 +93,8 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/prompt/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('F:/data/corpus/prompt/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
 # 建立模型，加载权重
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True).half()

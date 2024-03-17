@@ -57,9 +57,9 @@ class MultiHeadAttentionLayer(nn.Module):
         k_inner_dim = q_inner_dim
         v_inner_dim = self.attention_head_size * num_attention_heads
 
-        # multi query attention
-        if kwargs.get('multi_query_group_num') is not None:
-            self.multi_query_group_num = kwargs.get('multi_query_group_num')
+        # multi query attention: chatglm中叫multi_query_group_num, llama中叫num_key_value_heads
+        if (kwargs.get('multi_query_group_num') is not None) or (kwargs.get('num_key_value_heads') is not None):
+            self.multi_query_group_num = kwargs.get('multi_query_group_num') or kwargs.get('num_key_value_heads')
             k_inner_dim_tmp = self.attention_head_size * self.multi_query_group_num
             v_inner_dim_tmp = k_inner_dim_tmp
 
