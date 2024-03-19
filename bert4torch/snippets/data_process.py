@@ -4,9 +4,10 @@ import numpy as np
 import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Union, List, Tuple, Callable, Iterable
 from torch4keras.snippets import log_warn
 import random
+
 
 is_py2 = six.PY2
 
@@ -226,7 +227,7 @@ def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
         raise ValueError('"input" argument must be tensor/list/ndarray.')
 
 
-def parallel_apply_generator(func, iterable, workers, max_queue_size, dummy=False, random_seeds=True):
+def parallel_apply_generator(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, dummy:bool=False, random_seeds:bool=True):
     """多进程或多线程地将func应用到iterable的每个元素中（直接从bert4keras中移植过来）。
     注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。结果将作为一个
     generator返回，其中每个item是输入的序号以及该输入对应的处理结果。
@@ -282,7 +283,7 @@ def parallel_apply_generator(func, iterable, workers, max_queue_size, dummy=Fals
     pool.terminate()
 
 
-def parallel_apply(func, iterable, workers, max_queue_size, callback=None, dummy=False, random_seeds=True, unordered=True):
+def parallel_apply(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, callback:Callable=None, dummy:bool=False, random_seeds:bool=True, unordered:bool=True):
     """多进程或多线程地将func应用到iterable的每个元素中（直接从bert4keras中移植过来）。
     注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。
 
