@@ -221,6 +221,7 @@ class ChatOpenaiApi(Chat):
             raise HTTPException(status_code=400, detail="Invalid request")
         query = request.messages[-1].content
 
+        # 首条可以是role_system
         prev_messages = request.messages[:-1]
         if len(prev_messages) > 0 and prev_messages[0].role == self.role_system:
             query = prev_messages.pop(0).content + query

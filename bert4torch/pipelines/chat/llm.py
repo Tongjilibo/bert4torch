@@ -36,7 +36,7 @@ class ChatGlm(Chat):
             ["!", "！"],
             [":", "："],
             [";", "；"],
-            ["\?", "？"],
+            [r"\?", "？"],
         ]
         for item in punkts:
             response = re.sub(r"([\u4e00-\u9fff])%s" % item[0], r"\1%s" % item[1], response)
@@ -70,7 +70,7 @@ class ChatGlm2(Chat):
             ["!", "！"],
             [":", "："],
             [";", "；"],
-            ["\?", "？"],
+            [r"\?", "？"],
         ]
         for item in punkts:
             response = re.sub(r"([\u4e00-\u9fff])%s" % item[0], r"\1%s" % item[1], response)
@@ -83,6 +83,10 @@ ChatGlm2OpenaiApi = extend_with_chat_openai_api(ChatGlm2)
 
 
 class ChatGlm3(Chat):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.history_maxlen *= 2
+
     def build_prompt(self, query, history=[]):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         if (len(history) > 0) and isinstance(history[-1], tuple):
@@ -92,20 +96,27 @@ class ChatGlm3(Chat):
         if self.no_history_states():
             input_ids = self.tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
         else:
-            input_ids = self.tokenizer.build_chat_input(query, role="user")['input_ids']  # TODO: 这里是否在开头需要增加last_token_id
+            input_ids += self.generation_config['states']['last_token']
         return input_ids
 
     def build_cli_text(self, history):
         '''构建命令行终端显示的text'''
         prompt = self.init_str
-        for hist in history[:-1]:  # 去除ChatCliDemo添加的当前回复的记录
-            if hist['role'] == 'user':
+        for hist in history:  # 去除ChatCliDemo添加的当前回复的记录
+            if not isinstance(hist, dict):
+                continue
+            elif hist['role'] == 'user':
                 query = hist['content']
                 prompt += f"\n\nUser：{query}"
             elif hist['role'] == 'assistant':
                 response = hist['content']
                 prompt += f"\n\nAssistant：{response}"
         return prompt
+    
+    def build_cli_history(self, cli_pre_history, cli_new_history):
+        if (len(cli_new_history) > 0) and isinstance(cli_new_history[-1], tuple):
+            cli_new_history.pop()
+        return super().build_cli_history(cli_pre_history, cli_new_history)
     
     def process_response(self, response, history):
         response = super().process_response(response)

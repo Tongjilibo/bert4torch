@@ -78,7 +78,7 @@ class Chat:
             
         return self.model
     
-    def process_response(self, response:Union[str,tuple,list], history:List[Tuple]=None):
+    def process_response(self, response:Union[str,tuple,list], history:List[Tuple]=None) -> str:
         '''对response进行后处理，可自行继承后来自定义'''
         if isinstance(response, str):
             return response
@@ -88,7 +88,7 @@ class Chat:
             return response[0]
         return response
 
-    def chat(self, query:Union[str,list], history:List[Tuple]=[]):
+    def chat(self, query:Union[str,list], history:List[Tuple]=[]) -> str:
         if isinstance(query, str):
             prompt = self.build_prompt(query, history)
         elif isinstance(query, list):
@@ -115,13 +115,26 @@ class ChatCli(Chat):
         self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")
         self.history_maxlen = kwargs.get('history_maxlen', 0)
 
-    def build_cli_text(self, history):
+    def build_cli_text(self, history) -> str:
         '''构建命令行终端显示的text'''
         prompt = self.init_str
         for query, response in history:
             prompt += f"\n\nUser：{query}"
             prompt += f"\n\nAssistant：{response}"
         return prompt
+
+    def build_cli_history(self, cli_pre_history, cli_new_history):
+        # 带最近的几条历史
+        if self.history_maxlen > 0:
+            history = cli_new_history[-self.history_maxlen:]
+            if len(cli_new_history) >= self.history_maxlen:
+                cli_pre_history += cli_new_history[:-self.history_maxlen]
+        else:
+            # 默认不带历史聊天
+            history = []
+            cli_pre_history += cli_new_history
+        assert len(history) <= self.history_maxlen
+        return history, cli_pre_history
 
     def run(self, stream:bool=True):
         import platform
@@ -144,6 +157,8 @@ class ChatCli(Chat):
             
             prompt = self.build_prompt(query, history)
             self.model = self._build_model()
+            # history是human和assistant的聊天历史
+            # 格式如[('你好', '有什么可以帮您的？'), ('你是谁？', '我是一款人工智能助手。')]
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
                     response = self.process_response(response, history)
@@ -157,12 +172,9 @@ class ChatCli(Chat):
             
             os.system(clear_command)
             print(self.build_cli_text(cli_pre_history + cli_new_history), flush=True)
-            if self.history_maxlen > 0:
-                history = cli_new_history[-self.history_maxlen:]
-                if len(cli_new_history) > self.history_maxlen:
-                    cli_pre_history += cli_new_history[:-self.history_maxlen]
-            else:
-                cli_pre_history += cli_new_history
+
+            # 更新历史
+            history, cli_pre_history = self.build_cli_history(cli_pre_history, cli_new_history)
             cuda_empty_cache()
 
 

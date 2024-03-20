@@ -879,9 +879,9 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:Union[str, list], **kwargs):
+    def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch生成'''
-        if isinstance(text, str):
+        if isinstance(text, (str, torch.Tensor)):
             # 单条样本
             self.use_batch = False
         elif isinstance(text, list):
@@ -903,7 +903,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def stream_generate(self, text:str, **kwargs):
+    def stream_generate(self, text:Union[str, torch.Tensor], **kwargs):
         '''单条样本stream输出预测的结果'''
         self.set_generation_config(kwargs)
         self.use_batch = False
@@ -936,9 +936,9 @@ class Seq2SeqGeneration(SeqGeneration):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:Union[str, list], **kwargs):
+    def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch生成'''
-        if isinstance(text, str):
+        if isinstance(text, (str, torch.Tensor)):
             # 单条样本
             self.use_batch = False
         elif isinstance(text, list):
@@ -958,7 +958,7 @@ class Seq2SeqGeneration(SeqGeneration):
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def stream_generate(self, text:str, **kwargs):
+    def stream_generate(self, text:Union[str, torch.Tensor], **kwargs):
         '''stream输出t时刻预测的结果'''
         self.set_generation_config(kwargs)
 
