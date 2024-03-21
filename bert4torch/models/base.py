@@ -336,7 +336,13 @@ class BERT_BASE(nn.Module):
 
         # 把checkpoint_path所在目录下，除了权重文件的其他文件copy过去
         if write_to_disk and hasattr(self, 'checkpoint_path') and (self.checkpoint_path is not None) and save_dir:
-            checkpoint_dir = os.path.dirname(self.checkpoint_path) if os.path.isfile(self.checkpoint_path) else self.checkpoint_path
+            if isinstance(self.checkpoint_path, str):
+                checkpoint_dir = os.path.dirname(self.checkpoint_path) if os.path.isfile(self.checkpoint_path) else self.checkpoint_path
+            elif isinstance(self.checkpoint_path, (tuple, list)):
+                checkpoint_dir = os.path.dirname(self.checkpoint_path[0]) if os.path.isfile(self.checkpoint_path[0]) else self.checkpoint_path[0]
+            else:
+                raise TypeError(f'`self.checkpoint_path` only support str,tuple,list')
+
             copytree(checkpoint_dir, save_dir, ignore_copy_files=[r'\.bin$', r'\.safetensors$'], dirs_exist_ok=True)  # 如果目录下文件存在也会强制覆盖
 
             # checkpoint shards对应的.index.json
