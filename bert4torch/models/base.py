@@ -332,12 +332,12 @@ class BERT_BASE(nn.Module):
                 state_dict[mapping(k)] = state_dict.pop(k)
         
         # 如果save_path是文件夹，则把对应的其他文件copy过去
-        save_dir = None if re.search('\.[a-zA-z0-9]+$', save_path) else save_path
+        save_dir = None if re.search(r'\.[a-zA-z0-9]+$', save_path) else save_path
 
         # 把checkpoint_path所在目录下，除了权重文件的其他文件copy过去
         if write_to_disk and hasattr(self, 'checkpoint_path') and (self.checkpoint_path is not None) and save_dir:
             checkpoint_dir = os.path.dirname(self.checkpoint_path) if os.path.isfile(self.checkpoint_path) else self.checkpoint_path
-            copytree(checkpoint_dir, save_dir, ignore_copy_files=['\.bin$', '\.safetensors$'], dirs_exist_ok=True)  # 如果目录下文件存在也会强制覆盖
+            copytree(checkpoint_dir, save_dir, ignore_copy_files=[r'\.bin$', r'\.safetensors$'], dirs_exist_ok=True)  # 如果目录下文件存在也会强制覆盖
 
             # checkpoint shards对应的.index.json
             bin_index_json = [os.path.join(checkpoint_dir, i) for i in os.listdir(checkpoint_dir) if i.endswith('.index.json')]

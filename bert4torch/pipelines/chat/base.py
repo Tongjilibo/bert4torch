@@ -114,6 +114,7 @@ class ChatCli(Chat):
         super().__init__(*args, **kwargs)
         self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")
         self.history_maxlen = kwargs.get('history_maxlen', 0)
+        log_info(f'History chat length = {self.history_maxlen}')
 
     def build_cli_text(self, history) -> str:
         '''构建命令行终端显示的text'''
