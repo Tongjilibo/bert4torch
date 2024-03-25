@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, List
 import unicodedata
 from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize, sequence_padding
@@ -19,7 +19,7 @@ import torch
 logger = logging.getLogger(__name__)
 is_py2 = six.PY2
 
-def load_vocab(dict_path, encoding="utf-8", simplified=False, startswith=None):
+def load_vocab(dict_path:str, encoding:str="utf-8", simplified:bool=False, startswith:List=None):
     """加载词典文件到dict"""
     token_dict = collections.OrderedDict()
     index = 0
@@ -112,7 +112,7 @@ class TokenizerBase(object):
             trie.add(token)
         return trie
 
-    def tokenize(self, text, maxlen=None):
+    def tokenize(self, text:str, maxlen:int=None) -> List[str]:
         """分词函数
         """
         tokens = [self._token_translate.get(token) or token for token in self._tokenize(text)]
@@ -132,7 +132,7 @@ class TokenizerBase(object):
         """
         raise NotImplementedError
 
-    def tokens_to_ids(self, tokens):
+    def tokens_to_ids(self, tokens:List[str]) -> List[int]:
         """token序列转换为对应的id序列
         """
         return [self.token_to_id(token) for token in tokens]
@@ -437,7 +437,7 @@ class Tokenizer(TokenizerBase):
                 ):
                     return True
 
-    def rematch(self, text, tokens):
+    def rematch(self, text:str, tokens:List[str]) -> List[List]:
         """给出原始的text和tokenize后的tokens的映射关系
         """
         if is_py2:
@@ -481,7 +481,7 @@ class BasicTokenizer(object):
         self.do_lower_case = do_lower_case
         self.never_split = never_split
 
-    def tokenize(self, text):
+    def tokenize(self, text:str):
         """文本切分成token"""
         text = self._clean_text(text)
         text = self._tokenize_chinese_chars(text)

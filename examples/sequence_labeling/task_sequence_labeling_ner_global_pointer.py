@@ -23,9 +23,9 @@ ner_vocab_size = len(categories_label2id)
 ner_head_size = 64
 
 # BERT base
-config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
@@ -79,8 +79,8 @@ def collate_fn(batch):
     return batch_token_ids, batch_labels
 
 # 转换数据集
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('F:/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset('/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class Model(BaseModel):
@@ -106,25 +106,6 @@ class MyLoss(MultilabelCategoricalCrossentropy):
 
 model.compile(loss=MyLoss(), optimizer=optim.Adam(model.parameters(), lr=2e-5))
 
-def evaluate(data, threshold=0):
-    X, Y, Z = 0, 1e-10, 1e-10
-    for x_true, label in data:
-        scores = model.predict(x_true)
-        for i, score in enumerate(scores):
-            R = set()
-            for l, start, end in zip(*np.where(score.cpu() > threshold)):
-                R.add((start, end, categories_id2label[l]))  
-
-            T = set()
-            for l, start, end in zip(*np.where(label[i].cpu() > 0)):
-                T.add((start, end, categories_id2label[l]))
-            X += len(R & T)
-            Y += len(R)
-            Z += len(T)
-    f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
-    return f1, precision, recall
-
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -132,19 +113,57 @@ class Evaluator(Callback):
         self.best_val_f1 = 0.
 
     def on_epoch_end(self, steps, epoch, logs=None):
-        f1, precision, recall = evaluate(valid_dataloader)
+        f1, precision, recall = self.evaluate(valid_dataloader)
         if f1 > self.best_val_f1:
             self.best_val_f1 = f1
-            # model.save_weights('best_model.pt')
+            model.save_weights('best_model.pt')
         print(f'[val] f1: {f1:.5f}, p: {precision:.5f} r: {recall:.5f} best_f1: {self.best_val_f1:.5f}')
+
+    @staticmethod
+    def evaluate(data, threshold=0):
+        X, Y, Z = 0, 1e-10, 1e-10
+        for x_true, label in data:
+            scores = model.predict(x_true)
+            for i, score in enumerate(scores):
+                R = set()
+                for l, start, end in zip(*np.where(score.cpu() > threshold)):
+                    R.add((start, end, categories_id2label[l]))  
+
+                T = set()
+                for l, start, end in zip(*np.where(label[i].cpu() > 0)):
+                    T.add((start, end, categories_id2label[l]))
+                X += len(R & T)
+                Y += len(R)
+                Z += len(T)
+        f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
+        return f1, precision, recall
+
+
+def inference(text:str, threshold=0):
+    '''推理代码'''
+    tokens = tokenizer.encode(text, maxlen=maxlen)[0]
+    scores = model.predict(torch.tensor([tokens]))
+
+    res = {}
+    for l, start, end in zip(*np.where(scores[0 ].cpu() > threshold)):
+        res[tokenizer.decode(tokens[start:end+1])] = categories_id2label[l]
+    return res
 
 
 if __name__ == '__main__':
-
     evaluator = Evaluator()
+    choice = 'train'
 
-    model.fit(train_dataloader, epochs=20, steps_per_epoch=None, callbacks=[evaluator])
-
-else: 
-
-    model.load_weights('best_model.pt')
+    if choice == 'train':
+        # 训练
+        model.fit(train_dataloader, epochs=1, steps_per_epoch=None, callbacks=[evaluator])
+    elif choice == 'eval':
+        # 评估
+        model.load_weights('best_model.pt')
+        print(evaluator.evaluate(valid_dataloader))
+    elif choice == 'infer':
+        model.load_weights('best_model.pt')
+        # 相比之下，青岛海牛队和广州松日队的雨中之战虽然也是0∶0，但乏善可陈。
+        # 海钓比赛地点在厦门与金门之间的海域。
+        res = inference('相比之下，青岛海牛队和广州松日队的雨中之战虽然也是0∶0，但乏善可陈。')
+        print(res)
