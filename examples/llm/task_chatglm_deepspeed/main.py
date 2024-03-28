@@ -117,7 +117,7 @@ net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoin
                                 pad_token_id=tokenizer.pad_token_id, add_trainer=True).half()
 
 net = net.get_peft_model(peft_config)
-model = DeepSpeedTrainer(net, config_path='./deepspeed.json')
+model = DeepSpeedTrainer(net)
 batch_size = model.config.train_micro_batch_size_per_gpu
 train_dataloader = DataLoader(MyDataset('/tf/libo/data/sft/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=False, collate_fn=collate_train_fn) 
 dev_dataloader = DataLoader(MyDataset('/tf/libo/data/sft/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)

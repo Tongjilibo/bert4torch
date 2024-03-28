@@ -69,7 +69,7 @@ class Model(nn.Module):
         output = self.dense(output)
         return output
 net = Model()
-model = DeepSpeedTrainer(net, config_path='./deepspeed.json')
+model = DeepSpeedTrainer(net)
 model.move_to_model_device = True
 
 # 加载数据集

@@ -124,7 +124,7 @@ peft_config = LoraConfig(
         target_modules=['q', 'k', 'v']
     )
 model = model.get_peft_model(peft_config)
-model_ds = DeepSpeedTrainer(model, config_path='./deepspeed.json')
+model_ds = DeepSpeedTrainer(model)
 
 batch_size = model_ds.config.train_micro_batch_size_per_gpu
 train_dataloader = DataLoader(MyDataset('/mnt/e/data/corpus/prompt/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
