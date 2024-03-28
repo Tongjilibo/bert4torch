@@ -417,3 +417,31 @@ class DPOLoss:
         chosen_logps = all_logps[:split]
         rejected_logps = all_logps[split:]
         return chosen_logps, rejected_logps
+    
+
+class CausalLMLoss(nn.CrossEntropyLoss):
+    '''Causal语言模型的Loss
+
+    :param offset: 是否对logit和labels做错位处理, 取决于在做数据时候是否已经offset过
+    '''
+    def __init__(self, *args, offset=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.offset = offset
+
+    def forward(self, logits, labels):
+        """
+        logits: [btz, seq_len, vocab_size]
+        labels: 即token_ids, [btz, seq_len]
+        """
+        raw_dtyps = logits.dtype
+        logits = logits.to(torch.float32)
+
+        if self.offset:
+            logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
+            labels = labels[:, 1:].contiguous() # 目标token_ids
+
+        logits = logits.reshape(-1, logits.shape[-1])
+        labels = labels.flatten()
+        loss = super().forward(logits, labels)
+
+        return loss.to(raw_dtyps)
