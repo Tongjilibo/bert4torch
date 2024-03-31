@@ -1,7 +1,16 @@
 #! -*- coding:utf-8 -*-
+'''
 # 三元组抽取任务，基于GlobalPointer的仿TPLinker设计
-# 文章介绍：https://kexue.fm/archives/8888
-# 数据集：http://ai.baidu.com/broad/download?dataset=sked
+- 文章介绍：https://kexue.fm/archives/8888
+- 数据集：http://ai.baidu.com/broad/download?dataset=sked
+
+思路简介：
+# 三个global_pointer
+- 第1个把bert后的[btz, seq_len, hdsz]变为[btz, 2, seq_len, seq_len]，用来识别实体的位置sh, st, oh, ot
+- 第2个把bert后的[btz, seq_len, hdsz]变为[btz, relation_counts, seq_len, seq_len]，用来识别sh，oh对应的关系分类
+- 第3个把bert后的[btz, seq_len, hdsz]变为[btz, relation_counts, seq_len, seq_len]，用来识别st，ot对应的关系分类
+'''
+
 
 import json
 from bert4torch.layers import GlobalPointer
@@ -127,9 +136,9 @@ class Model(BaseModel):
         hidden_states = self.bert(inputs)  # [btz, seq_len, hdsz]
         mask = inputs[0].gt(0).long()
 
-        entity_output = self.entity_output(hidden_states, mask)  # [btz, heads, seq_len, seq_len]
-        head_output = self.head_output(hidden_states, mask)  # [btz, heads, seq_len, seq_len]
-        tail_output = self.tail_output(hidden_states, mask)  # [btz, heads, seq_len, seq_len]
+        entity_output = self.entity_output(hidden_states, mask)  # [btz, 2, seq_len, seq_len]
+        head_output = self.head_output(hidden_states, mask)  # [btz, relation_counts, seq_len, seq_len]
+        tail_output = self.tail_output(hidden_states, mask)  # [btz, relation_counts, seq_len, seq_len]
         return entity_output, head_output, tail_output
     
 
@@ -154,39 +163,6 @@ class MyLoss(SparseMultilabelCategoricalCrossentropy):
 
 model.compile(loss=MyLoss(mask_zero=True), optimizer=optim.Adam(model.parameters(), 1e-5), metrics=['entity_loss', 'head_loss', 'tail_loss'])
 
-def extract_spoes(text, threshold=0):
-    """抽取输入text所包含的三元组
-    """
-    tokens = tokenizer.tokenize(text, maxlen=maxlen)
-    mapping = tokenizer.rematch(text, tokens)
-    token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-    token_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
-    segment_ids = torch.tensor([segment_ids], dtype=torch.long, device=device)
-    outputs = model.predict([token_ids, segment_ids])
-    outputs = [o[0].cpu().numpy() for o in outputs]  # [heads, seq_len, seq_len]
-    # 抽取subject和object
-    subjects, objects = set(), set()
-    outputs[0][:, [0, -1]] -= float('inf')
-    outputs[0][:, :, [0, -1]] -= float('inf')
-    for l, h, t in zip(*np.where(outputs[0] > threshold)):
-        if l == 0:
-            subjects.add((h, t))
-        else:
-            objects.add((h, t))
-    # 识别对应的predicate
-    spoes = set()
-    for sh, st in subjects:
-        for oh, ot in objects:
-            p1s = np.where(outputs[1][:, sh, oh] > threshold)[0]
-            p2s = np.where(outputs[2][:, st, ot] > threshold)[0]
-            ps = set(p1s) & set(p2s)
-            for p in ps:
-                spoes.add((
-                    text[mapping[sh][0]:mapping[st][-1] + 1], id2predicate[p],
-                    text[mapping[oh][0]:mapping[ot][-1] + 1]
-                ))
-    return list(spoes)
-
 
 class SPO(tuple):
     """用来存三元组的类
@@ -203,29 +179,6 @@ class SPO(tuple):
         return self.spox == spo.spox
 
 
-def evaluate(data):
-    """评估函数，计算f1、precision、recall
-    """
-    X, Y, Z = 0, 1e-10, 1e-10
-    f = open('dev_pred.json', 'w', encoding='utf-8')
-    pbar = tqdm()
-    for d in data:
-        R = set([SPO(spo) for spo in extract_spoes(d['text'])])
-        T = set([SPO(spo) for spo in d['spo_list']])
-        X += len(R & T)
-        Y += len(R)
-        Z += len(T)
-        f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
-        pbar.update()
-        pbar.set_description('f1: %.5f, precision: %.5f, recall: %.5f' % (f1, precision, recall))
-        s = json.dumps({'text': d['text'], 'spo_list': list(T), 'spo_list_pred': list(R),
-                        'new': list(R - T), 'lack': list(T - R)}, ensure_ascii=False, indent=4)
-        f.write(s + '\n')
-    pbar.close()
-    f.close()
-    return f1, precision, recall
-
-
 class Evaluator(Callback):
     """评估与保存
     """
@@ -234,12 +187,68 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, steps, epoch, logs=None):
         # optimizer.apply_ema_weights()
-        f1, precision, recall = evaluate(valid_dataset.data)
+        f1, precision, recall = self.evaluate(valid_dataset.data)
         if f1 >= self.best_val_f1:
             self.best_val_f1 = f1
             # model.save_weights('best_model.pt')
         # optimizer.reset_old_weights()
         print('f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' %(f1, precision, recall, self.best_val_f1))
+
+    def evaluate(self, data):
+        """评估函数，计算f1、precision、recall
+        """
+        X, Y, Z = 0, 1e-10, 1e-10
+        f = open('dev_pred.json', 'w', encoding='utf-8')
+        pbar = tqdm()
+        for d in data:
+            R = set([SPO(spo) for spo in self.extract_spoes(d['text'])])
+            T = set([SPO(spo) for spo in d['spo_list']])
+            X += len(R & T)
+            Y += len(R)
+            Z += len(T)
+            f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
+            pbar.update()
+            pbar.set_description('f1: %.5f, precision: %.5f, recall: %.5f' % (f1, precision, recall))
+            s = json.dumps({'text': d['text'], 'spo_list': list(T), 'spo_list_pred': list(R),
+                            'new': list(R - T), 'lack': list(T - R)}, ensure_ascii=False, indent=4)
+            f.write(s + '\n')
+        pbar.close()
+        f.close()
+        return f1, precision, recall
+
+    @staticmethod
+    def extract_spoes(text, threshold=0):
+        """抽取输入text所包含的三元组
+        """
+        tokens = tokenizer.tokenize(text, maxlen=maxlen)
+        mapping = tokenizer.rematch(text, tokens)
+        token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
+        token_ids = torch.tensor([token_ids], dtype=torch.long, device=device)
+        segment_ids = torch.tensor([segment_ids], dtype=torch.long, device=device)
+        outputs = model.predict([token_ids, segment_ids])
+        entity_output, head_output, tail_output = [o[0].cpu().numpy() for o in outputs]  # [heads, seq_len, seq_len]
+        # 抽取subject和object
+        subjects, objects = set(), set()
+        entity_output[:, [0, -1]] -= float('inf')
+        entity_output[:, :, [0, -1]] -= float('inf')
+        for l, h, t in zip(*np.where(entity_output > threshold)):
+            if l == 0:
+                subjects.add((h, t))
+            else:
+                objects.add((h, t))
+        # 识别对应的predicate
+        spoes = set()
+        for sh, st in subjects:
+            for oh, ot in objects:
+                p1s = np.where(head_output[:, sh, oh] > threshold)[0]
+                p2s = np.where(tail_output[:, st, ot] > threshold)[0]
+                ps = set(p1s) & set(p2s)
+                for p in ps:
+                    spoes.add((
+                        text[mapping[sh][0]:mapping[st][-1] + 1], id2predicate[p],
+                        text[mapping[oh][0]:mapping[ot][-1] + 1]
+                    ))
+        return list(spoes)
 
 
 if __name__ == '__main__':

@@ -9,10 +9,10 @@ class GlobalPointer(nn.Module):
     参考：https://kexue.fm/archives/8373
 
     :param hidden_size: 即模型最顶层输出的hidden_size
-    :param heads heads: 在实体识别和关系提取中，分别代表着实体个数和关系个数
+    :param heads: 在实体识别和关系提取中，分别代表着实体个数和关系个数
     :param head_size: 即每个heads的神经元个数，点积时候使用，相当于attention
     """
-    def __init__(self, hidden_size, heads, head_size, RoPE=True, use_bias=True, tril_mask=True):
+    def __init__(self, hidden_size:int, heads:int, head_size:int, RoPE:bool=True, use_bias:bool=True, tril_mask:bool=True):
         super().__init__()
         self.heads = heads
         self.head_size = head_size
@@ -23,7 +23,7 @@ class GlobalPointer(nn.Module):
         if self.RoPE:
             self.position_embedding = RoPEPositionEncoding(head_size)
 
-    def forward(self, inputs, mask=None):
+    def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None):
         ''' 
         :param inputs: shape=[..., hdsz]
         :param mask: shape=[btz, seq_len], padding部分为0
@@ -61,7 +61,7 @@ class EfficientGlobalPointer(nn.Module):
     参考：https://kexue.fm/archives/8877
     这里实现和GlobalPointer相似，而未采用原版的奇偶位来取qw和kw，个人理解两种方式是无区别的
     """
-    def __init__(self, hidden_size, heads, head_size, RoPE=True, use_bias=True, tril_mask=True):
+    def __init__(self, hidden_size:int, heads:int, head_size:int, RoPE:bool=True, use_bias:bool=True, tril_mask:bool=True):
         super().__init__()
         self.heads = heads
         self.head_size = head_size
@@ -73,7 +73,7 @@ class EfficientGlobalPointer(nn.Module):
         if self.RoPE:
             self.position_embedding = RoPEPositionEncoding(head_size)
 
-    def forward(self, inputs, mask=None):
+    def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None):
         ''' 
         :param inputs: shape=[..., hdsz]
         :param mask: shape=[btz, seq_len], padding部分为0

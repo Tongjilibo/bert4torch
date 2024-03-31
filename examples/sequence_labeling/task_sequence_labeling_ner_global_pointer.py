@@ -1,8 +1,16 @@
 #! -*- coding:utf-8 -*-
-# global_pointer用来做实体识别
-# 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
-# 博客：https://kexue.fm/archives/8373
-# [valid_f1]: 95.66
+'''
+global_pointer用来做实体识别
+- 数据集：http://s3.bmio.net/kashgari/china-people-daily-ner-corpus.tar.gz
+- 博客：https://kexue.fm/archives/8373
+- [valid_f1]: 95.66
+
+思路简介：
+- bert出来的logits是[btz, seq_len, hdsz]
+- 过global_point得到[btz, ner_vocab_size, seq_len, seq_len]
+- 和同维的ner_labels去做MultilabelCategoricalCrossentropy的loss
+'''
+
 
 import numpy as np
 from bert4torch.models import build_transformer_model, BaseModel
