@@ -46,18 +46,22 @@ class Text2Vec(PipeLineBase):
         all_embeddings = []
         for start_index in trange(0, len(sentences), batch_size, desc="Batches", disable=not show_progress_bar):
             sentences_batch = sentences_sorted[start_index: start_index + batch_size]
-            batch = self.tokenizer(sentences_batch, maxlen=max_seq_length)
-            batch_input = [torch.tensor(sequence_padding(item), dtype=torch.long, device=self.device) for item in batch]
-            output = self.model(batch_input)
+            if self.tokenizer_type == 'b4t':
+                batch_input = self.tokenizer(sentences_batch, max_length=max_seq_length, return_tensors='pt').to(self.device)
+                output = self.model(batch_input)
+            else:
+                batch_input = self.tokenizer(sentences_batch, max_length=max_seq_length, return_tensors='pt').to(self.device)
+                output = self.model(**batch_input)
 
             last_hidden_state = output.get('last_hidden_state')
             pooler = output.get('pooled_output')
             if isinstance(batch_input, list):
-                attention_mask = (batch_input[0] != self.tokenizer._token_pad_id).long()
+                attention_mask = (batch_input[0] != self.tokenizer.pad_token_id).long()
             elif isinstance(batch_input, torch.Tensor):
-                attention_mask = (batch_input != self.tokenizer._token_pad_id).long()
-            else:
-                raise TypeError('Args `batch_input` only support list(tensor)/tensor format')
+                attention_mask = (batch_input != self.tokenizer.pad_token_id).long()
+            else:  # 类似字典格式的
+                attention_mask = batch_input.get('attention_mask', (batch_input['input_ids'] != self.tokenizer.pad_token_id).long())
+
             pool_strategy = pool_strategy or self.pool_strategy
             embs = get_pool_emb(last_hidden_state, pooler, attention_mask, pool_strategy, custom_layer)
             if normalize_embeddings:

@@ -6,7 +6,7 @@ import os
 import json
 from pathlib import Path
 from typing import Union, Optional, Dict
-from torch4keras.snippets import log_error_once, log_info_once, log_error, is_safetensors_available
+from torch4keras.snippets import log_error_once, log_info_once, log_error, is_safetensors_available, check_file_modified
 
 
 if os.environ.get('SAFETENSORS_FIRST', False):
@@ -163,7 +163,9 @@ def snapshot_download(
                 )
                 if resolved_file.endswith('config.json'):
                     storage_folder = os.path.dirname(resolved_file)
-                    log_info_once(f'Download {repo_id} to {storage_folder}')
+                    if check_file_modified(resolved_file, duration=2):
+                        # 如果文件在2s内下载的，则不打印
+                        log_info_once(f'Download {repo_id} to {storage_folder}')
             if os.path.exists(resolved_file + ".lock"):
                 os.remove(resolved_file + ".lock")
         return storage_folder
@@ -194,7 +196,9 @@ def snapshot_download(
                     user_agent = user_agent,
                     endpoint = HF_ENDPOINT
                 )
-                log_info_once(f'Download {repo_id} to {resolved_file}')
+                if check_file_modified(resolved_file, duration=2):
+                    # 如果文件在2s内下载的，则不打印
+                    log_info_once(f'Download {repo_id} to {resolved_file}')
             except EntryNotFoundError:
                 log_error(
                     f"{repo_id} does not appear to have a file named {filename}. Checkout "

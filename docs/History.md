@@ -1,5 +1,7 @@
 ## 更新历史
 
+- **20240403**：修改Text2Vec的bug
+- **20240331**: 修复chatglm3的bug, 修复save_pretrained时多文件的bug，增加CausalLMLoss, 修改deepspeed的传参逻辑
 - **20240317**: 修复config_path的bug，允许num_key_value_heads参数
 - **20240316**: 增加get_weight_decay_optim_groups函数, attention中允许is_causal，修改repetition_penalty的bug，把baichuan从llama中剥离，[torch4keras-v0.2.1](https://github.com/Tongjilibo/torch4keras/releases/tag/v0.2.1)更新特性
 - **20240216**: fastapi发布服务允许闲时offload到cpu, `build_transformer_model`允许从hf下载, 添加`FillMask`的pipeline, 添加`SequenceClassificationTrainer`
