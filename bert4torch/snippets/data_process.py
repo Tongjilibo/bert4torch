@@ -4,7 +4,7 @@ import numpy as np
 import re
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from typing import Optional, Union, List, Tuple, Callable, Iterable
+from typing import Optional, Union, List, Tuple, Callable, Iterable, Set, Literal
 from torch4keras.snippets import log_warn
 import random
 
@@ -20,7 +20,7 @@ def is_string(s):
     return isinstance(s, basestring)
     
 
-def truncate_sequences(maxlen, indices, *sequences):
+def truncate_sequences(maxlen:int, indices:Union[List[int], Tuple[int]], *sequences):
     """截断总长度至不超过maxlen"""
     sequences = [s for s in sequences if s]
     if not isinstance(indices, (list, tuple)):
@@ -35,7 +35,7 @@ def truncate_sequences(maxlen, indices, *sequences):
             return sequences
 
 
-def text_segmentate(text, maxlen, seps='\n', strips=None, truncate=True):
+def text_segmentate(text:str, maxlen:int, seps:str='\n', strips:str=None, truncate:bool=True):
     """将文本按照标点符号划分为若干个短句
        
        :param text: 待划分的句子
@@ -67,7 +67,7 @@ def text_segmentate(text, maxlen, seps='\n', strips=None, truncate=True):
         return [text]
 
 
-def merge_segmentate(sequences, maxlen, sep=''):
+def merge_segmentate(sequences:List[str], maxlen:int, sep:str=''):
     '''把m个句子合并成不超过maxlen的n个句子, 主要用途是合并碎句子
 
     :param sequences: List(str), 短句子列表
@@ -92,7 +92,8 @@ def merge_segmentate(sequences, maxlen, sep=''):
     return sequences_new
 
 
-def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_words=None, strategy='random', allow_dup=True):
+def text_augmentation(texts:Union[str, List[str]], noise_dict:Union[List[str], Tuple[str], Set[str]]=None, noise_len:int=0, noise_p:float=0.0, 
+                      skip_words:Union[str, List[str]]=None, strategy:Literal['random', 'insert', 'delete', 'replace']='random', allow_dup:bool=True):
     '''简单的EDA策略, 增删改
     
     :param texts: 需要增强的文本/文本list
@@ -175,7 +176,7 @@ def text_augmentation(texts, noise_dict=None, noise_len=0, noise_p=0.0, skip_wor
     return texts if len(texts) > 1 else texts[0]
 
 
-def lowercase_and_normalize(text, never_split=()):
+def lowercase_and_normalize(text:str, never_split:Union[Set, Tuple, List]=()):
     """转小写，并进行简单的标准化"""
     if is_py2:
         text = unicode(text)
@@ -191,7 +192,8 @@ def lowercase_and_normalize(text, never_split=()):
     return text
 
 
-def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
+def sequence_padding(inputs:Union[List[np.ndarray], List[List], List[torch.Tensor]], length:Union[List, int]=None, 
+                     value:int=0, seq_dims:int=1, mode:Literal['pre', 'left', 'post', 'right']='post'):
     """将序列padding到同一长度"""
     if isinstance(inputs[0], (np.ndarray, list)):
         if length is None:

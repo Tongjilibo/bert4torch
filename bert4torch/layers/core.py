@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from bert4torch.activations import get_activation
 from bert4torch.layers import SinusoidalPositionEncoding
 from bert4torch.snippets import torch_div, take_along_dim
-from typing import Union, Literal
+from typing import Union, Literal, Optional, List, Tuple
 
 
 class LayerNorm(nn.Module):
@@ -40,7 +40,7 @@ class LayerNorm(nn.Module):
             self.dense2 = nn.Linear(conditional_size, hidden_size, bias=False)
             self.dense2.weight.data.uniform_(0, 0)
 
-    def forward(self, hidden_states, cond=None):
+    def forward(self, hidden_states:torch.FloatTensor, cond:Optional[torch.Tensor]=None):
         if isinstance(hidden_states, (list, tuple)):  # 兼容以前的久逻辑，后期测试后可删除
             cond = hidden_states[1] if self.conditional_size else None
             hidden_states = hidden_states[0]
@@ -77,8 +77,8 @@ class BertEmbeddings(nn.Module):
     """embeddings层
        构造word, position and token_type embeddings, 一般是token、position、segment三者embedding之和
     """
-    def __init__(self, vocab_size, embedding_size, hidden_size, max_position, segment_vocab_size, shared_segment_embeddings, dropout_rate, conditional_size=False, 
-                 pad_token_id=0, **kwargs):
+    def __init__(self, vocab_size:int, embedding_size:int, hidden_size:int, max_position:int, segment_vocab_size:int, shared_segment_embeddings:bool, 
+                 dropout_rate:float, conditional_size:Union[bool, int]=False, pad_token_id:int=0, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
         self.word_embeddings = nn.Embedding(vocab_size, embedding_size, padding_idx=pad_token_id)
@@ -126,7 +126,8 @@ class BertEmbeddings(nn.Module):
         position_embeddings = alpha * embeddings_x + (1 - alpha) * embeddings_y
         return position_embeddings.reshape(btz, seqlen, -1)  # [btz, seq_len, embed_size]
 
-    def apply_embeddings(self, token_ids:torch.Tensor, segment_ids:torch.Tensor, position_ids:torch.Tensor, additional_embs:Union[tuple, list]=None, **kwargs):
+    def apply_embeddings(self, token_ids:torch.Tensor, segment_ids:torch.Tensor, position_ids:torch.Tensor, 
+                         additional_embs:Union[Tuple[torch.Tensor], List[torch.Tensor]]=None, **kwargs):
         '''单独拆分出来，方便下游继承和修改'''
         # word embedding
         if (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}):
@@ -164,7 +165,8 @@ class BertEmbeddings(nn.Module):
                 embeddings += emb
         return embeddings
 
-    def forward(self, token_ids=None, segment_ids=None, position_ids=None, conditional_emb=None, additional_embs=None, attention_mask=None, **kwargs):
+    def forward(self, token_ids:torch.Tensor=None, segment_ids:torch.Tensor=None, position_ids:torch.Tensor=None, conditional_emb:Optional[torch.Tensor]=None, 
+                additional_embs:Union[Tuple[torch.Tensor], List[torch.Tensor]]=None, attention_mask:torch.Tensor=None, **kwargs):
         embeddings = self.apply_embeddings(token_ids, segment_ids, position_ids, additional_embs, **kwargs)
 
         if self.emb_scale != 1:
@@ -185,7 +187,7 @@ class BertEmbeddings(nn.Module):
 
 
 class PositionWiseFeedForward(nn.Module):
-    def __init__(self, hidden_size, intermediate_size, dropout_rate=0.5, hidden_act='gelu', is_dropout=False, bias=True, **kwargs):
+    def __init__(self, hidden_size:int, intermediate_size:int, dropout_rate:float=0.5, hidden_act:str='gelu', is_dropout:bool=False, bias:bool=True, **kwargs):
         # 原生的tf版本的bert在激活函数后，没有添加dropout层，但是在google AI的bert-pytorch开源项目中，多了一层dropout；
         # 并且在pytorch官方的TransformerEncoderLayer的实现中，也有一层dropout层，就像这样：self.linear2(self.dropout(self.activation(self.linear1(src))))；
         # 这样不统一做法的原因不得而知，不过有没有这一层，差别可能不会很大；

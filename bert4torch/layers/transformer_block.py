@@ -4,6 +4,7 @@ import math
 import torch.nn.functional as F
 from bert4torch.layers.core import LayerNorm, PositionWiseFeedForward
 from bert4torch.layers.attention import MultiHeadAttentionLayer, GatedAttentionUnit
+from typing import Union, Optional, Tuple
 
 
 class BertLayer(nn.Module):
@@ -15,8 +16,8 @@ class BertLayer(nn.Module):
         2. 原始的Transformer的encoder中的Feed Forward层一共有两层linear，
         3. config.intermediate_size的大小不仅是第一层linear的输出尺寸，也是第二层linear的输入尺寸
     """
-    def __init__(self, hidden_size, num_attention_heads, dropout_rate, attention_probs_dropout_prob, intermediate_size, hidden_act, 
-                 is_dropout=False, conditional_size=False, pre_layernorm=False, apply_residual_post_layernorm=False, **kwargs):
+    def __init__(self, hidden_size:int, num_attention_heads:int, dropout_rate:float, attention_probs_dropout_prob:float, intermediate_size:int, hidden_act:str, 
+                 is_dropout:bool=False, conditional_size:Union[bool, int]=False, pre_layernorm:bool=False, apply_residual_post_layernorm:bool=False, **kwargs):
         super(BertLayer, self).__init__()
         self.dropout_rate = dropout_rate
         layer_norm_eps = kwargs.get('layer_norm_eps', 1e-12)
@@ -38,8 +39,9 @@ class BertLayer(nn.Module):
             self.crossAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
             self.crossLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
-    def forward(self, hidden_states=None, attention_mask=None, position_ids=None, conditional_emb=None, encoder_hidden_states=None, 
-                encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
+    def forward(self, hidden_states:torch.FloatTensor=None, attention_mask:torch.Tensor=None, position_ids:torch.FloatTensor=None, 
+                conditional_emb:Optional[torch.Tensor]=None, encoder_hidden_states=None, encoder_attention_mask:Optional[torch.FloatTensor]=None, 
+                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, cross_past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, **model_kwargs):
         return_tensors = dict()
         # ============== self attention ==============
         x = self.attnLayerNorm(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm

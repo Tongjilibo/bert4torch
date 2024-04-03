@@ -720,8 +720,8 @@ class SeqGeneration(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps()
     def predict(self, inputs:Union[tuple,list], output_ids:torch.Tensor, states:Optional[dict]):
         '''
-        :params inputs: 原始输入，在整个预测过程中均不改变
-        :params outputs_ids: 输出的ids，随着预测进行，逐步增长
+        :param inputs: 原始输入，在整个预测过程中均不改变
+        :param outputs_ids: 输出的ids，随着预测进行，逐步增长
         '''
         if states is not None:
             assert self.use_states is True, 'Args `use_states` must be True when return states is not None'

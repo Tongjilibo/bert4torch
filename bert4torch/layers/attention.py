@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
-from typing import Literal
+from typing import Literal, Optional, Tuple
+
 
 if is_xformers_available():
     from xformers import ops as xops
@@ -117,13 +118,15 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.p_bias == 'alibi':
             self.relative_positions_encoding = ALiBiPositionsEncoding(num_attention_heads)
 
-    def forward(self, hidden_states=None, attention_mask=None, encoder_hidden_states=None, encoder_attention_mask=None, past_key_value=None, position_ids=None, **model_kwargs):
+    def forward(self, hidden_states:Optional[torch.Tensor]=None, attention_mask:Optional[torch.FloatTensor]=None, 
+                encoder_hidden_states:Optional[torch.FloatTensor]=None, encoder_attention_mask:Optional[torch.FloatTensor]=None, 
+                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, position_ids=None, **model_kwargs):
         '''
-        hidden_states shape: [batch_size, seq_q, hidden_size]
-        attention_mask shape: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
-        encoder_hidden_states shape: [batch_size, seq_k, hidden_size]
-        encoder_attention_mask shape: [batch_size, 1, 1, seq_k]
-        past_key_value shape: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
+        :param hidden_states: [batch_size, seq_q, hidden_size]
+        :param attention_mask: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
+        :param encoder_hidden_states: [batch_size, seq_k, hidden_size]
+        :param encoder_attention_mask: [batch_size, 1, 1, seq_k]
+        :param past_key_value: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
         '''
 
         # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
@@ -263,7 +266,8 @@ class MultiHeadAttentionLayer(nn.Module):
         attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
         return attention_scores
 
-    def apply_rotary_pos_emb(self, query_layer, key_layer, value_layer, position_ids, past_key_value):
+    def apply_rotary_pos_emb(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
+                             position_ids:torch.Tensor, past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None):
         ''' 执行rotary相对位置编码 '''
         kv_seq_len = key_layer.shape[-2]
         if past_key_value is not None:
@@ -294,7 +298,7 @@ class MultiHeadAttentionLayer(nn.Module):
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         return query_layer, key_layer, value_layer
 
-    def apply_deberta_pos_emb(self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor):
+    def apply_deberta_pos_emb(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, relative_pos, rel_embeddings, scale_factor):
         '''deberta_v2使用，和原版区别是query_layer是4维, 原disentangled_attention_bias'''
         btz, n_head, q_len, d_head = query_layer.size()
         k_len = key_layer.size(-2)
@@ -343,7 +347,7 @@ class MultiHeadAttentionLayer(nn.Module):
             score += p2c_att / scale.to(dtype=p2c_att.dtype)
         return score
     
-    def torch_attention_forward(self, query_layer, key_layer, value_layer, attention_mask):
+    def torch_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, attention_mask:torch.Tensor):
         '''qkv attention: torch原生实现'''
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
@@ -419,7 +423,8 @@ class MultiHeadAttentionLayer(nn.Module):
 
         return context_layer, attention_scores
     
-    def flash_attention_forward(self, query_layer, key_layer, value_layer, attention_mask, query_length, softmax_scale=None):
+    def flash_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
+                                attention_mask:torch.Tensor, query_length:int, softmax_scale:float=None):
         """ flash_attn，参考transformers中的调用
         """
         def _get_unpad_data(attention_mask):

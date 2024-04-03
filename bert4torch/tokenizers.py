@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
-from typing import Any, Literal, List
+from typing import Any, Literal, List, Union
 import unicodedata
 from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize, sequence_padding
@@ -253,17 +253,12 @@ class TokenizerBase(object):
 class Tokenizer(TokenizerBase):
     """Bert原生分词器
     """
-    def __init__(self, token_dict, do_lower_case=True, do_basic_tokenize=True, do_tokenize_unk=False, **kwargs):
+    def __init__(self, token_dict:Union[str, dict], do_lower_case:bool=True, do_basic_tokenize:bool=True, do_tokenize_unk:bool=False, **kwargs):
         """
-        参数:
-            token_dict:
-                词典文件
-            do_lower_case:
-                是否转换成小写
-            do_basic_tokenize:
-                分词前，是否进行基础的分词
-            do_tokenize_unk:
-                分词后，是否生成[UNK]标记，还是在encode阶段生成
+        :param token_dict: 词典文件
+        :param do_lower_case: 是否转换成小写
+        :param do_basic_tokenize: 分词前，是否进行基础的分词
+        :param do_tokenize_unk: 分词后，是否生成[UNK]标记，还是在encode阶段生成
         """
         super(Tokenizer, self).__init__(**kwargs)
         if is_string(token_dict):
