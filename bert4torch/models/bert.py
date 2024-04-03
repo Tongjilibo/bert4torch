@@ -8,7 +8,7 @@ from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_pad
 from bert4torch.activations import get_activation
 import copy
 from packaging import version
-from typing import Union
+from typing import Union, Literal, List
 
 
 class BERT(BERT_BASE):
@@ -16,18 +16,18 @@ class BERT(BERT_BASE):
     """
     def __init__(
             self,
-            max_position,  # 序列最大长度
-            segment_vocab_size=2,  # segment总数目
-            with_pool=False,  # 是否包含Pool部分
-            with_nsp=False,  # 是否包含NSP部分
-            with_mlm=False,  # 是否包含MLM部分
-            custom_position_ids=False,  # 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
-            custom_attention_mask=False, # 是否自行传入attention_mask
-            shared_segment_embeddings=False,  # 若True，则segment跟token共用embedding
-            conditional_size=None,  # conditional layer_norm
-            additional_embs=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
-            is_dropout=False,
-            pad_token_id=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
+            max_position:int,  # 序列最大长度
+            segment_vocab_size:int=2,  # segment总数目
+            with_pool:bool=False,  # 是否包含Pool部分
+            with_nsp:bool=False,  # 是否包含NSP部分
+            with_mlm:bool=False,  # 是否包含MLM部分
+            custom_position_ids:Literal[True, False, 'start_at_padding']=False,  # 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
+            custom_attention_mask:bool=False, # 是否自行传入attention_mask
+            shared_segment_embeddings:bool=False,  # 若True，则segment跟token共用embedding
+            conditional_size:Union[bool, int]=None,  # conditional layer_norm
+            additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
+            is_dropout:bool=False,
+            pad_token_id:int=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)

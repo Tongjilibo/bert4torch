@@ -4,11 +4,12 @@ import torch.nn.functional as F
 from bert4torch.activations import get_activation
 from bert4torch.layers import SinusoidalPositionEncoding
 from bert4torch.snippets import torch_div, take_along_dim
-from typing import Union
+from typing import Union, Literal
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, hidden_size, eps=1e-12, conditional_size=False, weight=True, bias=True, norm_mode='normal', **kwargs):
+    def __init__(self, hidden_size:int, eps:float=1e-12, conditional_size:Union[bool, int]=False, weight:bool=True, bias:bool=True, 
+                 norm_mode:Literal['normal', 'torch_buildin', 'rmsnorm']='normal', **kwargs):
         """ layernorm层，自行实现是为了兼容conditianal layernorm，使得可以做条件文本生成、条件分类等任务
 
             :param hidden_size: int, layernorm的神经元个数

@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
-
+from typing import Literal
 
 if is_xformers_available():
     from xformers import ops as xops
@@ -20,8 +20,9 @@ if is_flash_attn_available():
 class MultiHeadAttentionLayer(nn.Module):
     '''多头注意力
     '''
-    def __init__(self, hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate=0.1, attention_scale=True,
-                 output_attentions=False, bias=True, p_bias=None, use_dynamic_ntk=False, flash_attention=None, use_logn_attn=None, **kwargs):
+    def __init__(self, hidden_size:int, num_attention_heads:int, attention_probs_dropout_prob:float, dropout_rate:float=0.1, attention_scale:bool=True,
+                 output_attentions:bool=False, bias:bool=True, p_bias:Literal[None, 'typical_relative', 'rotary', 't5_relative', 'deberta_v2', 'alibi']=None, 
+                 use_dynamic_ntk:bool=False, flash_attention:Literal[None, True, 'sdpa', 'xformers', 'flash_attn_2']=None, use_logn_attn:bool=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads

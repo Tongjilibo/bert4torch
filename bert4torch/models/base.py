@@ -21,28 +21,28 @@ class BERT_BASE(nn.Module):
     """
     def __init__(
             self,
-            vocab_size,  # 词表大小
-            hidden_size,  # 编码维度
-            num_hidden_layers,  # Transformer总层数
-            num_attention_heads,  # Attention的头数
-            intermediate_size,  # FeedForward的隐层维度
-            hidden_act,  # FeedForward隐层的激活函数
-            dropout_rate=None,  # Dropout比例
-            attention_probs_dropout_prob=None,  # Attention矩阵的Dropout比例
-            embedding_size=None,  # 指定embedding_size, 不指定则使用config文件的参数
-            attention_head_size=None,  # Attention中V的head_size
-            attention_key_size=None,  # Attention中Q,K的head_size
-            initializer_range=0.02,  # 权重初始化方差
-            sequence_length=None,  # 是否固定序列长度
-            keep_tokens=None,  # 要保留的词ID列表
-            compound_tokens=None,  # 扩展Embedding
-            residual_attention_scores=False,  # Attention矩阵加残差
-            keep_hidden_layers=None, # 保留的hidden_layer层的id
-            hierarchical_position=None,  # 是否层次分解位置编码
-            gradient_checkpoint=False, # 是否使用gradient_checkpoint
-            output_all_encoded_layers=False, # 是否返回所有layer的hidden_states
-            tie_emb_prj_weight=False,  # 是否绑定embedding和lm_head的权重
-            return_dict=False,  # 是否返回的格式是dict
+            vocab_size:int,  # 词表大小
+            hidden_size:int,  # 编码维度
+            num_hidden_layers:int,  # Transformer总层数
+            num_attention_heads:int,  # Attention的头数
+            intermediate_size:int,  # FeedForward的隐层维度
+            hidden_act:str,  # FeedForward隐层的激活函数
+            dropout_rate:float=None,  # Dropout比例
+            attention_probs_dropout_prob:float=None,  # Attention矩阵的Dropout比例
+            embedding_size:int=None,  # 指定embedding_size, 不指定则使用config文件的参数
+            attention_head_size:int=None,  # Attention中V的head_size
+            attention_key_size:int=None,  # Attention中Q,K的head_size
+            initializer_range:float=0.02,  # 权重初始化方差
+            sequence_length:int=None,  # 是否固定序列长度
+            keep_tokens:List[int]=None,  # 要保留的词ID列表
+            compound_tokens:List[int]=None,  # 扩展Embedding
+            residual_attention_scores:bool=False,  # Attention矩阵加残差
+            keep_hidden_layers:List[int]=None, # 保留的hidden_layer层的id
+            hierarchical_position:Union[bool, float]=None,  # 是否层次分解位置编码
+            gradient_checkpoint:bool=False, # 是否使用gradient_checkpoint
+            output_all_encoded_layers:bool=False, # 是否返回所有layer的hidden_states
+            tie_emb_prj_weight:bool=False,  # 是否绑定embedding和lm_head的权重
+            return_dict:bool=False,  # 是否返回的格式是dict
             **kwargs
     ):
         super(BERT_BASE, self).__init__()
