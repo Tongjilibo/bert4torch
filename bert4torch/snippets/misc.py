@@ -4,6 +4,7 @@
 
 import json
 import torch
+from torch import nn
 import gc
 import inspect
 import os
@@ -290,10 +291,10 @@ def copytree(src:str, dst:str, ignore_copy_files:str=None, dirs_exist_ok=False):
     shutil.copytree(src, dst, ignore=_ignore_copy_files, dirs_exist_ok=dirs_exist_ok)
 
 
-def get_weight_decay_optim_groups(self, weight_decay:float) -> dict:
+def get_weight_decay_optim_groups(module:nn.Module, weight_decay:float) -> dict:
     '''获取weight_decay的参数列表'''
     # start with all of the candidate parameters
-    param_dict = {pn: p for pn, p in self.named_parameters()}
+    param_dict = {pn: p for pn, p in module.named_parameters()}
     # filter out those that do not require grad
     param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
     # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
