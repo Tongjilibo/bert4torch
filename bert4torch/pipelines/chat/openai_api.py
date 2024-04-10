@@ -130,7 +130,8 @@ class ChatOpenaiApi(Chat):
         if offload_when_nocall is not None:
             kwargs['create_model_at_startup'] = False
         super().__init__(checkpoint_path, **kwargs)
-        assert is_fastapi_available(), "No module found, use `pip install fastapi`"
+        if not is_fastapi_available():
+            raise ModuleNotFoundError("No module found, use `pip install fastapi`")
         from sse_starlette.sse import ServerSentEvent, EventSourceResponse
         import sse_starlette
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
@@ -347,11 +348,11 @@ class ChatOpenaiClient:
     >>> # 非流式
     >>> print(client.chat(messages))
     '''
-    def __init__(self, base_url) -> None:
+    def __init__(self, base_url, api_key=None, **kwargs) -> None:
         from openai import OpenAI
-        self.client = OpenAI(base_url=base_url, api_key="EMPTY")
+        self.client = OpenAI(base_url=base_url, api_key=api_key, **kwargs)
     
-    def stream_chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None):
+    def stream_chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''流式返回'''
         response = self.client.chat.completions.create(
             model=model,
@@ -359,7 +360,8 @@ class ChatOpenaiClient:
             stream=True,
             max_tokens=max_length,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            **kwargs
             )
 
         for chunk in response:
@@ -367,7 +369,7 @@ class ChatOpenaiClient:
             if content is not None:
                 yield content
 
-    def chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None):
+    def chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''一次性返回'''
         response = self.client.chat.completions.create(
             model=model,
@@ -375,7 +377,8 @@ class ChatOpenaiClient:
             stream=False,
             max_tokens=max_length,
             temperature=temperature,
-            top_p=top_p
+            top_p=top_p,
+            **kwargs
             )
         content = response.choices[0].message.content
         return content
@@ -390,11 +393,15 @@ class ChatOpenaiClientSseclient:
 
     Example
     --------------------------------------------
-    >>> messages = [
-    >>>         {"content": "你好", "role": "user"},
-    >>>         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
-    >>>         {"content": "你可以做什么？", "role": "user"}
-    >>>         ]
+    >>> body = {
+    >>>         "messages": [
+    >>>             {"content": "你好", "role": "user"},
+    >>>             {"content": "你好，我是法律大模型", "role": "assistant"},
+    >>>             {"content": "基金从业可以购买股票吗", "role": "user"}],
+    >>>         "model": "default",
+    >>>         "stream": True
+    >>>     }
+    >>>     
     >>> client = ChatOpenaiClientSseclient('http://127.0.0.1:8000')
     >>> # 测试打印
     >>> client.stream_chat_cli(body)
@@ -402,19 +409,25 @@ class ChatOpenaiClientSseclient:
     >>> for token in client.stream_chat(body):
     >>>     print(token, end='', flush=True)
     '''
-    def __init__(self, url) -> None:
+    def __init__(self, url:str, header:dict=None, params:dict=None) -> None:
         self.url = url
+        self.header = header
+        self.params = params
+
         if is_sseclient_available():
             import sseclient
         else:
-            raise ImportError('No module found, you may `pip install sseclient-py`')
+            raise ModuleNotFoundError('No module found, you may `pip install sseclient-py`')
         
         self.sseclient = sseclient
    
     def stream_chat(self, body):
         '''接口调用'''
         reqHeaders = {'Accept': 'text/event-stream'}
-        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body)
+        if self.header is not None:
+            reqHeaders.update(self.header)
+        
+        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body, params=self.params)
         client = self.sseclient.SSEClient(request)
         for event in client.events():
             if event.data != '[DONE]':
