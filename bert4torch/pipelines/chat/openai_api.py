@@ -348,7 +348,7 @@ class ChatOpenaiClient:
     >>> # 非流式
     >>> print(client.chat(messages))
     '''
-    def __init__(self, base_url, api_key=None, **kwargs) -> None:
+    def __init__(self, base_url:str, api_key:str=None, **kwargs) -> None:
         from openai import OpenAI
         self.client = OpenAI(base_url=base_url, api_key=api_key, **kwargs)
     
@@ -390,6 +390,11 @@ class ChatOpenaiClient:
 
 class ChatOpenaiClientSseclient:
     '''调用openai接口的client, 流式请求
+    
+    注意事项：部分调用时候有额外参数传入，如下：
+    >>> client = ChatOpenaiClientSseclient(url='https://chatpet.openai.azure.com/openai/deployments/chatGPT-turbo16K/chat/completions', 
+    >>>                                 header={'api-key': "填写对应的api-key"},
+    >>>                                 params={'api-version': '2023-03-15-preview'})
 
     Example
     --------------------------------------------
@@ -409,8 +414,9 @@ class ChatOpenaiClientSseclient:
     >>> for token in client.stream_chat(body):
     >>>     print(token, end='', flush=True)
     '''
-    def __init__(self, url:str, header:dict=None, params:dict=None) -> None:
+    def __init__(self, url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
         self.url = url
+        self.api_key = api_key
         self.header = header
         self.params = params
 
@@ -421,13 +427,16 @@ class ChatOpenaiClientSseclient:
         
         self.sseclient = sseclient
    
-    def stream_chat(self, body):
+    def stream_chat(self, body, **kwargs):
         '''接口调用'''
         reqHeaders = {'Accept': 'text/event-stream'}
+        if self.api_key is not None:
+            reqHeaders["Authorization"] = f"Bearer {self.api_key}"
+
         if self.header is not None:
             reqHeaders.update(self.header)
         
-        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body, params=self.params)
+        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body, params=self.params, **kwargs)
         client = self.sseclient.SSEClient(request)
         for event in client.events():
             if event.data != '[DONE]':
@@ -435,9 +444,9 @@ class ChatOpenaiClientSseclient:
                 if 'content' in data:
                     yield data['content']
 
-    def stream_chat_cli(self, body):
+    def stream_chat_cli(self, body, **kwargs):
         '''简单测试在命令行打印'''
-        for token in self.stream_chat(body):
+        for token in self.stream_chat(body, **kwargs):
             print(token, end='', flush=True)
 
 
