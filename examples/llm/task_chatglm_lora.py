@@ -1,13 +1,13 @@
 #! -*- coding: utf-8 -*-
-# chatglm的指令微调, 基于lora/qlora
+# chatglm/chatglm2的指令微调, 基于lora/qlora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
 # 参考项目：lora: https://github.com/mymusise/ChatGLM-Tuning
 #         qlora: https://github.com/shuxueslpi/chatGLM-6B-QLoRA
 
-# |            chatglm              |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
-# | ----------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
-# | b4t+lora+V100-fp16-bs16         |  28G      |     2570     |     24.89     |    31.38    |     7.17    |    8.15   |         |
-# | b4t+qlora+V100-bs16             |  26G      |     5381     |     23.99     |    29.52    |     6.47    |    7.74   |         |
+# |                   模型                  |  gpu      | Time/epoch(s)|    Rouge-L    |   Rouge-1   |   Rouge-2   |   BLEU    | comment |
+# | ------------------------------          | --------- | ------------ | ------------- | ----------- | ----------- | --------- | ------- |
+# | chatglm+b4t+lora+V100-fp16-bs16         |  28G      |     2570     |     24.89     |    31.38    |     7.17    |    8.15   |         |
+# | chatglm+b4t+qlora+V100-bs16             |  26G      |     5381     |     23.99     |    29.52    |     6.47    |    7.74   |         |
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -21,6 +21,7 @@ from bert4torch.snippets import ListDataset
 from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
+from bert4torch.losses import CausalLMLoss
 from transformers import AutoTokenizer
 import json
 import jieba 
@@ -32,32 +33,34 @@ from peft import LoraConfig, prepare_model_for_kbit_training  # 需要pip instal
 import os
 
 
-# 基本参数
+# ====================================基本参数====================================
+model_name = 'chatglm2'  # 可选chatglm, chatglm2
 mode = 'train'
+load_in_nbit = None  # 量化, 可选None, 8, 4
 max_source_length = 64
 max_target_length = 64
+max_seq_length = max_source_length + max_target_length
 lr = 5e-4
-batch_size = 16  # 根据显存大小调整
+batch_size = 4  # 根据显存大小调整
 eval_batch_size = 4
 grad_accumulation_steps = 1  # 根据显存大小调整
-max_seq_length = max_source_length + max_target_length
-ignore_pad_token_for_loss = True
 epochs = 1
 steps_per_epoch = 3000
 prefix = ''
 prompt_column = 'content'
 response_column = 'summary'
 history_column = None
-
-# 模型配置
-dir_path = "E:\\pretrain_ckpt\\glm\\chatglm-6B"
-config_path = dir_path + '\\bert4torch_config.json'
-checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
+data_dir = '/data/corpus/sft/AdvertiseGen'  # 数据路径
+if model_name == 'chatglm2':
+    model_dir = "/data/pretrain_ckpt/glm/chatglm2-6B"
+elif model_name == 'chatglm':
+    model_dir = "/data/pretrain_ckpt/glm/chatglm-6B"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 
-# 加载数据集
+# ====================================加载数据集====================================
+tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
+
 class MyDataset(ListDataset):
     @staticmethod
     def load_data(filename):
@@ -72,40 +75,69 @@ class MyDataset(ListDataset):
                 D.append((prompt, response, history))
         return D
 
-def build_prompt(query, history):
-    if history_column is None:
-        prompt = query
-    else:
+if model_name == 'chatglm':
+    def build_prompt(query, history):
+        if history_column is None:
+            prompt = query
+        else:
+            prompt = ""
+            for i, (old_query, answer) in enumerate(history):
+                prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, answer)
+            prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
+        return prompt
+
+    def collate_train_fn(batch):
+        batch_token_ids, batch_labels = [], []
+        for query, answer, history in batch:
+            prompt = build_prompt(query, history)
+            prompt = prefix + prompt
+            a_ids = tokenizer.encode(text=prompt, add_special_tokens=False)
+            b_ids = tokenizer.encode(text=answer, add_special_tokens=False)
+
+            if len(a_ids) > max_source_length - 1:
+                a_ids = a_ids[:max_source_length - 1]
+
+            if len(b_ids) > max_target_length - 2:
+                b_ids = b_ids[:max_target_length - 2]
+
+            input_ids = tokenizer.build_inputs_with_special_tokens(a_ids, b_ids)
+            context_length = input_ids.index(tokenizer.bos_token_id)
+            mask_position = context_length - 1
+            labels = [tokenizer.pad_token_id] * context_length + input_ids[mask_position+1:]
+            batch_token_ids.append(input_ids)
+            batch_labels.append(labels)
+
+        batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
+        batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
+        return [batch_token_ids], batch_labels
+
+elif model_name == 'chatglm2':
+    def build_prompt(query, history=None):
+        if history is None:
+            history = []
         prompt = ""
-        for i, (old_query, answer) in enumerate(history):
-            prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, answer)
-        prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
-    return prompt
+        for i, (old_query, response) in enumerate(history):
+            prompt += "[Round {}]\n\n问：{}\n\n答：{}\n\n".format(i + 1, old_query, response)
+        prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history) + 1, query)
+        return prompt
 
-def collate_train_fn(batch):
-    batch_token_ids, batch_labels = [], []
-    for query, answer, history in batch:
-        prompt = build_prompt(query, history)
-        prompt = prefix + prompt
-        a_ids = tokenizer.encode(text=prompt, add_special_tokens=False)
-        b_ids = tokenizer.encode(text=answer, add_special_tokens=False)
+    def collate_train_fn(batch):
+        batch_token_ids, batch_labels = [], []
+        for query, answer, history in batch:
+            prompt = build_prompt(query, history)
+            prompt = prefix + prompt
+            a_ids = tokenizer.encode(text=prompt, add_special_tokens=True, truncation=True, max_length=max_source_length)
+            b_ids = tokenizer.encode(text=answer, add_special_tokens=False, truncation=True, max_length=max_target_length)
 
-        if len(a_ids) > max_source_length - 1:
-            a_ids = a_ids[:max_source_length - 1]
+            context_length = len(a_ids)
+            input_ids = a_ids + b_ids + [tokenizer.eos_token_id]
+            labels = [tokenizer.pad_token_id] * context_length + b_ids + [tokenizer.eos_token_id]
+            batch_token_ids.append(input_ids)
+            batch_labels.append(labels)
 
-        if len(b_ids) > max_target_length - 2:
-            b_ids = b_ids[:max_target_length - 2]
-
-        input_ids = tokenizer.build_inputs_with_special_tokens(a_ids, b_ids)
-        context_length = input_ids.index(tokenizer.bos_token_id)
-        mask_position = context_length - 1
-        labels = [-100] * context_length + input_ids[mask_position+1:]
-        batch_token_ids.append(input_ids)
-        batch_labels.append(labels)
-
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
-    batch_labels = torch.tensor(sequence_padding(batch_labels, value=-100), dtype=torch.long, device=device)
-    return [batch_token_ids], batch_labels
+        batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
+        batch_labels = torch.tensor(sequence_padding(batch_labels, value=tokenizer.pad_token_id), dtype=torch.long, device=device)
+        return [batch_token_ids], batch_labels
 
 def collate_dev_fn(batch):
     batch_prompt, batch_labels = [], []
@@ -116,16 +148,16 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'train.json')), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev.json')), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
-# 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True, 
-                                tie_emb_prj_weight=True, # 绑定embedding和dense/lm_head的权重，transformers中有绑定
-                                ).half()
+
+# ====================================建立模型====================================
+# 原使用peft=0.5.0时候下面可.half()，高版本peft.half()发现loss为nan，排查发现是高版本会把lora_A转成和base_layer(Linear)的dtype=fp16
+# 把.half()去掉，使用原来的bf16训练，lora_A还是fp32
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True, tie_emb_prj_weight=True)
 
 # 量化
-load_in_nbit = None  # 设置为True在3060卡上loss能正常下降，在v100上loss就是nan
 if load_in_nbit == 8:
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
@@ -157,28 +189,10 @@ peft_config = LoraConfig(
     )
 model = model.get_peft_model(peft_config).to(device)
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, logits, labels):
-        '''
-        logits: [btz, seq_len, vocab_size]
-        labels: token_ids: [btz, seq_len]
-        '''
-        raw_dtyps = logits.dtype
-        logits = logits.to(torch.float32)
-        logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
-        labels = labels[:, 1:].contiguous() # 目标token_ids
-        
-        logits = logits.reshape(-1, logits.shape[-1])
-        labels = labels.flatten()
-        loss = super().forward(logits, labels)
-
-        return loss.to(raw_dtyps)
-
 optimizer = optim.AdamW(model.parameters(), lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, 0, steps_per_epoch*epochs)  # torch4keras<0.0.8需要设置为(steps_per_epoch*epochs)//grad_accumulation_steps
-model.compile(loss=CrossEntropyLoss(ignore_index=-100), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
+model.compile(loss=CausalLMLoss(offset=True, ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, 
+              grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Chat(SeqGeneration):
     def pre_process(self, text):

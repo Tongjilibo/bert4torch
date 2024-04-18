@@ -3,17 +3,18 @@
 
 from torch.nn import Linear, Embedding
 from torch.nn.parameter import Parameter
+from torch import nn
 import torch.nn.functional as F
 import bz2
 import torch
 import base64
 import ctypes
-from typing import List
+from typing import List, Union, Dict
 import re
 from tqdm import tqdm
 from functools import partial
 import inspect
-from bert4torch.snippets import log_error
+from bert4torch.snippets import is_package_available
 
 try:
     from cpm_kernels.kernels.base import LazyKernelCModule, KernelFunction, round_up
@@ -41,7 +42,6 @@ try:
     )
 except Exception as exception:
     kernels = None
-    log_error("Failed to load cpm_kernels:" + str(exception))
 
 
 class W8A16Linear(torch.autograd.Function):
@@ -222,7 +222,8 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
         return output
 
 
-def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, empty_init=False, target_modules=None, **kwargs):
+def quantize_cpm_kernels(model:nn.Module, quantization_bit:int, use_quantization_cache:bool=False, 
+                         empty_init:bool=False, target_modules:Union[str, List]=None, **kwargs):
     """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
     源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
     
@@ -230,6 +231,9 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
     这里修改了hard code, 可以适配其他模型
     target_modules: str/list, 指定对某些层做量化
     """
+    if not is_package_available('cpm_kernels'):
+        raise ModuleNotFoundError('Module `cpm_kernels` not found, you may use `pip install cpm_kernels`')
+
     modules_trans = {}
     for name, module in model.named_modules():
         # target_modules=None, 表示对所有Linear层替换
@@ -257,7 +261,7 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
         
     cache = dict()
     for name, module in tqdm(modules_trans.items(), desc='Quantize linear layers'):
-        cache_name = re.sub('\.[0-9]+\.', '.', name)
+        cache_name = re.sub(r'\.[0-9]+\.', '.', name)
         if use_quantization_cache and (cache_name not in cache):
             n, m = module.weight.size(0), module.weight.size(1)
             cache[cache_name] = CacheTensor(n, m, dtype=dtype, device=current_device, requires_grad=False)
@@ -273,7 +277,7 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
         del module
         # 赋值
         name_new = list(name)
-        for iter_ in re.finditer('\.[0-9]+\.', name):
+        for iter_ in re.finditer(r'\.[0-9]+\.', name):
             iter_str = name[iter_.start():iter_.end()]
             name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
             name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
@@ -281,9 +285,14 @@ def quantize_cpm_kernels(model, quantization_bit, use_quantization_cache=False, 
     return model
 
 
-def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in_fp32_modules=None, llm_int8_skip_modules=None, quantization_config=None, **kwargs):
+def quantize_load_in_kbit(model:nn.Module, load_in_8bit:bool=False, load_in_4bit:bool=False, keep_in_fp32_modules:List=None, 
+                          llm_int8_skip_modules:List=None, quantization_config:Dict=None, **kwargs):
     '''transformer的load_in_8bit, 源自transformer源代码'''
-    from transformers.utils.bitsandbytes import replace_with_bnb_linear, set_module_quantized_tensor_to_device
+    # 兼容transformers新旧版本
+    try:
+        from transformers.integrations import replace_with_bnb_linear, set_module_quantized_tensor_to_device
+    except:
+        from transformers.utils.bitsandbytes import replace_with_bnb_linear, set_module_quantized_tensor_to_device
     from transformers.utils.quantization_config import BitsAndBytesConfig
     if quantization_config is None:
         quantization_config, kwargs = BitsAndBytesConfig.from_dict(
@@ -317,7 +326,7 @@ def quantize_load_in_kbit(model, load_in_8bit=False, load_in_4bit=False, keep_in
 
     for key, param in model.named_parameters():
         if param.device == torch.device("meta"):
-            set_module_quantized_tensor_to_device(model, key, 'cpu', value=state_dict[key], fp16_statistics=None)
+            set_module_quantized_tensor_to_device(model, key, 'cpu', value=state_dict[key])
 
     model.is_loaded_in_8bit = load_in_8bit
     model.is_loaded_in_4bit = load_in_4bit

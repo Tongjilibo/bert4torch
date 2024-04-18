@@ -9,7 +9,6 @@
 |      | [basic_gibbs_sampling_via_mlm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_gibbs_sampling_via_mlm.py)：利用BERT+Gibbs采样进行文本随机生成，参考[这里](https://kexue.fm/archives/8119)。
 |      | [basic_language_model_bert-base-multilingual-cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_language_model_bert-base-multilingual-cased.py)：[bert-base-multilingual-cased](https://huggingface.co/bert-base-multilingual-cased)
 |      | [basic_language_model_bert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_language_model_bert.py)：测试BERT的MLM模型效果。
-|      |[basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_guwenbert.py): 测试[古文bert](https://huggingface.co/ethanyt/guwenbert-base)模型。
 |      | [basic_make_uncased_model_cased.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bert/basic_make_uncased_model_cased.py)：通过简单修改词表，使得不区分大小写的模型有区分大小写的能力。
 |      |[basic_language_model_macbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/macbert/basic_language_model_macbert.py)：测试macbert的MLM模型效果。
 |bloom | [basic_language_model_bloom.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/bloom/basic_language_model_bloom.py)：测试[bloom](https://huggingface.co/bigscience)。
@@ -51,6 +50,7 @@
 |roberta|[basic_language_model_chinese-roberta-wwm.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_chinese-roberta-wwm.py)：测试HIT的chinese-roberta-wwm的MLM模型效果。
 |      |[basic_language_model_roberta_small_tiny.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta_small_tiny.py)：测试Roberta-small的MLM模型效果。
 |      |[basic_language_model_roberta-base-english.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_roberta-base-english.py)：测试英文版roberta-base的MLM模型效果。
+|      |[basic_language_model_guwenbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roberta/basic_language_model_guwenbert.py): 测试[古文bert](https://huggingface.co/ethanyt/guwenbert-base)模型。
 |roformer|[basic_language_model_roformer.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/roformer/basic_language_model_roformer.py)：测试roformer的MLM模型效果。
 |simbert|[basic_language_model_simbert.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/simbert/basic_language_model_simbert.py)：测试[simbert](https://github.com/ZhuiyiTechnology/simbert)和[roformer-sim](https://github.com/ZhuiyiTechnology/roformer-sim)的生成效果和句子相似度效果。
 |  t5 |[basic_language_model_chatyuan.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic/t5/basic_language_model_chatyuan.py): 测试[ChatYuan](https://github.com/clue-ai/ChatYuan)模型。

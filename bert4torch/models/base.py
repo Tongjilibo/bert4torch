@@ -430,7 +430,7 @@ class BERT_BASE(nn.Module):
         else:
             self.output = outputs[0]
 
-    def quantize(self, quantization_method, **kwargs):
+    def quantize(self, quantization_method:Literal['cpm_kernels', 'load_in_8bit', 'load_in_4bit'], **kwargs):
         '''量化'''
         if self.quantized:
             print("Already quantized.")
