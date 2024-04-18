@@ -1,5 +1,5 @@
 # 说明
-- convert.py: 下载uie模型并且转成pytorch格式
+- convert.py: 下载uie模型并且转成pytorch格式，作者已转换的[权重](https://huggingface.co/Tongjilibo/uie-base)
 - finetune.sh：数据处理和训练全流程
 - finetune_step1_dataprocess.py：数据预处理1
 - finetune_step2_doccano.py：数据预处理2
