@@ -240,6 +240,34 @@ ChatLLaMA2WebStreamlit = extend_with_web_streamlit(ChatLLaMA2)
 ChatLLaMA2OpenaiApi = extend_with_chat_openai_api(ChatLLaMA2)
 
 
+class ChatLLaMA3(Chat):
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if system is None:
+            self.system = """你是一个乐于助人、尊重他人、诚实的中文聊天助手。在安全的情况下，始终尽可能提供帮助。你的回答不应包括任何有害、不道德、种族主义、性别歧视、有毒、危险或非法的内容。请确保你的回答是社会公正和积极的。
+如果一个问题没有任何意义，或者事实上不连贯，请解释原因，而不是回答不正确的问题。如果你不知道问题的答案，请不要分享虚假信息，所有回答均以中文来回答。
+"""
+        else:
+            self.system = system
+
+    def build_prompt(self, query, history) -> str:
+        if self.no_history_states():
+            messages = [{"role": "system", "content": self.system}]
+            for user_input, response in history:
+                messages.append({"role": "user", "content": user_input})
+                messages.append({"role": "assistant", "content": response})
+            messages.append({"role": "user", "content": query})
+            return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        else:
+            texts = self.generation_config['states']['last_token']
+            texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
+
+ChatLLaMA3Cli = extend_with_cli(ChatLLaMA3)
+ChatLLaMA3WebGradio = extend_with_web_gradio(ChatLLaMA3)
+ChatLLaMA3WebStreamlit = extend_with_web_streamlit(ChatLLaMA3)
+ChatLLaMA3OpenaiApi = extend_with_chat_openai_api(ChatLLaMA3)
+
+
 class ChatZiya(Chat):
     def build_prompt(self, query, history) -> str:
         prompt = ''
