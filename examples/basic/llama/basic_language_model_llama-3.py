@@ -1,6 +1,10 @@
 #! -*- coding: utf-8 -*-
 """
 基本测试：原生llama3模型的推理
+
+bert4torch_config.json链接
+- https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/Meta-Llama-3-8B
+- https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/Meta-Llama-3-8B-Instruct
 """
 from bert4torch.pipelines import ChatLLaMA3Cli
 from transformers import AutoTokenizer
