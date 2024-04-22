@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Sequence
+from typing import List, Optional, Dict, Sequence, Literal
 from bert4torch.snippets import log_warn
 import torch
 from torch import nn
@@ -22,7 +22,7 @@ def get_model_config(model):
     return model_type, dir_path, config_path, checkpoint_path
 
 
-def get_nbit_lora_model(model, load_in_nbit=None, use_lora=False):
+def get_nbit_lora_model(model, load_in_nbit=Literal[8, 4], use_lora=False):
     # 量化
     if load_in_nbit == 8:
         model.gradient_checkpointing_enable()

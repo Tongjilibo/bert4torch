@@ -8,6 +8,7 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
+from bert4torch.losses import CausalLMLoss
 from tqdm import tqdm
 import torch
 from torchinfo import summary
@@ -16,6 +17,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
 import re 
+
 
 # 基本参数
 max_p_len = 256
@@ -110,24 +112,7 @@ model = build_transformer_model(
 ).to(device)
 summary(model, input_data=[next(iter(train_dataloader))[0]])
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, outputs, target):
-        '''
-        y_pred: [btz, seq_len, hdsz]
-        targets: y_true, y_segment
-        '''
-        _, y_pred = outputs
-        y_true, y_mask = target
-        y_true = y_true[:, 1:]# 目标token_ids
-        y_mask = y_mask[:, 1:]  # segment_ids，刚好指示了要预测的部分
-        y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
-        
-        y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_true = (y_true*y_mask).flatten()
-        return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
+model.compile(loss=CausalLMLoss(offset=True, logits_index=1, ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
 
 class ReadingComprehension(AutoRegressiveDecoder):
     """beam search解码来生成答案

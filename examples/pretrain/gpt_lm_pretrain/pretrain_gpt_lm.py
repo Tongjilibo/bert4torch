@@ -12,6 +12,7 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
+from bert4torch.losses import CausalLMLoss
 import glob
 import json
 from tqdm import tqdm
@@ -57,21 +58,7 @@ train_dataloader = DataLoader(MyDataset(glob.glob('F:/data/corpus/sentence_class
 
 encoder = build_transformer_model(config_path, checkpoint_path, add_trainer=True).to(device)  # 建立模型，加载权重
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, y_pred, y_true):
-        '''
-        y_pred: [btz, seq_len, vocab_size]
-        y_true: [btz, seq_len]
-        '''
-        y_true = y_true[:, 1:]# 目标token_ids
-        y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
-        
-        y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_true = y_true.flatten()
-        return super().forward(y_pred, y_true)
-encoder.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(encoder.parameters(), 1e-5))
+encoder.compile(loss=CausalLMLoss(offset=True, ignore_index=0), optimizer=optim.Adam(encoder.parameters(), 1e-5))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

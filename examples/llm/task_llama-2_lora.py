@@ -16,6 +16,7 @@ from bert4torch.snippets import ListDataset
 from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
+from bert4torch.losses import CausalLMLoss
 from transformers import AutoTokenizer
 import json
 import jieba 
@@ -28,7 +29,7 @@ from peft import LoraConfig, prepare_model_for_kbit_training  # 需要pip instal
 import os
 
 
-# 基本参数
+# ====================================基本参数====================================
 mode = 'eval'
 max_source_length = 256
 max_target_length = 256
@@ -39,17 +40,15 @@ grad_accumulation_steps = 10
 max_seq_length = max_source_length + max_target_length
 epochs = 1
 prefix = ''
-
-# 模型配置
-dir_path = 'E:/pretrain_ckpt/llama/llama-2-7b-chat'
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
+data_dir = 'F:/data/corpus/sft/Llama2-Chinese'  # 数据路径
+model_dir = 'E:/pretrain_ckpt/llama/llama-2-7b-chat'  # 模型路径
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
+tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
 tokenizer.pad_token_id = 0
 
-# 加载数据集
+
+# ====================================加载数据集====================================
 class MyDataset(ListDataset):
     @staticmethod
     def load_data(filename):
@@ -93,11 +92,12 @@ def collate_dev_fn(batch):
         batch_labels.append(tokenizer.decode(label_ids, skip_special_tokens=True))
     return batch_prompt, batch_labels
 
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/Llama2-Chinese/train_sft.csv'), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
-dev_dataloader = DataLoader(MyDataset('F:/data/corpus/sft/Llama2-Chinese/dev_sft.csv'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
+train_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'train_sft.csv')), batch_size=batch_size, shuffle=True, collate_fn=collate_train_fn) 
+dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev_sft.csv')), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
-# 建立模型，加载权重
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, add_trainer=True).half()
+
+# ====================================建立模型====================================
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True).half()
 
 # 量化
 load_in_nbit = None
@@ -132,28 +132,9 @@ peft_config = LoraConfig(
     )
 model = model.get_peft_model(peft_config).to(device)
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, logits, labels):
-        '''
-        logits: [btz, seq_len, vocab_size]
-        labels: token_ids: [btz, seq_len]
-        '''
-        raw_dtyps = logits.dtype
-        logits = logits.to(torch.float32)
-        logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
-        labels = labels[:, 1:].contiguous() # 目标token_ids
-        
-        logits = logits.reshape(-1, logits.shape[-1])
-        labels = labels.flatten()
-        loss = super().forward(logits, labels)
-
-        return loss.to(raw_dtyps)
-
 optimizer = optim.AdamW(model.parameters(), lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, 0, (len(train_dataloader)*epochs)//(grad_accumulation_steps*batch_size))
-model.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
+model.compile(loss=CausalLMLoss(offset=True, ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
 generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,

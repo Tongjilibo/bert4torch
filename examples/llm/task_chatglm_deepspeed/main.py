@@ -13,6 +13,7 @@ from bert4torch.snippets import ListDataset
 from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
+from bert4torch.losses import CausalLMLoss
 from transformers import AutoTokenizer
 import json
 import jieba 
@@ -122,26 +123,7 @@ batch_size = model.config.train_micro_batch_size_per_gpu
 train_dataloader = DataLoader(MyDataset('/tf/libo/data/sft/AdvertiseGen/train.json'), batch_size=batch_size, shuffle=False, collate_fn=collate_train_fn) 
 dev_dataloader = DataLoader(MyDataset('/tf/libo/data/sft/AdvertiseGen/dev.json'), batch_size=eval_batch_size, shuffle=False, collate_fn=collate_dev_fn)
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, logits, labels):
-        '''
-        logits: [btz, seq_len, vocab_size]
-        labels: token_ids: [btz, seq_len]
-        '''
-        raw_dtyps = logits.dtype
-        logits = logits.to(torch.float32)
-        logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
-        labels = labels[:, 1:].contiguous() # 目标token_ids
-        
-        logits = logits.reshape(-1, logits.shape[-1])
-        labels = labels.flatten()
-        loss = super().forward(logits, labels)
-
-        return loss.to(raw_dtyps)
-
-model.compile(loss=CrossEntropyLoss(ignore_index=-100), 
+model.compile(loss=CausalLMLoss(offset=True, ignore_index=-100), 
               optimizer=None)
 
 tokenizer_config = {'max_length': max_source_length, 'truncation': True}

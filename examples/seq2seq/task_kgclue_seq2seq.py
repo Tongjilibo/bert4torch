@@ -16,9 +16,9 @@ from torch.utils.data import DataLoader
 from bert4torch.snippets import ListDataset, sequence_padding
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
+from bert4torch.losses import CausalLMLoss
 from tqdm import tqdm
 from collections import defaultdict
-# import pylcs
 
 
 def lcs(source, target):
@@ -197,29 +197,9 @@ train_dataloader = DataLoader(ListDataset(train_data), shuffle=True, collate_fn=
 valid_data = load_data('F:/data/corpus/kg/KgCLUE/dev.json')
 test_data = load_data('F:/data/corpus/kg/KgCLUE/test_public.json')
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, outputs, target):
-        '''
-        y_pred: [btz, seq_len, vocab_size]
-        targets: y_true, y_segment
-        unilm式样，需要手动把非seq2seq部分mask掉
-        '''
-        _, y_pred = outputs
-        y_true, y_mask = target
-        y_true = y_true[:, 1:]# 目标token_ids
-        y_mask = y_mask[:, 1:]  # segment_ids，刚好指示了要预测的部分
-        y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
-        
-        y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_true = (y_true*y_mask).flatten()
-        return super().forward(y_pred, y_true)
-
 
 model = build_transformer_model(config_path, checkpoint_path, model='roformer', application='unilm', add_trainer=True).to(device)
-
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 5e-6))
+model.compile(loss=CausalLMLoss(offset=True, logits_index=1, ignore_index=0), optimizer=optim.Adam(model.parameters(), 5e-6))
 
 class AutoQA(AutoRegressiveDecoder):
     """seq2seq解码器

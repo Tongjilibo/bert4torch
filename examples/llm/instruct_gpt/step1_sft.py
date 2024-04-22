@@ -4,6 +4,7 @@
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, DottableDict
 from bert4torch.callbacks import Callback, Logger
+from bert4torch.losses import CausalLMLoss
 import torch.nn as nn
 import torch
 import torch.optim as optim
@@ -126,22 +127,8 @@ model = build_transformer_model(config_path=args.config_path, checkpoint_path=ar
                                 grad_accumulation_steps=args.grad_accumulation_steps).to(args.device)
 model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, y_pred, y_true):
-        '''
-        y_pred: [btz, seq_len, vocab_size]
-        y_true: token_ids: [btz, seq_len]
-        '''
-        y_true = y_true[:, 1:]  # 目标token_ids
-        y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
 
-        y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_true = y_true.flatten()
-        return super().forward(y_pred, y_true)
-
-loss_fun = CrossEntropyLoss(ignore_index=pad_token_id)
+loss_fun = CausalLMLoss(offset=True, ignore_index=pad_token_id)
 model.compile(loss=loss_fun, optimizer=optim.Adam(model.parameters(), args.lr))
 
 class Evaluator(Callback):

@@ -12,6 +12,7 @@ from bert4torch.models import build_transformer_model
 from bert4torch.snippets import IterDataset, DottableDict
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
+from bert4torch.losses import CausalLMLoss
 from transformers import AutoTokenizer
 from tqdm import tqdm
 from glob import glob
@@ -66,28 +67,9 @@ dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), bat
 model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, model=args.model_type, add_trainer=True)
 model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, logits, labels):
-        '''
-        logits: [btz, seq_len, vocab_size]
-        labels: token_ids: [btz, seq_len]
-        '''
-        raw_dtyps = logits.dtype
-        logits = logits.to(torch.float32)
-        logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
-        labels = labels[:, 1:].contiguous() # 目标token_ids
-        
-        logits = logits.reshape(-1, logits.shape[-1])
-        labels = labels.flatten()
-        loss = super().forward(logits, labels)
-
-        return loss.to(raw_dtyps)
-
 optimizer = optim.AdamW(model.parameters(), args.lr)
 scheduler = get_linear_schedule_with_warmup(optimizer, 0, args.steps_per_epoch*args.epochs)
-model.compile(loss=CrossEntropyLoss(ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, 
+model.compile(loss=CausalLMLoss(offset=True, ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, 
               grad_accumulation_steps=args.grad_accumulation_steps, clip_grad_norm=1.0)
 
 class Evaluator(Callback):

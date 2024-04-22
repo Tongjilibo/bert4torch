@@ -8,6 +8,7 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
+from bert4torch.losses import CausalLMLoss
 import torch
 from torchinfo import summary
 import torch.nn as nn
@@ -50,7 +51,8 @@ def collate_fn(batch):
         batch_segment_ids.append(segment_ids)
     batch_token_ids = torch.tensor(sequence_padding(batch_token_ids), dtype=torch.long, device=device)
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
-    return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
+    padd_mask = (batch_token_ids != tokenizer._token_pad_id).long()
+    return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids * padd_mask]
 
 train_dataloader = DataLoader(MyDataset(glob.glob('F:/data/corpus/sentence_classification/THUCNews/*.jsonl')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
@@ -67,26 +69,7 @@ model = build_transformer_model(
 ).to(device)
 # summary(model, input_data=[next(iter(train_dataloader))[0]])
 
-class CrossEntropyLoss(nn.CrossEntropyLoss):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    def forward(self, outputs, target):
-        '''
-        y_pred: [btz, seq_len, vocab_size]
-        targets: y_true, y_segment
-        unilm式样，需要手动把非seq2seq部分mask掉
-        '''
-        _, y_pred = outputs
-        y_true, y_unilm_mask = target
-        y_true = y_true[:, 1:]# 目标token_ids
-        y_unilm_mask = y_unilm_mask[:, 1:]  # y_mask
-        y_pred = y_pred[:, :-1, :]  # 预测序列，错开一位
-        
-        y_pred = y_pred.reshape(-1, y_pred.shape[-1])
-        y_padd_mask = (y_true != tokenizer._token_pad_id).long()
-        y_true = (y_true*y_padd_mask*y_unilm_mask).flatten()
-        return super().forward(y_pred, y_true)
-model.compile(loss=CrossEntropyLoss(ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
+model.compile(loss=CausalLMLoss(offset=True, logits_index=1, ignore_index=0), optimizer=optim.Adam(model.parameters(), 1e-5))
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

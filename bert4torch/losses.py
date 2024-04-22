@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import numpy as np
+from typing import List, Union, Tuple
 
 
 class FocalLoss(nn.Module):
@@ -423,24 +424,44 @@ class CausalLMLoss(nn.CrossEntropyLoss):
     '''Causal语言模型的Loss
 
     :param offset: 是否对logit和labels做错位处理, 取决于在做数据时候是否已经offset过
+    :param logits_index: 如果model.forward()返回了多个, 则logits对应的index
     '''
-    def __init__(self, *args, offset=False, **kwargs):
+    def __init__(self, *args, offset=False, logits_index=0, **kwargs):
         super().__init__(*args, **kwargs)
         self.offset = offset
+        self.logits_index = logits_index
 
-    def forward(self, logits, labels):
+    def forward(self, logits:Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]], 
+                labels:Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]) -> torch.Tensor:
         """
-        logits: [btz, seq_len, vocab_size]
-        labels: 即token_ids, [btz, seq_len]
+        logits: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]], 形状为[btz, seq_len, vocab_size]
+        labels: Union[torch.Tensor, List[torch.Tensor], Tuple[torch.Tensor]]
+            1) token_ids: [btz, seq_len]
+            2) token_ids: [btz, seq_len]  + mask: [btz, seq_len]
         """
+        if isinstance(logits, (List, Tuple)):
+            # 如果model.forward()返回了多个参数，则决定其中某项作为logits
+            logits = logits[self.logits_index]
+        assert len(logits.shape) == 3, 'Args `logits` size should be [btz, seq_len, vocab_size]'
+    
         raw_dtyps = logits.dtype
         logits = logits.to(torch.float32)
+
+        mask = None
+        if isinstance(labels, (List, Tuple)):
+            for item in labels[1:]:
+                mask = item if mask is None else mask * item
+            labels = labels[0]
 
         if self.offset:
             logits = logits[:, :-1, :].contiguous()  # 预测序列，错开一位
             labels = labels[:, 1:].contiguous() # 目标token_ids
+            if mask is not None:
+                mask = mask[:, 1:].contiguous() # 目标token_ids
 
         logits = logits.reshape(-1, logits.shape[-1])
+        if mask is not None:
+            labels = labels * mask        
         labels = labels.flatten()
         loss = super().forward(logits, labels)
 
