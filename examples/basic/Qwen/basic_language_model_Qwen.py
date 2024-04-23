@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 """通义千问Qwen的测试
-阿里云的通义千问: https://github.com/QwenLM/Qwen-7B
+阿里云的通义千问: https://github.com/QwenLM/Qwen
 bert4torch_config.json见readme
 - [Qwen-7B](https://huggingface.co/Qwen/Qwen-7B)
 - [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
@@ -9,22 +9,13 @@ from transformers import AutoTokenizer
 from bert4torch.pipelines import ChatQwenCli
 
 
-choice = 'Qwen-1_8B-Chat'
-if choice == 'Qwen-7B-Chat':
-    dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B-Chat'
-    with_prompt = True
-elif choice == 'Qwen-7B':
-    dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-7B'
-    with_prompt = False
-elif choice == 'Qwen-1_8B-Chat':
-    dir_path = 'E:/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'
-    with_prompt = True
-else:
-    raise ValueError(f'{choice} not in pre maintained choices')
+model_name = 'Qwen-7B-Chat'  # Qwen-1_8B  Qwen-1_8B-Chat  Qwen-7B  Qwen-7B-Chat  Qwen-14B  Qwen-14B-Chat
+model_dir = f'/data/pretrain_ckpt/Qwen/{model_name}'
+with_prompt = True if '-Chat' in model_name else False
 include_input = not with_prompt
 
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
 tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
 tokenizer_decode_config = {'skip_special_tokens': True}
 end_id = [tokenizer.im_start_id, tokenizer.im_end_id] if with_prompt else tokenizer.encode("<|endoftext|>", **tokenizer_encode_config)
@@ -38,7 +29,7 @@ generation_config = {
     'include_input': include_input
 }
 
-cli_demo = ChatQwenCli(dir_path, system='You are a helpful assistant.', generation_config=generation_config)
+cli_demo = ChatQwenCli(model_dir, system='You are a helpful assistant.', generation_config=generation_config)
 
 if __name__ == '__main__':
     batch = False

@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional, List, Tuple, Literal
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info
 from packaging import version
@@ -19,16 +19,17 @@ else:
 class Chat:
     '''聊天类
     :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
-    :param half: bool, 是否半精度
+    :param precision: bool, 精度
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     '''
-    def __init__(self, checkpoint_path:str, half:bool=True, quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
+    def __init__(self, checkpoint_path:str, precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
+                 quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
         self.config_path = kwargs.get('config_path', checkpoint_path)
         self.generation_config = generation_config if generation_config is not None else kwargs
-        self.half = half
+        self.precision = precision
         self.quantization_config = quantization_config
         self.tokenizer = self.build_tokenizer()
         self.generation_config['tokenizer'] = self.tokenizer
@@ -56,9 +57,16 @@ class Chat:
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
         model.eval()
 
-        # 半精度
-        if self.half:
+        # 精度
+        if self.precision == 'double':
+            model = model.double()
+        elif self.precision == 'float':
+            model = model.float()
+        elif self.precision in {'half', 'float16'}:
             model = model.half()
+        elif self.precision == 'bfloat16':
+            model = model.bfloat16()
+
         # 量化
         if self.quantization_config is not None:
             model = model.quantize(**self.quantization_config)

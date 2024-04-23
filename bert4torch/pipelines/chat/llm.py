@@ -12,6 +12,16 @@ from .base import Chat, extend_with_cli, extend_with_web_gradio, extend_with_web
 from .openai_api import extend_with_chat_openai_api
 
 
+# 一些通用的system话术
+SYSTEM_ZH = """你是一个乐于助人、尊重他人、诚实的中文聊天助手。在安全的情况下，始终尽可能提供帮助。你的回答不应包括任何有害、不道德、种族主义、性别歧视、有毒、危险或非法的内容。请确保你的回答是社会公正和积极的。
+如果一个问题没有任何意义，或者事实上不连贯，请解释原因，而不是回答不正确的问题。如果你不知道问题的答案，请不要分享虚假信息，所有回答尽可能使用中文来回答。
+"""
+SYSTEM_EN = """\
+You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.\
+"""
+
+
 class ChatGlm(Chat):
     def build_prompt(self, query, history) -> str:
         if not history:
@@ -172,9 +182,9 @@ ChatInternLMOpenaiApi = extend_with_chat_openai_api(ChatInternLM)
 
 
 class ChatQwen(Chat):
-    def __init__(self, *args, system='', max_window_size=6144, **kwargs):
+    def __init__(self, *args, system:str=None, max_window_size=6144, **kwargs):
         super().__init__(*args, **kwargs)
-        self.system = system
+        self.system = system if system is not None else SYSTEM_ZH
         self.max_window_size = max_window_size
 
     def build_prompt(self, query, history) -> str:
@@ -215,14 +225,7 @@ ChatQwenOpenaiApi = extend_with_chat_openai_api(ChatQwen)
 class ChatLLaMA2(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if system is None:
-            self.system = """\
-You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
-
-If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.\
-"""
-        else:
-            self.system = system
+        self.system = system if system is not None else SYSTEM_EN
 
     def build_prompt(self, query, history) -> str:
         if self.no_history_states():
@@ -243,12 +246,7 @@ ChatLLaMA2OpenaiApi = extend_with_chat_openai_api(ChatLLaMA2)
 class ChatLLaMA3(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if system is None:
-            self.system = """你是一个乐于助人、尊重他人、诚实的中文聊天助手。在安全的情况下，始终尽可能提供帮助。你的回答不应包括任何有害、不道德、种族主义、性别歧视、有毒、危险或非法的内容。请确保你的回答是社会公正和积极的。
-如果一个问题没有任何意义，或者事实上不连贯，请解释原因，而不是回答不正确的问题。如果你不知道问题的答案，请不要分享虚假信息，所有回答均以中文来回答。
-"""
-        else:
-            self.system = system
+        self.system = system if system is not None else SYSTEM_ZH
 
     def build_prompt(self, query, history) -> str:
         if self.no_history_states():
