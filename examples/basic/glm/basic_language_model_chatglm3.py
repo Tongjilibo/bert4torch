@@ -9,7 +9,6 @@ from bert4torch.pipelines import ChatGlm3Cli
 from transformers import AutoTokenizer
 
 
-choice = 'default'
 model_path = "E:/pretrain_ckpt/glm/chatglm3-6b"
 # model_path = "E:/pretrain_ckpt/glm/chatglm3-6B-32k"
 

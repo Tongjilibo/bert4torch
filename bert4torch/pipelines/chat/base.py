@@ -187,13 +187,6 @@ class ChatCli(Chat):
             cuda_empty_cache()
 
 
-def extend_with_cli(InputModel) -> ChatCli:
-    """添加ChatCliDemo"""
-    class ChatDemo(InputModel, ChatCli):
-        pass
-    return ChatDemo
-
-
 class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
@@ -280,13 +273,6 @@ class ChatWebGradio(Chat):
         demo.queue().launch(**launch_configs)
 
 
-def extend_with_web_gradio(InputModel) -> ChatWebGradio:
-    """添加ChatWebDemo"""
-    class ChatDemo(InputModel, ChatWebGradio):
-        pass
-    return ChatDemo
-
-
 class ChatWebStreamlit(Chat):
     def __init__(self, *args, max_length=4096, **kwargs):
         if not is_streamlit_available():
@@ -354,10 +340,3 @@ class ChatWebStreamlit(Chat):
                 message_placeholder.markdown(response)
             st.session_state.history = history + [(prompt_text, response)]
             st.session_state.states = self.generation_config.get('states')
-
-
-def extend_with_web_streamlit(InputModel) -> ChatWebStreamlit:
-    """添加ChatWebDemo"""
-    class ChatDemo(InputModel, ChatWebStreamlit):
-        pass
-    return ChatDemo

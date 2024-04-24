@@ -448,10 +448,3 @@ class ChatOpenaiClientSseclient:
         '''简单测试在命令行打印'''
         for token in self.stream_chat(body, **kwargs):
             print(token, end='', flush=True)
-
-
-def extend_with_chat_openai_api(InputModel) -> ChatOpenaiApi:
-    """添加ChatWebDemo"""
-    class ChatDemo(InputModel, ChatOpenaiApi):
-        pass
-    return ChatDemo

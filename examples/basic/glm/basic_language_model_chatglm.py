@@ -11,27 +11,17 @@
 from bert4torch.pipelines import ChatGlmCli
 
 
-choice = 'default'  # v1.1.0, default, int4, int8
+model_name = 'chatglm-6B'  # chatglm-6B  chatglm-6B-v1.1.0, chatglm-6B-int4, chatglm-6B-int8
+model_dir = f"E:/pretrain_ckpt/glm/{model_name}"
 quantization_config = None
-if choice == 'default':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
-    # quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
-elif choice == 'v1.1.0':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0"
-    # quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
-elif choice == 'int4':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
-elif choice == 'int8':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
-else:
-    raise ValueError(f'{choice} not in pre maintained choices')
+# quantization_config = {'quantization_method': 'cpm_kernels', 'quantization_bit': 8}
 
 generation_config = {'mode': 'random_sample',
                      'max_length': 2048, 
                      'default_rtype':'logits', 
                      'use_states':True}
 
-cli_demo = ChatGlmCli(dir_path, generation_config=generation_config, quantization_config=quantization_config)
+cli_demo = ChatGlmCli(model_dir, generation_config=generation_config, quantization_config=quantization_config)
 
 
 if __name__ == '__main__':

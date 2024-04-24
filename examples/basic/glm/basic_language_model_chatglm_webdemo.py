@@ -9,15 +9,8 @@
 from bert4torch.pipelines import ChatGlmWebGradio
 
 
-choice = 'default'  # default, int4, int8
-if choice == 'default':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
-elif choice == 'int4':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
-elif choice == 'int8':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
-else:
-    raise ValueError(f'{choice} not in pre maintained choices')
+model_name = 'chatglm-6B'  # chatglm-6B, chatglm-6B-int4, chatglm-6B-int8
+dir_path = f"E:/pretrain_ckpt/glm/{model_name}"
 
 
 generation_config  = {'mode':'random_sample',

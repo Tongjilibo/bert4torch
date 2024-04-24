@@ -188,7 +188,7 @@ class BERT(BERT_BASE):
 
         # ========================= conditional layer_norm =========================
         if model_kwargs.get('conditional_emb') is not None:
-            conditional_emb = model_kwargs['layer_norm_ids']
+            conditional_emb = model_kwargs['conditional_emb']
         elif self.conditional_size is not None:
             conditional_emb = inputs[index_]
             index_ += 1
