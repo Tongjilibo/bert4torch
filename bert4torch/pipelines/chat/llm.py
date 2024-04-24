@@ -52,38 +52,11 @@ class ChatGlm(Chat):
             response = re.sub(r"([\u4e00-\u9fff])%s" % item[0], r"\1%s" % item[1], response)
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
         return response
-    
-class ChatGlmCli(ChatGlm, ChatCli):
-    '''Chatglm命令行demo
-    >>> from bert4torch.pipelines import ChatGlmCli
-    >>> demo = ChatGlmCli("THUDM/chatglm-6b")  # THUDM/chatglm-6b, THUDM/chatglm-6b-int4, THUDM/chatglm-6b-int8
-    >>> demo.run()
-    '''
-    pass
 
-class ChatGlmWebGradio(ChatGlm, ChatWebGradio):
-    '''Chatglm的web demo, gradio实现
-    >>> from bert4torch.pipelines import ChatGlmWebGradio
-    >>> demo = ChatGlmWebGradio("THUDM/chatglm-6b")  # THUDM/chatglm-6b, THUDM/chatglm-6b-int4, THUDM/chatglm-6b-int8
-    >>> demo.run(share=True, inbrowser=True)
-    '''
-    pass
-
-class ChatGlmWebStreamlit(ChatGlm, ChatWebStreamlit):
-    '''Chatglm的web demo, gradio实现
-    >>> from bert4torch.pipelines import ChatGlmWebStreamlit
-    >>> demo = ChatGlmWebStreamlit("THUDM/chatglm-6b")  # THUDM/chatglm-6b, THUDM/chatglm-6b-int4, THUDM/chatglm-6b-int8
-    >>> demo.run()
-    '''
-    pass
-
-class ChatGlmOpenaiApi(ChatGlm, ChatOpenaiApi):
-    '''Chatglm的openai server
-    >>> from bert4torch.pipelines import ChatGlmOpenaiApi
-    >>> demo = ChatGlmOpenaiApi("THUDM/chatglm-6b")  # THUDM/chatglm-6b, THUDM/chatglm-6b-int4, THUDM/chatglm-6b-int8
-    >>> demo.run()
-    '''
-    pass
+class ChatGlmCli(ChatGlm, ChatCli): pass
+class ChatGlmWebGradio(ChatGlm, ChatWebGradio): pass
+class ChatGlmWebStreamlit(ChatGlm, ChatWebStreamlit): pass
+class ChatGlmOpenaiApi(ChatGlm, ChatOpenaiApi): pass
 
 
 class ChatGlm2(Chat):
@@ -115,37 +88,10 @@ class ChatGlm2(Chat):
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
         return response
 
-class ChatGlm2Cli(ChatGlm2, ChatCli):
-    '''Chatglm2命令行demo
-    >>> from bert4torch.pipelines import ChatGlm2Cli
-    >>> demo = ChatGlm2Cli("THUDM/chatglm2-6b")  # THUDM/chatglm2-6b, THUDM/chatglm2-6b-int4, THUDM/chatglm2-6b-32k
-    >>> demo.run()
-    '''
-    pass
-
-class ChatGlm2WebGradio(ChatGlm2, ChatWebGradio):
-    '''Chatglm2的web demo, gradio实现
-    >>> from bert4torch.pipelines import ChatGlm2WebGradio
-    >>> demo = ChatGlm2WebGradio("THUDM/chatglm2-6b")  # THUDM/chatglm2-6b, THUDM/chatglm2-6b-int4, THUDM/chatglm2-6b-32k
-    >>> demo.run(share=True, inbrowser=True)
-    '''
-    pass
-
-class ChatGlm2WebStreamlit(ChatGlm2, ChatWebStreamlit):
-    '''Chatglm的web demo, gradio实现
-    >>> from bert4torch.pipelines import ChatGlm2WebStreamlit
-    >>> demo = ChatGlm2WebStreamlit("THUDM/chatglm2-6b")  # THUDM/chatglm2-6b, THUDM/chatglm2-6b-int4, THUDM/chatglm2-6b-32k
-    >>> demo.run()
-    '''
-    pass
-
-class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi):
-    '''Chatglm2的openai server
-    >>> from bert4torch.pipelines import ChatGlm2OpenaiApi
-    >>> demo = ChatGlm2OpenaiApi("THUDM/chatglm2-6b")  # THUDM/chatglm2-6b, THUDM/chatglm2-6b-int4, THUDM/chatglm2-6b-32k
-    >>> demo.run()
-    '''
-    pass
+class ChatGlm2Cli(ChatGlm2, ChatCli): pass
+class ChatGlm2WebGradio(ChatGlm2, ChatWebGradio): pass
+class ChatGlm2WebStreamlit(ChatGlm2, ChatWebStreamlit): pass
+class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi): pass
 
 
 class ChatGlm3(Chat):
@@ -203,41 +149,12 @@ class ChatGlm3(Chat):
         return content
 
 class ChatGlm3Cli(ChatGlm3, ChatCli):
-    '''Chatglm3命令行demo
-    >>> from bert4torch.pipelines import ChatGlm3Cli
-    >>> model_name = "THUDM/chatglm3-6b"  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> demo = ChatGlm3Cli(model_name)
-    >>> demo.run()
-    '''
     def build_other_config(self, **kwargs):
         super().build_other_config(**kwargs)
         self.history_maxlen *= 2
-
-class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio):
-    '''Chatglm3的web demo, gradio实现
-    >>> from bert4torch.pipelines import ChatGlm3WebGradio
-    >>> model_name = "THUDM/chatglm3-6b"  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> demo = ChatGlm3WebGradio(model_name)
-    >>> demo.run(share=True, inbrowser=True)
-    '''
-    pass
-
-class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit):
-    '''Chatglm的web demo, streamlit实现
-    >>> from bert4torch.pipelines import ChatGlm3WebStreamlit
-    >>> model_name = "THUDM/chatglm3-6b"  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> demo = ChatGlm3WebStreamlit(model_name)
-    >>> demo.run()
-    '''
-    pass
-
-class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi):
-    '''Chatglm3的openai server
-    >>> from bert4torch.pipelines import ChatGlm3OpenaiApi
-    >>> demo = ChatGlm3OpenaiApi("THUDM/chatglm3-6b")  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> demo.run()
-    '''
-    pass
+class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
+class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit): pass
+class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
 class ChatInternLM(Chat):
@@ -261,41 +178,10 @@ class ChatInternLM(Chat):
             response = response.replace(reg, '')
         return response
 
-class ChatInternLMCli(ChatInternLM, ChatCli):
-    '''ChatInternLM命令行demo
-    >>> from bert4torch.pipelines import ChatInternLMCli
-    >>> model_name = "internlm/internlm-chat-7b"
-    >>> demo = ChatInternLMCli(model_name)
-    >>> demo.run()
-    '''
-    pass
-
-class ChatInternLMWebGradio(ChatInternLM, ChatWebGradio):
-    '''ChatInternLM的web demo, gradio实现
-    >>> from bert4torch.pipelines import ChatInternLMWebGradio
-    >>> model_name = "internlm/internlm-chat-7b"
-    >>> demo = ChatInternLMWebGradio(model_name)
-    >>> demo.run()
-    '''
-    pass
-
-class ChatInternLMWebStreamlit(ChatInternLM, ChatWebStreamlit):
-    '''ChatInternLM的web demo, streamlit实现
-    >>> from bert4torch.pipelines import ChatInternLMWebStreamlit
-    >>> model_name = "internlm/internlm-chat-7b"
-    >>> demo = ChatInternLMWebStreamlit(model_name)
-    >>> demo.run()
-    '''
-    pass
-
-class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi):
-    '''ChatInternLM的openai server
-    >>> from bert4torch.pipelines import ChatInternLMOpenaiApi
-    >>> model_name = "internlm/internlm-chat-7b"
-    >>> demo = ChatInternLMOpenaiApi(model_name)
-    >>> demo.run()
-    '''
-    pass
+class ChatInternLMCli(ChatInternLM, ChatCli): pass
+class ChatInternLMWebGradio(ChatInternLM, ChatWebGradio): pass
+class ChatInternLMWebStreamlit(ChatInternLM, ChatWebStreamlit): pass
+class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi): pass
 
 
 class ChatQwen(Chat):
@@ -333,61 +219,10 @@ class ChatQwen(Chat):
 
         return raw_text
 
-class ChatQwenCli(ChatQwen, ChatCli):
-    '''Qwen的命令行demo
-    Example
-    ----------------------
-    >>> from bert4torch.pipelines import ChatQwenCli
-    >>> model_name = 'Qwen/Qwen-7B-Chat'  # Qwen/Qwen-1_8B-Chat  Qwen/Qwen-7B-Chat  Qwen/Qwen-14B-Chat
-    >>> cli_demo = ChatQwenCli(model_name, system='You are a helpful assistant.')
-    >>> cli_demo.run()
-    '''
-    pass
-
-class ChatQwenWebGradio(ChatQwen, ChatWebGradio):
-    '''Qwen的web demo, gradio实现
-    Example
-    ----------------------
-    >>> from bert4torch.pipelines import ChatQwenWebGradio
-    >>> model_name = 'Qwen/Qwen-7B-Chat'  # Qwen/Qwen-1_8B-Chat  Qwen/Qwen-7B-Chat  Qwen/Qwen-14B-Chat
-    >>> cli_demo = ChatQwenWebGradio(model_name, system='You are a helpful assistant.')
-    >>> cli_demo.run()
-    '''
-    pass
-
-class ChatQwenWebStreamlit(ChatQwen, ChatWebStreamlit):
-    '''Qwen的web demo, streamlit实现
-    需使用 `streamlit run example.py` 来执行
-
-    Example
-    ----------------------
-    >>> from bert4torch.pipelines import ChatQwenWebStreamlit
-    >>> model_name = 'Qwen/Qwen-7B-Chat'  # Qwen/Qwen-1_8B-Chat  Qwen/Qwen-7B-Chat  Qwen/Qwen-14B-Chat
-    >>> cli_demo = ChatQwenWebStreamlit(model_name, system='You are a helpful assistant.')
-    >>> cli_demo.run()
-    '''
-    pass
-
-class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi):
-    '''Qwen的openai sever端
-
-    Example
-    ----------------------
-    >>> from transformers import AutoTokenizer
-    >>> from bert4torch.pipelines import ChatQwenOpenaiApi
-    >>> model_name = 'Qwen-7B-Chat'  # Qwen-1_8B-Chat  Qwen-7B-Chat  Qwen-14B-Chat
-
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_config = {
-    >>>     'end_id': [tokenizer.im_start_id, tokenizer.im_end_id], 
-    >>>     'tokenizer_config': {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}, 'skip_special_tokens': True}, 
-    >>>     'max_length': 256
-    >>> }
-
-    >>> cli_demo = ChatQwenOpenaiApi(model_name, system='You are a helpful assistant.', generation_config=generation_config)
-    >>> cli_demo.run()
-    '''
-    pass
+class ChatQwenCli(ChatQwen, ChatCli): pass
+class ChatQwenWebGradio(ChatQwen, ChatWebGradio): pass
+class ChatQwenWebStreamlit(ChatQwen, ChatWebStreamlit): pass
+class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi): pass
 
 
 class ChatLLaMA2(Chat):
@@ -406,17 +241,10 @@ class ChatLLaMA2(Chat):
         texts.append(f'{query.strip()} [/INST]')
         return ''.join(texts)
 
-class ChatLLaMA2Cli(ChatLLaMA2, ChatCli):
-    pass
-
-class ChatLLaMA2WebGradio(ChatLLaMA2, ChatWebGradio):
-    pass
-
-class ChatLLaMA2WebStreamlit(ChatLLaMA2, ChatWebStreamlit):
-    pass
-
-class ChatLLaMA2OpenaiApi(ChatLLaMA2, ChatOpenaiApi):
-    pass
+class ChatLLaMA2Cli(ChatLLaMA2, ChatCli): pass
+class ChatLLaMA2WebGradio(ChatLLaMA2, ChatWebGradio): pass
+class ChatLLaMA2WebStreamlit(ChatLLaMA2, ChatWebStreamlit): pass
+class ChatLLaMA2OpenaiApi(ChatLLaMA2, ChatOpenaiApi): pass
 
 
 class ChatLLaMA3(Chat):
@@ -436,17 +264,10 @@ class ChatLLaMA3(Chat):
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
 
-class ChatLLaMA3Cli(ChatLLaMA3, ChatCli):
-    pass
-
-class ChatLLaMA3WebGradio(ChatLLaMA3, ChatWebGradio):
-    pass
-
-class ChatLLaMA3WebStreamlit(ChatLLaMA3, ChatWebStreamlit):
-    pass
-
-class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi):
-    pass
+class ChatLLaMA3Cli(ChatLLaMA3, ChatCli): pass
+class ChatLLaMA3WebGradio(ChatLLaMA3, ChatWebGradio): pass
+class ChatLLaMA3WebStreamlit(ChatLLaMA3, ChatWebStreamlit): pass
+class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 
 
 class ChatZiya(Chat):
@@ -461,17 +282,10 @@ class ChatZiya(Chat):
         prompt += f"<human>:{query.strip()}\n<bot>:"
         return prompt
 
-class ChatZiyaCli(ChatZiya, ChatCli):
-    pass
-
-class ChatZiyaWebGradio(ChatZiya, ChatWebGradio):
-    pass
-
-class ChatZiyaWebStreamlit(ChatZiya, ChatWebStreamlit):
-    pass
-
-class ChatZiyaOpenaiApi(ChatZiya, ChatOpenaiApi):
-    pass
+class ChatZiyaCli(ChatZiya, ChatCli): pass
+class ChatZiyaWebGradio(ChatZiya, ChatWebGradio): pass
+class ChatZiyaWebStreamlit(ChatZiya, ChatWebStreamlit): pass
+class ChatZiyaOpenaiApi(ChatZiya, ChatOpenaiApi): pass
 
 
 class ChatChineseAlphaLLaMA(Chat):
@@ -496,17 +310,10 @@ class ChatChineseAlphaLLaMA(Chat):
             prompt += self.generation_config['states']['last_token'] + f"### Instruction:\n\n{query}\n\n### Response:\n\n"
         return prompt
 
-class ChatChineseAlphaLLaMACli(ChatChineseAlphaLLaMA, ChatCli):
-    pass
-
-class ChatChineseAlphaLLaMAWebGradio(ChatChineseAlphaLLaMA, ChatWebGradio):
-    pass
-
-class ChatChineseAlphaLLaMAWebStreamlit(ChatChineseAlphaLLaMA, ChatWebStreamlit):
-    pass
-
-class ChatChineseAlphaLLaMAOpenaiApi(ChatChineseAlphaLLaMA, ChatOpenaiApi):
-    pass
+class ChatChineseAlphaLLaMACli(ChatChineseAlphaLLaMA, ChatCli): pass
+class ChatChineseAlphaLLaMAWebGradio(ChatChineseAlphaLLaMA, ChatWebGradio): pass
+class ChatChineseAlphaLLaMAWebStreamlit(ChatChineseAlphaLLaMA, ChatWebStreamlit): pass
+class ChatChineseAlphaLLaMAOpenaiApi(ChatChineseAlphaLLaMA, ChatOpenaiApi): pass
 
 
 class ChatBelle(Chat):
@@ -524,17 +331,10 @@ class ChatBelle(Chat):
         prompt += f"Human: {query} \n\nAssistant: "
         return prompt
 
-class ChatBelleCli(ChatBelle, ChatCli):
-    pass
-
-class ChatBelleWebGradio(ChatBelle, ChatWebGradio):
-    pass
-
-class ChatBelleWebStreamlit(ChatBelle, ChatWebStreamlit):
-    pass
-
-class ChatBelleOpenaiApi(ChatBelle, ChatOpenaiApi):
-    pass
+class ChatBelleCli(ChatBelle, ChatCli): pass
+class ChatBelleWebGradio(ChatBelle, ChatWebGradio): pass
+class ChatBelleWebStreamlit(ChatBelle, ChatWebStreamlit): pass
+class ChatBelleOpenaiApi(ChatBelle, ChatOpenaiApi): pass
 
 
 class ChatBaichuan(Chat):
@@ -555,14 +355,7 @@ class ChatBaichuan(Chat):
         total_input.append(self.assistant_token_id)
         return total_input
 
-class ChatBaichuanCli(ChatBaichuan, ChatCli):
-    pass
-
-class ChatBaichuanWebGradio(ChatBaichuan, ChatWebGradio):
-    pass
-
-class ChatBaichuanWebStreamlit(ChatBaichuan, ChatWebStreamlit):
-    pass
-
-class ChatBaichuanOpenaiApi(ChatBaichuan, ChatOpenaiApi):
-    pass
+class ChatBaichuanCli(ChatBaichuan, ChatCli): pass
+class ChatBaichuanWebGradio(ChatBaichuan, ChatWebGradio): pass
+class ChatBaichuanWebStreamlit(ChatBaichuan, ChatWebStreamlit): pass
+class ChatBaichuanOpenaiApi(ChatBaichuan, ChatOpenaiApi): pass
