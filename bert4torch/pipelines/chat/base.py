@@ -2,11 +2,11 @@ import os
 import torch
 from typing import Union, Optional, List, Tuple, Literal
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info
+from bert4torch.snippets import log_warn_once, cuda_empty_cache, is_streamlit_available, log_info, get_config_path
 from packaging import version
 import gc
 import time
-
+import json
 
 if is_streamlit_available():
     import streamlit as st
@@ -28,13 +28,16 @@ class Chat:
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
         self.config_path = kwargs.get('config_path', checkpoint_path)
-        self.generation_config = generation_config if generation_config is not None else kwargs
+        # generation_config顺序：config -> 显式传入generation_config -> kwargs
+        self.generation_config = json.load(open(get_config_path(self.config_path))).get('generation_config') or dict()
+        self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
         self.tokenizer = self.build_tokenizer()
         self.generation_config['tokenizer'] = self.tokenizer
         if create_model_at_startup:
             self.model = self._build_model()
+        self.build_other_config(**kwargs)
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
@@ -86,6 +89,9 @@ class Chat:
             
         return self.model
     
+    def build_other_config(self, **kwargs):
+        return
+    
     def process_response(self, response:Union[str,tuple,list], history:List[Tuple]=None) -> str:
         '''对response进行后处理，可自行继承后来自定义'''
         if isinstance(response, str):
@@ -117,9 +123,11 @@ class ChatCli(Chat):
     '''在命令行中交互的demo
     :param init_str: str, 对话问候句
     :param history_maxlen: int, 保留的历史对话轮次
+
+    Example
+    ----------------------
     '''
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def build_other_config(self, **kwargs):
         self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")
         self.history_maxlen = kwargs.get('history_maxlen', 0)
         log_info(f'History chat length = {self.history_maxlen}')
@@ -190,9 +198,8 @@ class ChatCli(Chat):
 class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
-    '''
-    def __init__(self, *args, max_length:int=4096, **kwargs):
-        super().__init__(*args, **kwargs)
+    '''    
+    def build_other_config(self, max_length:int=4096, **kwargs):
         import gradio as gr
         self.gr = gr
         self.max_length = max_length
@@ -274,7 +281,7 @@ class ChatWebGradio(Chat):
 
 
 class ChatWebStreamlit(Chat):
-    def __init__(self, *args, max_length=4096, **kwargs):
+    def build_other_config(self, max_length:int=4096, **kwargs):
         if not is_streamlit_available():
             raise ModuleNotFoundError('pip install streamlit')
         if version.parse(st.__version__) < version.parse("1.29.0"):
@@ -284,7 +291,6 @@ class ChatWebStreamlit(Chat):
             page_icon=":robot:",
             layout="wide"
         )
-        super().__init__(*args, **kwargs)
         self.max_length = max_length
 
     @st.cache_resource

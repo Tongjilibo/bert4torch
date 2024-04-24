@@ -149,10 +149,6 @@ class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi):
 
 
 class ChatGlm3(Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.history_maxlen *= 2
-
     def build_prompt(self, query, history=[]):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         if (len(history) > 0) and isinstance(history[-1], tuple):
@@ -210,33 +206,26 @@ class ChatGlm3Cli(ChatGlm3, ChatCli):
     '''Chatglm3命令行demo
     >>> from bert4torch.pipelines import ChatGlm3Cli
     >>> model_name = "THUDM/chatglm3-6b"  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_kwargs = {"end_id": [tokenizer.eos_token_id, tokenizer.get_command("<|user|>"), 
-    >>>                      tokenizer.get_command("<|observation|>")]}
     >>> demo = ChatGlm3Cli(model_name)
     >>> demo.run()
     '''
-    pass
+    def build_other_config(self, **kwargs):
+        super().build_other_config(**kwargs)
+        self.history_maxlen *= 2
 
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio):
     '''Chatglm3的web demo, gradio实现
     >>> from bert4torch.pipelines import ChatGlm3WebGradio
     >>> model_name = "THUDM/chatglm3-6b"  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_kwargs = {"end_id": [tokenizer.eos_token_id, tokenizer.get_command("<|user|>"), 
-    >>>                      tokenizer.get_command("<|observation|>")]}
     >>> demo = ChatGlm3WebGradio(model_name)
     >>> demo.run(share=True, inbrowser=True)
     '''
     pass
 
 class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit):
-    '''Chatglm的web demo, gradio实现
+    '''Chatglm的web demo, streamlit实现
     >>> from bert4torch.pipelines import ChatGlm3WebStreamlit
     >>> model_name = "THUDM/chatglm3-6b"  # THUDM/chatglm3-6b, THUDM/chatglm3-6B-32k
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_kwargs = {"end_id": [tokenizer.eos_token_id, tokenizer.get_command("<|user|>"), 
-    >>>                      tokenizer.get_command("<|observation|>")]}
     >>> demo = ChatGlm3WebStreamlit(model_name)
     >>> demo.run()
     '''
@@ -273,21 +262,44 @@ class ChatInternLM(Chat):
         return response
 
 class ChatInternLMCli(ChatInternLM, ChatCli):
+    '''ChatInternLM命令行demo
+    >>> from bert4torch.pipelines import ChatInternLMCli
+    >>> model_name = "internlm/internlm-chat-7b"
+    >>> demo = ChatInternLMCli(model_name)
+    >>> demo.run()
+    '''
     pass
 
 class ChatInternLMWebGradio(ChatInternLM, ChatWebGradio):
+    '''ChatInternLM的web demo, gradio实现
+    >>> from bert4torch.pipelines import ChatInternLMWebGradio
+    >>> model_name = "internlm/internlm-chat-7b"
+    >>> demo = ChatInternLMWebGradio(model_name)
+    >>> demo.run()
+    '''
     pass
 
 class ChatInternLMWebStreamlit(ChatInternLM, ChatWebStreamlit):
+    '''ChatInternLM的web demo, streamlit实现
+    >>> from bert4torch.pipelines import ChatInternLMWebStreamlit
+    >>> model_name = "internlm/internlm-chat-7b"
+    >>> demo = ChatInternLMWebStreamlit(model_name)
+    >>> demo.run()
+    '''
     pass
 
 class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi):
+    '''ChatInternLM的openai server
+    >>> from bert4torch.pipelines import ChatInternLMOpenaiApi
+    >>> model_name = "internlm/internlm-chat-7b"
+    >>> demo = ChatInternLMOpenaiApi(model_name)
+    >>> demo.run()
+    '''
     pass
 
 
 class ChatQwen(Chat):
-    def __init__(self, *args, system:str=None, max_window_size=6144, **kwargs):
-        super().__init__(*args, **kwargs)
+    def build_other_config(self, system:str=None, max_window_size=6144, **kwargs):
         self.system = system if system is not None else SYSTEM_ZH
         self.max_window_size = max_window_size
 
@@ -325,18 +337,9 @@ class ChatQwenCli(ChatQwen, ChatCli):
     '''Qwen的命令行demo
     Example
     ----------------------
-    >>> from transformers import AutoTokenizer
     >>> from bert4torch.pipelines import ChatQwenCli
     >>> model_name = 'Qwen/Qwen-7B-Chat'  # Qwen/Qwen-1_8B-Chat  Qwen/Qwen-7B-Chat  Qwen/Qwen-14B-Chat
-
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_config = {
-    >>>     'end_id': [tokenizer.im_start_id, tokenizer.im_end_id], 
-    >>>     'tokenizer_config': {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}, 'skip_special_tokens': True}, 
-    >>>     'max_length': 256
-    >>> }
-
-    >>> cli_demo = ChatQwenCli(model_name, system='You are a helpful assistant.', generation_config=generation_config)
+    >>> cli_demo = ChatQwenCli(model_name, system='You are a helpful assistant.')
     >>> cli_demo.run()
     '''
     pass
@@ -345,18 +348,9 @@ class ChatQwenWebGradio(ChatQwen, ChatWebGradio):
     '''Qwen的web demo, gradio实现
     Example
     ----------------------
-    >>> from transformers import AutoTokenizer
     >>> from bert4torch.pipelines import ChatQwenWebGradio
     >>> model_name = 'Qwen/Qwen-7B-Chat'  # Qwen/Qwen-1_8B-Chat  Qwen/Qwen-7B-Chat  Qwen/Qwen-14B-Chat
-
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_config = {
-    >>>     'end_id': [tokenizer.im_start_id, tokenizer.im_end_id], 
-    >>>     'tokenizer_config': {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}, 'skip_special_tokens': True}, 
-    >>>     'max_length': 256
-    >>> }
-
-    >>> cli_demo = ChatQwenWebGradio(model_name, system='You are a helpful assistant.', generation_config=generation_config)
+    >>> cli_demo = ChatQwenWebGradio(model_name, system='You are a helpful assistant.')
     >>> cli_demo.run()
     '''
     pass
@@ -367,18 +361,9 @@ class ChatQwenWebStreamlit(ChatQwen, ChatWebStreamlit):
 
     Example
     ----------------------
-    >>> from transformers import AutoTokenizer
     >>> from bert4torch.pipelines import ChatQwenWebStreamlit
     >>> model_name = 'Qwen/Qwen-7B-Chat'  # Qwen/Qwen-1_8B-Chat  Qwen/Qwen-7B-Chat  Qwen/Qwen-14B-Chat
-
-    >>> tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    >>> generation_config = {
-    >>>     'end_id': [tokenizer.im_start_id, tokenizer.im_end_id], 
-    >>>     'tokenizer_config': {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}, 'skip_special_tokens': True}, 
-    >>>     'max_length': 256
-    >>> }
-
-    >>> cli_demo = ChatQwenWebStreamlit(model_name, system='You are a helpful assistant.', generation_config=generation_config)
+    >>> cli_demo = ChatQwenWebStreamlit(model_name, system='You are a helpful assistant.')
     >>> cli_demo.run()
     '''
     pass

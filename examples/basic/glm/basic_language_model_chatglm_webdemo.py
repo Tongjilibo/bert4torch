@@ -10,7 +10,7 @@ from bert4torch.pipelines import ChatGlmWebGradio
 
 
 model_name = 'chatglm-6B'  # chatglm-6B, chatglm-6B-int4, chatglm-6B-int8
-dir_path = f"E:/pretrain_ckpt/glm/{model_name}"
+model_dir = f"E:/pretrain_ckpt/glm/{model_name}"
 
 
 generation_config  = {'mode':'random_sample',
@@ -18,7 +18,7 @@ generation_config  = {'mode':'random_sample',
                       'default_rtype':'logits', 
                       'use_states':True
                       }
-chat = ChatGlmWebGradio(dir_path, **generation_config)
+chat = ChatGlmWebGradio(model_dir, **generation_config)
 
 
 if __name__ == '__main__':
