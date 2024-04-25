@@ -65,7 +65,7 @@ class AutoRegressiveDecoder(object):
 
     """
     @model_inference_mode()
-    def __init__(self, bos_token_id=None, eos_token_id=-1, max_new_tokens=None, min_new_tokens=1, max_length=20, pad_token_id=0, pad_mode='post', device='cpu', 
+    def __init__(self, bos_token_id=None, eos_token_id=-1, max_new_tokens=None, min_new_tokens=1, max_length=64, pad_token_id=0, pad_mode='post', device='cpu', 
                  n=1, top_k=None, top_p=None, temperature=1, repetition_penalty=1.0, min_ends=1, **generation_config):
         # generation_config
         self.bos_token_id = bos_token_id

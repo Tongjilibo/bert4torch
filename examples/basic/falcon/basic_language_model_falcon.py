@@ -14,27 +14,14 @@ from transformers import AutoTokenizer
 import platform
 import os
 
-choice = 'falcon-7b-instruct'
-if choice == 'falcon-rw-1b':
-    dir_path = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
-    checkpoint_path = dir_path + '/pytorch_model.bin'
-    include_input = True
-elif choice == 'falcon-7b':
-    dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b/'
-    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.endswith('.bin')]
-    include_input = True
-elif choice == 'falcon-7b-instruct':
-    dir_path = 'E:/pretrain_ckpt/falcon/falcon-7b-instruct/'
-    checkpoint_path = [dir_path + i for i in os.listdir(dir_path) if i.endswith('.bin')]
-    include_input = False
-else:
-    raise ValueError(f'{choice} not in pre maintained choices')
-
-config_path = dir_path + '/bert4torch_config.json'
+model_name = 'falcon-7b-instruct'  # falcon-rw-1b falcon-7b falcon-7b-instruct
+model_dir = f'E:/pretrain_ckpt/falcon/{model_name}'
+include_input = False if '-instruct' in model_dir else True
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+
+tokenizer = AutoTokenizer.from_pretrained(model_dir)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
