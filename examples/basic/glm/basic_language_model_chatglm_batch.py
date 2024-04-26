@@ -9,20 +9,14 @@ from bert4torch.snippets import Timeit2
 import time
 import os
 
-
-dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
-# dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
-# dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
-
-
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
+# chatglm-6B, chatglm-6B-int4, chatglm-6B-int8
+model_dir = "E:/pretrain_ckpt/glm/chatglm-6B"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']
 
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path.replace('/', '\\'), trust_remote_code=True)
-encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
+tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
+encoder = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)
 generation = SeqGeneration(encoder, tokenizer, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
                            mode='random_sample', maxlen=2048, default_rtype='logits', use_states=True)
 

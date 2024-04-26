@@ -15,7 +15,7 @@ import platform
 import os
 
 model_name = 'falcon-7b-instruct'  # falcon-rw-1b falcon-7b falcon-7b-instruct
-model_dir = f'E:/pretrain_ckpt/falcon/{model_name}'
+model_dir = f'/data/pretrain_ckpt/falcon/{model_name}'
 include_input = False if '-instruct' in model_dir else True
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -25,9 +25,9 @@ model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-tokenizer_config = {'skip_special_tokens': True}
 generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', 
-                           tokenizer_config=tokenizer_config, maxlen=200, default_rtype='logits', use_states=True)
+                           tokenizer_config={'skip_special_tokens': True}, maxlen=200, default_rtype='logits', use_states=True)
+
 
 if __name__ == '__main__':
     os_name = platform.system()

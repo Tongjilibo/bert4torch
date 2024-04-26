@@ -17,14 +17,29 @@ else:
 
 
 class Chat:
-    '''聊天类
-    :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
-    :param precision: bool, 精度
-    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
-    :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
-    '''
+    '''聊天类的基类，需继承后使用'''
     def __init__(self, checkpoint_path:str, precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
+        '''聊天类
+        :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
+        :param precision: bool, 精度
+        :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
+        :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
+
+        Example
+        -------------------------
+        >>> # 以chatglm2的命令行聊天
+        >>> from bert4torch.pipelines import ChatGlm2Cli
+
+        >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+        >>> generation_config  = {'mode':'random_sample',
+        >>>                     'max_length':2048, 
+        >>>                     'default_rtype':'logits', 
+        >>>                     'use_states':True
+        >>>                     }
+        >>> chat = ChatGlm2Cli(checkpoint_path, **generation_config)
+        >>> chat.run()
+        '''
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
         self.config_path = kwargs.get('config_path', checkpoint_path)
@@ -103,6 +118,7 @@ class Chat:
         return response
 
     def chat(self, query:Union[str,list], history:List[Tuple]=[]) -> str:
+        '''chat模型使用, 配合对话模板使用'''
         if isinstance(query, str):
             prompt = self.build_prompt(query, history)
         elif isinstance(query, list):
@@ -112,11 +128,23 @@ class Chat:
         return self.process_response(response, history=history)
 
     def stream_chat(self, query:str, history:List[Tuple]=[]):
-        '''单条样本stream输出预测的结果'''
+        '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
         prompt = self.build_prompt(query, history)
         self.model = self._build_model()
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response(response, history)
+
+    def generate(self, query:str) -> str:
+        '''base模型使用'''
+        self.model = self._build_model()
+        response = self.model.generate(query, **self.generation_config)
+        return response
+
+    def stream_generate(self, query:str):
+        '''base模型使用, 单条样本stream输出预测的结果'''
+        self.model = self._build_model()
+        for response in self.model.stream_generate(query, **self.generation_config):
+            yield response
 
 
 class ChatCli(Chat):
@@ -124,8 +152,6 @@ class ChatCli(Chat):
     :param init_str: str, 对话问候句
     :param history_maxlen: int, 保留的历史对话轮次
 
-    Example
-    ----------------------
     '''
     def build_other_config(self, **kwargs):
         self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")

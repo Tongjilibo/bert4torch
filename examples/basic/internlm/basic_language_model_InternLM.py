@@ -14,12 +14,7 @@ dir_path = 'E:/pretrain_ckpt/internlm/internlm-chat-7b'
 tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 
 generation_config = {
-    'tokenizer_config': {'skip_special_tokens': True},
-    'end_id': [tokenizer.eos_token_id, tokenizer.encode('<eoa>')[-1]], 
-    'mode': 'random_sample', 
     'max_length': 1024, 
-    'default_rtype': 'logits',
-    'use_states': True,
     'topp': 0.8, 
     'temperature': 0.8
 }

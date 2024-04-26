@@ -20,20 +20,22 @@ from bert4torch.pipelines import ChatGlm3Cli, ChatGlm3WebGradio, ChatGlm3WebStre
 # chatglm-6B, chatglm-6B-int4, chatglm-6B-int8 chatglm2-6B, chatglm2-6B-int4, chatglm2-6B-32k, chatglm3-6b, chatglm3-6B-32k
 model_dir = f"/data/pretrain_ckpt/glm/chatglm2-6B"
 
-# demo = ChatGlmCli(model_dir)
-# demo = ChatGlmWebGradio(model_dir)
-# demo = ChatGlmWebStreamlit(model_dir)
-# demo = ChatGlmOpenaiApi(model_dir)
+generation_config = {'max_length': 1024, 'topp': 0.8, 'temperature': 0.8}
 
-demo = ChatGlm2Cli(model_dir)
-# demo = ChatGlm2WebGradio(model_dir)
-# demo = ChatGlm2WebStreamlit(model_dir)
-# demo = ChatGlm2OpenaiApi(model_dir)
+# demo = ChatGlmCli(model_dir, generation_config=generation_config)
+# demo = ChatGlmWebGradio(model_dir, generation_config=generation_config)
+# demo = ChatGlmWebStreamlit(model_dir, generation_config=generation_config)
+# demo = ChatGlmOpenaiApi(model_dir, generation_config=generation_config)
 
-# demo = ChatGlm3Cli(model_dir)
-# demo = ChatGlm3WebGradio(model_dir)
-# demo = ChatGlm3WebStreamlit(model_dir)
-# demo = ChatGlm3OpenaiApi(model_dir)
+demo = ChatGlm2Cli(model_dir, generation_config=generation_config)
+# demo = ChatGlm2WebGradio(model_dir, generation_config=generation_config)
+# demo = ChatGlm2WebStreamlit(model_dir, generation_config=generation_config)
+# demo = ChatGlm2OpenaiApi(model_dir, generation_config=generation_config)
+
+# demo = ChatGlm3Cli(model_dir, generation_config=generation_config)
+# demo = ChatGlm3WebGradio(model_dir, generation_config=generation_config)
+# demo = ChatGlm3WebStreamlit(model_dir, generation_config=generation_config)
+# demo = ChatGlm3OpenaiApi(model_dir, generation_config=generation_config)
 
 
 if __name__ == '__main__':

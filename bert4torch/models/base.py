@@ -462,6 +462,7 @@ class BERT_BASE(nn.Module):
         # chatglm的量化方式
         if quantization_method == 'cpm_kernels':
             from bert4torch.quantization import quantize_cpm_kernels
+            self.half()
             self = quantize_cpm_kernels(self, **new_kwargs)
         # load_in_8bit, load_in_4bit
         elif quantization_method in {'load_in_8bit', 'load_in_4bit'}:

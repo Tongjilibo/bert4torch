@@ -5,26 +5,15 @@
 # 模型说明： https://github.com/LianjiaTech/BELLE/tree/main/models
 # belle_llama模型：https://huggingface.co/BelleGroup/BELLE-LLaMA-7B-2M-enc
 # bert4torch_config.json见readme
-
-
-
-dir_path = 'E:/pretrain_ckpt/llama/belle-llama-7b-2m'
-config_path = f'{dir_path}/bert4torch_config.json'
-checkpoint_path = f'{dir_path}/pytorch_model.bin'
-
-
 from bert4torch.pipelines import ChatBelleCli
-generation_config = {
-    'end_id': 2, 
-    'mode': 'random_sample',
-    'max_length': 512, 
-    'default_rtype': 'logits', 
-    'use_states': True
-}
+
+
+model_dir = '/data/pretrain_ckpt/llama/belle-llama-7b-2m'
+generation_config = {'max_length': 512}
 
 
 cli_demo = ChatBelleCli(
-    dir_path, generation_config=generation_config,
+    model_dir, generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )
 

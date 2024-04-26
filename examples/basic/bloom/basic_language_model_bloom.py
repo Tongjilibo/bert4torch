@@ -13,26 +13,16 @@ from bert4torch.generation import SeqGeneration
 from transformers import AutoTokenizer
 
 
-choice = 'bloom-560m'
-if choice == 'bloom-560m':
-    dir_path = 'E:/pretrain_ckpt/bloom/bloom-560m'
-elif choice == 'bloomz-560m':
-    dir_path = 'E:/pretrain_ckpt/bloom/bloomz-560m'
-else:
-    raise ValueError(f'{choice} not in pre maintained choices')
-
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = dir_path + '/pytorch_model.bin'
+model_dir = '/data/pretrain_ckpt/bloom/bloomz-560m'  # bloom-560m  bloomz-560m
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-tokenizer_config = {'skip_special_tokens': True}
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', 
-                           tokenizer_config=tokenizer_config, maxlen=20, default_rtype='logits', use_states=True)
+generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id,
+                           tokenizer_config={'skip_special_tokens': True})
 
 
 if __name__ == '__main__':

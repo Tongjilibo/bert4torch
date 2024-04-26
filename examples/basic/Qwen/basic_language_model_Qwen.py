@@ -11,25 +11,12 @@ from bert4torch.pipelines import ChatQwenCli
 
 model_name = 'Qwen-7B-Chat'  # Qwen-1_8B  Qwen-1_8B-Chat  Qwen-7B  Qwen-7B-Chat  Qwen-14B  Qwen-14B-Chat
 model_dir = f'/data/pretrain_ckpt/Qwen/{model_name}'
-with_prompt = True if '-Chat' in model_name else False
-include_input = not with_prompt
+with_prompt = True if 'Chat' in model_name else False
 
 
-tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
-tokenizer_encode_config = {'allowed_special': {"<|im_start|>", "<|im_end|>", '<|endoftext|>'}}
-tokenizer_decode_config = {'skip_special_tokens': True}
-end_id = [tokenizer.im_start_id, tokenizer.im_end_id] if with_prompt else tokenizer.encode("<|endoftext|>", **tokenizer_encode_config)
-generation_config = {
-    'end_id': end_id, 
-    'mode': 'random_sample', 
-    'tokenizer_config': {**tokenizer_encode_config, **tokenizer_decode_config}, 
-    'max_length': 256, 
-    'default_rtype': 'logits', 
-    'use_states': True,
-    'include_input': include_input
-}
-
+generation_config = {'max_length': 256, 'include_input': not with_prompt}
 cli_demo = ChatQwenCli(model_dir, system='You are a helpful assistant.', generation_config=generation_config)
+
 
 if __name__ == '__main__':
     batch = False
@@ -51,6 +38,6 @@ if __name__ == '__main__':
         # 预训练模型
         while True:
             query = input('\n输入:')
-            response = cli_demo.model.generate(query, **generation_config)
+            response = cli_demo.generate(query)
             print(f'续写: {response}')
     

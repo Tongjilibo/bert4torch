@@ -813,7 +813,10 @@ class SeqGeneration(AutoRegressiveDecoder):
                          'maxlen', 'return_dict', 'truncate_from', 'return_offsets'}
         decode_kwargs = {'skip_special_tokens', 'clean_up_tokenization_spaces'}
         if mode == 'encode':
-            return {k:v for k, v in config.items() if k in encode_kwargs}
+            clear_config = {k:v for k, v in config.items() if k in encode_kwargs}
+            if isinstance(clear_config.get('allowed_special', -1), list):
+                clear_config['allowed_special'] = set(clear_config['allowed_special'])
+            return clear_config
         elif mode == 'decode':
             return {k:v for k, v in config.items() if k in decode_kwargs}
         else:

@@ -186,6 +186,7 @@ class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi): pass
 
 class ChatQwen(Chat):
     def build_other_config(self, system:str=None, max_window_size=6144, **kwargs):
+        super().build_other_config(**kwargs)
         self.system = system if system is not None else SYSTEM_ZH
         self.max_window_size = max_window_size
 
@@ -226,8 +227,8 @@ class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi): pass
 
 
 class ChatLLaMA2(Chat):
-    def __init__(self, *args, system:str=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def build_other_config(self, system:str=None, **kwargs):
+        super().build_other_config(**kwargs)
         self.system = system if system is not None else SYSTEM_EN
 
     def build_prompt(self, query, history) -> str:
@@ -248,8 +249,8 @@ class ChatLLaMA2OpenaiApi(ChatLLaMA2, ChatOpenaiApi): pass
 
 
 class ChatLLaMA3(Chat):
-    def __init__(self, *args, system:str=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def build_other_config(self, system:str=None, **kwargs):
+        super().build_other_config(**kwargs)
         self.system = system if system is not None else SYSTEM_ZH
 
     def build_prompt(self, query, history) -> str:
@@ -289,8 +290,8 @@ class ChatZiyaOpenaiApi(ChatZiya, ChatOpenaiApi): pass
 
 
 class ChatChineseAlphaLLaMA(Chat):
-    def __init__(self, *args, system:str=None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def build_other_config(self, system:str=None, **kwargs):
+        super().build_other_config(**kwargs)
         if system is None:
             self.system = \
 ("Below is an instruction that describes a task. "
@@ -338,10 +339,10 @@ class ChatBelleOpenaiApi(ChatBelle, ChatOpenaiApi): pass
 
 
 class ChatBaichuan(Chat):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.user_token_id = 195
-        self.assistant_token_id = 196
+    def build_other_config(self, **kwargs):
+        super().build_other_config(**kwargs)
+        self.user_token_id = kwargs.get('user_token_id', 195)
+        self.assistant_token_id = kwargs.get('assistant_token_id', 196)
 
     def build_prompt(self, query, history) -> str:
         total_input = []
