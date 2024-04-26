@@ -1,9 +1,20 @@
 #! -*- coding: utf-8 -*-
-# promptbert实现sentence embedding
-# 官方项目：https://github.com/kongds/Prompt-BERT
-# 参考项目：https://github.com/Macielyoung/sentence_representation_matching
-# |     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
-# |    PromptBert   |  33.98  | 49.89|  73.18  |  13.30  |  73.42  |
+'''
+promptbert实现sentence embedding
+- 官方项目：https://github.com/kongds/Prompt-BERT
+- 参考项目：https://github.com/Macielyoung/sentence_representation_matching
+
+|     solution    |   ATEC  |  BQ  |  LCQMC  |  PAWSX  |  STS-B  |
+|    PromptBert   |  33.98  | 49.89|  73.18  |  13.30  |  73.42  |
+
+- 基本思路：
+1. 用Prompt的方式生成句子表示
+    1.1 模板1: "我想打电话"可转为prompt1:"我想打电话的意思为[MASK]"和templeate1:"[X][X][X][X][X]的意思为[MASK]"
+    1.2 模板2: "我想打电话"可转为prompt2:"我想打电话这句话的意思是[MASK]"和templeate2:"[X][X][X][X][X]这句话的意思是[MASK]"
+2. prompt1和templete1进入模型获取各自[MASK]位置的句向量sent1和temp1, 并使用sent1-temp1=作为句向量s1，以消除prompt模板的影响
+3. prompt2和templete2进入模型获取各自[MASK]位置的句向量sent2和temp2, 并使用sent2-temp2作为句向量s2，以消除prompt模板的影响
+4. 采用自监督的方式训练：同一个batch对应位置互为正样本（如s1和s2），其他为负样本
+'''
 
 import torch
 import torch.nn as nn
@@ -41,7 +52,7 @@ maxlen = template_len + (128 if task_name == 'PAWSX' else 64)
 
 # bert配置
 model_dir = {
-    'BERT': 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
+    'BERT': '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
     'RoBERTa': 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
     'NEZHA': 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
     'RoFormer': 'E:/pretrain_ckpt/roformer/sushen@roformer_v1_base',
@@ -51,24 +62,19 @@ model_dir = {
 config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
-data_path = 'F:/data/corpus/sentence_embedding/'
+data_path = '/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # =============================加载数据集=============================
 # 建立分词器
-if model_type in ['RoFormer']:
-    tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False), add_special_tokens='[X]')
-else:
-    tokenizer = Tokenizer(dict_path, do_lower_case=True, add_special_tokens='[X]')
-
 replace_token = "[X]"
 mask_token = "[MASK]"
 prompt_templates = ['"{}" 的意思为[MASK]'.format(replace_token), '"{}"这句话的意思是[MASK]'.format(replace_token)]
 tao = 0.05
-
 token_dict = load_vocab(dict_path)
-compound_tokens = [[len(token_dict)]]
-token_dict['[X]'] = len(token_dict)
+token_dict[replace_token] = token_dict.pop('[unused1]')  # 替换一个token
+tokenizer = Tokenizer(token_dict, do_lower_case=True, add_special_tokens='[X]',
+                      pre_tokenize=(lambda s: jieba.lcut(s, HMM=False)) if model_type in ['RoFormer'] else None)
 
 # 加载数据集
 def load_data(filenames):
@@ -131,7 +137,7 @@ class PromptBert(BaseModel):
     def __init__(self, scale=20.0):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, 
-                                            dropout_rate=dropout_rate, segment_vocab_size=0, compound_tokens=compound_tokens)
+                                            dropout_rate=dropout_rate, segment_vocab_size=0)
         self.scale = scale
 
     def forward(self, prompt0_input, template0_input, prompt1_input, template1_input):
@@ -148,6 +154,7 @@ class PromptBert(BaseModel):
         return sentence_embedding
 
     def get_mask_embedding(self, input_ids):
+        '''获取[MASK] token所在位置的embedding表示作为句向量'''
         last_hidden_state = self.bert([input_ids])
         mask_index = (input_ids == tokenizer._token_mask_id).long()
         input_mask_expanded = mask_index.unsqueeze(-1).expand(last_hidden_state.size()).float()

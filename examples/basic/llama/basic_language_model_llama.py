@@ -13,16 +13,11 @@ from transformers import AutoTokenizer, LlamaTokenizer
 import platform
 import os
 
-# 原生llama
-dir_path = 'E:/pretrain_ckpt/llama/llama-7b'
-# dir_path = 'E:/pretrain_ckpt/llama/llama-13b'
-config_path = dir_path + '/bert4torch_config.json'
-checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
-spm_path = dir_path + '/tokenizer.model'
+model_dir = 'E:/pretrain_ckpt/llama/llama-7b'  # llama-7b, llama-13b
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, use_fast=False)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
+tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
