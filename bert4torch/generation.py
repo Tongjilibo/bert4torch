@@ -1,7 +1,7 @@
 '''自回归模型的生成
 '''
 
-from typing import Union, Optional
+from typing import Union, Optional, List, Tuple
 import torch
 import torch.nn as nn
 import numpy as np
@@ -176,7 +176,7 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def _trans2tensors(self, inputs_raw: Union[torch.Tensor, list, tuple, np.ndarray]) -> list:
+    def _trans2tensors(self, inputs_raw: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray]) -> list:
         '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]
         :param inputs_raw: tensor/list(tensor)/list(list)/list(int)
         '''
@@ -211,7 +211,7 @@ class AutoRegressiveDecoder(object):
 
         return inputs
     
-    def _define_stopping_criteria(self, states):
+    def _define_stopping_criteria(self, states: Optional[dict]=None):
         ''' max_new_tokens的校准'''
         if (self.max_new_tokens is None) and (self.max_length is None):
             raise ValueError('Args `max_new_tokens` and `max_length` can not both be None')
@@ -363,7 +363,8 @@ class AutoRegressiveDecoder(object):
         
         return inputs, output_ids, output_scores, results, break_tag
 
-    def beam_search(self, inputs, states=None, **generation_config):
+    def beam_search(self, inputs:Union[torch.Tensor, List[Union[int, list, tuple, torch.Tensor, np.ndarray]], Tuple[Union[int, list, tuple, torch.Tensor, np.ndarray]], np.ndarray], 
+                    states: Optional[dict]=None, **generation_config):
         """beam search解码
         
         :param inputs: 编码器的输入，包含encoder_hidden_states, encoder_attention_mask
@@ -415,7 +416,8 @@ class AutoRegressiveDecoder(object):
         else:
             return results
 
-    def stream_beam_search(self, inputs, states=None, **generation_config):
+    def stream_beam_search(self, inputs: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray], 
+                           states:Optional[dict]=None, **generation_config):
         '''beam_search的stream输出模式'''
         self.set_generation_config(generation_config)
         assert self.top_k is not None, 'Arg `top_k` means beam_size anc can not be None'
@@ -506,7 +508,8 @@ class AutoRegressiveDecoder(object):
         else:
             return inputs, output_ids, results, break_tag, smp_indexs
 
-    def random_sample(self, inputs_raw, states=None, **generation_config):
+    def random_sample(self, inputs_raw: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray], 
+                      states:Optional[dict]=None, **generation_config):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
@@ -553,7 +556,8 @@ class AutoRegressiveDecoder(object):
         else:
             return results
     
-    def stream_random_sample(self, inputs_raw, states=None, **generation_config):
+    def stream_random_sample(self, inputs_raw: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray], 
+                             states:Optional[dict]=None, **generation_config):
         """随机采样n个结果；stream输出"""
         generation_config['n'] = 1
         self.set_generation_config(generation_config)
@@ -670,7 +674,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         return kwargs
 
-    def _prepare_next_inputs(self, inputs, output_ids, include_past=True):
+    def _prepare_next_inputs(self, inputs:Union[Tuple[torch.Tensor], List[torch.Tensor]], output_ids:torch.Tensor, include_past:bool=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
         def concat_token_ids(token_ids, output_ids):
             '''把非padding部分concat在一起
@@ -718,7 +722,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             return torch.stack([logit[index_, :] for index_, logit in zip(last_token_index, logits)])
 
     @AutoRegressiveDecoder.wraps()
-    def predict(self, inputs:Union[tuple,list], output_ids:torch.Tensor, states:Optional[dict]):
+    def predict(self, inputs:Union[Tuple[torch.Tensor], List[torch.Tensor]], output_ids:torch.Tensor, states:Optional[dict]):
         '''
         :param inputs: 原始输入，在整个预测过程中均不改变
         :param outputs_ids: 输出的ids，随着预测进行，逐步增长

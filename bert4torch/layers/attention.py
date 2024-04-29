@@ -7,6 +7,7 @@ from bert4torch.layers.position_encoding import *
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
 from typing import Literal, Optional, Tuple
+import inspect
 
 
 if is_xformers_available():
@@ -16,6 +17,7 @@ if is_xformers_available():
 if is_flash_attn_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
+    _flash_supports_window_size = "window_size" in list(inspect.signature(flash_attn_func).parameters)
 
 
 class MultiHeadAttentionLayer(nn.Module):
@@ -34,6 +36,8 @@ class MultiHeadAttentionLayer(nn.Module):
         self.bias = bias
         self.p_bias = p_bias
         self.use_dynamic_ntk = use_dynamic_ntk
+        self.sliding_window = kwargs.get('sliding_window')
+        self.max_window_layers = kwargs.get('max_window_layers')
         
         # 获取flash_attention的配置项
         self.flash_attention_config = kwargs.get('flash_attention_config', dict())
@@ -190,7 +194,7 @@ class MultiHeadAttentionLayer(nn.Module):
                     context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
         # flash_attn
         elif self.flash_attention == 'flash_attn_2':
-            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, attention_mask, hidden_states.shape[1])
+            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, past_key_value, attention_mask, hidden_states.shape[1])
         # torch原生实现
         else:
             context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
@@ -424,7 +428,8 @@ class MultiHeadAttentionLayer(nn.Module):
         return context_layer, attention_scores
     
     def flash_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
-                                attention_mask:torch.Tensor, query_length:int, softmax_scale:float=None):
+                                past_key_value:Union[Tuple[torch.Tensor]], attention_mask:torch.Tensor, 
+                                query_length:int, softmax_scale:float=None):
         """ flash_attn，参考transformers中的调用
         """
         def _get_unpad_data(attention_mask):
@@ -456,6 +461,47 @@ class MultiHeadAttentionLayer(nn.Module):
                 query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
 
             return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
+        
+        def _use_sliding_windows():
+            kv_seq_len = key_layer.shape[1]
+            use_sliding_windows = (_flash_supports_window_size and self.sliding_window is not None and kv_seq_len > self.sliding_window)
+
+            if use_sliding_windows and not _flash_supports_window_size:
+                log_warn_once(
+                    "The current flash attention version does not support sliding window attention, for a more memory efficient implementation"
+                    " make sure to upgrade flash-attn library."
+                )
+                use_sliding_windows = False
+
+            if use_sliding_windows and past_key_value is not None and past_key_value[0].shape > 0:
+                use_sliding_windows = True
+            return use_sliding_windows
+    
+        def _run_sliding_window():
+            '''sliding_window部分'''
+            # Activate slicing cache only if the config has a value `sliding_windows` attribute
+            slicing_tokens = 1 - self.sliding_window
+
+            past_key = past_key_value[0][:, :, slicing_tokens:, :].contiguous()
+            past_value = past_key_value[1][:, :, slicing_tokens:, :].contiguous()
+
+            if past_key.shape[-2] != self.sliding_window - 1:
+                raise ValueError(
+                    f"past key must have a shape of (`batch_size, num_heads, self.sliding_window-1, head_dim`), got"
+                    f" {past_key.shape}"
+                )
+
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, slicing_tokens:]
+                attention_mask = torch.cat([attention_mask, torch.ones_like(attention_mask[:, -1:])], dim=-1)
+            
+            key_layer = key_layer[:, :, slicing_tokens:, :].contiguous()
+            value_layer = value_layer[:, :, slicing_tokens:, :].contiguous()
+            return key_layer, value_layer, (past_key, past_value), attention_mask
+
+        use_sliding_windows = _use_sliding_windows()
+        if use_sliding_windows:
+            key_layer, value_layer, past_key_value, attention_mask = _run_sliding_window()
 
         dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
         query_states = query_layer.transpose(1,2)  # [batch_size, query_len, num_attention_heads, attention_head_size]
@@ -472,15 +518,27 @@ class MultiHeadAttentionLayer(nn.Module):
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
             attn_output_unpad = flash_attn_varlen_func(
-                query_states, key_states, value_states, cu_seqlens_q=cu_seqlens_q, cu_seqlens_k=cu_seqlens_k, max_seqlen_q=max_seqlen_in_batch_q,
-                max_seqlen_k=max_seqlen_in_batch_k, dropout_p=dropout, softmax_scale=softmax_scale, causal=False)
+                query_states, 
+                key_states, 
+                value_states, 
+                cu_seqlens_q=cu_seqlens_q, 
+                cu_seqlens_k=cu_seqlens_k, 
+                max_seqlen_q=max_seqlen_in_batch_q,
+                max_seqlen_k=max_seqlen_in_batch_k, 
+                dropout_p=dropout, 
+                softmax_scale=softmax_scale, 
+                causal=False, 
+                window_size=(self.sliding_window, self.sliding_window) if use_sliding_windows else (-1, -1)
+            )
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
+
         elif not self.is_causal:
             # 使用torch的attention计算
             log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
             attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
             self.flash_attention = None
             return attn_output
+
         else:
             attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True)
 

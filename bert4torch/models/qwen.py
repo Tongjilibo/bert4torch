@@ -66,3 +66,14 @@ class Qwen(InternLM):
             f'decoderLayer.{i}.ffnLayerNorm.weight': 'transformer.h.%s.ln_2.weight' % i
             })
         return mapping
+
+
+
+class Qwen2(InternLM):
+    '''通义千问: https://github.com/QwenLM/Qwen1.5
+    '''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model_type = 'qwen2'
+        for layer in self.decoderLayer:
+            layer.multiHeadAttention.o.register_parameter('bias', None)

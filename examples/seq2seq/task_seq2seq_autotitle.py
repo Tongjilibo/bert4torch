@@ -23,9 +23,9 @@ batch_size = 16
 epochs = 10000
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -59,7 +59,7 @@ def collate_fn(batch):
     batch_segment_ids = torch.tensor(sequence_padding(batch_segment_ids), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
-train_dataloader = DataLoader(MyDataset(glob.glob('F:/data/corpus/sentence_classification/THUCNews/*.jsonl')), 
+train_dataloader = DataLoader(MyDataset(glob.glob('/data/corpus/sentence_classification/THUCNews/*.jsonl')), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 model = build_transformer_model(

@@ -153,6 +153,7 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
         'xlnet': XLNET,
         'bloom': Bloom,
         'qwen': Qwen,
+        'qwen2': Qwen2,
         'internlm': InternLM,
         'falcon': Falcon,
         'deepseek': DeepSeek
