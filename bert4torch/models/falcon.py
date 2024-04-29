@@ -24,9 +24,8 @@ class Falcon(Decoder):
         del self.embeddings.layerNorm
 
         if kwargs.get('parallel_attn') is True:
-            layer = self.ParallelAttnLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                            'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
-            self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+            self.decoderLayer = nn.ModuleList([self.ParallelAttnLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
+                                               if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
             self.LayerNormFinal.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
 
     def load_trans_ckpt(self, checkpoint):

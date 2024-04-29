@@ -38,6 +38,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.use_dynamic_ntk = use_dynamic_ntk
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
+        self.layer_idx = kwargs.get('layer_idx')
         
         # 获取flash_attention的配置项
         self.flash_attention_config = kwargs.get('flash_attention_config', dict())
@@ -463,7 +464,10 @@ class MultiHeadAttentionLayer(nn.Module):
             return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
         
         def _use_sliding_windows():
-            kv_seq_len = key_layer.shape[1]
+            if (self.max_window_layers is not None) and (self.layer_idx >= self.max_window_layers):
+                return False
+
+            kv_seq_len = key_layer.shape[1]  # [btz, n_heads, seq_len, d_head]
             use_sliding_windows = (_flash_supports_window_size and self.sliding_window is not None and kv_seq_len > self.sliding_window)
 
             if use_sliding_windows and not _flash_supports_window_size:
@@ -473,54 +477,55 @@ class MultiHeadAttentionLayer(nn.Module):
                 )
                 use_sliding_windows = False
 
-            if use_sliding_windows and past_key_value is not None and past_key_value[0].shape > 0:
+            if use_sliding_windows and past_key_value is not None and past_key_value[0].shape[2] > 0:
                 use_sliding_windows = True
             return use_sliding_windows
     
-        def _run_sliding_window():
+
+        def _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask):
             '''sliding_window部分'''
             # Activate slicing cache only if the config has a value `sliding_windows` attribute
-            slicing_tokens = 1 - self.sliding_window
+            slicing_tokens = -self.sliding_window
 
             past_key = past_key_value[0][:, :, slicing_tokens:, :].contiguous()
             past_value = past_key_value[1][:, :, slicing_tokens:, :].contiguous()
+            past_key_value = (past_key, past_value)
 
-            if past_key.shape[-2] != self.sliding_window - 1:
+            if past_key.shape[-2] != self.sliding_window:
                 raise ValueError(
                     f"past key must have a shape of (`batch_size, num_heads, self.sliding_window-1, head_dim`), got"
                     f" {past_key.shape}"
                 )
 
             if attention_mask is not None:
-                attention_mask = attention_mask[:, slicing_tokens:]
-                attention_mask = torch.cat([attention_mask, torch.ones_like(attention_mask[:, -1:])], dim=-1)
+                attention_mask = attention_mask[:, :, slicing_tokens:, slicing_tokens:]
             
-            key_layer = key_layer[:, :, slicing_tokens:, :].contiguous()
-            value_layer = value_layer[:, :, slicing_tokens:, :].contiguous()
-            return key_layer, value_layer, (past_key, past_value), attention_mask
-
-        use_sliding_windows = _use_sliding_windows()
-        if use_sliding_windows:
-            key_layer, value_layer, past_key_value, attention_mask = _run_sliding_window()
+            key_layer = key_layer[:, slicing_tokens:, :, :].contiguous()
+            value_layer = value_layer[:, slicing_tokens:, :, :].contiguous()
+            return key_layer, value_layer, past_key_value, attention_mask
 
         dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
-        query_states = query_layer.transpose(1,2)  # [batch_size, query_len, num_attention_heads, attention_head_size]
-        key_states = key_layer.transpose(1,2)
-        value_states = value_layer.transpose(1,2)
+        query_layer = query_layer.transpose(1,2)  # [batch_size, query_len, num_attention_heads, attention_head_size]
+        key_layer = key_layer.transpose(1,2)
+        value_layer = value_layer.transpose(1,2)
         
         if (not self.is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
+            use_sliding_windows = _use_sliding_windows()
+            if use_sliding_windows:
+                key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
+
             # flash attention目前仅支持key_padding_mask
             attn_mask = attention_mask[:,0,0,:]  # 将4维的attention_mask降低为2维
-            batch_size = query_states.shape[0]
-            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
-                self, query_states, key_states, value_states, attn_mask, query_length)
+            batch_size = query_layer.shape[0]
+            query_layer, key_layer, value_layer, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
+                self, query_layer, key_layer, value_layer, attn_mask, query_length)
 
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
             attn_output_unpad = flash_attn_varlen_func(
-                query_states, 
-                key_states, 
-                value_states, 
+                query_layer, 
+                key_layer, 
+                value_layer, 
                 cu_seqlens_q=cu_seqlens_q, 
                 cu_seqlens_k=cu_seqlens_k, 
                 max_seqlen_q=max_seqlen_in_batch_q,
@@ -532,15 +537,21 @@ class MultiHeadAttentionLayer(nn.Module):
             )
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
 
+        elif self.is_causal:
+            # attention_mask满足下三角的causal
+            use_sliding_windows = _use_sliding_windows()
+            if use_sliding_windows:
+                key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
+
+            attn_output = flash_attn_func(query_layer, key_layer, value_layer, dropout, softmax_scale=softmax_scale, causal=True,
+                                          window_size=(self.sliding_window, self.sliding_window) if use_sliding_windows else (-1, -1))
+        
         elif not self.is_causal:
             # 使用torch的attention计算
             log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
             attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
             self.flash_attention = None
             return attn_output
-
-        else:
-            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True)
 
         return attn_output.transpose(1,2)
 

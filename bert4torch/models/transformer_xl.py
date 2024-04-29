@@ -45,9 +45,8 @@ class Transformer_XL(BERT):
             self.r_s_bias = None
 
         # transformer block
-        layer = XlnetLayer(r_s_bias=None, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 'intermediate_size', 
-                                                        'hidden_act', 'is_dropout', 'conditional_size', 'r_w_bias', 'r_r_bias', **kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+        self.encoderLayer = nn.ModuleList([XlnetLayer(layer_idx=layer_idx, r_s_bias=None, **self.get_kw('r_w_bias', 'r_r_bias', *self._layer_args, **kwargs)) 
+                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
 
         # 映射
         if self.with_lm:

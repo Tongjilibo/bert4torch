@@ -230,8 +230,8 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
     # 文件夹
     if os.path.isdir(pretrained_model_name_or_path):
         for _config in ['bert4torch_config.json', 'config.json']:
-            config_path = os.path.join(pretrained_model_name_or_path, _config)
-            if os.path.exists(config_path):
+            if os.path.exists(tmp := os.path.join(pretrained_model_name_or_path, _config)):
+                config_path = tmp
                 break
         if (not allow_none) and (config_path is None):
             raise FileNotFoundError('bert4torch_config.json or config.json not found')

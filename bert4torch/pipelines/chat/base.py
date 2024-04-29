@@ -44,7 +44,10 @@ class Chat:
         self.checkpoint_path = checkpoint_path
         self.config_path = kwargs.get('config_path', checkpoint_path)
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
-        self.generation_config = json.load(open(get_config_path(self.config_path))).get('generation_config') or dict()
+        if (config_path_tmp := get_config_path(self.config_path, allow_none=True)) is not None:
+            self.generation_config = json.load(open(config_path_tmp)).get('generation_config')
+        else:
+            self.generation_config = dict()
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config

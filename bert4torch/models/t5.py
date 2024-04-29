@@ -1,6 +1,6 @@
 from bert4torch.models.transformer import Encoder, Decoder, Transformer
 from bert4torch.snippets import insert_arguments, delete_arguments
-from bert4torch.layers import LayerNorm, T5Layer
+from bert4torch.layers import LayerNorm, T5Layer, BlockIdentity
 from torch import nn
 import copy
 
@@ -14,9 +14,8 @@ class T5_Encoder(Encoder):
         del self.embeddings.layerNorm
 
         # t5的layernorm都在前面，因此重新定义了下
-        layer = T5Layer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                      'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
+        self.encoderLayer = nn.ModuleList([T5Layer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs))
+                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
 
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
@@ -74,9 +73,8 @@ class T5_Decoder(Decoder):
         del self.embeddings.layerNorm
 
         # t5的layernorm都在前面，因此重新定义了下
-        layer = T5Layer(is_decoder=True, **self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                                       'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', **kwargs))
-        self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)])
+        self.decoderLayer = nn.ModuleList([T5Layer(is_decoder=True, layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
+                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)

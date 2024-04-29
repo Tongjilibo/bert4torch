@@ -45,11 +45,9 @@ class BERT(BERT_BASE):
             self.with_pool = True
         self.additional_embs = additional_embs
         self.conditional_size = conditional_size
-        self.embeddings = BertEmbeddings(**self.get_kw('vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
-                                                       'shared_segment_embeddings', 'dropout_rate', 'conditional_size', **kwargs))
-        layer = BertLayer(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                        'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position', **kwargs))
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+        self.embeddings = BertEmbeddings(**self.get_kw(*self._embedding_args, **kwargs))
+        self.encoderLayer = nn.ModuleList([BertLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
+                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         
         if self.with_pool:
             # Pooler部分（提取CLS向量）
@@ -73,6 +71,18 @@ class BERT(BERT_BASE):
             self.tie_weights()
         self.model_type = 'bert'
 
+    @property
+    def _embedding_args(self):
+        args = ['vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
+                'shared_segment_embeddings', 'dropout_rate', 'conditional_size']
+        return args
+
+    @property
+    def _layer_args(self):
+        args = ['hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
+                'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position']
+        return args
+    
     def tie_weights(self):
         """权重的tie"""
         if (self.tie_emb_prj_weight is True) and self.with_mlm:

@@ -24,9 +24,8 @@ class GLM(Decoder):
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs.get('bos_token_id'), kwargs.get('mask_token_id'), kwargs.get('gmask_token_id')
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
         del self.embeddings.layerNorm
-        layer = self.GlmBlock(**self.get_kw('hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                                            'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'num_hidden_layers', **kwargs))
-        self.decoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+        self.decoderLayer = nn.ModuleList([self.GlmBlock(layer_idx=layer_idx, **self.get_kw('num_hidden_layers', *self._layer_args, **kwargs)) 
+                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.model_type = 'glm'
 

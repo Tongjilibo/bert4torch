@@ -11,7 +11,7 @@ import torch
 # config_path = root_model_path + "/bert4torch_config.json"
 # checkpoint_path = root_model_path + '/pytorch_model.bin'
 
-root_model_path = "E:/pretrain_ckpt/bert/google@bert-base-chinese"
+root_model_path = "/data/pretrain_ckpt/bert/google@bert-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
