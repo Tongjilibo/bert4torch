@@ -826,7 +826,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             raise ValueError(f'Only support `encode` and `decode` options, {mode} not supported')
 
-    def pre_process(self, text):
+    def pre_process(self, text:Union[str, torch.Tensor, List[Union[int, torch.Tensor]], Tuple[Union[int, torch.Tensor]]]) -> Union[torch.Tensor, List[Union[torch.Tensor, List[int]]]]:
         '''前处理，可以继承后自定义，主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
         # 传入的时候text已经是token_ids

@@ -1,6 +1,6 @@
 ## 更新历史
 
-- **20240426**：简化大模型调用demo, generation_config从config读取, 增加Qwen2和SWA
+- **20240426**：简化大模型调用demo, generation_config从config读取, 增加Qwen2和SWA, 修复RMSNorm中转类型bug
 - **20240418**：修改Text2Vec的bug, 完善openai client, 增加get_weight_decay_optim_groups
 - **20240331**: 修复chatglm3的bug, 修复save_pretrained时多文件的bug，增加CausalLMLoss, 修改deepspeed的传参逻辑
 - **20240317**: 修复config_path的bug，允许num_key_value_heads参数

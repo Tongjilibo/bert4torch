@@ -50,8 +50,9 @@ class LayerNorm(nn.Module):
             return F.layer_norm(hidden_states, self.normalized_shape, self.weight, self.bias, self.eps)
         # RMSnorm: t5、大模型系列均使用
         elif self.norm_mode == 'rmsnorm':
-            variance = hidden_states.float().pow(2).mean(-1, keepdim=True)
-            o = (hidden_states.float() * torch.rsqrt(variance + self.eps))
+            hidden_states_fp32 = hidden_states.float()
+            variance = hidden_states_fp32.pow(2).mean(-1, keepdim=True)
+            o = (hidden_states_fp32 * torch.rsqrt(variance + self.eps)).type_as(hidden_states)  # 这里转type结果才一致
         # 自行实现的LayerNorm
         else:
             u = hidden_states.mean(-1, keepdim=True)
@@ -70,7 +71,7 @@ class LayerNorm(nn.Module):
 
         if hasattr(self, 'bias') and (self.bias is not None):
             output += self.bias
-        return output.type_as(hidden_states)
+        return output if output.dtype == hidden_states.dtype else output.type_as(hidden_states)
 
 
 class BertEmbeddings(nn.Module):

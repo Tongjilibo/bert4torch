@@ -49,13 +49,17 @@ def call_sseclient():
 
 def main():
     # Qwen-1_8B  Qwen-1_8B-Chat  Qwen-7B  Qwen-7B-Chat  Qwen-14B  Qwen-14B-Chat
-    # Qwen1.5-0.5B-Chat
+    # Qwen1.5-0.5B  Qwen1.5-0.5B-Chat  Qwen1.5-1.8B  Qwen1.5-1.8B-Chat  Qwen1.5-7B  Qwen1.5-7B-Chat  Qwen1.5-14B  Qwen1.5-14B-Chat
     model_dir = f'/data/pretrain_ckpt/Qwen/Qwen1.5-0.5B-Chat'
     choice = 'cli_chat'  # batch gen_1toN openai cli_chat cli_continue
 
-    generation_config = {'max_length': 256, 'include_input': False if '-Chat' in model_dir else True}
+    generation_config = {'max_length': 256, 'top_k': 1, 'include_input': False if '-Chat' in model_dir else True}
     Chat =  ChatQwenOpenaiApi if choice == 'openai' else ChatQwenCli
-    demo = Chat(model_dir, system='You are a helpful assistant.', generation_config=generation_config)
+    demo = Chat(model_dir, 
+                system='You are a helpful assistant.', 
+                generation_config=generation_config,
+                # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+                )
 
     if choice == 'batch':
         # chat模型，batch_generate的示例
