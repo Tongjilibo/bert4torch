@@ -6,7 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import numpy as np
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Literal
+import warnings
 
 
 class FocalLoss(nn.Module):
@@ -355,36 +356,92 @@ class DPOLoss:
     :param pad_token_id: pad的token_id, 用于计算mask
     :param beta: float, dpo中beta参数
     :param reference_free: bool, 默认为False
-    :param average_log_prob: bool, 是否对log_prob去均值，默认为False
+    :param average_log_prob: bool, 是否对log_prob去均值, 默认为False
     :param prefix: 进度条展示指标的前缀
+
+    主要思路: 优化方向: 以下值往Max方向
+    (policy_chosen_logps - reference_chosen_logps) - (policy_rejected_logps - reference_rejected_logps)
+    左半部分和右半部分的margin越大越好, 左半部分的含义是chosen response相较于没训练之前的累积概率差值, 右半部分代表rejected response相较于没训练之前的累计概率差值
+    1) 左边变大, 右边变小, 理想情况, chosen response概率提升, rejected response概率下降
+    2) 左边变小, 右边更小, chosen response概率下降, 但是rejected response概率下降的更多, 生成的时候还是倾向于good response
+    3) 左边变的更大, 右边只大了一点点, 和2)同理
+
+    Reference: https://github.com/huggingface/trl/blob/main/trl/trainer/dpo_trainer.py
     '''
-    def __init__(self, pad_token_id=0, beta=0.1, reference_free=False, average_log_prob=False, prefix='') -> None:
+    def __init__(self, 
+                 label_smoothing: float = 0,
+                 loss_type: Literal["sigmoid", "hinge", "ipo", "kto_pair"] = "sigmoid",
+                 pad_token_id:int=0, 
+                 beta:float=0.1, 
+                 reference_free=False, 
+                 average_log_prob=False, 
+                 prefix='', 
+                 offset=False) -> None:
         self.pad_token_id = pad_token_id
         self.beta = beta
         self.reference_free = reference_free
         self.average_log_prob = average_log_prob
         self.prefix = prefix
+        self.offset = offset
+
+        if loss_type in ["hinge", "ipo", "kto_pair"] and label_smoothing > 0:
+            warnings.warn(
+                "You are using a loss type that does not support label smoothing. Ignoring label_smoothing parameter."
+            )
+        self.label_smoothing = label_smoothing
+        self.loss_type = loss_type
     
-    def __call__(self, logits, labels):
+    def __call__(self, logits:Union[List[torch.Tensor], Tuple[torch.Tensor]], labels:torch.Tensor):
         '''
         :param logit: tuple/list, 分别表示policy_logits, reference_logits，tensor中前一半为chosen，后一半为rejected
         :param labels: 真实标签
         '''
-        policy_logits, reference_logits = logits
-        pol_chosen_logps, pol_rejected_logps = self._get_batch_logps(policy_logits, labels)
-        ref_chosen_logps, ref_rejected_logps = self._get_batch_logps(reference_logits, labels)
+        policy_logits, reference_logits = logits  # 均为[btz, seq_len, vocab_size]
 
-        pi_logratios = pol_chosen_logps - pol_rejected_logps
-        ref_logratios = ref_chosen_logps - ref_rejected_logps
+        # 计算真实标签labels对应token位置的log prob，均为[btz, seq_len]
+        policy_chosen_logps, policy_rejected_logps = self._get_batch_logps(policy_logits, labels)
+        reference_chosen_logps, reference_rejected_logps = self._get_batch_logps(reference_logits, labels)
+
+        pi_logratios = policy_chosen_logps - policy_rejected_logps
+        ref_logratios = reference_chosen_logps - reference_rejected_logps
 
         if self.reference_free:
             ref_logratios = 0
-
         logits = pi_logratios - ref_logratios
+        
+        # 计算loss
+        if self.loss_type == "sigmoid":
+            losses = (
+                -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
+                - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+            )
+        elif self.loss_type == "hinge":
+            losses = torch.relu(1 - self.beta * logits)
+        elif self.loss_type == "ipo":
+            # eqn (17) of the paper where beta is the regularization parameter for the IPO loss, denoted by tau in the paper.
+            losses = (logits - 1 / (2 * self.beta)) ** 2
+        elif self.loss_type == "kto_pair":
+            # eqn (7) of the HALOs paper
+            chosen_KL = (policy_chosen_logps - reference_chosen_logps).mean().clamp(min=0)
+            rejected_KL = (policy_rejected_logps - reference_rejected_logps).mean().clamp(min=0)
 
-        losses = -F.logsigmoid(self.beta * logits)
-        chosen_rewards = self.beta * (pol_chosen_logps - ref_chosen_logps).detach()
-        rejected_rewards = self.beta * (pol_rejected_logps - ref_rejected_logps).detach()
+            chosen_logratios = policy_chosen_logps - reference_chosen_logps
+            rejected_logratios = policy_rejected_logps - reference_rejected_logps
+            # As described in the KTO report, the KL term for chosen (rejected) is estimated using the rejected (chosen) half.
+            losses = torch.cat(
+                (
+                    1 - F.sigmoid(self.beta * (chosen_logratios - rejected_KL)),
+                    1 - F.sigmoid(self.beta * (chosen_KL - rejected_logratios)),
+                ),
+                0,
+            )
+        else:
+            raise ValueError(
+                f"Unknown loss type: {self.loss_type}. Should be one of ['sigmoid', 'hinge', 'ipo', 'kto_pair']"
+            )
+
+        chosen_rewards = self.beta * (policy_chosen_logps - reference_chosen_logps).detach()
+        rejected_rewards = self.beta * (policy_rejected_logps - reference_rejected_logps).detach()
         reward_accuracies = (chosen_rewards > rejected_rewards).float()
 
         loss_detail = {'loss': losses.mean()}
@@ -395,18 +452,20 @@ class DPOLoss:
         return loss_detail
 
     def _get_batch_logps(self, logits, labels):
-        """Compute the log probabilities of the given labels under the given logits.
+        """计算真实标签labels对应token位置的log prob
         """
         if logits.shape[:-1] != labels.shape:
             raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
 
-        labels = labels[:, 1:].clone()  # labels取从1到n
-        logits = logits[:, :-1, :]  # logits去从0到n-1
+        if self.offset:
+            labels = labels[:, 1:].clone()  # labels取从1到n
+            logits = logits[:, :-1, :]  # logits去从0到n-1
         loss_mask = labels != self.pad_token_id  # 仅计算非padding部分
 
         # dummy token; we'll ignore the losses on these tokens later
         labels[labels == self.pad_token_id] = 0
 
+        # 取真实label对应token位置的概率值logps
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
 
         if self.average_log_prob:
@@ -414,6 +473,7 @@ class DPOLoss:
         else:
             all_logps =  (per_token_logps * loss_mask).sum(-1)
 
+        # 要求传进来的tensor前一半是chosen的，后一半是rejected的
         split = labels.shape[0] // 2
         chosen_logps = all_logps[:split]
         rejected_logps = all_logps[split:]

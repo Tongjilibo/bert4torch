@@ -2,6 +2,7 @@ import torch
 from torch4keras.trainer import Trainer
 from bert4torch.models import BaseModel
 import copy
+from typing import Literal
 
 
 class DPOTrainer(Trainer):
@@ -10,7 +11,10 @@ class DPOTrainer(Trainer):
     :param model: 待训练模型
     :param ref_model: 参考模型
     '''
-    def __init__(self, model:BaseModel, ref_model:BaseModel=None):
+    def __init__(self, 
+                 model:BaseModel, 
+                 ref_model:BaseModel=None,
+        ):
         super().__init__()
         self.model = model
         self.model.print_trainable_parameters()
