@@ -374,13 +374,11 @@ class DPOLoss:
                  pad_token_id:int=0, 
                  beta:float=0.1, 
                  reference_free=False, 
-                 average_log_prob=False, 
                  prefix='', 
                  offset=False) -> None:
         self.pad_token_id = pad_token_id
         self.beta = beta
         self.reference_free = reference_free
-        self.average_log_prob = average_log_prob
         self.prefix = prefix
         self.offset = offset
 
@@ -391,16 +389,16 @@ class DPOLoss:
         self.label_smoothing = label_smoothing
         self.loss_type = loss_type
     
-    def __call__(self, logits:Union[List[torch.Tensor], Tuple[torch.Tensor]], labels:torch.Tensor):
+    def __call__(self, policy_reference_logits:Union[List[torch.Tensor], Tuple[torch.Tensor]], labels:torch.Tensor):
         '''
         :param logit: tuple/list, 分别表示policy_logits, reference_logits，tensor中前一半为chosen，后一半为rejected
         :param labels: 真实标签
         '''
-        policy_logits, reference_logits = logits  # 均为[btz, seq_len, vocab_size]
+        policy_logits, reference_logits = policy_reference_logits  # 均为[btz, seq_len, vocab_size]
 
         # 计算真实标签labels对应token位置的log prob，均为[btz, seq_len]
-        policy_chosen_logps, policy_rejected_logps = self._get_batch_logps(policy_logits, labels)
-        reference_chosen_logps, reference_rejected_logps = self._get_batch_logps(reference_logits, labels)
+        policy_chosen_logps, policy_rejected_logps = self._get_batch_logps(policy_logits, labels, self.loss_type == "ipo")
+        reference_chosen_logps, reference_rejected_logps = self._get_batch_logps(reference_logits, labels, self.loss_type == "ipo")
 
         pi_logratios = policy_chosen_logps - policy_rejected_logps
         ref_logratios = reference_chosen_logps - reference_rejected_logps
@@ -451,7 +449,7 @@ class DPOLoss:
         loss_detail[f"{self.prefix}margins"] = (chosen_rewards - rejected_rewards).cpu().numpy().mean()
         return loss_detail
 
-    def _get_batch_logps(self, logits, labels):
+    def _get_batch_logps(self, logits:torch.FloatTensor, labels:torch.LongTensor, average_log_prob:bool=False):
         """计算真实标签labels对应token位置的log prob
         """
         if logits.shape[:-1] != labels.shape:
@@ -460,6 +458,8 @@ class DPOLoss:
         if self.offset:
             labels = labels[:, 1:].clone()  # labels取从1到n
             logits = logits[:, :-1, :]  # logits去从0到n-1
+        else:
+            labels = labels.clone()
         loss_mask = labels != self.pad_token_id  # 仅计算非padding部分
 
         # dummy token; we'll ignore the losses on these tokens later
@@ -468,7 +468,7 @@ class DPOLoss:
         # 取真实label对应token位置的概率值logps
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
 
-        if self.average_log_prob:
+        if average_log_prob:
             all_logps = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
         else:
             all_logps =  (per_token_logps * loss_mask).sum(-1)

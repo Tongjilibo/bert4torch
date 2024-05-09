@@ -22,11 +22,11 @@ class DPOTrainer(Trainer):
         for p in self.ref_model.parameters():
             p.requires_grad = False
         self.ref_model.print_trainable_parameters()
+        self.ref_model.eval()
 
     def _forward(self, *inputs, **input_kwargs):
         '''修改父类的_forward来获取输出'''
         policy_logits = self._argparse_forward(self.model, *inputs, **input_kwargs).to(torch.float32)
-        self.ref_model.eval()
         with torch.no_grad():
             reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs).to(torch.float32)
         
