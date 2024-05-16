@@ -2,7 +2,8 @@ import torch
 from torch4keras.trainer import Trainer
 from bert4torch.models import BaseModel
 import copy
-from typing import Literal
+from typing import Literal, Optional, Dict
+from contextlib import contextmanager, nullcontext
 
 
 class DPOTrainer(Trainer):
@@ -11,9 +12,12 @@ class DPOTrainer(Trainer):
     :param model: 待训练模型
     :param ref_model: 参考模型
     '''
-    def __init__(self, 
-                 model:BaseModel, 
-                 ref_model:BaseModel=None,
+    def __init__(
+        self, 
+        model:BaseModel, 
+        ref_model:BaseModel=None,
+        ref_adapter_name: Optional[str] = None,
+        peft_config: Optional[Dict] = None,
         ):
         super().__init__()
         self.model = model
@@ -31,6 +35,18 @@ class DPOTrainer(Trainer):
             reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs).to(torch.float32)
         
         return policy_logits, reference_logits
+
+    @contextmanager
+    def null_ref_context(self):
+        """Context manager for handling null reference model (that is, peft adapter manipulation)."""
+        with self.accelerator.unwrap_model(
+            self.model
+        ).disable_adapter() if self.is_peft_model and not self.ref_adapter_name else nullcontext():
+            if self.ref_adapter_name:
+                self.model.set_adapter(self.ref_adapter_name)
+            yield
+            if self.ref_adapter_name:
+                self.model.set_adapter(self.model_adapter_name or "default")
 
     def unwrap_model(self):
         '''返回nn.Module模块

@@ -371,7 +371,7 @@ class DPOLoss:
     def __init__(self, 
                  label_smoothing: float = 0,
                  loss_type: Literal["sigmoid", "hinge", "ipo", "kto_pair"] = "sigmoid",
-                 pad_token_id:int=0, 
+                 pad_token_id:int=-100, 
                  beta:float=0.1, 
                  reference_free=False, 
                  prefix='', 
@@ -397,14 +397,16 @@ class DPOLoss:
         policy_logits, reference_logits = policy_reference_logits  # 均为[btz, seq_len, vocab_size]
 
         # 计算真实标签labels对应token位置的log prob，均为[btz, seq_len]
-        policy_chosen_logps, policy_rejected_logps = self._get_batch_logps(policy_logits, labels, self.loss_type == "ipo")
-        reference_chosen_logps, reference_rejected_logps = self._get_batch_logps(reference_logits, labels, self.loss_type == "ipo")
+        policy_chosen_logps, policy_rejected_logps = self.get_batch_logps(policy_logits, labels, self.loss_type == "ipo")
+        reference_chosen_logps, reference_rejected_logps = self.get_batch_logps(reference_logits, labels, self.loss_type == "ipo")
 
         pi_logratios = policy_chosen_logps - policy_rejected_logps
-        ref_logratios = reference_chosen_logps - reference_rejected_logps
 
         if self.reference_free:
             ref_logratios = 0
+        else:
+            ref_logratios = reference_chosen_logps - reference_rejected_logps
+
         logits = pi_logratios - ref_logratios
         
         # 计算loss
@@ -449,7 +451,7 @@ class DPOLoss:
         loss_detail[f"{self.prefix}margins"] = (chosen_rewards - rejected_rewards).cpu().numpy().mean()
         return loss_detail
 
-    def _get_batch_logps(self, logits:torch.FloatTensor, labels:torch.LongTensor, average_log_prob:bool=False):
+    def get_batch_logps(self, logits:torch.FloatTensor, labels:torch.LongTensor, average_log_prob:bool=False):
         """计算真实标签labels对应token位置的log prob
         """
         if logits.shape[:-1] != labels.shape:

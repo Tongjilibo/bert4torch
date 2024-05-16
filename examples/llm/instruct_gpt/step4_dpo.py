@@ -93,39 +93,14 @@ dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), bat
 
 
 # ============= 定义 model =============
-if False:
-    # 老的实现，自定义模型结构
-    class DPOModel(BaseModel):
-        def __init__(self):
-            super().__init__()
-            self.model = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
-                                                model=args.model_type, pad_token_id=pad_token_id)
-            self.model.print_trainable_parameters()
-            self.ref_model = copy.deepcopy(self.model)
-            for p in self.ref_model.parameters():
-                p.requires_grad = False
-            self.ref_model.print_trainable_parameters()
-
-        def forward(self, input_ids):
-            policy_logits = self.model(input_ids).to(torch.float32)
-            self.ref_model.eval()
-            with torch.no_grad():
-                reference_logits = self.ref_model(input_ids).to(torch.float32)
-            return policy_logits, reference_logits
-    model = DPOModel()
-    model = get_nbit_lora_model(model, use_lora=args.use_lora, load_in_nbit=args.load_in_nbit).to(args.device)
-    optimizer = optim.AdamW(model.parameters(), args.lr)
-else:
-    # 新的实现，使用内置的Trainer
-    net = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
-                                  model=args.model_type, pad_token_id=pad_token_id).to(args.device)
-    model = DPOTrainer(net)
-    optimizer = optim.AdamW(net.parameters(), args.lr)
-
-loss = DPOLoss(pad_token_id=pad_token_id)
-model.compile(loss=loss, optimizer=optimizer, grad_accumulation_steps=args.grad_accumulation_steps)
+net = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
+                                model=args.model_type, pad_token_id=pad_token_id).to(args.device)
+trainer = DPOTrainer(net)
+trainer.compile(loss=DPOLoss(pad_token_id=pad_token_id, offset=True), 
+                optimizer=optim.AdamW(net.parameters(), args.lr), 
+                grad_accumulation_steps=args.grad_accumulation_steps)
 
 
 if __name__ == "__main__":
     logger = Logger('./log_dpo.log')
-    model.fit(train_dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[logger])
+    trainer.fit(train_dataloader, steps_per_epoch=args.steps_per_epoch, epochs=args.epochs, callbacks=[logger])

@@ -310,3 +310,23 @@ def get_weight_decay_optim_groups(module:nn.Module, weight_decay:float) -> dict:
     log_info(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
     log_info(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
     return optim_groups
+
+
+def find_all_linear_names(peft_model, int4=False, int8=False, ignore_names=['lm_head', 'output_layer']):
+    """Find all linear layer names in the model. reference from qlora paper."""
+    cls = torch.nn.Linear
+    if int4 or int8:
+        import bitsandbytes as bnb
+        if int4:
+            cls = bnb.nn.Linear4bit
+        elif int8:
+            cls = bnb.nn.Linear8bitLt
+    lora_module_names = set()
+    for name, module in peft_model.named_modules():
+        if isinstance(module, cls):
+            # last layer is not add to lora_module_names
+            if any([True if key in name else False for key in ignore_names]):
+                continue
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+    return sorted(lora_module_names)
