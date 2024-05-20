@@ -2,6 +2,7 @@ import importlib.util
 import torch
 from packaging import version
 from torch4keras.snippets.import_utils import is_package_available
+from importlib.util import find_spec
 import sys
 if sys.version_info < (3, 8):
     import importlib_metadata
@@ -52,3 +53,7 @@ def is_sseclient_available():
 
 def is_streamlit_available():
     return is_package_available('streamlit')
+
+
+def is_peft_available() -> bool:
+    return find_spec("peft") is not None

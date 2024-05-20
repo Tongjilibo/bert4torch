@@ -330,3 +330,23 @@ def find_all_linear_names(peft_model, int4=False, int8=False, ignore_names=['lm_
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
     return sorted(lora_module_names)
+
+
+def disable_dropout_in_model(model: torch.nn.Module) -> None:
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.p = 0
+
+
+def peft_module_casting_to_bf16(model):
+    from peft.tuners.tuners_utils import BaseTunerLayer
+
+    for name, module in model.named_modules():
+        if isinstance(module, BaseTunerLayer):
+            module = module.to(torch.bfloat16)
+        elif isinstance(module, torch.nn.LayerNorm) or "norm" in name:
+            module = module.to(torch.float32)
+        elif any(x in name for x in ["lm_head", "embed_tokens", "wte", "wpe"]):
+            if hasattr(module, "weight"):
+                if module.weight.dtype == torch.float32:
+                    module = module.to(torch.bfloat16)
