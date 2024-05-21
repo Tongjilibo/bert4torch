@@ -6,7 +6,7 @@ from typing import Literal, Optional, Dict, Union
 from contextlib import contextmanager, nullcontext
 import warnings
 import inspect
-from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16
+from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16, DottableDict
 if is_peft_available():
     from peft import PeftModel, get_peft_model, prepare_model_for_kbit_training
 
@@ -21,7 +21,7 @@ class DPOTrainer(Trainer):
         self, 
         model: Optional[Union[BaseModel, str]], 
         ref_model:BaseModel=None,
-        args: Optional[Dict] = None,
+        args: Optional[DottableDict] = None,
         model_init_kwargs: Optional[Dict] = None,
         ref_model_init_kwargs: Optional[Dict] = None,
         model_adapter_name: Optional[str] = None,
@@ -101,7 +101,7 @@ class DPOTrainer(Trainer):
 
             # get peft model with the given config
             model = get_peft_model(model, peft_config)
-            if args.bf16 and getattr(model, "is_loaded_in_4bit", False):
+            if getattr(args, 'bf16', False) and getattr(model, "is_loaded_in_4bit", False):
                 peft_module_casting_to_bf16(model)
                 # If args.bf16 we need to explicitly call `generate` with torch amp autocast context manager
                 self._peft_has_been_casted_to_bf16 = True
@@ -122,6 +122,7 @@ class DPOTrainer(Trainer):
 
         self.is_peft_model = is_peft_available() and isinstance(model, PeftModel)
         self.model_adapter_name = model_adapter_name
+        self.ref_adapter_name = ref_adapter_name
 
         self.model = model
         self.model.print_trainable_parameters()
@@ -143,7 +144,11 @@ class DPOTrainer(Trainer):
         '''修改父类的_forward来获取输出'''
         policy_logits = self._argparse_forward(self.model, *inputs, **input_kwargs).to(torch.float32)
         with torch.no_grad():
-            reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs).to(torch.float32)
+            if self.ref_model is None:
+                with self.null_ref_context():
+                    reference_logits = self._argparse_forward(self.model, *inputs, **input_kwargs).to(torch.float32)
+            else:
+                reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs).to(torch.float32)
         
         return policy_logits, reference_logits
 
