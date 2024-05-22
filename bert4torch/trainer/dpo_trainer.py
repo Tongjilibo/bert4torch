@@ -1,12 +1,13 @@
 import torch
-from torch4keras.trainer import Trainer
-from bert4torch.models import BaseModel, build_transformer_model
 import copy
 from typing import Literal, Optional, Dict, Union
 from contextlib import contextmanager, nullcontext
 import warnings
 import inspect
-from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16, DottableDict
+from torch4keras.trainer import Trainer
+from bert4torch.models import BaseModel, build_transformer_model
+from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16
+from bert4torch.snippets import DottableDict, print_trainable_parameters
 if is_peft_available():
     from peft import PeftModel, get_peft_model, prepare_model_for_kbit_training
 
@@ -21,7 +22,7 @@ class DPOTrainer(Trainer):
         self, 
         model: Optional[Union[BaseModel, str]], 
         ref_model:BaseModel=None,
-        args: Optional[DottableDict] = None,
+        args: Optional[DottableDict] = DottableDict(),
         model_init_kwargs: Optional[Dict] = None,
         ref_model_init_kwargs: Optional[Dict] = None,
         model_adapter_name: Optional[str] = None,
@@ -109,23 +110,15 @@ class DPOTrainer(Trainer):
         # For models that use gradient_checkpointing, we need to attach a hook that enables input
         # to explicitly have `requires_grad=True`, otherwise training will either silently
         # fail or completely fail.
-        elif getattr(args, "gradient_checkpointing", False):
-            # For backward compatibility with older versions of transformers
-            if hasattr(model, "enable_input_require_grads"):
-                model.enable_input_require_grads()
-            else:
-
-                def make_inputs_require_grad(module, input, output):
-                    output.requires_grad_(True)
-
-                model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
+        elif getattr(model, "gradient_checkpoint", False):
+            model.enable_input_require_grads()
 
         self.is_peft_model = is_peft_available() and isinstance(model, PeftModel)
         self.model_adapter_name = model_adapter_name
         self.ref_adapter_name = ref_adapter_name
 
+        print_trainable_parameters(model)
         self.model = model
-        self.model.print_trainable_parameters()
         if ref_model:
             self.ref_model = ref_model
             for p in self.ref_model.parameters():
@@ -142,15 +135,15 @@ class DPOTrainer(Trainer):
     
     def _forward(self, *inputs, **input_kwargs):
         '''修改父类的_forward来获取输出'''
-        policy_logits = self._argparse_forward(self.model, *inputs, **input_kwargs).to(torch.float32)
+        policy_logits = self._argparse_forward(self.model, *inputs, **input_kwargs)
         with torch.no_grad():
             if self.ref_model is None:
                 with self.null_ref_context():
-                    reference_logits = self._argparse_forward(self.model, *inputs, **input_kwargs).to(torch.float32)
+                    reference_logits = self._argparse_forward(self.model, *inputs, **input_kwargs)
             else:
-                reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs).to(torch.float32)
+                reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs)
         
-        return policy_logits, reference_logits
+        return policy_logits.to(torch.float32), reference_logits.to(torch.float32)
 
     @contextmanager
     def null_ref_context(self):

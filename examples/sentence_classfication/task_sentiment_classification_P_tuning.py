@@ -129,9 +129,9 @@ if choice == 'finetune_few':
     class PtuningBERT(BaseModel):
         def __init__(self):
             super().__init__()
-            # 这里tie_emb_prj_weight=False，若设置为True, 则最后一层mlmDecoder也需要mask（未实现）
+            # 这里tie_word_embeddings=False，若设置为True, 则最后一层mlmDecoder也需要mask（未实现）
             self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm=True, 
-                                                # tie_emb_prj_weight=True, 
+                                                # tie_word_embeddings=True, 
                                                 custom_attention_mask=True)
             for name, param in self.bert.named_parameters():
                 if ('word_embeddings' not in name) and ('mlmDecoder' not in name):

@@ -56,7 +56,7 @@ class Decoder(LM_Mask, BERT):
     def tie_weights(self):
         # decoder底层的embedding和顶层的全连接共享
         # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
-        if (self.tie_emb_prj_weight is True) and self.with_lm:
+        if (self.tie_word_embeddings is True) and self.with_lm:
             self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def apply_main_layers(self, **model_kwargs):
@@ -117,7 +117,7 @@ class Decoder(LM_Mask, BERT):
         if self.final_layernorm:
             mapping.update({'LayerNormFinal.weight': f'{prefix}.LayerNormFinal.weight',
                             'LayerNormFinal.bias': f'{prefix}.LayerNormFinal.bias'})
-        if self.with_lm and (not self.tie_emb_prj_weight):  # 当且仅当未绑定权重的时候
+        if self.with_lm and (not self.tie_word_embeddings):  # 当且仅当未绑定权重的时候
             mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
 

@@ -473,7 +473,7 @@ class DPOLoss:
         if average_log_prob:
             all_logps = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
         else:
-            all_logps =  (per_token_logps * loss_mask).sum(-1)
+            all_logps = (per_token_logps * loss_mask).sum(-1)
 
         # 要求传进来的tensor前一半是chosen的，后一半是rejected的
         split = labels.shape[0] // 2

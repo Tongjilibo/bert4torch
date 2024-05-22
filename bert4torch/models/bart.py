@@ -7,7 +7,7 @@ class BART(Transformer):
     '''encoder-decoder结构'''
     def __init__(self, *args, **kwargs):
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
-        kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
+        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         self.postion_offset = 2
         kwargs['max_position'] = kwargs['max_position'] + self.postion_offset  # bart有个值为2的offset
         super(BART, self).__init__(*args, **kwargs)

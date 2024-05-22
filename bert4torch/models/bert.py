@@ -85,7 +85,7 @@ class BERT(BERT_BASE):
     
     def tie_weights(self):
         """权重的tie"""
-        if (self.tie_emb_prj_weight is True) and self.with_mlm:
+        if (self.tie_word_embeddings is True) and self.with_mlm:
             self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
             self.mlmDecoder.bias = self.mlmBias
     

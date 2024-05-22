@@ -14,7 +14,7 @@ class GPT(Decoder):
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
+        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         super(GPT, self).__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         self.model_type = 'gpt'
@@ -110,7 +110,7 @@ class GPT2(Decoder):
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
+        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         kwargs['pre_layernorm'] = kwargs.get('pre_layernorm', True)
         kwargs['final_layernorm'] = kwargs.get('final_layernorm', True)
         super(GPT2, self).__init__(*args, **kwargs)
@@ -202,7 +202,7 @@ class GPT2_ML(Decoder):
     """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        kwargs['tie_emb_prj_weight'] = kwargs.get('tie_emb_prj_weight', True)
+        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
         self.decoderLayer = nn.ModuleList([self.Gpt2MlLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 

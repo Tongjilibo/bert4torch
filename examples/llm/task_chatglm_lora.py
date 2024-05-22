@@ -155,7 +155,7 @@ dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev.json')), batch
 # ====================================建立模型====================================
 # 原使用peft=0.5.0时候下面可.half()，高版本peft.half()发现loss为nan，排查发现是高版本会把lora_A转成和base_layer(Linear)的dtype=fp16
 # 把.half()去掉，使用原来的bf16训练，lora_A还是fp32
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True, tie_emb_prj_weight=True)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True, tie_word_embeddings=True)
 
 # 量化
 if load_in_nbit == 8:
