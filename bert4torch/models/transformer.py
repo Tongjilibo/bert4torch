@@ -141,10 +141,10 @@ class Decoder(LM_Mask, BERT):
 class Transformer(BERT_BASE):
     '''encoder-decoder结构'''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, tie_emb_src_tgt_weight=False, **kwargs):
+    def __init__(self, *args, tie_word_embeddings=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
         self.max_position = kwargs['max_position']
-        self.tie_emb_src_tgt_weight = tie_emb_src_tgt_weight
+        self.tie_word_embeddings = tie_word_embeddings
         self.is_encoder_decoder = True
         self.model_type = 'transformer'
 
@@ -157,7 +157,7 @@ class Transformer(BERT_BASE):
     def tie_weights(self):
         self.decoder.tie_weights()
         # encoder和decoder的embedding权重共享
-        if self.tie_emb_src_tgt_weight:
+        if self.tie_word_embeddings:
             assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
             self.decoder.embeddings.word_embeddings.weight = self.encoder.embeddings.word_embeddings.weight
 

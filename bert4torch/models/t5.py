@@ -137,7 +137,7 @@ class T5(Transformer):
     """Google的T5模型（Encoder-Decoder）"""
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args,  **kwargs):
-        kwargs['tie_emb_src_tgt_weight'] = kwargs.get('tie_emb_src_tgt_weight', True)
+        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         super(T5, self).__init__(*args, **kwargs)
 
         # encoder
@@ -164,7 +164,7 @@ class T5(Transformer):
     def variable_mapping(self):
         mapping = self.encoder.variable_mapping()
         mapping.update(self.decoder.variable_mapping())
-        if self.tie_emb_src_tgt_weight:
+        if self.tie_word_embeddings:
             mapping.update({'encoder.embeddings.word_embeddings.weight': 'shared.weight',
                             'decoder.embeddings.word_embeddings.weight': 'shared.weight'})
         return mapping
