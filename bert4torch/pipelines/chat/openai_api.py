@@ -10,7 +10,7 @@ import json
 import requests
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
-from bert4torch.snippets import log_info, log_warn, cuda_empty_cache, AnyClass
+from bert4torch.snippets import log_info, log_warn, cuda_empty_cache
 from bert4torch.snippets import is_fastapi_available, is_pydantic_available, is_sseclient_available
 from packaging import version
 from .base import Chat
@@ -23,11 +23,14 @@ if is_fastapi_available():
     from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
     from fastapi.middleware.cors import CORSMiddleware
 else:
-    FastAPI, BaseModel, Field, Depends = object, object, AnyClass, AnyClass
-    HTTPAuthorizationCredentials, HTTPBearer = AnyClass, AnyClass
+    class FastAPI: pass
+    class HTTPAuthorizationCredentials: pass
+    Depends, HTTPBearer = object, object
 
 if is_pydantic_available():
     from pydantic import BaseModel, Field
+else:
+    BaseModel, Field = object, object
 
 
 @asynccontextmanager
@@ -104,19 +107,20 @@ class ChatOpenaiApi(Chat):
     :param scheduler_interval: int, 定时任务的执行间隔
     :param api_keys: List[str], api keys的list
 
-    Example
-    ------------------------
+    Examples:
+    ```python
     >>> # 以chatglm2的api部署为例
     >>> from bert4torch.pipelines import ChatGlm2OpenaiApi
 
     >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
     >>> generation_config  = {'mode':'random_sample',
-    >>>                     'max_length':2048, 
-    >>>                     'default_rtype':'logits', 
-    >>>                     'use_states':True
-    >>>                     }
+    ...                     'max_length':2048, 
+    ...                     'default_rtype':'logits', 
+    ...                     'use_states':True
+    ...                     }
     >>> chat = ChatGlm2OpenaiApi(checkpoint_path, **generation_config)
     >>> chat.run()
+    ```
 
     TODO:
     1. 在后续调用服务，模型从cpu转到cuda上时，内存不下降，猜测是因为不同线程中操作导致的
@@ -333,20 +337,22 @@ class ChatOpenaiApi(Chat):
 class ChatOpenaiClient:
     '''使用openai来调用
     
-    Example
-    --------------------------------------------
+    Examples:
+    ```python
     >>> messages = [
-    >>>         {"content": "你好", "role": "user"},
-    >>>         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
-    >>>         {"content": "你可以做什么？", "role": "user"}
-    >>>         ]
+    ...         {"content": "你好", "role": "user"},
+    ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+    ...         {"content": "你可以做什么？", "role": "user"}
+    ...         ]
     >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
-    >>> 
+
     >>> # 流式
     >>> for token in client.stream_chat(messages):
-    >>>     print(token, end='', flush=True)
+    ...     print(token, end='', flush=True)
+
     >>> # 非流式
     >>> print(client.chat(messages))
+    ```
     '''
     def __init__(self, base_url:str, api_key:str=None, **kwargs) -> None:
         from openai import OpenAI
@@ -390,29 +396,31 @@ class ChatOpenaiClient:
 
 class ChatOpenaiClientSseclient:
     '''调用openai接口的client, 流式请求
-    
-    注意事项：部分调用时候有额外参数传入，如下：
-    >>> client = ChatOpenaiClientSseclient(url='https://chatpet.openai.azure.com/openai/deployments/chatGPT-turbo16K/chat/completions', 
-    >>>                                 header={'api-key': "填写对应的api-key"},
-    >>>                                 params={'api-version': '2023-03-15-preview'})
 
-    Example
-    --------------------------------------------
+    Examples:
+    ```python
+    >>> # 注意事项：部分调用时候有额外参数传入，如下：
+    >>> client = ChatOpenaiClientSseclient(url='https://chatpet.openai.azure.com/openai/deployments/chatGPT-turbo16K/chat/completions', 
+    ...                                 header={'api-key': "填写对应的api-key"},
+    ...                                 params={'api-version': '2023-03-15-preview'})
+
     >>> body = {
-    >>>         "messages": [
-    >>>             {"content": "你好", "role": "user"},
-    >>>             {"content": "你好，我是法律大模型", "role": "assistant"},
-    >>>             {"content": "基金从业可以购买股票吗", "role": "user"}],
-    >>>         "model": "default",
-    >>>         "stream": True
-    >>>     }
-    >>>     
+    ...         "messages": [
+    ...             {"content": "你好", "role": "user"},
+    ...             {"content": "你好，我是法律大模型", "role": "assistant"},
+    ...             {"content": "基金从业可以购买股票吗", "role": "user"}],
+    ...         "model": "default",
+    ...         "stream": True
+    ...     }
+
     >>> client = ChatOpenaiClientSseclient('http://127.0.0.1:8000')
     >>> # 测试打印
     >>> client.stream_chat_cli(body)
+
     >>> # 流式
     >>> for token in client.stream_chat(body):
-    >>>     print(token, end='', flush=True)
+    ...     print(token, end='', flush=True)
+    ```
     '''
     def __init__(self, url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
         self.url = url

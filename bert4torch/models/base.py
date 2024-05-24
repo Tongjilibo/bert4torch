@@ -433,23 +433,24 @@ class BERT_BASE(nn.Module):
     def quantize(self, quantization_method:Literal['cpm_kernels', 'load_in_8bit', 'load_in_4bit'], **kwargs):
         '''量化
         
-        Example
-        ------------------------
+        Examples:
+        ```python
         >>> # 1. bitsandbytes的load_in_8bit量化
         >>> model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
-        >>>
+        
         >>> # 2. bitsandbytes的load_in_4bit量化
         >>> from transformers import BitsAndBytesConfig
         >>> q_config = BitsAndBytesConfig(load_in_4bit=True,
-        >>>                             bnb_4bit_quant_type='nf4',
-        >>>                             bnb_4bit_use_double_quant=True,
-        >>>                             bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
-        >>>                             llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
-        >>>                             )
+        ...                             bnb_4bit_quant_type='nf4',
+        ...                             bnb_4bit_use_double_quant=True,
+        ...                             bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
+        ...                             llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
+        ...                             )
         >>> model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
-        >>>
+        
         >>> # 3. cpm_kernels量化
         >>> model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
+        ```
         '''
         if self.quantized:
             print("Already quantized.")

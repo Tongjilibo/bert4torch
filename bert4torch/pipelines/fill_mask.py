@@ -14,10 +14,11 @@ class FillMask(PipeLineBase):
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
 
-    Example:
-    -----------------
+    Examples:
+    ```python
     >>> model = FillMask('/home/pretrain_ckpt/bert/bert-base-chinese')
     >>> res = model.predict(["今天[MASK]气不错，[MASK]情很好", '[MASK]学技术是第一生产力'])
+    ```
     '''
     def build_model(self, model_config):
         model_config['with_mlm'] = 'softmax'

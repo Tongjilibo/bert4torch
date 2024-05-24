@@ -26,19 +26,20 @@ class Chat:
         :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
         :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
 
-        Example
-        -------------------------
+        Examples:
+        ```python
         >>> # 以chatglm2的命令行聊天
         >>> from bert4torch.pipelines import ChatGlm2Cli
 
         >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
         >>> generation_config  = {'mode':'random_sample',
-        >>>                     'max_length':2048, 
-        >>>                     'default_rtype':'logits', 
-        >>>                     'use_states':True
-        >>>                     }
+        ...                     'max_length':2048, 
+        ...                     'default_rtype':'logits', 
+        ...                     'use_states':True
+        ...                     }
         >>> chat = ChatGlm2Cli(checkpoint_path, **generation_config)
         >>> chat.run()
+        ```
         '''
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path

@@ -70,21 +70,23 @@ def extend_with_exponential_moving_average(model, decay=0.999):
     ''' 模型权重的指数滑动平均, 不参加梯度更新，只是记录滑动平均的参数，给预测使用
         注意区别于类似adam一类的自适应学习率优化器, 针对一阶二阶梯度的指数滑动平均, 两者完全不同
 
-        Example:
-            >>> # 初始化
-            >>> ema = ExponentialMovingAverage(model, 0.999)
+        Examples:
+        ```python
+        >>> # 初始化
+        >>> ema = ExponentialMovingAverage(model, 0.999)
 
-            >>> # 训练过程中, 更新完参数后, 同步update ema_weights weights
-            >>> def train():
-            >>>     optimizer.step()
-            >>>     ema.step()
+        >>> # 训练过程中, 更新完参数后, 同步update ema_weights weights
+        >>> def train():
+        ...     optimizer.step()
+        ...     ema.step()
 
-            >>> # eval前, 调用apply_ema_weights(); eval之后, restore_raw_weights()恢复原来模型的参数
-            >>> def evaluate():
-            >>>     ema.apply_ema_weights()
-            >>>     # evaluate
-            >>>     # 如果想保存ema后的模型, 请在restore方法之前调用torch.save()
-            >>>     ema.restore_raw_weights()
+        >>> # eval前, 调用apply_ema_weights(); eval之后, restore_raw_weights()恢复原来模型的参数
+        >>> def evaluate():
+        ...     ema.apply_ema_weights()
+        ...     # evaluate
+        ...     # 如果想保存ema后的模型, 请在restore方法之前调用torch.save()
+        ...     ema.restore_raw_weights()
+        ```
     '''
     class ExponentialMovingAverage():
         def __init__(self, model, decay):
