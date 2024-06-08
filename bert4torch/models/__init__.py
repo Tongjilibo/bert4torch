@@ -219,6 +219,10 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
         transformer.from_pretrained(checkpoint_path, mapping=config.get('mapping'), skip_init=skip_init, 
                                     device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
     
+    # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
+    transformer.tie_weights()
+    transformer.configs = transformer.config = config
+
     # meta device则报错
     meta_names = []
     for name_, para_ in transformer.named_parameters():
@@ -227,7 +231,4 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
     if len(meta_names) > 0:
         log_error(f'Meta device not allowed: {meta_names}')
     
-    # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
-    transformer.tie_weights()
-    transformer.configs = transformer.config = config
     return transformer

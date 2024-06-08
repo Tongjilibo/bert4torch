@@ -95,7 +95,7 @@ dev_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), bat
 # ============= 定义 model =============
 net = build_transformer_model(config_path=args.config_path, checkpoint_path=args.checkpoint_path, 
                                 model=args.model_type, pad_token_id=pad_token_id).to(args.device)
-trainer = DPOTrainer(net)
+trainer = DPOTrainer(net, ref_model=copy.deepcopy(net))
 trainer.compile(loss=DPOLoss(pad_token_id=pad_token_id, offset=True), 
                 optimizer=optim.AdamW(net.parameters(), args.lr), 
                 grad_accumulation_steps=args.grad_accumulation_steps)

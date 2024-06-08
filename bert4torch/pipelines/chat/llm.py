@@ -157,6 +157,70 @@ class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit): pass
 class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
+class ChatGlm4(Chat):
+    def build_prompt(self, query, history=[]):
+        # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
+        if (len(history) > 0) and isinstance(history[-1], tuple):
+            history.pop()
+        history.append({"role": "user", "content": query})
+        if self.no_history_states():
+            input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=True,
+                                                           return_tensors="pt", return_dict=True)['input_ids']
+        else:
+            input_ids += self.generation_config['states']['last_token']
+        history.append({"role": "assistant", "content": ""})
+        return input_ids
+
+    def build_cli_text(self, history):
+        '''构建命令行终端显示的text'''
+        prompt = self.init_str
+        for hist in history:  # 去除ChatCliDemo添加的当前回复的记录
+            if not isinstance(hist, dict):
+                continue
+            elif hist['role'] == 'user':
+                query = hist['content']
+                prompt += f"\n\nUser：{query}"
+            elif hist['role'] == 'assistant':
+                response = hist['content']
+                prompt += f"\n\nAssistant：{response}"
+        return prompt
+    
+    def build_cli_history(self, cli_pre_history, cli_new_history):
+        if (len(cli_new_history) > 0) and isinstance(cli_new_history[-1], tuple):
+            cli_new_history.pop()
+        return super().build_cli_history(cli_pre_history, cli_new_history)
+    
+    def process_response(self, response, history):
+        response = super().process_response(response)
+        if (not response) or (response[-1] == "�"):
+            return response, history
+
+        content = ""
+        for response in response.split("<|assistant|>"):
+            metadata, content = response.split("\n", maxsplit=1)
+            if not metadata.strip():
+                content = content.strip()
+                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                content = content.replace("[[训练时间]]", "2024年")
+            else:
+                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                if history[0]["role"] == "system" and "tools" in history[0]:
+                    content = "\n".join(content.split("\n")[1:-1])
+                    parameters = eval(content)
+                    content = {"name": metadata.strip(), "parameters": parameters}
+                else:
+                    content = {"name": metadata.strip(), "content": content}
+        return content
+
+class ChatGlm4Cli(ChatGlm4, ChatCli):
+    def build_other_config(self, **kwargs):
+        super().build_other_config(**kwargs)
+        self.history_maxlen *= 2
+class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
+class ChatGlm4WebStreamlit(ChatGlm4, ChatWebStreamlit): pass
+class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
+
+
 class ChatInternLM(Chat):
     def build_prompt(self, query, history=[]):
         prompt = ""

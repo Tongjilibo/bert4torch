@@ -353,14 +353,16 @@ class TemporalEnsemblingLoss(nn.Module):
 
 class DPOLoss:
     ''' DPO算法的loss计算
+    :param label_smoothing: 标签平滑
+    :param loss_type: loss类型
     :param pad_token_id: pad的token_id, 用于计算mask
     :param beta: float, dpo中beta参数
     :param reference_free: bool, 默认为False
-    :param average_log_prob: bool, 是否对log_prob去均值, 默认为False
     :param prefix: 进度条展示指标的前缀
+    :param offset: 是否offset, 若input_ids末尾为<eos>则一般需要offset=True
 
     主要思路: 优化方向: 以下值往Max方向
-    (policy_chosen_logps - reference_chosen_logps) - (policy_rejected_logps - reference_rejected_logps)
+    (policy_chosen_logps [↑] - reference_chosen_logps [→]) - (policy_rejected_logps [↓] - reference_rejected_logps [→])
     左半部分和右半部分的margin越大越好, 左半部分的含义是chosen response相较于没训练之前的累积概率差值, 右半部分代表rejected response相较于没训练之前的累计概率差值
     1) 左边变大, 右边变小, 理想情况, chosen response概率提升, rejected response概率下降
     2) 左边变小, 右边更小, chosen response概率下降, 但是rejected response概率下降的更多, 生成的时候还是倾向于good response
@@ -375,7 +377,7 @@ class DPOLoss:
                  beta:float=0.1, 
                  reference_free=False, 
                  prefix='', 
-                 offset=False) -> None:
+                 offset=True) -> None:
         self.pad_token_id = pad_token_id
         self.beta = beta
         self.reference_free = reference_free
@@ -397,8 +399,8 @@ class DPOLoss:
         policy_logits, reference_logits = policy_reference_logits  # 均为[btz, seq_len, vocab_size]
 
         # 计算真实标签labels对应token位置的log prob，均为[btz, seq_len]
-        policy_chosen_logps, policy_rejected_logps = self.get_batch_logps(policy_logits, labels, self.loss_type == "ipo")
-        reference_chosen_logps, reference_rejected_logps = self.get_batch_logps(reference_logits, labels, self.loss_type == "ipo")
+        policy_chosen_logps, policy_rejected_logps = self.get_batch_logps(policy_logits, labels, average_log_prob=self.loss_type == "ipo")
+        reference_chosen_logps, reference_rejected_logps = self.get_batch_logps(reference_logits, labels, average_log_prob=self.loss_type == "ipo")
 
         pi_logratios = policy_chosen_logps - policy_rejected_logps
 
@@ -453,6 +455,8 @@ class DPOLoss:
 
     def get_batch_logps(self, logits:torch.FloatTensor, labels:torch.LongTensor, average_log_prob:bool=False):
         """计算真实标签labels对应token位置的log prob
+
+        :param average_log_prob: bool, 是否对log_prob去均值, 默认为False
         """
         if logits.shape[:-1] != labels.shape:
             raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
