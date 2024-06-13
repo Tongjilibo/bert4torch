@@ -1,7 +1,7 @@
 '''自回归模型的生成
 '''
 
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional, List, Tuple, Literal
 import torch
 import torch.nn as nn
 import numpy as np
@@ -13,6 +13,9 @@ from packaging import version
 from contextlib import contextmanager
 import gc
 
+
+INPUT_TYPE = Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray]
+TUPLE_LIST_TENSOR_TYPE = Union[Tuple[torch.Tensor], List[torch.Tensor]]
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):
     model_inference_mode = torch.inference_mode
@@ -65,8 +68,9 @@ class AutoRegressiveDecoder(object):
 
     """
     @model_inference_mode()
-    def __init__(self, bos_token_id=None, eos_token_id=-1, max_new_tokens=None, min_new_tokens=1, max_length=64, pad_token_id=0, pad_mode='post', device='cpu', 
-                 n=1, top_k=None, top_p=None, temperature=1, repetition_penalty=1.0, min_ends=1, **generation_config):
+    def __init__(self, bos_token_id:int=None, eos_token_id:int=-1, max_new_tokens:int=None, min_new_tokens:int=1, max_length:int=64, 
+                 pad_token_id:int=0, pad_mode:Literal['pre', 'left', 'post', 'right']='post', device:str='cpu', n:int=1, 
+                 top_k:int=None, top_p:float=None, temperature:float=1, repetition_penalty:float=1.0, min_ends:int=1, **generation_config):
         # generation_config
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
@@ -114,7 +118,7 @@ class AutoRegressiveDecoder(object):
             #     log_warn_once(f'Generation_config `{key}` has not been pre maintained')
 
     @staticmethod
-    def wraps(default_rtype='probas', use_states=False):
+    def wraps(default_rtype:Literal['probas', 'logits']='probas', use_states:bool=False):
         """用来进一步完善predict函数
 
         目前包含: 
@@ -123,7 +127,7 @@ class AutoRegressiveDecoder(object):
             3. 设置温度参数，并做相应处理。
         """
         def actual_decorator(predict):
-            def new_predict(self, inputs, output_ids, states, rtype=default_rtype):
+            def new_predict(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, states:Optional[dict], rtype=default_rtype):
                 assert rtype in ['probas', 'logits']
                 prediction = predict(self, inputs, output_ids, states)
 
@@ -167,7 +171,7 @@ class AutoRegressiveDecoder(object):
 
         return actual_decorator
 
-    def predict(self, inputs, output_ids, states=None):
+    def predict(self, inputs, output_ids:torch.Tensor, states:dict=None):
         """用户需自定义递归预测函数；
         说明: 定义的时候，需要用wraps方法进行装饰，传入default_rtype和use_states，其中default_rtype为字符串logits或probas，probas时返回归一化的概率，
         rtype=logits时则返回softmax前的结果或者概率对数。
@@ -176,7 +180,7 @@ class AutoRegressiveDecoder(object):
         """
         raise NotImplementedError
 
-    def _trans2tensors(self, inputs_raw: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray]) -> list:
+    def _trans2tensors(self, inputs_raw: INPUT_TYPE) -> list:
         '''对当前输入进行处理, 并都转化成tensor, return: list[tensor]
         :param inputs_raw: tensor/list(tensor)/list(list)/list(int)
         '''
@@ -228,7 +232,7 @@ class AutoRegressiveDecoder(object):
         
         return range(max_new_tokens)
 
-    def _identify_sentence_end(self, output_ids):
+    def _identify_sentence_end(self, output_ids:torch.Tensor):
         '''判断句子是否结束'''
         if isinstance(self.eos_token_id, (int, float)):
             is_end = output_ids[:, -1] == self.eos_token_id  # 标记是否以end标记结束
@@ -242,7 +246,7 @@ class AutoRegressiveDecoder(object):
                 end_counts += (output_ids == eos_token_id).sum(1)
         return is_end, end_counts
 
-    def __beam_search_step(self, step, inputs, output_ids, output_scores, states):
+    def __beam_search_step(self, step:int, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, output_scores:torch.Tensor, states: Optional[dict]=None):
         '''beam_search单条推理计算得分'''
         self.step = step
         scores, states = self.predict(inputs, output_ids, states, 'logits')  # 计算当前得分
@@ -256,7 +260,7 @@ class AutoRegressiveDecoder(object):
         output_scores = take_along_dim(scores, indices, dim=None)  # 更新得分
         return inputs, output_ids, output_scores, states
 
-    def __beam_search_end(self, inputs, output_ids, output_scores, results):
+    def __beam_search_end(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, output_scores:torch.Tensor, results:list):
         '''beam_search单条推理计算是否结束'''
         break_tag = False
         is_end, end_counts = self._identify_sentence_end(output_ids)
@@ -274,7 +278,7 @@ class AutoRegressiveDecoder(object):
                 self.top_k = flag.sum()  # topk相应变化
         return inputs, output_ids, output_scores, results, break_tag
 
-    def __batch_beam_search_step(self, step, inputs, output_ids, output_scores, states):
+    def __batch_beam_search_step(self, step:int, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, output_scores:torch.Tensor, states: Optional[dict]=None):
         '''beam_search batch条推理计算得分'''
         self.step = step
         scores, states = self.predict(inputs, output_ids, states, 'logits')  # 计算当前得分
@@ -315,7 +319,7 @@ class AutoRegressiveDecoder(object):
         output_scores_new = torch.cat(output_scores_new)
         return inputs, output_ids_new, output_scores_new, states
 
-    def __batch_beam_search_end(self, inputs, output_ids, output_scores, results):
+    def __batch_beam_search_end(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, output_scores:torch.Tensor, results:list):
         break_tag = False
         is_end, end_counts = self._identify_sentence_end(output_ids)
         self.flag = ~is_end | (end_counts < self.min_ends)  # 标记未完成序列
@@ -416,8 +420,7 @@ class AutoRegressiveDecoder(object):
         else:
             return results
 
-    def stream_beam_search(self, inputs: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray], 
-                           states:Optional[dict]=None, **generation_config):
+    def stream_beam_search(self, inputs: INPUT_TYPE, states:Optional[dict]=None, **generation_config):
         '''beam_search的stream输出模式'''
         self.set_generation_config(generation_config)
         assert self.top_k is not None, 'Arg `top_k` means beam_size anc can not be None'
@@ -445,7 +448,7 @@ class AutoRegressiveDecoder(object):
         # 达到长度直接输出
         self.flag = None
 
-    def __random_sample_step(self, step, inputs, output_ids, states):
+    def __random_sample_step(self, step:int, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, states: Optional[dict]=None):
         '''为了random_sample和stream_random_sample共用，抽离出来的单步逻辑'''
         self.step = step
         probas, states = self.predict(inputs, output_ids, states, 'probas')  # 计算当前概率
@@ -478,7 +481,7 @@ class AutoRegressiveDecoder(object):
         output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
         return inputs, output_ids, states
 
-    def __random_sample_end(self, inputs, output_ids, results, smp_indexs=None):
+    def __random_sample_end(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, results:list, smp_indexs:torch.Tensor=None):
         break_tag = False
         is_end, end_counts = self._identify_sentence_end(output_ids)
         f_flag = is_end & (end_counts >= self.min_ends)  # 标记已完成序列
@@ -508,8 +511,7 @@ class AutoRegressiveDecoder(object):
         else:
             return inputs, output_ids, results, break_tag, smp_indexs
 
-    def random_sample(self, inputs_raw: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray], 
-                      states:Optional[dict]=None, **generation_config):
+    def random_sample(self, inputs_raw: INPUT_TYPE, states:Optional[dict]=None, **generation_config):
         """随机采样n个结果；
         说明: 非None的topk表示每一步只从概率最高的topk个中采样；而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
@@ -556,8 +558,7 @@ class AutoRegressiveDecoder(object):
         else:
             return results
     
-    def stream_random_sample(self, inputs_raw: Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray], 
-                             states:Optional[dict]=None, **generation_config):
+    def stream_random_sample(self, inputs_raw: INPUT_TYPE, states:Optional[dict]=None, **generation_config):
         """随机采样n个结果；stream输出"""
         generation_config['n'] = 1
         self.set_generation_config(generation_config)
@@ -674,7 +675,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         return kwargs
 
-    def _prepare_next_inputs(self, inputs:Union[Tuple[torch.Tensor], List[torch.Tensor]], output_ids:torch.Tensor, include_past:bool=True):
+    def _prepare_next_inputs(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, include_past:bool=True):
         '''decode时候准备下一次输入，使用cache则仅输入last_token_ids，不适用需要输入past_token_ids'''
         def concat_token_ids(token_ids, output_ids):
             '''把非padding部分concat在一起
@@ -722,7 +723,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             return torch.stack([logit[index_, :] for index_, logit in zip(last_token_index, logits)])
 
     @AutoRegressiveDecoder.wraps()
-    def predict(self, inputs:Union[Tuple[torch.Tensor], List[torch.Tensor]], output_ids:torch.Tensor, states:Optional[dict]):
+    def predict(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, states:Optional[dict]):
         '''
         :param inputs: 原始输入，在整个预测过程中均不改变
         :param outputs_ids: 输出的ids，随着预测进行，逐步增长
@@ -834,9 +835,9 @@ class SeqGeneration(AutoRegressiveDecoder):
             return text
         elif isinstance(text, torch.Tensor):  # tensor
             return text
-        elif isinstance(text, (tuple, list)) and all([isinstance(i, torch.Tensor) for i in text]):  # list(tensor)
+        elif isinstance(text, (tuple, list)) and all([isinstance(i, torch.Tensor) for i in text]):  # list[tensor]
             return text
-        elif isinstance(text, (tuple, list)) and all([isinstance(i, int) for i in text]):  # list(int)
+        elif isinstance(text, (tuple, list)) and all([isinstance(i, int) for i in text]):  # list[int]
             return [text]
 
         # 传入的是text或者list(text)
@@ -877,7 +878,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             return output_text
 
-    def _generate(self, inputs, states=None):
+    def _generate(self, inputs:INPUT_TYPE, states=None):
         if self.mode == 'random_sample':
             output_ids = self.random_sample(inputs, states=states)  # 基于随机采样
         elif self.mode == 'beam_search':

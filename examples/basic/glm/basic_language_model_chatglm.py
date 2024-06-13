@@ -18,40 +18,59 @@ from bert4torch.pipelines import ChatGlm3Cli, ChatGlm3WebGradio, ChatGlm3WebStre
 from bert4torch.pipelines import ChatGlm4Cli, ChatGlm4WebGradio, ChatGlm4WebStreamlit, ChatGlm4OpenaiApi
 import re
 
-
+# ===================================参数=======================================
 # chatglm-6B, chatglm-6B-int4, chatglm-6B-int8
 # chatglm2-6B, chatglm2-6B-int4, chatglm2-6B-32k
 # chatglm3-6b, chatglm3-6B-32k
-# glm-4-9b, glm-4-9b-chat
-model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b"
+# glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
+model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b-chat-1m"
+
+# cli: 命令行
+# gradio: gradio web demo
+# streamlit: streamlit web demo
+# openai: openai 接口
+mode = 'cli'
+# ==============================================================================
+
 
 generation_config = {
-    'max_length': 1024, 
+    'max_length': 256, 
     'topp': 0.8, 
     'temperature': 0.8, 
-    'include_input': True if re.search('glm-4-9b$', model_dir) else False,
+    'include_input': True if re.search('glm-4-9b$', model_dir) else False, 
     # 'n': 5
     }
 
-# demo = ChatGlmCli(model_dir, generation_config=generation_config)
-# demo = ChatGlmWebGradio(model_dir, generation_config=generation_config)
-# demo = ChatGlmWebStreamlit(model_dir, generation_config=generation_config)
-# demo = ChatGlmOpenaiApi(model_dir, generation_config=generation_config)
+ChatMap = {
+    'glm-cli': ChatGlmCli,
+    'glm-gradio': ChatGlmWebGradio,
+    'glm-streamlit': ChatGlmWebStreamlit,
+    'glm-openai': ChatGlmOpenaiApi,
+    'glm2-cli': ChatGlm2Cli,
+    'glm2-gradio': ChatGlm2WebGradio,
+    'glm2-streamlit': ChatGlm2WebStreamlit,
+    'glm2-openai': ChatGlm2OpenaiApi,
+    'glm3-cli': ChatGlm3Cli,
+    'glm3-gradio': ChatGlm3WebGradio,
+    'glm3-streamlit': ChatGlm3WebStreamlit,
+    'glm3-openai': ChatGlm3OpenaiApi,
+    'glm4-cli': ChatGlm4Cli,
+    'glm4-gradio': ChatGlm4WebGradio,
+    'glm4-streamlit': ChatGlm4WebStreamlit,
+    'glm4-openai': ChatGlm4OpenaiApi
+}
 
-# demo = ChatGlm2Cli(model_dir, generation_config=generation_config)
-# demo = ChatGlm2WebGradio(model_dir, generation_config=generation_config)
-# demo = ChatGlm2WebStreamlit(model_dir, generation_config=generation_config)
-# demo = ChatGlm2OpenaiApi(model_dir, generation_config=generation_config)
-
-# demo = ChatGlm3Cli(model_dir, generation_config=generation_config)
-# demo = ChatGlm3WebGradio(model_dir, generation_config=generation_config)
-# demo = ChatGlm3WebStreamlit(model_dir, generation_config=generation_config)
-# demo = ChatGlm3OpenaiApi(model_dir, generation_config=generation_config)
-
-demo = ChatGlm4Cli(model_dir, generation_config=generation_config)
-# demo = ChatGlm4WebGradio(model_dir, generation_config=generation_config)
-# demo = ChatGlm4WebStreamlit(model_dir, generation_config=generation_config)
-# demo = ChatGlm4OpenaiApi(model_dir, generation_config=generation_config)
+if re.search('glm-4', model_dir):
+    Chat = ChatMap[f'glm4-{mode}']
+elif re.search('glm3', model_dir):
+    Chat = ChatMap[f'glm3-{mode}']
+elif re.search('glm2', model_dir):
+    Chat = ChatMap[f'glm2-{mode}']
+elif re.search('glm', model_dir):
+    Chat = ChatMap[f'glm-{mode}']
+else:
+    raise ValueError('not supported')
+demo = Chat(model_dir, generation_config=generation_config)
 
 
 if __name__ == '__main__':

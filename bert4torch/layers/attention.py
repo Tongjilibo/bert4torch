@@ -92,7 +92,7 @@ class MultiHeadAttentionLayer(nn.Module):
                                                                     max_seq_len_cache=max_position, 
                                                                     rope_rank=kwargs.get('rope_rank', 'adjacent'), 
                                                                     ntk_alpha=kwargs.get('ntk_alpha', 1.0),
-                                                                    rope_ratio=kwargs.get('rope_ratio', 1.0),
+                                                                    rope_scaling_factor=kwargs.get('rope_scaling_factor', 1.0),
                                                                     rope_theta=kwargs.get('rope_theta', 10000.0))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
