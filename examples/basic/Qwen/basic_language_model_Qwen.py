@@ -80,16 +80,17 @@ def main():
         res = demo.chat('你是谁？')
         print(res)
 
-    elif choice == 'cli_chat':
-        # 命令行聊天
-        demo.run()
-
     elif choice == 'cli_continue':
         # 命令行续写
         while True:
             query = input('\n输入:')
             response = demo.generate(query)
             print(f'续写: {response}')
+
+    elif choice == 'cli_chat':
+        # 命令行聊天
+        demo.run()
+
     
 
 if __name__ == '__main__':

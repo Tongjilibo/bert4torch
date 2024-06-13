@@ -285,7 +285,8 @@ def parallel_apply_generator(func:Callable, iterable:Iterable, workers:int, max_
     pool.terminate()
 
 
-def parallel_apply(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, callback:Callable=None, dummy:bool=False, random_seeds:bool=True, unordered:bool=True):
+def parallel_apply(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, callback:Callable=None, dummy:bool=False, 
+                   random_seeds:bool=True, unordered:bool=True):
     """多进程或多线程地将func应用到iterable的每个元素中（直接从bert4keras中移植过来）。
     注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。
 
@@ -307,45 +308,49 @@ def parallel_apply(func:Callable, iterable:Iterable, workers:int, max_queue_size
             callback(d)
 
 
-def get_pool_emb(hidden_state=None, pooled_output=None, attention_mask=None, pool_strategy='cls', custom_layer=None):
+def get_pool_emb(hidden_state:Union[list, tuple, torch.Tensor]=None, pooled_output:torch.Tensor=None, attention_mask:torch.Tensor=None, 
+                 pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom']='cls', 
+                 custom_layer:Union[int, List[int]]=None):
     ''' 获取句向量
 
     :param hidden_state: torch.Tensor/List(torch.Tensor)，last_hidden_state/all_encoded_layers
     :param pooled_output: torch.Tensor, bert的pool_output输出
     :param attention_mask: torch.Tensor
-    :param pool_strategy: str, ('cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom')
-    :param custom_layer: int/List[int]，指定对某几层做average pooling
+    :param pool_strategy: str, ('pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom')
+    :param custom_layer: int/List[int], 指定对某几层做average pooling
     '''
     if pool_strategy == 'pooler':
+        if pooled_output is None:
+            log_warn('Args `pooled_output` is None')
         return pooled_output
     elif pool_strategy == 'cls':
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
-        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} strategy request tensor hidden_state'
+        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pool_strategy request tensor hidden_state'
         return hidden_state[:, 0]
     elif pool_strategy in {'last-avg', 'mean'}:
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
-        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
+        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pool_strategy request tensor hidden_state'
         hid = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
         attention_mask = torch.sum(attention_mask, dim=1)[:, None]
         return hid / attention_mask
     elif pool_strategy in {'last-max', 'max'}:
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
-        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pooling strategy request tensor hidden_state'
+        assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pool_strategy request tensor hidden_state'
         hid = torch.masked_fill(hidden_state, (1-attention_mask[:, :, None]).bool(), torch.finfo(hidden_state.dtype).min)
         return torch.max(hid, dim=1).values
     elif pool_strategy == 'first-last-avg':
-        assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
+        assert isinstance(hidden_state, list), f'{pool_strategy} pool_strategy request list hidden_state'
         hid = torch.sum(hidden_state[1] * attention_mask[:, :, None], dim=1) # 这里不取0
         hid += torch.sum(hidden_state[-1] * attention_mask[:, :, None], dim=1)
         attention_mask = torch.sum(attention_mask, dim=1)[:, None]
         return hid / (2 * attention_mask)
     elif pool_strategy == 'custom':
         # 取指定层
-        assert isinstance(hidden_state, list), f'{pool_strategy} pooling strategy request list hidden_state'
-        assert isinstance(custom_layer, (int, list, tuple)), f'{pool_strategy} pooling strategy request int/list/tuple custom_layer'
+        assert isinstance(hidden_state, list), f'{pool_strategy} pool_strategy request list hidden_state'
+        assert isinstance(custom_layer, (int, list, tuple)), f'{pool_strategy} pool_strategy request int/list/tuple custom_layer'
         custom_layer = [custom_layer] if isinstance(custom_layer, int) else custom_layer
         hid = 0
         for i, layer in enumerate(custom_layer, start=1):
@@ -353,7 +358,7 @@ def get_pool_emb(hidden_state=None, pooled_output=None, attention_mask=None, poo
         attention_mask = torch.sum(attention_mask, dim=1)[:, None]
         return hid / (i * attention_mask)
     else:
-        raise ValueError('pool_strategy illegal')
+        raise ValueError(f'Args `pool_strategy`={pool_strategy} not supported')
 
 
 def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values_length=0, start_padding_idx=True):

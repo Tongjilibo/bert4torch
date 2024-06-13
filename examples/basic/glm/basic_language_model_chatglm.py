@@ -16,15 +16,22 @@ from bert4torch.pipelines import ChatGlmCli, ChatGlmWebGradio, ChatGlmWebStreaml
 from bert4torch.pipelines import ChatGlm2Cli, ChatGlm2WebGradio, ChatGlm2WebStreamlit, ChatGlm2OpenaiApi
 from bert4torch.pipelines import ChatGlm3Cli, ChatGlm3WebGradio, ChatGlm3WebStreamlit, ChatGlm3OpenaiApi
 from bert4torch.pipelines import ChatGlm4Cli, ChatGlm4WebGradio, ChatGlm4WebStreamlit, ChatGlm4OpenaiApi
+import re
 
 
 # chatglm-6B, chatglm-6B-int4, chatglm-6B-int8
 # chatglm2-6B, chatglm2-6B-int4, chatglm2-6B-32k
 # chatglm3-6b, chatglm3-6B-32k
-# glm-4-9b-chat
-model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b-chat"
+# glm-4-9b, glm-4-9b-chat
+model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b"
 
-generation_config = {'max_length': 1024, 'topp': 0.8, 'temperature': 0.8}
+generation_config = {
+    'max_length': 1024, 
+    'topp': 0.8, 
+    'temperature': 0.8, 
+    'include_input': True if re.search('glm-4-9b$', model_dir) else False,
+    # 'n': 5
+    }
 
 # demo = ChatGlmCli(model_dir, generation_config=generation_config)
 # demo = ChatGlmWebGradio(model_dir, generation_config=generation_config)
@@ -48,10 +55,18 @@ demo = ChatGlm4Cli(model_dir, generation_config=generation_config)
 
 
 if __name__ == '__main__':
-    if False:
+    if generation_config.get('n') is not None:
         # 一次性输出N条记录
-        demo.generation_config['n'] = 5
         res = demo.chat('如何查询天气？')
         print(res)
+
+    elif generation_config.get('include_input', False):
+        # 命令行续写
+        while True:
+            query = input('\n输入:')
+            response = demo.generate(query)
+            print(f'续写: {response}')
+
     else:
+        # 命令行聊天
         demo.run()

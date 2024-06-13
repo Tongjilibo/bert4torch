@@ -18,7 +18,10 @@ from tqdm import tqdm
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from collections import defaultdict, deque
 from sklearn.metrics import precision_recall_fscore_support
+import os
 
+
+# =======================================参数=======================================
 # 模型参数：训练
 epochs = 20  # 训练轮数
 steps_per_epoch = None  # 每轮步数
@@ -45,10 +48,11 @@ emb_dropout = 0.5
 conv_dropout = 0.5
 out_dropout = 0.33
 
-# BERT base
-config_path = 'E:/pretrain_ckpt/bert/google@bert-base-chinese/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/google@bert-base-chinese/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
+# 路径设置
+data_dir = '/data/corpus/ner/china-people-daily-ner-corpus/'
+config_path = '/data/pretrain_ckpt/bert/google@bert-base-chinese/config.json'
+checkpoint_path = '/data/pretrain_ckpt/bert/google@bert-base-chinese/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 固定seed
@@ -80,7 +84,11 @@ def convert_text_to_index(text):
     index = [int(x) for x in index.split("-")]
     return index, int(type)
 
+
+# =======================================数据=======================================
 # 加载数据集
+dtype_int = np.int if hasattr(np, 'int') else np.int_
+dtype_bool = np.bool if hasattr(np, 'bool') else np.bool_
 class MyDataset(ListDataset):
     @staticmethod
     def load_data(filename):
@@ -107,7 +115,7 @@ class MyDataset(ListDataset):
                 length = len(tokens)
 
                 # piece和word的对应关系，中文两者一致，除了[CLS]和[SEP]
-                _pieces2word = np.zeros((length, len(tokens_ids)), dtype=np.bool)
+                _pieces2word = np.zeros((length, len(tokens_ids)), dtype=dtype_bool)
                 e_start = 0
                 for i, pieces in enumerate(tokens):
                     if len(pieces) == 0:
@@ -117,7 +125,7 @@ class MyDataset(ListDataset):
                     e_start += len(pieces)
 
                 # 相对距离
-                _dist_inputs = np.zeros((length, length), dtype=np.int)
+                _dist_inputs = np.zeros((length, length), dtype=dtype_int)
                 for k in range(length):
                     _dist_inputs[k, :] += k
                     _dist_inputs[:, k] -= k
@@ -131,8 +139,8 @@ class MyDataset(ListDataset):
                 _dist_inputs[_dist_inputs == 0] = 19
 
                 # golden标签
-                _grid_labels = np.zeros((length, length), dtype=np.int)
-                _grid_mask2d = np.ones((length, length), dtype=np.bool)
+                _grid_labels = np.zeros((length, length), dtype=dtype_int)
+                _grid_mask2d = np.ones((length, length), dtype=dtype_bool)
 
                 for entity in d:
                     e_start, e_end, e_type = entity[0], entity[1]+1, entity[-1]
@@ -176,9 +184,11 @@ def collate_fn(data):
     return [tokens_ids, pieces2word, dist_inputs, sent_length, grid_mask2d], [grid_labels, grid_mask2d, _entity_text]
 
 # 加载数据
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset('F:/data/corpus/ner/china-people-daily-ner-corpus/example.dev'), batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'example.train')), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'example.dev')), batch_size=batch_size, collate_fn=collate_fn) 
 
+
+# =======================================模型=======================================
 # 定义bert上的模型结构
 class ConvolutionLayer(nn.Module):
     '''卷积层
@@ -476,6 +486,7 @@ class Evaluator(Callback):
             ent_p += len(predicts)
             ent_c += len(predicts.intersection(ent_set))
         return ent_c, ent_p, ent_r, decode_entities
+
 
 if __name__ == '__main__':
     evaluator = Evaluator()
