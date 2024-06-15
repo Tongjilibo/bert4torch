@@ -63,7 +63,7 @@ train_dataloader = DataLoader(MyDataset([f'{data_dir}/sentiment.train.data']), b
 valid_dataloader = DataLoader(MyDataset([f'{data_dir}/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset([f'{data_dir}/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
-# 定义bert上的模型结构
+# 方式1
 class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
@@ -79,6 +79,12 @@ class Model(BaseModel):
         output = self.dense(output)
         return output
 model = Model().to(device)
+
+# 方式2
+# from bert4torch.trainer import SequenceClassificationTrainer
+# bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, gradient_checkpoint=True)
+# model = SequenceClassificationTrainer(bert)
+# model.to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

@@ -614,8 +614,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
-    def __init__(self, model, tokenizer=None, tokenizer_config:dict=None, mode:str='random_sample', 
-                 default_rtype:str='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
+    def __init__(self, model, tokenizer=None, tokenizer_config:dict=None, mode:Literal['beam_search', 'random_sample']='random_sample', 
+                 default_rtype:Literal['logits', 'probas']='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
         if model.training:
             model.eval()
         kwargs = self._default_generation_config(tokenizer, model, kwargs)  # 对部分参数进行默认设置

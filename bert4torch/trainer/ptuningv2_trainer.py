@@ -2,8 +2,9 @@
 ptuning v2 trainer
 '''
 import torch
-from torch4keras.trainer import Trainer
+from torch4keras.trainer import AutoTrainer, Trainer
 from bert4torch.models import BaseModel
+from torch import nn
 
 
 class PrefixEncoder(torch.nn.Module):
@@ -44,11 +45,11 @@ class PrefixEncoder(torch.nn.Module):
         return past_key_values
 
 
-class PtuningV2Trainer(BaseModel):
-    '''ptuning v2的Trainer
+class PtuningV2Model(BaseModel):
+    '''ptuning v2的Model
     1) 虽然有past_key_values输入, 但是position_ids是从0开始的
     '''
-    def __init__(self, encoder, *args, pre_seq_len=128, prefix_projection=False, **kwargs):
+    def __init__(self, encoder:nn.Module, *args, pre_seq_len:int=128, prefix_projection:bool=False, **kwargs):
         super().__init__(*args, **kwargs)
         # 建立模型，加载权重
         self.encoder = encoder
@@ -97,4 +98,27 @@ class PtuningV2Trainer(BaseModel):
             inputs_kwargs['past_key_values'] = past_key_values
         inputs_kwargs['past_key_values_length'] = 0
         return self.encoder([token_ids],  **inputs_kwargs)
-    
+
+
+class PtuningV2Trainer(AutoTrainer):
+    '''PtuningV2Trainer
+    :param encoder: 预训练模型的Module
+    :param pre_seq_len: int, 文本分类的类型数
+    :param classifier_dropout: float, dropout比例
+    :param pool_strategy: str, 选取句向量的策略, 默认为cls
+    :param kwargs: dict, 其他build_transformer_model使用到的参数
+
+    Examples
+    ```python
+    >>> from bert4torch.trainer import PtuningV2Trainer
+    >>> from bert4torch.models import build_transformer_model
+    >>> config_path = ''  # bert4torch_config.json路径
+    >>> checkpoint_path = ''  # 模型文件夹路径
+    >>> encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+    >>> model = PtuningV2Trainer(encoder)
+    >>> model.to('cuda')
+    ```
+    '''
+    def __new__(cls, encoder:nn.Module, *args, pre_seq_len:int=128, prefix_projection:bool=False, **kwargs) -> Trainer:
+        module = PtuningV2Model(encoder, *args, pre_seq_len, prefix_projection, **kwargs)
+        return super().__new__(cls, module, *args, **kwargs)

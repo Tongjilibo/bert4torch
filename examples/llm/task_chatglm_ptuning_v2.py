@@ -162,7 +162,8 @@ else:
     # 在config中已经写入了量化的配置参数
     encoder = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)
 
-model = PtuningV2Trainer(encoder).to(device)
+model = PtuningV2Trainer(encoder)
+model.to(device)
 model.print_trainable_parameters()
 
 optimizer = optim.AdamW(model.parameters(), lr)
