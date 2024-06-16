@@ -7,7 +7,7 @@ from typing import Literal, Optional, Dict, Union
 from contextlib import contextmanager, nullcontext
 import warnings
 import inspect
-from torch4keras.trainer import Trainer
+from torch4keras.trainer import AutoTrainer, Trainer
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16
 from bert4torch.snippets import DottableDict, print_trainable_parameters
@@ -15,7 +15,7 @@ if is_peft_available():
     from peft import PeftModel, get_peft_model, prepare_model_for_kbit_training
 
 
-class DPOTrainer(Trainer):
+class DPOModel(BaseModel):
     '''使用dpo算法进行人类偏好对齐
 
     :param model: 待训练模型
@@ -136,29 +136,60 @@ class DPOTrainer(Trainer):
             if self.ref_model is not None:
                 disable_dropout_in_model(self.ref_model)
     
-    def _forward(self, *inputs, **input_kwargs):
+    def forward(self, *args, **kwargs):
         '''修改父类的_forward来获取输出'''
-        policy_logits = self._argparse_forward(self.model, *inputs, **input_kwargs)
+        policy_logits = self.model(*args, **kwargs)
         with torch.no_grad():
             if self.ref_model is None:
                 with self.null_ref_context():
-                    reference_logits = self._argparse_forward(self.model, *inputs, **input_kwargs)
+                    reference_logits = self.model(*args, **kwargs)
             else:
-                reference_logits = self._argparse_forward(self.ref_model, *inputs, **input_kwargs)
+                reference_logits = self.ref_model(*args, **kwargs)
         
         return policy_logits.to(torch.float32), reference_logits.to(torch.float32)
 
     @contextmanager
     def null_ref_context(self):
         """Context manager for handling null reference model (that is, peft adapter manipulation)."""
-        with self.unwrap_model().disable_adapter() if self.is_peft_model and not self.ref_adapter_name else nullcontext():
+        with self.model.disable_adapter() if self.is_peft_model and not self.ref_adapter_name else nullcontext():
             if self.ref_adapter_name:
                 self.model.set_adapter(self.ref_adapter_name)
             yield
             if self.ref_adapter_name:
                 self.model.set_adapter(self.model_adapter_name or "default")
 
-    def unwrap_model(self):
-        '''返回nn.Module模块
-        '''
-        return self.model
+
+class DPOTrainer(AutoTrainer):
+    '''DPOTrainer
+    :param model: 待训练模型
+    :param ref_model: 参考模型
+
+    Examples
+    ```python
+    >>> from bert4torch.trainer import DPOTrainer
+    >>> from bert4torch.models import build_transformer_model
+    >>> config_path = ''  # bert4torch_config.json路径
+    >>> checkpoint_path = ''  # 模型文件夹路径
+    >>> net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+    >>> model = DPOTrainer(net, ref_model=copy.deepcopy(net))
+    >>> model.to('cuda')
+    ```
+    '''
+    def __new__(cls,         
+                model: Optional[Union[BaseModel, str]], 
+                *args,
+                ref_model:BaseModel=None,
+                dpo_args: Optional[DottableDict] = DottableDict(),
+                model_init_kwargs: Optional[Dict] = None,
+                ref_model_init_kwargs: Optional[Dict] = None,
+                model_adapter_name: Optional[str] = None,
+                ref_adapter_name: Optional[str] = None,
+                peft_config: Optional[Dict] = None,
+                disable_dropout: bool = True,
+                force_use_ref_model: bool = False,
+                **kwargs
+        ) -> Trainer:
+        module = DPOModel(model, ref_model, dpo_args, model_init_kwargs, ref_model_init_kwargs,
+                          model_adapter_name, ref_adapter_name, peft_config, disable_dropout, force_use_ref_model)
+        module.to(model.device)
+        return super().__new__(cls, module, *args, **kwargs)

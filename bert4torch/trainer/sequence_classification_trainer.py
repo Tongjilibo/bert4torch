@@ -68,4 +68,5 @@ class SequenceClassificationTrainer(AutoTrainer):
     def __new__(cls, module:BaseModel, *args, num_labels:int=2, classifier_dropout:float=None, 
                 pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom']='cls', **kwargs) -> Trainer:
         module = SequenceClassificationModel(module, num_labels, classifier_dropout, pool_strategy, **kwargs)
+        module.to(model.device)
         return super().__new__(cls, module, *args, **kwargs)

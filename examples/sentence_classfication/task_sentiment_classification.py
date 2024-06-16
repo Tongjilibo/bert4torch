@@ -83,8 +83,7 @@ model = Model().to(device)
 # 方式2
 # from bert4torch.trainer import SequenceClassificationTrainer
 # bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, gradient_checkpoint=True)
-# model = SequenceClassificationTrainer(bert)
-# model.to(device)
+# model = SequenceClassificationTrainer(bert).to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(
