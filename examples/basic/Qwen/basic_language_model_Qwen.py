@@ -91,7 +91,6 @@ def main():
         # 命令行聊天
         demo.run()
 
-    
 
 if __name__ == '__main__':
     main()

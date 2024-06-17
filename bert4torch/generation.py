@@ -702,21 +702,22 @@ class SeqGeneration(AutoRegressiveDecoder):
             return torch.stack(inputs)
 
         if include_past is False:
+            # 使用cache且step>=1, 即用last_token做下一步预测
             if len(inputs) == 1:
-                next_inputs = [output_ids[:, -1:]]
+                next_inputs = [output_ids[:, -1:]]  # last_token
             elif len(inputs) >= 2:  # 第二个是segment_ids
-                token_ids = inputs[0]
-                curr_segment_ids = token_ids[0, -1:]
-                next_inputs = [output_ids[:, -1:], curr_segment_ids]
+                log_warn_once('Use 0 for follwing segment_ids')
+                next_inputs = [output_ids[:, -1:], torch.zeros_like(output_ids[:, -1:])]
         else:
+            # 不使用cache，或使用cache且step==0时
             if len(inputs) == 1:
                 token_ids = concat_token_ids(inputs[0], output_ids)
                 next_inputs = [token_ids]
             elif len(inputs) >= 2:  # 第二个是segment_ids
                 token_ids, segment_ids = inputs
-                token_ids = concat_token_ids(inputs[0], output_ids)
-                curr_segment_ids = torch.zeros_like(output_ids) + token_ids[0, -1]
-                segment_ids = torch.cat([segment_ids, curr_segment_ids], 1)
+                token_ids = concat_token_ids(token_ids, output_ids)
+                log_warn_once('Use 0 for follwing segment_ids')
+                segment_ids = concat_token_ids(segment_ids, torch.zeros_like(output_ids))
                 next_inputs = [token_ids, segment_ids]
         return next_inputs
 
