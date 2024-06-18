@@ -61,7 +61,7 @@ def main():
     # cli_continue: 命令行续写
     choice = 'cli_chat'
 
-    generation_config = {'max_length': 256, 'top_k': 1, 'include_input': False if re.search('Chat|Instruct', model_dir) else True}
+    generation_config = {'max_length': 256, 'top_k': 40, 'include_input': False if re.search('Chat|Instruct', model_dir) else True, 'repetition_penalty': 1.1, 'temperature': 0.7, 'use_states': False}
     Chat =  ChatQwenOpenaiApi if choice == 'openai' else ChatQwenCli
     demo = Chat(model_dir, 
                 system='You are a helpful assistant.', 

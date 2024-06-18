@@ -7,6 +7,7 @@ import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
 from torch4keras.snippets import log_info, log_warn, Timeit
+from typing import Union
 
 
 def insert_arguments(**arguments):
@@ -71,7 +72,7 @@ def get_state_dict_dtype(state_dict:dict):
         return next(state_dict.values()).dtype
 
 
-def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dtype:
+def set_default_torch_dtype(dtype: Union[str, torch.dtype], model_name:str='model') -> torch.dtype:
     """设置默认权重类型"""
     if not isinstance(model_name, str):
         model_name = 'model'
@@ -93,7 +94,7 @@ def set_default_torch_dtype(dtype: torch.dtype, model_name='model') -> torch.dty
     return dtype, dtype_orig
 
 
-def load_state_dict_into_meta_model(model, state_dict, device_map=None, torch_dtype=None):
+def load_state_dict_into_meta_model(model:nn.Module, state_dict:dict, device_map:dict=None, torch_dtype:Union[str, torch.dtype]=None):
     """ 把state_dict导入meta_model
     为了代码简洁，这里device_map需要外部手动指定, 形式如{'embeddings.word_embeddings': 0, 'LayerNormFinal': 0, 'lm_head': 0}
     """

@@ -4,7 +4,7 @@ from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
 from bert4torch.layers import LayerNorm
 from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
-from typing import Union
+from typing import Union, Literal
 from torch import nn
 import torch
 
@@ -27,9 +27,15 @@ class Encoder(BERT):
 
 
 class Decoder(LM_Mask, BERT):
+    '''所有decoder模型的基类(含大模型)
+
+    :param logit_scale: bool, 是否对lm_logits进行缩放
+    :param final_layernorm: bool, 对last_hidden_state是否进行层归一化
+    :param convert_lm_logits_dtype: bool, 是否对lm_logits进行dtype转换
+    '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
-    def __init__(self, *args, logit_scale=False, final_layernorm=False, **kwargs):
+    def __init__(self, *args, logit_scale:bool=False, final_layernorm:bool=False, convert_lm_logits_dtype:Literal['float16', 'float32', 'float64', 'bfloat16', None]=None, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -38,6 +44,8 @@ class Decoder(LM_Mask, BERT):
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
         self.final_layernorm = final_layernorm
+        mapping = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32, 'float64': torch.float64}
+        self.convert_lm_logits_dtype = mapping[convert_lm_logits_dtype] if convert_lm_logits_dtype is not None else None
 
         # 从hidden_states映射到logit
         if self.with_lm:
@@ -88,8 +96,8 @@ class Decoder(LM_Mask, BERT):
             lm_logits = self.lm_head(last_hidden_state)  # [btz, seq_len, vocab_size]
             lm_logits = lm_logits * self.logit_scale if hasattr(self, 'logit_scale') else lm_logits
             lm_logits = self.final_activation(lm_logits)
-            # if lm_logits.dtype != torch.float32:
-            #     lm_logits = lm_logits.float()
+            if self.convert_lm_logits_dtype is not None:
+                lm_logits = lm_logits.to(self.convert_lm_logits_dtype)
             return self.gen_outputs(locals(), last_hidden_state, lm_logits) if self.return_dict else lm_logits
         elif not self.return_dict:
             return last_hidden_state

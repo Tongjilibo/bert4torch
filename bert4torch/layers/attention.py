@@ -189,6 +189,8 @@ class MultiHeadAttentionLayer(nn.Module):
             elif len(self.flash_attention_config) == 0:
                 # 默认方式
                 context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+                # 下一行代码是Qwen2的，看结果略有差异，但是不影响结果的生成
+                # context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attn_mask=None, dropout_p=0, is_causal=False)
             else:
                 # 自定义
                 with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
