@@ -10,18 +10,6 @@ else:
     import importlib.metadata as importlib_metadata
 
 
-def is_accelerate_available(check_partial_state=False):
-    '''是否可以使用accelerate'''
-    accelerate_available = importlib.util.find_spec("accelerate") is not None
-    if accelerate_available:
-        if check_partial_state:
-            return version.parse(importlib_metadata.version("accelerate")) >= version.parse("0.17.0")
-        else:
-            return True
-    else:
-        return False
-
-
 def is_flash_attn_available():
     '''是否可以使用包flash_attn'''
     _flash_attn_available = is_package_available("flash_attn") and \

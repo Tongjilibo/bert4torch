@@ -133,6 +133,10 @@ class PtuningV2Trainer(AutoTrainer):
     >>> model = PtuningV2Trainer(encoder).to('cuda')
     ```
     '''
+    def __init__(self, encoder:nn.Module, *args, pre_seq_len:int=128, prefix_projection:bool=False, **kwargs):
+        pass
+
     def __new__(cls, encoder:nn.Module, *args, pre_seq_len:int=128, prefix_projection:bool=False, **kwargs) -> Trainer:
         module = PtuningV2Model(encoder, *args, pre_seq_len=pre_seq_len, prefix_projection=prefix_projection, **kwargs)
+        module.to(encoder.device)
         return super().__new__(cls, module, *args, **kwargs)

@@ -63,27 +63,29 @@ train_dataloader = DataLoader(MyDataset([f'{data_dir}/sentiment.train.data']), b
 valid_dataloader = DataLoader(MyDataset([f'{data_dir}/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
 test_dataloader = DataLoader(MyDataset([f'{data_dir}/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
-# 方式1
-class Model(BaseModel):
-    def __init__(self, pool_method='cls') -> None:
-        super().__init__()
-        self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, gradient_checkpoint=True)
-        self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
+if False:
+    # 方式1
+    class Model(BaseModel):
+        def __init__(self, pool_method='cls') -> None:
+            super().__init__()
+            self.pool_method = pool_method
+            self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, gradient_checkpoint=True)
+            self.dropout = nn.Dropout(0.1)
+            self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 
-    def forward(self, token_ids, segment_ids):
-        hidden_states, pooling = self.bert([token_ids, segment_ids])
-        pooled_output = get_pool_emb(hidden_states, pooling, token_ids.gt(0).long(), self.pool_method)
-        output = self.dropout(pooled_output)
-        output = self.dense(output)
-        return output
-model = Model().to(device)
+        def forward(self, token_ids, segment_ids):
+            hidden_states, pooling = self.bert([token_ids, segment_ids])
+            pooled_output = get_pool_emb(hidden_states, pooling, token_ids.gt(0).long(), self.pool_method)
+            output = self.dropout(pooled_output)
+            output = self.dense(output)
+            return output
+    model = Model().to(device)
 
-# 方式2
-# from bert4torch.trainer import SequenceClassificationTrainer
-# bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, gradient_checkpoint=True)
-# model = SequenceClassificationTrainer(bert).to(device)
+else:
+    # 方式2
+    from bert4torch.trainer import SequenceClassificationTrainer
+    bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True, gradient_checkpoint=True)
+    model = SequenceClassificationTrainer(bert).to(device)
 
 # 定义使用的loss和optimizer，这里支持自定义
 model.compile(

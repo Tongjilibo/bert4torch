@@ -7,6 +7,7 @@ from typing import Literal, Optional, Dict, Union
 from contextlib import contextmanager, nullcontext
 import warnings
 import inspect
+from torch.nn.modules import Module
 from torch4keras.trainer import AutoTrainer, Trainer
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16
@@ -20,6 +21,14 @@ class DPOModel(BaseModel):
 
     :param model: 待训练模型
     :param ref_model: 参考模型
+    :param args: dpo训练的部分参数
+    :param model_init_kwargs: model的build_transformer_model参数
+    :param ref_model_init_kwargs: ref_model的build_transformer_model参数
+    :param model_adapter_name: model的adapter_name
+    :param ref_adapter_name: ref_model的adapter_name
+    :param peft_config: peft配置项
+    :param disable_dropout: 是否不适用dropout
+    :param force_use_ref_model: 强制使用ref_model
     '''
     def __init__(
         self, 
@@ -163,6 +172,14 @@ class DPOTrainer(AutoTrainer):
     '''DPOTrainer
     :param model: 待训练模型
     :param ref_model: 参考模型
+    :param args: dpo训练的部分参数
+    :param model_init_kwargs: model的build_transformer_model参数
+    :param ref_model_init_kwargs: ref_model的build_transformer_model参数
+    :param model_adapter_name: model的adapter_name
+    :param ref_adapter_name: ref_model的adapter_name
+    :param peft_config: peft配置项
+    :param disable_dropout: 是否不适用dropout
+    :param force_use_ref_model: 强制使用ref_model
 
     Examples
     ```python
@@ -175,11 +192,26 @@ class DPOTrainer(AutoTrainer):
     >>> model.to('cuda')
     ```
     '''
+    def __init__(self, 
+                model: Optional[Union[BaseModel, str]], 
+                *trainer_args,
+                ref_model:BaseModel=None,
+                args: Optional[DottableDict] = DottableDict(),
+                model_init_kwargs: Optional[Dict] = None,
+                ref_model_init_kwargs: Optional[Dict] = None,
+                model_adapter_name: Optional[str] = None,
+                ref_adapter_name: Optional[str] = None,
+                peft_config: Optional[Dict] = None,
+                disable_dropout: bool = True,
+                force_use_ref_model: bool = False,
+                **kwargs):
+        pass
+
     def __new__(cls,         
                 model: Optional[Union[BaseModel, str]], 
-                *args,
+                *trainer_args,
                 ref_model:BaseModel=None,
-                dpo_args: Optional[DottableDict] = DottableDict(),
+                args: Optional[DottableDict] = DottableDict(),
                 model_init_kwargs: Optional[Dict] = None,
                 ref_model_init_kwargs: Optional[Dict] = None,
                 model_adapter_name: Optional[str] = None,
@@ -189,7 +221,7 @@ class DPOTrainer(AutoTrainer):
                 force_use_ref_model: bool = False,
                 **kwargs
         ) -> Trainer:
-        module = DPOModel(model, ref_model, dpo_args, model_init_kwargs, ref_model_init_kwargs,
+        module = DPOModel(model, ref_model, args, model_init_kwargs, ref_model_init_kwargs,
                           model_adapter_name, ref_adapter_name, peft_config, disable_dropout, force_use_ref_model)
         module.to(model.device)
-        return super().__new__(cls, module, *args, **kwargs)
+        return super().__new__(cls, module, *trainer_args, **kwargs)

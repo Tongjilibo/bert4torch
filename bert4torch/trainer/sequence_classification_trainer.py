@@ -61,12 +61,15 @@ class SequenceClassificationTrainer(AutoTrainer):
     >>> config_path = ''  # bert4torch_config.json路径
     >>> checkpoint_path = ''  # 模型文件夹路径
     >>> bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
-    >>> model = SequenceClassificationTrainer(bert)
-    >>> model.to('cuda')
+    >>> model = SequenceClassificationTrainer(bert).to('cuda')
     ```
     '''
+    def __init__(self, module:BaseModel, *args, num_labels:int=2, classifier_dropout:float=None, 
+                pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom']='cls', **kwargs):
+        pass
+
     def __new__(cls, module:BaseModel, *args, num_labels:int=2, classifier_dropout:float=None, 
                 pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom']='cls', **kwargs) -> Trainer:
-        module = SequenceClassificationModel(module, num_labels, classifier_dropout, pool_strategy, **kwargs)
-        module.to(model.device)
-        return super().__new__(cls, module, *args, **kwargs)
+        model = SequenceClassificationModel(module, num_labels, classifier_dropout, pool_strategy, **kwargs)
+        model.to(module.device)
+        return super().__new__(cls, model, *args, **kwargs)
