@@ -1,8 +1,10 @@
-import os
-os.environ['HF_ENDPOINT'] = "https://hf-mirror.com"
-# root_model_path = 'E:\pretrain_ckpt\embedding\BAAI@bge-large-en-v1.5'
-root_model_path = 'BAAI/bge-large-zh-v1.5'
-# root_model_path = '/data/pretrain_ckpt/embedding/BAAI--bge-large-zh-v1.5'
+# BAAI--bge-large-zh-v1.5
+# BAAI--bge-large-en-v1.5
+# BAAI--bge-base-zh-v1.5
+# BAAI--bge-base-en-v1.5
+# BAAI--bge-small-zh-v1.5
+# BAAI--bge-small-en-v1.5
+root_model_path = '/data/pretrain_ckpt/embedding/BAAI--bge-base-zh-v1.5'
 
 sentences_1 = ["样例数据-1", "样例数据-2"]
 sentences_2 = ["样例数据-3", "样例数据-4"]
