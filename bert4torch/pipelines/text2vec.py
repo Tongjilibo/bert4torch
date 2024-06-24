@@ -14,6 +14,17 @@ class Text2Vec(PipeLineBase):
     :param checkpoint_path: str, 模型所在文件夹地址
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
+
+    ```python
+    >>> from bert4torch.pipelines import Text2Vec
+    >>> sentences_1 = ["样例数据-1", "样例数据-2"]
+    >>> sentences_2 = ["样例数据-3", "样例数据-4"]
+    >>> text2vec = Text2Vec(checkpoint_path='bge-small-zh-v1.5', device='cuda')
+    >>> embeddings_1 = text2vec.encode(sentences_1, normalize_embeddings=True)
+    >>> embeddings_2 = text2vec.encode(sentences_2, normalize_embeddings=True)
+    >>> similarity = embeddings_1 @ embeddings_2.T
+    >>> print(similarity)
+    ```
     '''
     def __init__(self, checkpoint_path, device=None, **kwargs) -> None:
         super().__init__(checkpoint_path, device, **kwargs)

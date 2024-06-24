@@ -62,6 +62,7 @@ class BERT(BERT_BASE):
             self.pooler_activation = None
 
         if self.with_mlm:
+            # mlm预测
             self.mlmDense = nn.Linear(self.hidden_size, self.embedding_size)  # 允许hidden_size和embedding_size不同
             self.transform_act_fn = get_activation(self.hidden_act)
             self.mlmLayerNorm = LayerNorm(self.embedding_size, eps=1e-12, conditional_size=self.conditional_size)
