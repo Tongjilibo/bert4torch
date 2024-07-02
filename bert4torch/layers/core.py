@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from bert4torch.activations import get_activation
-from bert4torch.layers import SinusoidalPositionEncoding
+from bert4torch.layers.position_encoding import SinusoidalPositionEncoding
 from bert4torch.snippets import torch_div, take_along_dim
 from typing import Union, Literal, Optional, List, Tuple
 

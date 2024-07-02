@@ -3,10 +3,16 @@ import torch
 import math
 import numpy as np
 import torch.nn.functional as F
-from bert4torch.layers.position_encoding import *
+from bert4torch.layers.position_encoding import (
+    RelativePositionsEncodingDebertaV2, 
+    RelativePositionsEncoding, 
+    RelativePositionsEncodingT5, 
+    RoPEPositionEncoding, 
+    ALiBiPositionsEncoding
+)
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple, Union
 import inspect
 
 

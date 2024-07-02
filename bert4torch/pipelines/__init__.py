@@ -3,6 +3,6 @@
 '''
 
 from .chat import *
-from .text2vec import *
+from .text2vec import Text2Vec
 from .uie_predictor import UIEPredictor
-from .fill_mask import *
+from .fill_mask import FillMask

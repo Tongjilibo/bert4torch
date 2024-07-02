@@ -1,30 +1,34 @@
-from torch4keras.model import *
-from bert4torch.snippets import set_default_torch_dtype, get_checkpoint_path, get_config_path, is_accelerate_available, log_error
-from bert4torch.models.albert import *
-from bert4torch.models.bart import *
-from bert4torch.models.base import *
-from bert4torch.models.bert import *
-from bert4torch.models.deberta import *
-from bert4torch.models.electra import *
-from bert4torch.models.ernie import *
-from bert4torch.models.gau_alpha import *
-from bert4torch.models.glm import *
-from bert4torch.models.gpt import *
-from bert4torch.models.llama import *
-from bert4torch.models.nezha import *
-from bert4torch.models.roformer import *
-from bert4torch.models.t5 import *
-from bert4torch.models.transformer import *
-from bert4torch.models.transformer_xl import *
-from bert4torch.models.uie import *
-from bert4torch.models.xlnet import *
-from bert4torch.models.bloom import *
-from bert4torch.models.qwen import *
-from bert4torch.models.internlm import *
-from bert4torch.models.falcon import *
-from bert4torch.models.deepseek import *
+from torch4keras.model import BaseModel, BaseModelDP, BaseModelDDP
+from torch4keras.trainer import Trainer
+from bert4torch.models.albert import ALBERT, ALBERT_Unshared
+from bert4torch.models.bart import BART
+from bert4torch.models.base import BERT_BASE, extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
+from bert4torch.models.bert import BERT
+from bert4torch.models.deberta import DebertaV2
+from bert4torch.models.electra import ELECTRA
+from bert4torch.models.ernie import ERNIE
+from bert4torch.models.gau_alpha import GAU_alpha
+from bert4torch.models.glm import GLM, GLM2
+from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
+from bert4torch.models.llama import LLaMA, Baichuan
+from bert4torch.models.nezha import NEZHA
+from bert4torch.models.roformer import RoFormer, RoFormerV2
+from bert4torch.models.t5 import T5, T5_Encoder, T5_Decoder
+from bert4torch.models.transformer import Transformer, Encoder, Decoder
+from bert4torch.models.transformer_xl import Transformer_XL
+from bert4torch.models.xlnet import XLNET
+from bert4torch.models.uie import UIE
+from bert4torch.models.bloom import Bloom
+from bert4torch.models.qwen import Qwen, Qwen2
+from bert4torch.models.internlm import InternLM
+from bert4torch.models.falcon import Falcon
+from bert4torch.models.deepseek import DeepSeek
+from bert4torch.snippets import set_default_torch_dtype, get_checkpoint_path, get_config_path
+from bert4torch.snippets import is_accelerate_available, log_error, log_warn, DottableDict
 from typing import Union, Literal
 import json
+import os
+import torch
 
 
 def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint_path:Union[str, os.PathLike, list]=None, 

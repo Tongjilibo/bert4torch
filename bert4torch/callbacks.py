@@ -4,7 +4,7 @@
 
 import torch
 import torch.nn.functional as F
-from torch4keras.snippets import *
+from torch4keras.snippets import search_layer
 from torch4keras.callbacks import *
 
 

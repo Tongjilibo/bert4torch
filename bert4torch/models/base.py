@@ -5,15 +5,27 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.snippets import log_warn, load_state_dict_into_meta_model, find_tied_parameters, JsonConfig
-from bert4torch.snippets import get_parameter_device, load_checkpoint, save_checkpoint, copytree
+from bert4torch.snippets import (
+    JsonConfig, 
+    log_warn, 
+    load_state_dict_into_meta_model, 
+    find_tied_parameters, 
+    print_trainable_parameters,
+    get_parameter_device, 
+    load_checkpoint, 
+    save_checkpoint, 
+    copytree, 
+    log_info, 
+    log_warn
+)
+from torch4keras.model import BaseModel, add_trainer
 import warnings
-from typing import Union, Optional, Callable
-from torch4keras.model import *
+from typing import Union, Literal, Callable, List
 from tqdm import tqdm
 import gc
 import copy
 import re
+import os
 
 
 class BERT_BASE(nn.Module):

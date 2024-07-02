@@ -33,13 +33,19 @@ else:
     BaseModel, Field = object, object
 
 
+__all__ = [
+    'ChatOpenaiApi',
+    'ChatOpenaiClient',
+    'ChatOpenaiClientSseclient'
+    ]
+
 @asynccontextmanager
 async def lifespan(app: FastAPI): # collects GPU memory
     yield
     cuda_empty_cache()
 
 
-class _ModelCard(BaseModel):
+class ModelCard(BaseModel):
     id: str
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -49,24 +55,24 @@ class _ModelCard(BaseModel):
     permission: Optional[list] = None
 
 
-class _ModelList(BaseModel):
+class ModelList(BaseModel):
     object: str = "list"
-    data: List[_ModelCard] = []
+    data: List[ModelCard] = []
 
 
-class _ChatMessage(BaseModel):
+class ChatMessage(BaseModel):
     role: str
     content: str
 
 
-class _DeltaMessage(BaseModel):
+class DeltaMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
 
 
-class _ChatCompletionRequest(BaseModel):
+class ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[_ChatMessage]
+    messages: List[ChatMessage]
     temperature: Optional[float] = None
     top_k: Optional[int] = None
     top_p: Optional[float] = None
@@ -75,22 +81,22 @@ class _ChatCompletionRequest(BaseModel):
     repetition_penalty: Optional[int] = None
 
 
-class _ChatCompletionResponseChoice(BaseModel):
+class ChatCompletionResponseChoice(BaseModel):
     index: int
-    message: _ChatMessage
+    message: ChatMessage
     finish_reason: Literal["stop", "length"]
 
 
-class _ChatCompletionResponseStreamChoice(BaseModel):
+class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
-    delta: _DeltaMessage
+    delta: DeltaMessage
     finish_reason: Optional[Literal["stop", "length"]]
 
 
-class _ChatCompletionResponse(BaseModel):
+class ChatCompletionResponse(BaseModel):
     model: str
     object: Literal["chat.completion", "chat.completion.chunk"]
-    choices: List[Union[_ChatCompletionResponseChoice, _ChatCompletionResponseStreamChoice]]
+    choices: List[Union[ChatCompletionResponseChoice, ChatCompletionResponseStreamChoice]]
     created: Optional[int] = Field(default_factory=lambda: int(time.time()))
 
 
@@ -168,8 +174,8 @@ class ChatOpenaiApi(Chat):
 
         # 添加路由
         router = APIRouter()
-        router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=_ModelList)
-        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=_ChatCompletionResponse, 
+        router.add_api_route(route_models, methods=['GET'], endpoint=self.list_models, response_model=ModelList)
+        router.add_api_route(route_api, methods=['POST'], endpoint=self.create_chat_completion, response_model=ChatCompletionResponse, 
                              dependencies=[Depends(self.check_api_key)])
         self.app.include_router(router)
 
@@ -204,10 +210,10 @@ class ChatOpenaiApi(Chat):
             scheduler.shutdown()
 
     async def list_models(self):
-        model_card = _ModelCard(id=self.name)
-        return _ModelList(data=[model_card])
+        model_card = ModelCard(id=self.name)
+        return ModelList(data=[model_card])
 
-    async def create_chat_completion(self, request: _ChatCompletionRequest):
+    async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
             raise HTTPException(status_code=404, detail="Invalid model")
 
@@ -259,21 +265,21 @@ class ChatOpenaiApi(Chat):
         # 非流式输出
         else:
             response = self.model.generate(input_text, **self.generation_config)
-            choice_data = _ChatCompletionResponseChoice(
+            choice_data = ChatCompletionResponseChoice(
                 index=0,
-                message=_ChatMessage(role=self.role_assistant, content=response),
+                message=ChatMessage(role=self.role_assistant, content=response),
                 finish_reason="stop"
             )
 
-            return _ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
+            return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
 
     async def predict(self, query: str, model_id: str):
-        choice_data = _ChatCompletionResponseStreamChoice(
+        choice_data = ChatCompletionResponseStreamChoice(
             index=0,
-            delta=_DeltaMessage(role=self.role_assistant),
+            delta=DeltaMessage(role=self.role_assistant),
             finish_reason=None
         )
-        chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
 
         current_length = 0
@@ -285,21 +291,21 @@ class ChatOpenaiApi(Chat):
             new_text = new_response[current_length:]
             current_length = len(new_response)
 
-            choice_data = _ChatCompletionResponseStreamChoice(
+            choice_data = ChatCompletionResponseStreamChoice(
                 index=0,
-                delta=_DeltaMessage(content=new_text),
+                delta=DeltaMessage(content=new_text),
                 finish_reason=None
             )
-            chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+            chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
             yield "{}".format(chunk.model_dump_json(exclude_unset=True))
 
 
-        choice_data = _ChatCompletionResponseStreamChoice(
+        choice_data = ChatCompletionResponseStreamChoice(
             index=0,
-            delta=_DeltaMessage(),
+            delta=DeltaMessage(),
             finish_reason="stop"
         )
-        chunk = _ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
         yield '[DONE]'
 

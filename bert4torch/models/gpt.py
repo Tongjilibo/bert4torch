@@ -2,7 +2,6 @@ from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import BertLayer, BlockIdentity
 from torch import nn
-import copy
 import torch
 
 

@@ -3,6 +3,6 @@
    2) gradio和streamlit的网页demo
    3) 发布类openai的api接口
 '''
-from .base import *
-from .openai_api import *
+from .base import Chat, ChatCli, ChatWebGradio, ChatWebStreamlit
+from .openai_api import ChatOpenaiApi, ChatOpenaiClient, ChatOpenaiClientSseclient
 from .llm import *
