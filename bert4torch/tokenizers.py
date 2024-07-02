@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
-from typing import Any, Literal, List, Union
+from typing import Any, Literal, List, Union, Dict
 import unicodedata
 from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize, sequence_padding
@@ -14,6 +14,7 @@ import re
 import six
 from collections import OrderedDict
 import torch
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +138,8 @@ class TokenizerBase(object):
         """
         return [self.token_to_id(token) for token in tokens]
 
-    def _encode(self, first_text, second_text=None, maxlen=None, pattern='S*E*E', truncate_from='right', return_offsets=False):
+    def _encode(self, first_text:str, second_text:str=None, maxlen:int=None, pattern:str='S*E*E', 
+                truncate_from:Literal['left', 'right']='right', return_offsets:bool=False):
         """输出文本对应token id和segment id
         """
         first_tokens = self.tokenize(first_text) if is_string(first_text) else first_text
@@ -185,9 +187,22 @@ class TokenizerBase(object):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.encode(*args, **kwds)
         
-    def encode(self, first_texts:str, second_texts:str=None, maxlen:int=None, pattern:str='S*E*E', truncate_from:Literal['left', 'right']='right', 
-               return_offsets:bool=False, return_tensors:Literal[True, 'pt', 'np']=None, return_dict:bool=False, **kwargs):
+    def encode(self, first_texts:Union[str, List[str]], second_texts:Union[str, List[str]]=None, maxlen:int=None, pattern:str='S*E*E', 
+               truncate_from:Literal['left', 'right']='right', return_offsets:bool=False, return_tensors:Literal[True, 'pt', 'np']=None, 
+               return_dict:bool=False, **kwargs) -> Union[List[Union[List, np.ndarray, torch.Tensor]], Dict[str, Union[List, np.ndarray, torch.Tensor]]]:
         '''可以处理多条或者单条
+        :param first_texts: 需要encode的文本/文本列表
+        :param second_texts: 需要encode的文本/文本列表二, 一般需要切分segment_ids使用, 默认未None
+        :param maxlen: 允许的最大长度，
+        :param pattern: 
+        :param truncate_from: 超长时候是截断左侧还是截断右侧, 默认截断右侧right
+        :param return_offsets: 是否返回char和token之间的位置映射关系
+        :param return_tensors: 是否以tensor的形式返回
+        :param return_dict: 是否以dict形式返回
+
+        Returns
+        :param input_ids: [CLS] + first_text + [SEP] + second_text
+        :param attantion_mask: [1, 1, 1,..., 0, 0, 0]
         '''
         maxlen = maxlen or kwargs.get('max_length')  # 兼容transformers的参数
         return_list = False if isinstance(first_texts, str) else True  # 输入为str时候默认不加btz维度

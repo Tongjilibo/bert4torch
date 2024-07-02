@@ -26,7 +26,7 @@ class Text2Vec(PipeLineBase):
     >>> print(similarity)
     ```
     '''
-    def __init__(self, checkpoint_path, device=None, **kwargs) -> None:
+    def __init__(self, checkpoint_path:str, device:str=None, **kwargs) -> None:
         super().__init__(checkpoint_path, device, **kwargs)
         self.pool_strategy = self.config.get('pool_strategy', 'cls')
         
@@ -61,7 +61,7 @@ class Text2Vec(PipeLineBase):
                 batch_input = self.tokenizer(sentences_batch, max_length=max_seq_length, return_tensors='pt').to(self.device)
                 output = self.model(batch_input)
             else:
-                batch_input = self.tokenizer(sentences_batch, max_length=max_seq_length, return_tensors='pt').to(self.device)
+                batch_input = self.tokenizer(sentences_batch, max_length=max_seq_length, return_tensors='pt', padding=True).to(self.device)
                 output = self.model(**batch_input)
 
             last_hidden_state = output.get('last_hidden_state')
