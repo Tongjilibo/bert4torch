@@ -1,4 +1,4 @@
-'''句向量pipeline
+'''输出句向量的pipeline
    类似sentence-transformers的调用方式`model.encode(sentences)`
 '''
 from typing import List, Union, Dict
