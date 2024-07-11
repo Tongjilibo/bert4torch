@@ -329,6 +329,7 @@ class ChatCli(Chat):
             self.model = self._build_model()
             # history是human和assistant的聊天历史
             # 格式如[('你好', '有什么可以帮您的？'), ('你是谁？', '我是一款人工智能助手。')]
+            cli_new_history = []
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
                     response = self.process_response(response, history)
@@ -1008,16 +1009,37 @@ class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi): pass
 
 
 class ChatGlm3(Chat):
+    def build_other_config(self, system:str=None, tools:dict=None, **kwargs):
+        super().build_other_config(**kwargs)
+        self.system = system
+        self.tools = tools
+        self.history_maxlen *= 2
+
     def build_prompt(self, query, history=[]):
-        # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         if (len(history) > 0) and isinstance(history[-1], tuple):
             history.pop()
-        history.append({"role": "user", "content": query})
-        history.append({"role": "assistant", "content": ""})
+        
+        if len(history) == 0:
+            # 增加system信息
+            if self.system is not None:
+                history.append({"role": "system", "content": self.system})
+            # 增加tools信息
+            if self.tools is not None and self.system is not None:
+                history[-1]['tools'] = self.tools
+            elif self.tools is not None and self.system is None:
+                history.append({
+                    "role": "system", 
+                    "content": "Answer the following questions as best as you can. You have access to the following tools:",
+                    "tools": self.tools
+                })
+
         if self.no_history_states():
+            # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
             input_ids = self.tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
         else:
             input_ids += self.generation_config['states']['last_token']
+        history.append({"role": "user", "content": query})
+        history.append({"role": "assistant", "content": ""})
         return input_ids
 
     def build_cli_text(self, history):
@@ -1039,38 +1061,43 @@ class ChatGlm3(Chat):
             cli_new_history.pop()
         return super().build_cli_history(cli_pre_history, cli_new_history)
     
-    def process_response(self, response, history):
+    def process_response(self, response, history:list):
         response = super().process_response(response)
         if (not response) or (response[-1] == "�"):
             return response, history
 
         content = ""
-        for response in response.split("<|assistant|>"):
-            metadata, content = response.split("\n", maxsplit=1)
-            if not metadata.strip():
-                content = content.strip()
-                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                content = content.replace("[[训练时间]]", "2023年")
-            else:
-                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                if history[0]["role"] == "system" and "tools" in history[0]:
-                    content = "\n".join(content.split("\n")[1:-1])
-                    parameters = eval(content)
-                    content = {"name": metadata.strip(), "parameters": parameters}
+        for resp in response.split("<|assistant|>"):
+            if '\n' in resp:  # 重点处理tool逻辑
+                metadata, content = resp.split("\n", maxsplit=1)
+                if not metadata.strip():
+                    content = content.strip()
+                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                    content = content.replace("[[训练时间]]", "2023年")
                 else:
-                    content = {"name": metadata.strip(), "content": content}
+                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                    if history[0]["role"] == "system" and "tools" in history[0]:
+                        content = "\n".join(content.split("\n")[1:-1])
+                        parameters = eval(content)
+                        content = {"name": metadata.strip(), "parameters": parameters}
+                    else:
+                        content = {"name": metadata.strip(), "content": content}
+            else:
+                history
+
         return content
 
-class ChatGlm3Cli(ChatGlm3, ChatCli):
-    def build_other_config(self, **kwargs):
-        super().build_other_config(**kwargs)
-        self.history_maxlen *= 2
+class ChatGlm3Cli(ChatGlm3, ChatCli): pass
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
 class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit): pass
 class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
 class ChatGlm4(Chat):
+    def build_other_config(self, **kwargs):
+        super().build_other_config(**kwargs)
+        self.history_maxlen *= 2
+
     def build_prompt(self, query, history=[]):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         if (len(history) > 0) and isinstance(history[-1], tuple):
@@ -1109,8 +1136,8 @@ class ChatGlm4(Chat):
             return response, history
 
         content = ""
-        for response in response.split("<|assistant|>"):
-            metadata, content = response.split("\n", maxsplit=1)
+        for resp in response.split("<|assistant|>"):
+            metadata, content = resp.split("\n", maxsplit=1)
             if not metadata.strip():
                 content = content.strip()
                 history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
@@ -1125,10 +1152,7 @@ class ChatGlm4(Chat):
                     content = {"name": metadata.strip(), "content": content}
         return content
 
-class ChatGlm4Cli(ChatGlm4, ChatCli):
-    def build_other_config(self, **kwargs):
-        super().build_other_config(**kwargs)
-        self.history_maxlen *= 2
+class ChatGlm4Cli(ChatGlm4, ChatCli): pass
 class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
 class ChatGlm4WebStreamlit(ChatGlm4, ChatWebStreamlit): pass
 class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass

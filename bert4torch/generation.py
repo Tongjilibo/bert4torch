@@ -31,6 +31,10 @@ def repetition_penalty_func(input_ids: torch.LongTensor, scores: torch.FloatTens
     scores.scatter_(1, input_ids, score)
     return scores
 
+def get_max_input_seqlen(input_seqlen:torch.Tensor):
+    # 获取一个tensor中最大的值
+    return input_seqlen.max().item() if len(input_seqlen) > 1 else input_seqlen.item()
+
 
 class EmptyCacheDecorators(object):
     optimize_cuda_cache = False
@@ -189,6 +193,9 @@ class AutoRegressiveDecoder(object):
         if isinstance(inputs_raw, torch.Tensor):
             # 传入的Tensor直接[]后返回
             self.input_seqlen = torch.ones(inputs_raw.shape[0], dtype=torch.long).to(self.device) * inputs_raw.shape[1]
+            input_seqlen = get_max_input_seqlen(self.input_seqlen)  # 超长警告
+            if input_seqlen >= self.max_length:
+                log_warn(f'prompt_len={input_seqlen} >= max_length={self.max_length}')
             return [inputs_raw.to(self.device)]
         elif isinstance(inputs_raw, (tuple,list)) and all([isinstance(i, int) for i in inputs_raw]):
             # list(int)
@@ -214,7 +221,10 @@ class AutoRegressiveDecoder(object):
             else:
                 raise TypeError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_new)
-
+        
+        input_seqlen = get_max_input_seqlen(self.input_seqlen)  # 超长警告
+        if input_seqlen >= self.max_length:
+            log_warn(f'Prompt len={input_seqlen} >= max_length={self.max_length}')
         return inputs
     
     def _define_stopping_criteria(self, states: Optional[dict]=None):
@@ -225,7 +235,7 @@ class AutoRegressiveDecoder(object):
             max_new_tokens = self.max_new_tokens
         elif self.max_new_tokens is None:
             # 这里用max是因为batch_generate时候self.input_seqlen是多个
-            input_seqlen = self.input_seqlen.max().item() if len(self.input_seqlen) > 1 else self.input_seqlen.item()
+            input_seqlen = get_max_input_seqlen(self.input_seqlen)
             max_new_tokens = max(0, self.max_length-input_seqlen)
 
         if (states is not None) and (states.get('past_key_values') is not None):
