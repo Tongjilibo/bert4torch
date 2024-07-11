@@ -19,11 +19,11 @@ from bert4torch.pipelines import ChatGlm4Cli, ChatGlm4WebGradio, ChatGlm4WebStre
 import re
 
 # ===================================参数=======================================
-# chatglm-6B, chatglm-6B-int4, chatglm-6B-int8
-# chatglm2-6B, chatglm2-6B-int4, chatglm2-6B-32k
-# chatglm3-6b, chatglm3-6B-32k
+# chatglm-6b, chatglm-6b-int4, chatglm-6b-int8
+# chatglm2-6b, chatglm2-6b-int4, chatglm2-6b-32k
+# chatglm3-6b, chatglm3-6b-32k
 # glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
-model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b-chat-1m"
+model_dir = f"/data/pretrain_ckpt/glm/chatglm3-6b"
 
 # cli: 命令行
 # gradio: gradio web demo

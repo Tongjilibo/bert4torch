@@ -38,7 +38,7 @@ import os
 
 # ====================================基本参数====================================
 mode = 'train'  # train evaluate inference
-model_name = 'chatglm2-6B'  # chatglm-6B, chatglm-6B-int4, chatglm-6B-int8, chatglm2-6B, chatglm2-6B-int4, chatglm2-6B-int8
+model_name = 'chatglm2-6b'  # chatglm-6b, chatglm-6b-int4, chatglm-6b-int8, chatglm2-6b, chatglm2-6b-int4, chatglm2-6b-int8
 max_source_length = 64
 max_target_length = 64
 max_seq_length = max_source_length + max_target_length
@@ -77,7 +77,7 @@ class MyDataset(ListDataset):
                 D.append((prompt, response, history))
         return D
 
-if model_name in {'chatglm-6B', 'chatglm-6B-int8', 'chatglm-6B-int4'}:
+if model_name in {'chatglm-6b', 'chatglm-6b-int8', 'chatglm-6b-int4'}:
     def build_prompt(query, history):
         if history_column is None:
             prompt = query
@@ -154,7 +154,7 @@ dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev.json')), batch
 
 
 # ====================================建立模型====================================
-if model_name in {'chatglm-6B', 'chatglm2-6B'}:
+if model_name in {'chatglm-6b', 'chatglm2-6b'}:
     encoder = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).half()
     encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=4, 
                                target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)

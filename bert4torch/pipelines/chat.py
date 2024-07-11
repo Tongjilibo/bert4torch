@@ -153,7 +153,7 @@ class Chat:
         >>> # 以chatglm2的命令行聊天
         >>> from bert4torch.pipelines import ChatGlm2Cli
 
-        >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+        >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6b"
         >>> generation_config  = {'mode':'random_sample',
         ...                     'max_length':2048, 
         ...                     'default_rtype':'logits', 
@@ -585,7 +585,7 @@ class ChatOpenaiApi(Chat):
     >>> # 以chatglm2的api部署为例
     >>> from bert4torch.pipelines import ChatGlm2OpenaiApi
 
-    >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6B"
+    >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6b"
     >>> generation_config  = {'mode':'random_sample',
     ...                     'max_length':2048, 
     ...                     'default_rtype':'logits', 

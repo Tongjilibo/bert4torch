@@ -12,19 +12,19 @@ import os
 
 choice = 'default'  # default, int4, int8, v1.1.0
 if choice == 'default':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B"
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6b"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'v1.1.0':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-v1_1_0"
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6b-v1_1_0"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'int4':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int4"
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6b-int4"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 elif choice == 'int8':
-    dir_path = "E:/pretrain_ckpt/glm/chatglm-6B-int8"
+    dir_path = "E:/pretrain_ckpt/glm/chatglm-6b-int8"
     config_path = dir_path + '/bert4torch_config.json'
     checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

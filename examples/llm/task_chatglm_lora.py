@@ -52,9 +52,9 @@ response_column = 'summary'
 history_column = None
 data_dir = '/data/corpus/sft/AdvertiseGen'  # 数据路径
 if model_name == 'chatglm2':
-    model_dir = "/data/pretrain_ckpt/glm/chatglm2-6B"
+    model_dir = "/data/pretrain_ckpt/glm/chatglm2-6b"
 elif model_name == 'chatglm':
-    model_dir = "/data/pretrain_ckpt/glm/chatglm-6B"
+    model_dir = "/data/pretrain_ckpt/glm/chatglm-6b"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
