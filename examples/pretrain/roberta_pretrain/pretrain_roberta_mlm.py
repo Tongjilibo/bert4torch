@@ -20,7 +20,7 @@ import time
 
 # 语料路径和模型保存路径
 model_saved_path = './bert_model.ckpt'
-dir_training_data = 'E:/Github/bert4torch/examples/datasets/pretrain'  # dir_training_data
+dir_training_data = 'E:/Github/bert4torch/data/pretrain'  # dir_training_data
 task_name = 'roberta'
 
 # 其他配置

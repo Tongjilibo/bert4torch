@@ -188,7 +188,7 @@ if __name__ == '__main__':
     sequence_length = 512  # 文本长度
     max_file_num = 40  # 最大保存的文件个数
     dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'  # 字典文件
-    dir_training_data = 'E:/Github/bert4torch/examples/datasets/pretrain'  # 保存的文件目录
+    dir_training_data = 'E:/Github/bert4torch/data/pretrain'  # 保存的文件目录
     dir_corpus = 'F:/data/corpus/pretrain'  # 读入的语料地址
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
 

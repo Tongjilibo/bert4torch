@@ -44,7 +44,7 @@ else:
 model.eval()
 
 # 加载示例Context
-contexts = json.load(open('E:/Github/bert4torch/examples/datasets/nbce_contexts.json', encoding='utf-8'))
+contexts = json.load(open('E:/Github/bert4torch/data/nbce_contexts.json', encoding='utf-8'))
 
 # 示例问题集（一次性问多个问题，NBCE自行根据Context逐一输出答案）
 question = """请仔细阅读材料，回答下面问题：
