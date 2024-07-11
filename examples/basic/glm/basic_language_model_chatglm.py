@@ -1,5 +1,5 @@
 '''
-基本测试：chatglm1-3的测试
+基本测试：chatglm1-4的测试
 
 - 官方项目：https://github.com/THUDM/ChatGLM-6B
 - hf链接：https://huggingface.co/THUDM/chatglm-6b
@@ -139,7 +139,7 @@ tools = [
 ]
 
 demo = Chat(model_dir, 
-            tools = tools,
+            # tools = tools,  # 是否使用function_call
             generation_config=generation_config)
 
 

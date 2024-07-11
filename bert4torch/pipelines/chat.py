@@ -175,7 +175,7 @@ class Chat:
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        self.tokenizer = self.build_tokenizer()
+        self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
         if create_model_at_startup:
             self.model = self._build_model()
@@ -192,9 +192,11 @@ class Chat:
         '''
         raise NotImplementedError
     
-    def build_tokenizer(self):
+    def build_tokenizer(self, **kwargs):
         from transformers import AutoTokenizer
-        return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True)
+        init_kwargs = {'additional_special_tokens'}
+        new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
+        return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True, **new_kwargs)
 
     def build_model(self):
         '''方便外部继承'''
@@ -1068,23 +1070,26 @@ class ChatGlm3(Chat):
 
         content = ""
         for resp in response.split("<|assistant|>"):
-            if '\n' in resp:  # 重点处理tool逻辑
+            try:
+                # 使用tools时候，stream_generate会有问题，因为中间结果是无法结构化解析的
                 metadata, content = resp.split("\n", maxsplit=1)
                 if not metadata.strip():
                     content = content.strip()
                     history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
                     content = content.replace("[[训练时间]]", "2023年")
                 else:
-                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
                     if history[0]["role"] == "system" and "tools" in history[0]:
                         content = "\n".join(content.split("\n")[1:-1])
+                        def tool_call(**kwargs):
+                            return kwargs
                         parameters = eval(content)
                         content = {"name": metadata.strip(), "parameters": parameters}
                     else:
                         content = {"name": metadata.strip(), "content": content}
-            else:
-                history
-
+                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+            except:
+                content = resp.strip()
+                history[-1] = {"role": "assistant", "metadata": "", "content": content}
         return content
 
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass

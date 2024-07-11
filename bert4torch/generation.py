@@ -831,7 +831,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         '''获取在tokenize_params中的参数'''
         if (self.tokenizer is None) or (config is None):
             return dict()
-        
+        # TODO: 这里allowed_special是qwen独有的，后续可能要修改
         encode_kwargs = {'max_length', 'add_special_tokens', 'padding', 'truncation', 'stride', 'allowed_special', 'return_tensors', 
                          'maxlen', 'return_dict', 'truncate_from', 'return_offsets'}
         decode_kwargs = {'skip_special_tokens', 'clean_up_tokenization_spaces'}

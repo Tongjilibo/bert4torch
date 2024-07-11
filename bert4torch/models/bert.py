@@ -25,7 +25,7 @@ class BERT(BERT_BASE):
             custom_attention_mask:bool=False, # 是否自行传入attention_mask
             shared_segment_embeddings:bool=False,  # 若True，则segment跟token共用embedding
             conditional_size:Union[bool, int]=None,  # conditional layer_norm
-            additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False, # addtional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
+            additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False, # additional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout:bool=False,
             pad_token_id:int=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             **kwargs  # 其余参数
@@ -206,7 +206,7 @@ class BERT(BERT_BASE):
         else:
             conditional_emb = None
 
-        # ========================= addtional_embeddng =========================
+        # ========================= additional_embeddng =========================
         # 比如加入词性，音调，word粒度的自定义embedding
         if model_kwargs.get('additional_embs') is not None:
             additional_embs = model_kwargs['additional_embs']

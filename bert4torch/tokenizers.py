@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import collections
 import logging
-from typing import Any, Literal, List, Union, Dict
+from typing import Any, Literal, List, Union, Dict, Callable
 import unicodedata
 from io import open
 from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_normalize, sequence_padding
@@ -80,8 +80,8 @@ class TokenizerListOutput(list):
 class TokenizerBase(object):
     """分词器基类
     """
-    def __init__(self, token_start='[CLS]', token_end='[SEP]', token_unk='[UNK]', token_pad='[PAD]', token_mask='[MASK]', 
-                 add_special_tokens=None, pre_tokenize=None, token_translate=None):
+    def __init__(self, token_start:str='[CLS]', token_end:str='[SEP]', token_unk:str='[UNK]', token_pad:str='[PAD]', token_mask:str='[MASK]', 
+                 add_special_tokens:Union[str, tuple, list]=None, pre_tokenize:Callable=None, token_translate:Dict=None):
         """参数说明：
         token_unk: 未知词标记
         token_end: 句子切分标记，当只有一句话作为输入时，此标记知识作为结束符；当有两句话作为输入时，此标记作为分隔符、最后一句话的结束符
