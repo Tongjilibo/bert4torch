@@ -14,7 +14,7 @@
 import os
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
-from bert4torch.models import build_transformer_model
+from bert4torch.models import build_transformer_model, Decoder, Transformer
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -178,7 +178,6 @@ class Chat:
         self.generation_config['tokenizer'] = self.tokenizer
         if create_model_at_startup:
             self.model = self._build_model()
-        self.build_other_config(**kwargs)
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
@@ -219,7 +218,7 @@ class Chat:
             model = model.quantize(**self.quantization_config)
         return model.to(self.device)
 
-    def _build_model(self):
+    def _build_model(self) -> Union[Decoder, Transformer]:
         if (not hasattr(self, 'model')) or (self.model is None):
             self.model = self.build_model()
 
@@ -232,10 +231,7 @@ class Chat:
             cuda_empty_cache()
             
         return self.model
-    
-    def build_other_config(self, **kwargs):
-        pass
-    
+        
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         '''对response和histry进行后处理
         1. 可自行继承后来自定义
@@ -298,7 +294,8 @@ class ChatCli(Chat):
     '''在命令行中交互的demo
     :param init_str: str, 对话问候句
     '''
-    def build_other_config(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")
 
     def build_cli_text(self, history:List[dict]) -> str:
@@ -354,8 +351,9 @@ class ChatCli(Chat):
 class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
-    '''    
-    def build_other_config(self, max_length:int=4096, **kwargs):
+    '''
+    def __init__(self, *args, max_length:int=4096, **kwargs):
+        super().__init__(*args, **kwargs)
         import gradio as gr
         self.gr = gr
         self.max_length = max_length
@@ -388,7 +386,7 @@ class ChatWebGradio(Chat):
         self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
-            chatbot[-1] = (input, str(response))
+            chatbot[-1] = (input, response)
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
@@ -435,7 +433,8 @@ class ChatWebGradio(Chat):
 
 
 class ChatWebStreamlit(Chat):
-    def build_other_config(self, max_length:int=4096, **kwargs):
+    def __init__(self, *args, max_length:int=4096, **kwargs):
+        super().__init__(*args, **kwargs)
         if not is_streamlit_available():
             raise ModuleNotFoundError('pip install streamlit')
         if version.parse(st.__version__) < version.parse("1.29.0"):
@@ -452,8 +451,8 @@ class ChatWebStreamlit(Chat):
         return super()._build_model()
     
     @st.cache_resource
-    def build_tokenizer(_self):
-        return super().build_tokenizer()
+    def build_tokenizer(_self, **kwarg):
+        return super().build_tokenizer(**kwarg)
     
     def run(self):
         if "history" not in st.session_state:
@@ -473,12 +472,10 @@ class ChatWebStreamlit(Chat):
             st.rerun()
 
         for i, message in enumerate(st.session_state.history):
-            with st.chat_message(name="user", avatar="user"):
-                st.markdown(message[0])
-
-            with st.chat_message(name="assistant", avatar="assistant"):
-                st.markdown(message[1])
-
+            role = message['role']
+            with st.chat_message(name=role, avatar=role):
+                st.markdown(message['content'])
+        
         with st.chat_message(name="user", avatar="user"):
             input_placeholder = st.empty()
         with st.chat_message(name="assistant", avatar="assistant"):
@@ -1004,8 +1001,8 @@ class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi): pass
 
 
 class ChatGlm3(Chat):
-    def build_other_config(self, system:str=None, tools:dict=None, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, system:str=None, tools:dict=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.system = system
         self.tools = tools
 
@@ -1039,28 +1036,31 @@ class ChatGlm3(Chat):
 
         content = ""
         for resp in response.split("<|assistant|>"):
-            try:
-                # 使用tools时候，stream_generate会有问题，因为中间结果是无法结构化解析的
+            if "\n" in resp:
                 metadata, content = resp.split("\n", maxsplit=1)
-                if not metadata.strip():
-                    content = content.strip()
-                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                    content = content.replace("[[训练时间]]", "2023年")
-                else:
-                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                    if history[0]["role"] == "system" and "tools" in history[0]:
-                        content = "\n".join(content.split("\n")[1:-1])
-                        def tool_call(**kwargs):
-                            return kwargs
+            else:
+                metadata, content = "", resp
+            if not metadata.strip():
+                content = content.strip()
+                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                content = content.replace("[[训练时间]]", "2023年")
+            else:
+                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+                if history[0]["role"] == "system" and "tools" in history[0]:
+                    content = "\n".join(content.split("\n")[1:-1])
+                    def tool_call(**kwargs):
+                        return kwargs
+                    try:
+                        # 使用tools时候，stream_generate会有问题，因为中间结果是无法结构化解析的
                         parameters = eval(content)
                         content = {"name": metadata.strip(), "parameters": parameters}
-                    else:
-                        content = {"name": metadata.strip(), "content": content}
-                    history[-1]['content_format'] = content
-            except (ValueError, SyntaxError):  # 同事对应split和eval两种错误
-                content = resp.strip()
-                history[-1] = {"role": "assistant", "metadata": "", "content": content}
-        return content
+                    except SyntaxError:
+                        content = resp.strip()
+                        history[-1] = {"role": "assistant", "metadata": "", "content": content}
+                else:
+                    content = {"name": metadata.strip(), "content": content}
+                history[-1]['content_format'] = content
+        return str(content)
 
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
@@ -1069,8 +1069,8 @@ class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
 class ChatGlm4(Chat):
-    def build_other_config(self, system:str=None, tools:dict=None, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, system:str=None, tools:dict=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.system = system
         self.tools = tools
 
@@ -1146,8 +1146,8 @@ class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi): pass
 
 
 class ChatQwen(Chat):
-    def build_other_config(self, system:str=None, max_window_size=6144, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, system:str=None, max_window_size=6144, **kwargs):
+        super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_ZH
         self.max_window_size = max_window_size
 
@@ -1188,8 +1188,8 @@ class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi): pass
 
 
 class ChatLLaMA2(Chat):
-    def build_other_config(self, system:str=None, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_EN
 
     def build_prompt(self, query:str, history:List[dict]) -> str:
@@ -1210,8 +1210,8 @@ class ChatLLaMA2OpenaiApi(ChatLLaMA2, ChatOpenaiApi): pass
 
 
 class ChatLLaMA3(Chat):
-    def build_other_config(self, system:str=None, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_ZH
 
     def build_prompt(self, query:str, history:List[dict]) -> str:
@@ -1251,8 +1251,8 @@ class ChatZiyaOpenaiApi(ChatZiya, ChatOpenaiApi): pass
 
 
 class ChatChineseAlphaLLaMA(Chat):
-    def build_other_config(self, system:str=None, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
         if system is None:
             self.system = \
 ("Below is an instruction that describes a task. "
@@ -1300,8 +1300,8 @@ class ChatBelleOpenaiApi(ChatBelle, ChatOpenaiApi): pass
 
 
 class ChatBaichuan(Chat):
-    def build_other_config(self, **kwargs):
-        super().build_other_config(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.user_token_id = kwargs.get('user_token_id', 195)
         self.assistant_token_id = kwargs.get('assistant_token_id', 196)
 
