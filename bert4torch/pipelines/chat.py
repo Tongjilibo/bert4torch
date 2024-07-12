@@ -139,30 +139,29 @@ If a question does not make any sense, or is not factually coherent, explain why
 
 
 class Chat:
-    '''聊天类的基类，需继承后使用'''
+    '''聊天类
+    :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
+    :param precision: bool, 精度
+    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
+    :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
+
+    Examples:
+    ```python
+    >>> # 以chatglm2的命令行聊天
+    >>> from bert4torch.pipelines import ChatGlm2Cli
+
+    >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6b"
+    >>> generation_config  = {'mode':'random_sample',
+    ...                     'max_length':2048, 
+    ...                     'default_rtype':'logits', 
+    ...                     'use_states':True
+    ...                     }
+    >>> chat = ChatGlm2Cli(checkpoint_path, **generation_config)
+    >>> chat.run()
+    ```
+    '''
     def __init__(self, checkpoint_path:str, precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
-        '''聊天类
-        :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
-        :param precision: bool, 精度
-        :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
-        :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
-
-        Examples:
-        ```python
-        >>> # 以chatglm2的命令行聊天
-        >>> from bert4torch.pipelines import ChatGlm2Cli
-
-        >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6b"
-        >>> generation_config  = {'mode':'random_sample',
-        ...                     'max_length':2048, 
-        ...                     'default_rtype':'logits', 
-        ...                     'use_states':True
-        ...                     }
-        >>> chat = ChatGlm2Cli(checkpoint_path, **generation_config)
-        >>> chat.run()
-        ```
-        '''
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
         self.config_path = kwargs.get('config_path', checkpoint_path)
@@ -185,7 +184,7 @@ class Chat:
         '''不使用history的states'''
         return self.generation_config.get('states') is None
     
-    def build_prompt(self, query:str, history:List[Tuple]) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         '''对query和history进行处理，生成进入模型的text
         :param query: str, 最近的一次user的input
         :param history: List, 历史对话记录，格式为[(input1, response1), (input2, response2)]
@@ -193,13 +192,14 @@ class Chat:
         raise NotImplementedError
     
     def build_tokenizer(self, **kwargs):
+        '''初始化tokenizer'''
         from transformers import AutoTokenizer
         init_kwargs = {'additional_special_tokens'}
         new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
         return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True, **new_kwargs)
 
     def build_model(self):
-        '''方便外部继承'''
+        '''初始化model, 方便外部继承'''
         # 初始化
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
         model.eval()
@@ -234,34 +234,52 @@ class Chat:
         return self.model
     
     def build_other_config(self, **kwargs):
-        return
+        pass
     
-    def process_response(self, response:Union[str,tuple,list], history:List[Tuple]=None) -> str:
-        '''对response进行后处理，可自行继承后来自定义'''
+    def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        '''对response和histry进行后处理
+        1. 可自行继承后来自定义
+        2. history是本地修改的
+        '''
+        def process_history(res):
+            if history is None:
+                return
+            elif len(history) == 0:
+                raise ValueError('history len can not be 0')
+            elif history[-1]['role'] == 'user':
+                history.append({"role": "assistant", "content": res})
+            elif history[-1]['role'] == 'assistant':
+                history[-1]["content"] = res
+
         if isinstance(response, str):
+            process_history(response)
             return response
         elif isinstance(response, (tuple, list)):  # response, states
             assert len(response) == 2
             self.generation_config['states'] = response[1]
+            process_history(response[0])
             return response[0]
-        return response
+        else:
+            raise TypeError('`response` type error')
 
-    def chat(self, query:Union[str,list], history:List[Tuple]=[]) -> str:
+    def chat(self, query:Union[str,list], history:List[dict]=None) -> str:
         '''chat模型使用, 配合对话模板使用'''
+        history = history or []
         if isinstance(query, str):
             prompt = self.build_prompt(query, history)
         elif isinstance(query, list):
             prompt = [self.build_prompt(q, history) for q in query]
         self.model = self._build_model()
         response = self.model.generate(prompt, **self.generation_config)
-        return self.process_response(response, history=history)
+        return self.process_response_history(response, history=history)
 
-    def stream_chat(self, query:str, history:List[Tuple]=[]):
+    def stream_chat(self, query:str, history:List[dict]=None):
         '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
+        history = history or []
         prompt = self.build_prompt(query, history)
         self.model = self._build_model()
         for response in self.model.stream_generate(prompt, **self.generation_config):
-            yield self.process_response(response, history)
+            yield self.process_response_history(response, history)
 
     def generate(self, query:str) -> str:
         '''base模型使用'''
@@ -279,39 +297,27 @@ class Chat:
 class ChatCli(Chat):
     '''在命令行中交互的demo
     :param init_str: str, 对话问候句
-    :param history_maxlen: int, 保留的历史对话轮次
-
     '''
     def build_other_config(self, **kwargs):
         self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序")
-        self.history_maxlen = kwargs.get('history_maxlen', 0)
-        log_info(f'History chat length = {self.history_maxlen}')
 
-    def build_cli_text(self, history) -> str:
+    def build_cli_text(self, history:List[dict]) -> str:
         '''构建命令行终端显示的text'''
         prompt = self.init_str
-        for query, response in history:
-            prompt += f"\n\nUser：{query}"
-            prompt += f"\n\nAssistant：{response}"
+        for query_or_response in history:
+            # 现在的dict格式，形如{'role': 'user', 'content': '你好啊'}
+            if query_or_response['role'] == "user":
+                prompt += f"\n\nUser：{query_or_response['content']}"
+            elif query_or_response['role'] == "assistant":
+                # content_format主要用于content的结构化展示
+                response = query_or_response.get('content_format', query_or_response['content'])
+                prompt += f"\n\nAssistant：{response}"
         return prompt
-
-    def build_cli_history(self, cli_pre_history, cli_new_history):
-        # 带最近的几条历史
-        if self.history_maxlen > 0:
-            history = cli_new_history[-self.history_maxlen:]
-            if len(cli_new_history) >= self.history_maxlen:
-                cli_pre_history += cli_new_history[:-self.history_maxlen]
-        else:
-            # 默认不带历史聊天
-            history = []
-            cli_pre_history += cli_new_history
-        assert len(history) <= self.history_maxlen
-        return history, cli_pre_history
 
     def run(self, stream:bool=True):
         import platform
         os_name = platform.system()
-        cli_pre_history, history = [], []
+        history = []
         clear_command = 'cls' if os_name == 'Windows' else 'clear'
         print(self.init_str)
         while True:
@@ -319,7 +325,7 @@ class ChatCli(Chat):
             if query.strip() == "stop":
                 break
             if query.strip() == "clear":
-                cli_pre_history, history = [], []
+                history = []
                 if 'states' in self.generation_config:
                     self.generation_config.pop('states')
                 cuda_empty_cache()
@@ -331,23 +337,17 @@ class ChatCli(Chat):
             self.model = self._build_model()
             # history是human和assistant的聊天历史
             # 格式如[('你好', '有什么可以帮您的？'), ('你是谁？', '我是一款人工智能助手。')]
-            cli_new_history = []
+            # 或者[{'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': '有什么可以帮您的？'}]
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
-                    response = self.process_response(response, history)
-                    cli_new_history = history + [(query, response)]
+                    response = self.process_response_history(response, history)
                     os.system(clear_command)
-                    print(self.build_cli_text(cli_pre_history + cli_new_history), flush=True)
+                    print(self.build_cli_text(history), flush=True)
             else:
                 response = self.model.generate(prompt, **self.generation_config)
-                response = self.process_response(response, history)
-                cli_new_history = history + [(query, response)]
-            
-            os.system(clear_command)
-            print(self.build_cli_text(cli_pre_history + cli_new_history), flush=True)
-
-            # 更新历史
-            history, cli_pre_history = self.build_cli_history(cli_pre_history, cli_new_history)
+                response = self.process_response_history(response, history)
+                os.system(clear_command)
+                print(self.build_cli_text(history), flush=True)
             cuda_empty_cache()
 
 
@@ -387,10 +387,9 @@ class ChatWebGradio(Chat):
         input_text = self.build_prompt(input, history)
         self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
-            response = self.process_response(response, history)
-            chatbot[-1] = (input, response)
-            new_history = history + [(input, response)]
-            yield chatbot, new_history
+            response = self.process_response_history(response, history)
+            chatbot[-1] = (input, str(response))
+            yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
     def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
@@ -400,11 +399,10 @@ class ChatWebGradio(Chat):
         input_text = self.build_prompt(input, history)
         self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
-        response = self.process_response(response, history)
+        response = self.process_response_history(response, history)
         chatbot[-1] = (input, response)
-        new_history = history + [(input, response)]
         cuda_empty_cache()  # 清理显存
-        return chatbot, new_history
+        return chatbot, history
 
     def run(self, **launch_configs):
         with self.gr.Blocks() as demo:
@@ -498,7 +496,7 @@ class ChatWebStreamlit(Chat):
 
             input_text = self.build_prompt(prompt_text, history)
             for response in self.model.stream_generate(input_text, **self.generation_config):
-                response = self.process_response(response, history)
+                response = self.process_response_history(response, history)
                 message_placeholder.markdown(response)
             st.session_state.history = history + [(prompt_text, response)]
             st.session_state.states = self.generation_config.get('states')
@@ -541,7 +539,7 @@ class DeltaMessage(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
-    model: str
+    model: str = 'default'
     messages: List[ChatMessage]
     temperature: Optional[float] = None
     top_k: Optional[int] = None
@@ -612,7 +610,7 @@ class ChatOpenaiApi(Chat):
         super().__init__(checkpoint_path, **kwargs)
         if not is_fastapi_available():
             raise ModuleNotFoundError("No module found, use `pip install fastapi`")
-        from sse_starlette.sse import ServerSentEvent, EventSourceResponse
+        from sse_starlette.sse import EventSourceResponse
         import sse_starlette
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
             log_warn('Module `sse_starlette` above 1.8 not support stream output')
@@ -623,7 +621,6 @@ class ChatOpenaiApi(Chat):
         self.name = name
         self.role_user = 'user'
         self.role_assistant = 'assistant'
-        self.role_system = 'system'
 
         if offload_when_nocall is None:
             self.app = FastAPI(lifespan=lifespan)
@@ -698,26 +695,10 @@ class ChatOpenaiApi(Chat):
         if request.repetition_penalty:
             self.generation_config['repetition_penalty'] = request.repetition_penalty
 
-        if request.messages[-1].role != self.role_user:
+        if request.messages[-1].role != self.role_user:  # 最后一条msg的role必须是user
             raise HTTPException(status_code=400, detail="Invalid request")
         query = request.messages[-1].content
-
-        # 首条可以是role_system
-        prev_messages = request.messages[:-1]
-        if len(prev_messages) > 0 and prev_messages[0].role == self.role_system:
-            query = prev_messages.pop(0).content + query
-
-        history = []
-        if len(prev_messages) % 2 == 0:
-            for i in range(0, len(prev_messages), 2):
-                if prev_messages[i].role == self.role_user and prev_messages[i+1].role == self.role_assistant:
-                    history.append((prev_messages[i].content, prev_messages[i+1].content))
-                else:
-                    raise HTTPException(status_code=400, detail=f'Arg `messages` do not follow {self.role_user}, \
-                                        {self.role_assistant} format.')
-        else:
-            log_warn(f'prev_messages={len(prev_messages)}%2 != 0, use current query without history instead.')
-        
+        history = request.messages[:-1]
         input_text = self.build_prompt(query, history)
         
         if self.offload_when_nocall is None:
@@ -729,12 +710,13 @@ class ChatOpenaiApi(Chat):
 
         # 流式输出
         if request.stream:
-            generate = self.predict(input_text, request.model)
+            generate = self.predict(input_text, request.model, history)
             return self.EventSourceResponse(generate, media_type="text/event-stream")
         
         # 非流式输出
         else:
             response = self.model.generate(input_text, **self.generation_config)
+            response = self.process_response_history(response, history)
             choice_data = ChatCompletionResponseChoice(
                 index=0,
                 message=ChatMessage(role=self.role_assistant, content=response),
@@ -743,7 +725,7 @@ class ChatOpenaiApi(Chat):
 
             return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
 
-    async def predict(self, query: str, model_id: str):
+    async def predict(self, query: str, model_id: str, history:list):
         choice_data = ChatCompletionResponseStreamChoice(
             index=0,
             delta=DeltaMessage(role=self.role_assistant),
@@ -758,7 +740,7 @@ class ChatOpenaiApi(Chat):
             if len(new_response) == current_length:
                 continue
 
-            new_text = new_response[current_length:]
+            new_text = self.process_response_history(new_response[current_length:], history)
             current_length = len(new_response)
 
             choice_data = ChatCompletionResponseStreamChoice(
@@ -939,22 +921,27 @@ class ChatOpenaiClientSseclient:
 # ==========================================================================================
 
 class ChatGlm(Chat):
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
+        # 没有system和function call
         if not history:
             prompt = query
         else:
-            prompt = ""
+            prompt, turn_i = "", 0
             if self.no_history_states():
-                for i, (old_query, response) in enumerate(history):
-                    prompt += "[Round {}]\n问：{}\n答：{}\n".format(i, old_query, response)
+                for query_or_response in enumerate(history):
+                    if query_or_response['role'] == 'user':
+                        prompt += f"[Round {turn_i}]\n问：{query_or_response['content']}\n"
+                    elif query_or_response['role'] == 'assistant':
+                        prompt += f"答：{query_or_response['content']}\n"
+                        turn_i += 1
             else:
                 prompt += self.generation_config['states']['last_token']
 
-            prompt += "[Round {}]\n问：{}\n答：".format(len(history), query)
+            prompt += f"[Round {turn_i}]\n问：{query}\n答："
+        history.append({'role': 'user', 'content': query})
         return prompt
     
-    def process_response(self, response, *args):
-        response = super().process_response(response)
+    def process_response_history(self, response, history):
         response = response.strip()
         response = response.replace("[[训练时间]]", "2023年")
         punkts = [
@@ -967,6 +954,7 @@ class ChatGlm(Chat):
         for item in punkts:
             response = re.sub(r"([\u4e00-\u9fff])%s" % item[0], r"\1%s" % item[1], response)
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
+        response = super().process_response_history(response, history)
         return response
 
 class ChatGlmCli(ChatGlm, ChatCli): pass
@@ -976,20 +964,24 @@ class ChatGlmOpenaiApi(ChatGlm, ChatOpenaiApi): pass
 
 
 class ChatGlm2(Chat):
-    def build_prompt(self, query, history=[]):
+    def build_prompt(self, query, history:List[dict]):
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
-        prompt = ""
+        prompt, turn_i = "", 1
         if self.no_history_states():
-            for i, (old_query, response) in enumerate(history):
-                prompt += "[Round {}]\n\n问：{}\n\n答：{}\n".format(i+1, old_query, response)
+            for query_or_response in enumerate(history):
+                if query_or_response['role'] == 'user':
+                    prompt += f"[Round {turn_i}]\n\n问：{query_or_response['content']}\n\n"
+                elif query_or_response['role'] == 'assistant':
+                    prompt += f"答：{query_or_response['content']}\n"
+                    turn_i += 1
         else:
             prompt += self.generation_config['states']['last_token']
 
-        prompt += "[Round {}]\n\n问：{}\n\n答：".format(len(history)+1, query)
+        prompt += f"[Round {turn_i}]\n\n问：{query}\n\n答："
+        history.append({'role': 'user', 'content': query})
         return prompt
     
-    def process_response(self, response, *args):
-        response = super().process_response(response)
+    def process_response_history(self, response:str, history:List[dict]):
         response = response.strip()
         response = response.replace("[[训练时间]]", "2023年")
         punkts = [
@@ -1002,6 +994,7 @@ class ChatGlm2(Chat):
         for item in punkts:
             response = re.sub(r"([\u4e00-\u9fff])%s" % item[0], r"\1%s" % item[1], response)
             response = re.sub(r"%s([\u4e00-\u9fff])" % item[0], r"%s\1" % item[1], response)
+        response = super().process_response_history(response, history)
         return response
 
 class ChatGlm2Cli(ChatGlm2, ChatCli): pass
@@ -1015,21 +1008,17 @@ class ChatGlm3(Chat):
         super().build_other_config(**kwargs)
         self.system = system
         self.tools = tools
-        self.history_maxlen *= 2
 
-    def build_prompt(self, query, history=[]):
-        if (len(history) > 0) and isinstance(history[-1], tuple):
-            history.pop()
-        
-        if len(history) == 0:
+    def build_prompt(self, query:str, history:List[dict]):       
+        if (len(history) == 0) or (history[0]["role"] != "system"):
             # 增加system信息
             if self.system is not None:
-                history.append({"role": "system", "content": self.system})
+                history.insert(0, {"role": "system", "content": self.system})
             # 增加tools信息
             if self.tools is not None and self.system is not None:
-                history[-1]['tools'] = self.tools
+                history[0]['tools'] = self.tools
             elif self.tools is not None and self.system is None:
-                history.append({
+                history.insert(0, {
                     "role": "system", 
                     "content": "Answer the following questions as best as you can. You have access to the following tools:",
                     "tools": self.tools
@@ -1041,32 +1030,12 @@ class ChatGlm3(Chat):
         else:
             input_ids += self.generation_config['states']['last_token']
         history.append({"role": "user", "content": query})
-        history.append({"role": "assistant", "content": ""})
         return input_ids
-
-    def build_cli_text(self, history):
-        '''构建命令行终端显示的text'''
-        prompt = self.init_str
-        for hist in history:  # 去除ChatCliDemo添加的当前回复的记录
-            if not isinstance(hist, dict):
-                continue
-            elif hist['role'] == 'user':
-                query = hist['content']
-                prompt += f"\n\nUser：{query}"
-            elif hist['role'] == 'assistant':
-                response = hist['content']
-                prompt += f"\n\nAssistant：{response}"
-        return prompt
-    
-    def build_cli_history(self, cli_pre_history, cli_new_history):
-        if (len(cli_new_history) > 0) and isinstance(cli_new_history[-1], tuple):
-            cli_new_history.pop()
-        return super().build_cli_history(cli_pre_history, cli_new_history)
-    
-    def process_response(self, response, history:list):
-        response = super().process_response(response)
+        
+    def process_response_history(self, response:str, history:list):
+        response = super().process_response_history(response, history)
         if (not response) or (response[-1] == "�"):
-            return response, history
+            return response
 
         content = ""
         for resp in response.split("<|assistant|>"):
@@ -1078,6 +1047,7 @@ class ChatGlm3(Chat):
                     history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
                     content = content.replace("[[训练时间]]", "2023年")
                 else:
+                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
                     if history[0]["role"] == "system" and "tools" in history[0]:
                         content = "\n".join(content.split("\n")[1:-1])
                         def tool_call(**kwargs):
@@ -1086,8 +1056,8 @@ class ChatGlm3(Chat):
                         content = {"name": metadata.strip(), "parameters": parameters}
                     else:
                         content = {"name": metadata.strip(), "content": content}
-                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-            except:
+                    history[-1]['content_format'] = content
+            except (ValueError, SyntaxError):  # 同事对应split和eval两种错误
                 content = resp.strip()
                 history[-1] = {"role": "assistant", "metadata": "", "content": content}
         return content
@@ -1099,50 +1069,32 @@ class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
 class ChatGlm4(Chat):
-    def build_other_config(self, **kwargs):
+    def build_other_config(self, system:str=None, tools:dict=None, **kwargs):
         super().build_other_config(**kwargs)
-        self.history_maxlen *= 2
+        self.system = system
+        self.tools = tools
 
-    def build_prompt(self, query, history=[]):
+    def build_prompt(self, query, history:list):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
-        if (len(history) > 0) and isinstance(history[-1], tuple):
-            history.pop()
         history.append({"role": "user", "content": query})
         if self.no_history_states():
             input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=True,
                                                            return_tensors="pt", return_dict=True)['input_ids']
         else:
             input_ids += self.generation_config['states']['last_token']
-        history.append({"role": "assistant", "content": ""})
         return input_ids
-
-    def build_cli_text(self, history):
-        '''构建命令行终端显示的text'''
-        prompt = self.init_str
-        for hist in history:  # 去除ChatCliDemo添加的当前回复的记录
-            if not isinstance(hist, dict):
-                continue
-            elif hist['role'] == 'user':
-                query = hist['content']
-                prompt += f"\n\nUser：{query}"
-            elif hist['role'] == 'assistant':
-                response = hist['content']
-                prompt += f"\n\nAssistant：{response}"
-        return prompt
     
-    def build_cli_history(self, cli_pre_history, cli_new_history):
-        if (len(cli_new_history) > 0) and isinstance(cli_new_history[-1], tuple):
-            cli_new_history.pop()
-        return super().build_cli_history(cli_pre_history, cli_new_history)
-    
-    def process_response(self, response, history):
-        response = super().process_response(response)
+    def process_response_history(self, response:str, history:list):
+        response = super().process_response_history(response, history)
         if (not response) or (response[-1] == "�"):
-            return response, history
+            return response
 
         content = ""
         for resp in response.split("<|assistant|>"):
-            metadata, content = resp.split("\n", maxsplit=1)
+            if "\n" in resp:
+                metadata, content = resp.split("\n", maxsplit=1)
+            else:
+                metadata, content = "", resp
             if not metadata.strip():
                 content = content.strip()
                 history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
@@ -1150,11 +1102,14 @@ class ChatGlm4(Chat):
             else:
                 history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
                 if history[0]["role"] == "system" and "tools" in history[0]:
-                    content = "\n".join(content.split("\n")[1:-1])
-                    parameters = eval(content)
-                    content = {"name": metadata.strip(), "parameters": parameters}
+                    try:
+                        parameters = json.loads(content)
+                        content = {"name": metadata.strip(), "parameters": parameters}
+                    except json.JSONDecodeError:
+                        content = {"name": metadata.strip(), "content": content}
                 else:
                     content = {"name": metadata.strip(), "content": content}
+                history[-1]['content_format'] = content
         return content
 
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
@@ -1164,7 +1119,7 @@ class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
 
 
 class ChatInternLM(Chat):
-    def build_prompt(self, query, history=[]):
+    def build_prompt(self, query, history:list):
         prompt = ""
         if self.no_history_states():
             for user, bot in history:
@@ -1178,8 +1133,8 @@ class ChatInternLM(Chat):
             prompt += f"""<|User|>:{query}<eoh>\n<|Bot|>:"""
         return prompt
 
-    def process_response(self, response, history=None):
-        response = super().process_response(response)
+    def process_response_history(self, response, history=None):
+        response = super().process_response_history(response, history)
         for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
             response = response.replace(reg, '')
         return response
@@ -1196,7 +1151,7 @@ class ChatQwen(Chat):
         self.system = system if system is not None else SYSTEM_ZH
         self.max_window_size = max_window_size
 
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         im_start, im_end = "<|im_start|>", "<|im_end|>"
 
         def _tokenize_str(role, content):
@@ -1237,7 +1192,7 @@ class ChatLLaMA2(Chat):
         super().build_other_config(**kwargs)
         self.system = system if system is not None else SYSTEM_EN
 
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         if self.no_history_states():
             texts = [f'[INST] <<SYS>>\n{self.system}\n<</SYS>>\n\n']
             for user_input, response in history:
@@ -1259,7 +1214,7 @@ class ChatLLaMA3(Chat):
         super().build_other_config(**kwargs)
         self.system = system if system is not None else SYSTEM_ZH
 
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         if self.no_history_states():
             messages = [{"role": "system", "content": self.system}]
             for user_input, response in history:
@@ -1278,7 +1233,7 @@ class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 
 
 class ChatZiya(Chat):
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         prompt = ''
         if self.no_history_states():
             for human, bot in history:
@@ -1306,7 +1261,7 @@ class ChatChineseAlphaLLaMA(Chat):
         else:
             self.system = system
 
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         prompt = ''
         if self.no_history_states():
             for inst, resp in history:
@@ -1328,7 +1283,7 @@ class ChatBelle(Chat):
         from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         prompt = ''
         if self.no_history_states():
             for item in history:
@@ -1350,7 +1305,7 @@ class ChatBaichuan(Chat):
         self.user_token_id = kwargs.get('user_token_id', 195)
         self.assistant_token_id = kwargs.get('assistant_token_id', 196)
 
-    def build_prompt(self, query, history) -> str:
+    def build_prompt(self, query:str, history:List[dict]) -> str:
         total_input = []
         if self.no_history_states():
             for user, assistant in history:
