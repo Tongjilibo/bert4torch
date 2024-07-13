@@ -2,7 +2,6 @@
 基本测试：chatglm3 function call测试
 '''
 from bert4torch.pipelines import ChatGlm3Cli, ChatGlm3WebGradio, ChatGlm3WebStreamlit, ChatGlm3OpenaiApi
-import re
 
 # ===================================参数=======================================
 # chatglm3-6b, chatglm3-6b-32k

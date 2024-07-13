@@ -925,7 +925,7 @@ class ChatGlm(Chat):
         else:
             prompt, turn_i = "", 0
             if self.no_history_states():
-                for query_or_response in enumerate(history):
+                for query_or_response in history:
                     if query_or_response['role'] == 'user':
                         prompt += f"[Round {turn_i}]\n问：{query_or_response['content']}\n"
                     elif query_or_response['role'] == 'assistant':
@@ -965,7 +965,7 @@ class ChatGlm2(Chat):
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
         prompt, turn_i = "", 1
         if self.no_history_states():
-            for query_or_response in enumerate(history):
+            for query_or_response in history:
                 if query_or_response['role'] == 'user':
                     prompt += f"[Round {turn_i}]\n\n问：{query_or_response['content']}\n\n"
                 elif query_or_response['role'] == 'assistant':
@@ -1006,7 +1006,9 @@ class ChatGlm3(Chat):
         self.system = system
         self.tools = tools
 
-    def build_prompt(self, query:str, history:List[dict]):       
+    def build_prompt(self, query:str, history:List[dict]):
+        '''使用openai server时候在message中直接带入system和tools，启动server的时候无需传入system和tools
+        '''
         if (len(history) == 0) or (history[0]["role"] != "system"):
             # 增加system信息
             if self.system is not None:
@@ -1065,7 +1067,17 @@ class ChatGlm3(Chat):
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
 class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit): pass
-class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
+class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi):
+    '''在message中直接带入system和tools，启动server的时候无需传入system和tools，格式如下:
+    ```json
+    {
+        "role": "system", 
+        "content": "Answer the following questions as best as you can. You have access to the following tools:",
+        "tools": tools  # 具体使用到的tools
+    }
+    ```
+    '''
+    pass
 
 
 class ChatGlm4(Chat):
@@ -1075,6 +1087,16 @@ class ChatGlm4(Chat):
         self.tools = tools
 
     def build_prompt(self, query, history:list):
+        if (len(history) == 0) or (history[0]["role"] != "system"):
+            # 增加system信息
+            if self.system is not None:
+                history.insert(0, {"role": "system", "content": self.system})
+            # 增加tools信息
+            if self.tools is not None and self.system is not None:
+                history[0]['tools'] = self.tools
+            elif self.tools is not None and self.system is None:
+                history.insert(0, {"role": "system", "tools": self.tools, "content": ""})
+
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         history.append({"role": "user", "content": query})
         if self.no_history_states():
@@ -1115,28 +1137,41 @@ class ChatGlm4(Chat):
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
 class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
 class ChatGlm4WebStreamlit(ChatGlm4, ChatWebStreamlit): pass
-class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
+class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi):
+    '''在message中直接带入system和tools，启动server的时候无需传入system和tools，使用tools的格式如下:
+    ```json
+    {
+        "role": "system", 
+        "content": "",
+        "tools": tools  # 具体使用到的tools
+    }
+    ```
+    '''
+    pass
 
 
 class ChatInternLM(Chat):
-    def build_prompt(self, query, history:list):
+    def build_prompt(self, query:str, history:List[dict]):
         prompt = ""
         if self.no_history_states():
-            for user, bot in history:
-                prompt += f"""<s><|User|>:{user}<eoh>\n<|Bot|>:{bot}<eoa>\n"""
+            for query_or_response in history:
+                if query_or_response['role'] == 'user':
+                    prompt += f"""<s><|User|>:{query_or_response['content']}<eoh>\n"""
+                elif query_or_response['role'] == 'assistant':
+                    prompt += f"""<|Bot|>:{query_or_response['content']}<eoa>\n"""
         else:
             prompt += self.generation_config['states']['last_token']
 
         if len(prompt) == 0:
             prompt += "<s>"
-        if query is not None:
-            prompt += f"""<|User|>:{query}<eoh>\n<|Bot|>:"""
+        prompt += f"""<|User|>:{query}<eoh>\n<|Bot|>:"""
         return prompt
 
     def process_response_history(self, response, history=None):
+        response = response.split("<eoa>")[0]
+        # for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
+        #     response = response.replace(reg, '')
         response = super().process_response_history(response, history)
-        for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
-            response = response.replace(reg, '')
         return response
 
 class ChatInternLMCli(ChatInternLM, ChatCli): pass

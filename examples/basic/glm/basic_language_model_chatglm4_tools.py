@@ -2,11 +2,10 @@
 基本测试：chatglm3 function call测试
 '''
 from bert4torch.pipelines import ChatGlm4Cli, ChatGlm4WebGradio, ChatGlm4WebStreamlit, ChatGlm4OpenaiApi
-import re
 
 # ===================================参数=======================================
-# chatglm3-6b, chatglm3-6b-32k
-model_dir = f"/data/pretrain_ckpt/glm/chatglm3-6b"
+# glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
+model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b-chat"
 Chat = ChatGlm4Cli  # cli: 命令行
 # Chat = ChatGlm4WebGradio  # gradio: gradio web demo
 # Chat = ChatGlm4WebStreamlit  # streamlit: streamlit web demo
@@ -21,71 +20,28 @@ generation_config = {
 
 
 tools = [
-    {'name': 'track', 'description': '追踪指定股票的实时价格',
-     'parameters':
-         {
-             'type': 'object', 'properties':
-             {'symbol':
-                 {
-                     'description': '需要追踪的股票代码'
-                 }
-             },
-             'required': []
-         }
-     }, {
-        'name': '/text-to-speech', 'description': '将文本转换为语音',
-        'parameters':
-            {
-                'type': 'object', 'properties':
-                {
-                    'text':
-                        {
-                            'description': '需要转换成语音的文本'
-                        },
-                    'voice':
-                        {
-                            'description': '要使用的语音类型（男声、女声等）'
-                        },
-                    'speed': {
-                        'description': '语音的速度（快、中等、慢等）'
-                    }
-                }, 'required': []
-            }
-    },
     {
-        'name': '/image_resizer', 'description': '调整图片的大小和尺寸',
-        'parameters': {'type': 'object',
-                       'properties':
-                           {
-                               'image_file':
-                                   {
-                                       'description': '需要调整大小的图片文件'
-                                   },
-                               'width':
-                                   {
-                                       'description': '需要调整的宽度值'
-                                   },
-                               'height':
-                                   {
-                                       'description': '需要调整的高度值'
-                                   }
-                           },
-                       'required': []
-                       }
-    },
-    {
-        'name': '/foodimg', 'description': '通过给定的食品名称生成该食品的图片',
-        'parameters': {
-            'type': 'object', 'properties':
-                {
-                    'food_name':
-                        {
-                            'description': '需要生成图片的食品名称'
-                        }
+        "type": "function",
+        "function": {
+            "name": "get_current_weather",
+            "description": "Get the current weather",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    },
+                    "format": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"],
+                        "description": "The temperature unit to use. Infer this from the users location.",
+                    },
                 },
-            'required': []
+                "required": ["location", "format"],
+            },
         }
-    }
+    },
 ]
 
 demo = Chat(model_dir, 
@@ -94,4 +50,4 @@ demo = Chat(model_dir,
 
 
 if __name__ == '__main__':
-    demo.run(stream=False)
+    demo.run()
