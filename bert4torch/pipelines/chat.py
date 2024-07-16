@@ -34,6 +34,7 @@ import requests
 from contextlib import asynccontextmanager
 import threading
 import re
+import copy
 
 
 if is_fastapi_available():
@@ -183,10 +184,11 @@ class Chat:
         '''不使用history的states'''
         return self.generation_config.get('states') is None
     
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         '''对query和history进行处理，生成进入模型的text
         :param query: str, 最近的一次user的input
-        :param history: List, 历史对话记录，格式为[(input1, response1), (input2, response2)]
+        :param history: List, 历史对话记录
+        :param functions: List, 支持的function
         '''
         raise NotImplementedError
     
@@ -258,21 +260,21 @@ class Chat:
         else:
             raise TypeError('`response` type error')
 
-    def chat(self, query:Union[str,list], history:List[dict]=None) -> str:
+    def chat(self, query:Union[str,list], history:List[dict]=None, functions:List[dict]=None) -> str:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
         if isinstance(query, str):
-            prompt = self.build_prompt(query, history)
+            prompt = self.build_prompt(query, history, functions)
         elif isinstance(query, list):
-            prompt = [self.build_prompt(q, history) for q in query]
+            prompt = [self.build_prompt(q, history, functions) for q in query]
         self.model = self._build_model()
         response = self.model.generate(prompt, **self.generation_config)
         return self.process_response_history(response, history=history)
 
-    def stream_chat(self, query:str, history:List[dict]=None):
+    def stream_chat(self, query:str, history:List[dict]=None, functions:List[dict]=None):
         '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
         history = history or []
-        prompt = self.build_prompt(query, history)
+        prompt = self.build_prompt(query, history, functions)
         self.model = self._build_model()
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response_history(response, history)
@@ -306,12 +308,12 @@ class ChatCli(Chat):
             if query_or_response['role'] == "user":
                 prompt += f"\n\nUser：{query_or_response['content']}"
             elif query_or_response['role'] == "assistant":
-                # content_format主要用于content的结构化展示
-                response = query_or_response.get('content_format', query_or_response['content'])
+                # function_call主要用于content的结构化展示
+                response = query_or_response.get('function_call', query_or_response['content'])
                 prompt += f"\n\nAssistant：{response}"
         return prompt
 
-    def run(self, stream:bool=True):
+    def run(self, functions:List[dict]=None, stream:bool=True):
         import platform
         os_name = platform.system()
         history = []
@@ -330,7 +332,7 @@ class ChatCli(Chat):
                 print(self.init_str)
                 continue
             
-            prompt = self.build_prompt(query, history)
+            prompt = self.build_prompt(query, history, functions)
             self.model = self._build_model()
             # history是human和assistant的聊天历史
             # 格式如[('你好', '有什么可以帮您的？'), ('你是谁？', '我是一款人工智能助手。')]
@@ -378,11 +380,11 @@ class ChatWebGradio(Chat):
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
 
-    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
+    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions):
         '''流式生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history)
+        input_text = self.build_prompt(input, history, functions)
         self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
@@ -390,11 +392,11 @@ class ChatWebGradio(Chat):
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
-    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
+    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions):
         '''一次性生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history)
+        input_text = self.build_prompt(input, history, functions)
         self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response_history(response, history)
@@ -402,7 +404,7 @@ class ChatWebGradio(Chat):
         cuda_empty_cache()  # 清理显存
         return chatbot, history
 
-    def run(self, **launch_configs):
+    def run(self, functions:List[dict]=None, **launch_configs):
         with self.gr.Blocks() as demo:
             self.gr.HTML("""<h1 align="center">Chabot Web Demo</h1>""")
 
@@ -422,9 +424,9 @@ class ChatWebGradio(Chat):
 
             history = self.gr.State([])
             if self.stream:
-                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions], [chatbot, history], show_progress=True)
             else:
-                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions], [chatbot, history], show_progress=True)
 
             submitBtn.click(self.reset_user_input, [], [user_input])
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
@@ -454,7 +456,7 @@ class ChatWebStreamlit(Chat):
     def build_tokenizer(_self, **kwarg):
         return super().build_tokenizer(**kwarg)
     
-    def run(self):
+    def run(self, functions:List[dict]=None):
         if "history" not in st.session_state:
             st.session_state.history = []
         if "states" not in st.session_state:
@@ -491,7 +493,7 @@ class ChatWebStreamlit(Chat):
             self.generation_config['temperature'] = temperature
             self.generation_config['states'] = states
 
-            input_text = self.build_prompt(prompt_text, history)
+            input_text = self.build_prompt(prompt_text, history, functions)
             for response in self.model.stream_generate(input_text, **self.generation_config):
                 response = self.process_response_history(response, history)
                 message_placeholder.markdown(response)
@@ -538,6 +540,7 @@ class DeltaMessage(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str = 'default'
     messages: List[ChatMessage]
+    functions: List[dict]
     temperature: Optional[float] = None
     top_k: Optional[int] = None
     top_p: Optional[float] = None
@@ -692,11 +695,11 @@ class ChatOpenaiApi(Chat):
         if request.repetition_penalty:
             self.generation_config['repetition_penalty'] = request.repetition_penalty
 
-        if request.messages[-1].role != self.role_user:  # 最后一条msg的role必须是user
+        if request.messages[-1]['role'] != self.role_user:  # 最后一条msg的role必须是user
             raise HTTPException(status_code=400, detail="Invalid request")
-        query = request.messages[-1].content
+        query = request.messages[-1]['content']
         history = request.messages[:-1]
-        input_text = self.build_prompt(query, history)
+        input_text = self.build_prompt(query, history, request.functions)
         
         if self.offload_when_nocall is None:
             self.model = self._build_model()
@@ -918,8 +921,9 @@ class ChatOpenaiClientSseclient:
 # ==========================================================================================
 
 class ChatGlm(Chat):
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         # 没有system和function call
+        assert functions is None, 'ChatGlm do not support function call'
         if not history:
             prompt = query
         else:
@@ -961,7 +965,8 @@ class ChatGlmOpenaiApi(ChatGlm, ChatOpenaiApi): pass
 
 
 class ChatGlm2(Chat):
-    def build_prompt(self, query, history:List[dict]):
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        assert functions is None, 'ChatGlm2 do not support function call'
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
         prompt, turn_i = "", 1
         if self.no_history_states():
@@ -1001,26 +1006,23 @@ class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi): pass
 
 
 class ChatGlm3(Chat):
-    def __init__(self, *args, system:str=None, tools:dict=None, **kwargs):
+    def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system
-        self.tools = tools
 
-    def build_prompt(self, query:str, history:List[dict]):
-        '''使用openai server时候在message中直接带入system和tools，启动server的时候无需传入system和tools
-        '''
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> list:
         if (len(history) == 0) or (history[0]["role"] != "system"):
             # 增加system信息
             if self.system is not None:
                 history.insert(0, {"role": "system", "content": self.system})
             # 增加tools信息
-            if self.tools is not None and self.system is not None:
-                history[0]['tools'] = self.tools
-            elif self.tools is not None and self.system is None:
+            if functions is not None and self.system is not None:
+                history[0]['tools'] = functions
+            elif functions is not None and self.system is None:
                 history.insert(0, {
                     "role": "system", 
                     "content": "Answer the following questions as best as you can. You have access to the following tools:",
-                    "tools": self.tools
+                    "tools": functions
                 })
 
         if self.no_history_states():
@@ -1061,41 +1063,30 @@ class ChatGlm3(Chat):
                         history[-1] = {"role": "assistant", "metadata": "", "content": content}
                 else:
                     content = {"name": metadata.strip(), "content": content}
-                history[-1]['content_format'] = content
+                history[-1]['function_call'] = content
         return str(content)
 
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
 class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit): pass
-class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi):
-    '''在message中直接带入system和tools，启动server的时候无需传入system和tools，格式如下:
-    ```json
-    {
-        "role": "system", 
-        "content": "Answer the following questions as best as you can. You have access to the following tools:",
-        "tools": tools  # 具体使用到的tools
-    }
-    ```
-    '''
-    pass
+class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
 class ChatGlm4(Chat):
-    def __init__(self, *args, system:str=None, tools:dict=None, **kwargs):
+    def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system
-        self.tools = tools
 
-    def build_prompt(self, query, history:list):
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
         if (len(history) == 0) or (history[0]["role"] != "system"):
             # 增加system信息
             if self.system is not None:
                 history.insert(0, {"role": "system", "content": self.system})
             # 增加tools信息
-            if self.tools is not None and self.system is not None:
-                history[0]['tools'] = self.tools
-            elif self.tools is not None and self.system is None:
-                history.insert(0, {"role": "system", "tools": self.tools, "content": ""})
+            if functions is not None and self.system is not None:
+                history[0]['tools'] = functions
+            elif functions is not None and self.system is None:
+                history.insert(0, {"role": "system", "tools": functions, "content": ""})
 
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         history.append({"role": "user", "content": query})
@@ -1131,27 +1122,19 @@ class ChatGlm4(Chat):
                         content = {"name": metadata.strip(), "content": content}
                 else:
                     content = {"name": metadata.strip(), "content": content}
-                history[-1]['content_format'] = content
+                history[-1]['function_call'] = content
         return content
 
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
 class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
 class ChatGlm4WebStreamlit(ChatGlm4, ChatWebStreamlit): pass
-class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi):
-    '''在message中直接带入system和tools，启动server的时候无需传入system和tools，使用tools的格式如下:
-    ```json
-    {
-        "role": "system", 
-        "content": "",
-        "tools": tools  # 具体使用到的tools
-    }
-    ```
-    '''
-    pass
+class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
 
 
 class ChatInternLM(Chat):
-    def build_prompt(self, query:str, history:List[dict]):
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
+        # InternLM v1不支持function call
+        assert functions is None, 'InternLM do not support function call'
         prompt = ""
         if self.no_history_states():
             for query_or_response in history:
@@ -1181,22 +1164,143 @@ class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi): pass
 
 
 class ChatQwen(Chat):
+    '''Qwen从Qwen1开始就支持function call
+    '''
     def __init__(self, *args, system:str=None, max_window_size=6144, **kwargs):
         super().__init__(*args, **kwargs)
-        self.system = system if system is not None else SYSTEM_ZH
+        self.system = system if system is not None else 'You are a helpful assistant.'
         self.max_window_size = max_window_size
 
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def parse_messages(self, query, messages, functions):
+        '''copy from https://github.com/QwenLM/Qwen/blob/main/openai_api.py'''
+
+        TOOL_DESC = (
+            '{name_for_model}: Call this tool to interact with the {name_for_human} API.'
+            ' What is the {name_for_human} API useful for? {description_for_model} Parameters: {parameters}'
+        )
+
+        REACT_INSTRUCTION = """Answer the following questions as best you can. You have access to the following APIs:
+
+        {tools_text}
+
+        Use the following format:
+
+        Question: the input question you must answer
+        Thought: you should always think about what to do
+        Action: the action to take, should be one of [{tools_name_text}]
+        Action Input: the input to the action
+        Observation: the result of the action
+        ... (this Thought/Action/Action Input/Observation can be repeated zero or more times)
+        Thought: I now know the final answer
+        Final Answer: the final answer to the original input question
+
+        Begin!"""
+
+        messages = copy.deepcopy(messages)
+        if len(messages) > 0 and messages[0]['role'] == 'system':
+            system = messages.pop(0)['content'].lstrip('\n').rstrip()
+        else:
+            system = self.system
+
+        if functions:
+            tools_text = []
+            tools_name_text = []
+            for func_info in functions:
+                name = func_info.get('name', '')
+                name_m = func_info.get('name_for_model', name)
+                name_h = func_info.get('name_for_human', name)
+                desc = func_info.get('description', '')
+                desc_m = func_info.get('description_for_model', desc)
+                tool = TOOL_DESC.format(
+                    name_for_model=name_m,
+                    name_for_human=name_h,
+                    # Hint: You can add the following format requirements in description:
+                    #   "Format the arguments as a JSON object."
+                    #   "Enclose the code within triple backticks (`) at the beginning and end of the code."
+                    description_for_model=desc_m,
+                    parameters=json.dumps(func_info['parameters'],
+                                        ensure_ascii=False),
+                )
+                tools_text.append(tool)
+                tools_name_text.append(name_m)
+            tools_text = '\n\n'.join(tools_text)
+            tools_name_text = ', '.join(tools_name_text)
+            instruction = (REACT_INSTRUCTION.format(
+                tools_text=tools_text,
+                tools_name_text=tools_name_text,
+            ).lstrip('\n').rstrip())
+        else:
+            instruction = ''
+
+        messages_with_fncall = messages
+        messages = []
+        for m_idx, m in enumerate(messages_with_fncall):
+            role, content, func_call = m['role'], m['content'], m.get('function_call')
+            content = content or ''
+            content = content.lstrip('\n').rstrip()
+            if role == 'function':
+                if (len(messages) == 0) or (messages[-1]['role'] != 'assistant'):
+                    raise ValueError('Expecting role assistant before role function.')
+                messages[-1]['content'] += f'\nObservation: {content}'
+                if m_idx == len(messages_with_fncall) - 1:
+                    # add a prefix for text completion
+                    messages[-1]['content'] += '\nThought:'
+            elif role == 'assistant':
+                if len(messages) == 0:
+                    raise ValueError('Expecting role user before role assistant.')
+                if func_call is None:
+                    if functions:
+                        content = f'Thought: I now know the final answer.\nFinal Answer: {content}'
+                else:
+                    f_name, f_args = func_call['name'], func_call['arguments']
+                    if not content.startswith('Thought:'):
+                        content = f'Thought: {content}'
+                    content = f'{content}\nAction: {f_name}\nAction Input: {f_args}'
+                if messages[-1]['role'] == 'user':
+                    messages.append({'role': 'assistant', 'content': content.lstrip('\n').rstrip()})
+                else:
+                    messages[-1]['content'] += '\n' + content
+            elif role == 'user':
+                messages.append({'role': 'user', 'content': content.lstrip('\n').rstrip()})
+            else:
+                raise ValueError(f'Incorrect role {role}.')
+
+        if len(messages) % 2 != 0:
+            raise ValueError(f'{messages} len = {len(messages)}, not paired')
+
+        history = []  # [(Q1, A1), (Q2, A2), ..., (Q_last_turn, A_last_turn)]
+        for i in range(0, len(messages), 2):
+            if messages[i]['role'] == 'user' and messages[i + 1]['role'] == 'assistant':
+                usr_msg = messages[i]['content'].lstrip('\n').rstrip()
+                bot_msg = messages[i + 1]['content'].lstrip('\n').rstrip()
+                if instruction and (i == len(messages) - 2):
+                    usr_msg = f'{instruction}\n\nQuestion: {usr_msg}'
+                    instruction = ''
+                history.append([usr_msg, bot_msg])
+            else:
+                raise ValueError('Expecting exactly one user (or function) role before every assistant role.')
+        if instruction:
+            query = f'{instruction}\n\nQuestion: {query}'
+        return query, history, system
+
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        if functions:
+            # 如果使用了functions则需要增加end_id
+            observation_ids = self.tokenizer.encode('Observation:')
+            if observation_ids not in self.generation_config.get('end_id', []):
+                self.generation_config['end_id'] = self.generation_config.get('end_id', []) + [observation_ids]
+
+        instruction_query, history_list, system = self.parse_messages(query, history, functions)
         im_start, im_end = "<|im_start|>", "<|im_end|>"
 
         def _tokenize_str(role, content):
             return f"{role}\n{content}"
 
-        system_text = _tokenize_str("system", self.system)
+        system_text = _tokenize_str("system", system)
         raw_text = ""
 
         if self.no_history_states():
-            for turn_query, turn_response in reversed(history):
+            for turn_query, turn_response in reversed(history_list):
                 query_text = _tokenize_str("user", turn_query)
                 response_text = _tokenize_str("assistant", turn_response)
                 prev_chat = (
@@ -1212,10 +1316,41 @@ class ChatQwen(Chat):
         else:
             raw_text += self.generation_config['states']['last_token']
 
-        raw_text += f"\n{im_start}user\n{query}{im_end}\n{im_start}assistant\n"
-
+        raw_text += f"\n{im_start}user\n{instruction_query}{im_end}\n{im_start}assistant\n"
+        history.append({"role": "user", "content": query})  # 在终端打印显示原始的
         return raw_text
 
+    def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        response = super().process_response_history(response, history)
+        func_name, func_args = '', ''
+        i = response.find('\nAction:')
+        j = response.find('\nAction Input:')
+        k = response.find('\nObservation:')
+        if 0 <= i < j:  # If the text has `Action` and `Action input`,
+            if k < j:  # but does not contain `Observation`,
+                # then it is likely that `Observation` is omitted by the LLM,
+                # because the output text may have discarded the stop word.
+                response = response.rstrip() + '\nObservation:'  # Add it back.
+            k = response.find('\nObservation:')
+            func_name = response[i + len('\nAction:'):j].strip()
+            func_args = response[j + len('\nAction Input:'):k].strip()
+
+        if func_name:
+            response = response[:i]
+            t = response.find('Thought: ')
+            if t >= 0:
+                response = response[t + len('Thought: '):]
+            response = response.strip()
+            function_call={
+                'name': func_name,
+                'arguments': func_args
+            }
+        else:
+            z = response.rfind('\nFinal Answer: ')
+            if z >= 0:
+                response = response[z + len('\nFinal Answer: '):]
+        return response
+    
 class ChatQwenCli(ChatQwen, ChatCli): pass
 class ChatQwenWebGradio(ChatQwen, ChatWebGradio): pass
 class ChatQwenWebStreamlit(ChatQwen, ChatWebStreamlit): pass
@@ -1227,7 +1362,7 @@ class ChatLLaMA2(Chat):
         super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_EN
 
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if self.no_history_states():
             texts = [f'[INST] <<SYS>>\n{self.system}\n<</SYS>>\n\n']
             for user_input, response in history:
@@ -1249,7 +1384,7 @@ class ChatLLaMA3(Chat):
         super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_ZH
 
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if self.no_history_states():
             messages = [{"role": "system", "content": self.system}]
             for user_input, response in history:
@@ -1268,7 +1403,7 @@ class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 
 
 class ChatZiya(Chat):
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         prompt = ''
         if self.no_history_states():
             for human, bot in history:
@@ -1296,7 +1431,7 @@ class ChatChineseAlphaLLaMA(Chat):
         else:
             self.system = system
 
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         prompt = ''
         if self.no_history_states():
             for inst, resp in history:
@@ -1318,7 +1453,7 @@ class ChatBelle(Chat):
         from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         prompt = ''
         if self.no_history_states():
             for item in history:
@@ -1340,7 +1475,7 @@ class ChatBaichuan(Chat):
         self.user_token_id = kwargs.get('user_token_id', 195)
         self.assistant_token_id = kwargs.get('assistant_token_id', 196)
 
-    def build_prompt(self, query:str, history:List[dict]) -> str:
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         total_input = []
         if self.no_history_states():
             for user, assistant in history:

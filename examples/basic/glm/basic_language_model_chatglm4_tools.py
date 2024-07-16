@@ -45,9 +45,8 @@ tools = [
 ]
 
 demo = Chat(model_dir, 
-            tools = tools,  # 是否使用function_call
             generation_config=generation_config)
 
 
 if __name__ == '__main__':
-    demo.run()
+    demo.run(functions=tools)

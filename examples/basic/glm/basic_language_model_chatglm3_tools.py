@@ -87,10 +87,8 @@ tools = [
     }
 ]
 
-demo = Chat(model_dir, 
-            tools = tools,
-            generation_config=generation_config)
+demo = Chat(model_dir, generation_config=generation_config)
 
 
 if __name__ == '__main__':
-    demo.run()
+    demo.run(functions=tools)

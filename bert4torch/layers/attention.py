@@ -512,12 +512,17 @@ class MultiHeadAttentionLayer(nn.Module):
             value_layer = value_layer[:, slicing_tokens:, :, :].contiguous()
             return key_layer, value_layer, past_key_value, attention_mask
 
+        def _transpose(query_layer, key_layer, value_layer):
+            # [batch_size, query_len, num_attention_heads, attention_head_size]
+            query_layer = query_layer.transpose(1,2)
+            key_layer = key_layer.transpose(1,2)
+            value_layer = value_layer.transpose(1,2)
+            return query_layer, key_layer, value_layer
+        
         dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
-        query_layer = query_layer.transpose(1,2)  # [batch_size, query_len, num_attention_heads, attention_head_size]
-        key_layer = key_layer.transpose(1,2)
-        value_layer = value_layer.transpose(1,2)
         
         if (not self.is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
+            query_layer, key_layer, value_layer = _transpose(query_layer, key_layer, value_layer)
             use_sliding_windows = _use_sliding_windows()
             if use_sliding_windows:
                 key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
@@ -546,6 +551,7 @@ class MultiHeadAttentionLayer(nn.Module):
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
 
         elif self.is_causal:
+            query_layer, key_layer, value_layer = _transpose(query_layer, key_layer, value_layer)
             # attention_mask满足下三角的causal
             use_sliding_windows = _use_sliding_windows()
             if use_sliding_windows:
@@ -562,6 +568,7 @@ class MultiHeadAttentionLayer(nn.Module):
             return attn_output
 
         return attn_output.transpose(1,2)
+
 
 class GatedAttentionUnit(nn.Module):
     '''门控注意力单元

@@ -244,18 +244,27 @@ class AutoRegressiveDecoder(object):
         
         return range(max_new_tokens)
 
-    def _identify_sentence_end(self, output_ids:torch.Tensor):
-        '''判断句子是否结束'''
+    def _identify_sentence_end(self, output_ids:torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        '''判断句子是否遇到停止符结束'''
         if isinstance(self.eos_token_id, (int, float)):
+            # self.eos_token_id: 2
             is_end = output_ids[:, -1] == self.eos_token_id  # 标记是否以end标记结束
             end_counts = (output_ids == self.eos_token_id).sum(1)  # 统计出现的end标记
         elif isinstance(self.eos_token_id, (set, tuple, list)):
+            # self.eos_token_id: [2, 102, 68712]
             end_counts = 0
             is_end = None
             for eos_token_id in self.eos_token_id:
-                tmp = output_ids[:, -1] == eos_token_id
-                is_end = tmp if is_end is None else is_end + tmp
-                end_counts += (output_ids == eos_token_id).sum(1)
+                if isinstance(eos_token_id, (int, float)):  # self.eos_token_id: [2, 102, 68712]
+                    tmp = output_ids[:, -1] == eos_token_id
+                    is_end = tmp if is_end is None else is_end + tmp
+                    end_counts += (output_ids == eos_token_id).sum(1)
+                elif isinstance(eos_token_id, (set, tuple, list)):  # self.eos_token_id: [[2, 102], 68712]
+                    tmp = torch.tensor([i[-len(eos_token_id):].tolist() == eos_token_id for i in output_ids], device=output_ids.device)
+                    is_end = tmp if is_end is None else is_end + tmp
+                    end_counts += torch.ones_like(is_end)  # TODO: 目前只有Qwen有这种操作
+                else:
+                    raise TypeError(f'TypeError: eos_token_id={eos_token_id}')
         return is_end, end_counts
 
     def __beam_search_step(self, step:int, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, output_scores:torch.Tensor, states: Optional[dict]=None):
