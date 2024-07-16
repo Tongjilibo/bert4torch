@@ -239,8 +239,14 @@ class Chat:
         1. 可自行继承后来自定义
         2. history是本地修改的, 用于命令行或者web demo下一次构建历史使用的, response可以不等于history[-1]['content']
 
-        Returns:
-        :param response: 接口直接返回的值
+        :param response: 大模型直接输出的字符串
+        :param history: 聊天记录
+            - role: 角色 
+            - raw_content: 模型直接输出的结果，可用于cli或web demo的展示
+            - content: 处理后的，多轮对话中用于prompt搭建
+            - function_call: function调用
+
+        Returns: 接口直接返回的值（处理后的response, 而不是模型直接输出的结果）
         '''
         def process_history(res):
             if history is None:
@@ -248,9 +254,10 @@ class Chat:
             elif len(history) == 0:
                 raise ValueError('history len can not be 0')
             elif history[-1]['role'] == 'user':
-                history.append({"role": "assistant", "content": res})
+                history.append({"role": "assistant", "content": res, "raw_content": res})
             elif history[-1]['role'] == 'assistant':
                 history[-1]["content"] = res
+                history[-1]["raw_content"] = res
 
         if isinstance(response, str):
             process_history(response)
@@ -311,7 +318,8 @@ class ChatCli(Chat):
             if query_or_response['role'] == "user":
                 prompt += f"\n\nUser：{query_or_response['content']}"
             elif query_or_response['role'] == "assistant":
-                prompt += f"\n\nAssistant：{query_or_response['content']}"
+                response = query_or_response.get('raw_content', query_or_response['content'])
+                prompt += f"\n\nAssistant：{response}"
                 # function_call主要用于content的结构化展示
                 if query_or_response.get('function_call'):
                     prompt += f"\n\nFunction：{query_or_response['function_call']}"
@@ -1059,7 +1067,8 @@ class ChatGlm3(Chat):
             
             metadata = metadata.strip()
             content = content.strip().replace("[[训练时间]]", "2023年")
-            history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+            raw_content = resp.strip().replace("[[训练时间]]", "2023年")
+            history[-1] = {"role": "assistant", "metadata": metadata, "content": content, "raw_content": raw_content}
             # 有functions
             if metadata and history[0]["role"] == "system" and "tools" in history[0]:
                 try:
@@ -1069,7 +1078,7 @@ class ChatGlm3(Chat):
                     parameters = eval("\n".join(content.split("\n")[1:-1]))
                     history[-1]['function_call'] = json.dumps({"name": metadata, "parameters": parameters}, ensure_ascii=False)
                 except SyntaxError:
-                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content.strip()}
+                    pass
         return content
 
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass
@@ -1114,22 +1123,19 @@ class ChatGlm4(Chat):
                 metadata, content = resp.split("\n", maxsplit=1)
             else:
                 metadata, content = "", resp
-            if not metadata.strip():
-                content = content.strip()
-                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                content = content.replace("[[训练时间]]", "2024年")
-            else:
-                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                if history[0]["role"] == "system" and "tools" in history[0]:
-                    try:
-                        parameters = json.loads(content)
-                        content = {"name": metadata.strip(), "parameters": parameters}
-                    except json.JSONDecodeError:
-                        content = {"name": metadata.strip(), "content": content}
-                else:
-                    content = {"name": metadata.strip(), "content": content}
-                history[-1]['function_call'] = content
-        return str(content)
+            
+            metadata = metadata.strip()
+            content = content.strip().replace("[[训练时间]]", "2024年")
+            raw_content = resp.strip().replace("[[训练时间]]", "2023年")
+            history[-1] = {"role": "assistant", "metadata": metadata, "content": content, "raw_content": raw_content}
+            # 有functions        
+            if metadata and history[0]["role"] == "system" and "tools" in history[0]:
+                try:
+                    parameters = json.loads(content)
+                    history[-1]['function_call'] = {"name": metadata.strip(), "parameters": parameters}
+                except json.JSONDecodeError:
+                    pass
+        return content
 
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
 class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
@@ -1327,6 +1333,7 @@ class ChatQwen(Chat):
         return raw_text
 
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        response = super().process_response_history(response, history)
         func_name, func_args = '', ''
         i = response.find('\nAction:')
         j = response.find('\nAction Input:')
@@ -1346,15 +1353,12 @@ class ChatQwen(Chat):
             if t >= 0:
                 response = response[t + len('Thought: '):]
             response = response.strip()
-            history[-1]['function_call'] = {
-                'name': func_name,
-                'arguments': func_args
-            }
+            history[-1]['function_call'] = {'name': func_name, 'arguments': func_args}
         else:
             z = response.rfind('\nFinal Answer: ')
             if z >= 0:
                 response = response[z + len('\nFinal Answer: '):]
-        response = super().process_response_history(response, history)
+        history[-1]['content'] = response
         return response
     
 class ChatQwenCli(ChatQwen, ChatCli): pass
