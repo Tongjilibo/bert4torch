@@ -48,6 +48,7 @@ model_dir = f'/data/pretrain_ckpt/Qwen/Qwen-7B-Chat'
 generation_config = {'top_k': 40, 'include_input': False if re.search('Chat|Instruct', model_dir) else True, 'repetition_penalty': 1.1, 'temperature': 0.7, 'use_states': False}
 Chat = ChatQwenCli
 # Chat =  ChatQwenOpenaiApi
+
 demo = Chat(model_dir, 
             system='You are a helpful assistant.', 
             generation_config=generation_config,

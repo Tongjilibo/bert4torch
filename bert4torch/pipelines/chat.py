@@ -237,7 +237,10 @@ class Chat:
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         '''对response和histry进行后处理
         1. 可自行继承后来自定义
-        2. history是本地修改的
+        2. history是本地修改的, 用于命令行或者web demo下一次构建历史使用的, response可以不等于history[-1]['content']
+
+        Returns:
+        :param response: 接口直接返回的值
         '''
         def process_history(res):
             if history is None:
@@ -308,9 +311,10 @@ class ChatCli(Chat):
             if query_or_response['role'] == "user":
                 prompt += f"\n\nUser：{query_or_response['content']}"
             elif query_or_response['role'] == "assistant":
+                prompt += f"\n\nAssistant：{query_or_response['content']}"
                 # function_call主要用于content的结构化展示
-                response = query_or_response.get('function_call', query_or_response['content'])
-                prompt += f"\n\nAssistant：{response}"
+                if query_or_response.get('function_call'):
+                    prompt += f"\n\nFunction：{query_or_response['function_call']}"
         return prompt
 
     def run(self, functions:List[dict]=None, stream:bool=True):
@@ -380,31 +384,36 @@ class ChatWebGradio(Chat):
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
 
-    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions):
+    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
         '''流式生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history, functions)
+        input_text = self.build_prompt(input, history, self.functions)
         self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
+            if history[-1].get('function_call'):
+                response += f"\n\nFunction：{history[-1]['function_call']}"
             chatbot[-1] = (input, response)
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
-    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions):
+    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
         '''一次性生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history, functions)
+        input_text = self.build_prompt(input, history, self.functions)
         self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response_history(response, history)
+        if history[-1].get('function_call'):
+            response += f"\n\nFunction：{history[-1]['function_call']}"
         chatbot[-1] = (input, response)
         cuda_empty_cache()  # 清理显存
         return chatbot, history
 
     def run(self, functions:List[dict]=None, **launch_configs):
+        self.functions = functions
         with self.gr.Blocks() as demo:
             self.gr.HTML("""<h1 align="center">Chabot Web Demo</h1>""")
 
@@ -424,9 +433,9 @@ class ChatWebGradio(Chat):
 
             history = self.gr.State([])
             if self.stream:
-                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
             else:
-                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty, functions], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
 
             submitBtn.click(self.reset_user_input, [], [user_input])
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
@@ -530,17 +539,19 @@ class ModelList(BaseModel):
 class ChatMessage(BaseModel):
     role: str
     content: str
+    function_call: Optional[Dict] = None
 
 
 class DeltaMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
+    function_call: Optional[Dict] = None
 
 
 class ChatCompletionRequest(BaseModel):
     model: str = 'default'
     messages: List[ChatMessage]
-    functions: List[dict]
+    functions: Optional[List[Dict]] = None
     temperature: Optional[float] = None
     top_k: Optional[int] = None
     top_p: Optional[float] = None
@@ -552,13 +563,13 @@ class ChatCompletionRequest(BaseModel):
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Literal["stop", "length"]
+    finish_reason: Literal['stop', 'length', 'function_call']
 
 
 class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
     delta: DeltaMessage
-    finish_reason: Optional[Literal["stop", "length"]]
+    finish_reason: Literal['stop', 'length', 'function_call']
 
 
 class ChatCompletionResponse(BaseModel):
@@ -717,10 +728,11 @@ class ChatOpenaiApi(Chat):
         else:
             response = self.model.generate(input_text, **self.generation_config)
             response = self.process_response_history(response, history)
+            function_call = history[-1].get('function_call', None)
             choice_data = ChatCompletionResponseChoice(
                 index=0,
-                message=ChatMessage(role=self.role_assistant, content=response),
-                finish_reason="stop"
+                message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
+                finish_reason= "function_call" if function_call is not None else "stop"
             )
 
             return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
@@ -751,11 +763,11 @@ class ChatOpenaiApi(Chat):
             chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
             yield "{}".format(chunk.model_dump_json(exclude_unset=True))
 
-
+        function_call = history[-1].get('function_call', None)
         choice_data = ChatCompletionResponseStreamChoice(
             index=0,
-            delta=DeltaMessage(),
-            finish_reason="stop"
+            delta=DeltaMessage(function_call=function_call),
+            finish_reason= "function_call" if function_call is not None else "stop"
         )
         chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
@@ -1033,7 +1045,7 @@ class ChatGlm3(Chat):
         history.append({"role": "user", "content": query})
         return input_ids
         
-    def process_response_history(self, response:str, history:list):
+    def process_response_history(self, response:str, history:List[dict]):
         response = super().process_response_history(response, history)
         if (not response) or (response[-1] == "�"):
             return response
@@ -1044,27 +1056,21 @@ class ChatGlm3(Chat):
                 metadata, content = resp.split("\n", maxsplit=1)
             else:
                 metadata, content = "", resp
-            if not metadata.strip():
-                content = content.strip()
-                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                content = content.replace("[[训练时间]]", "2023年")
-            else:
-                history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
-                if history[0]["role"] == "system" and "tools" in history[0]:
-                    content = "\n".join(content.split("\n")[1:-1])
+            
+            metadata = metadata.strip()
+            content = content.strip().replace("[[训练时间]]", "2023年")
+            history[-1] = {"role": "assistant", "metadata": metadata, "content": content}
+            # 有functions
+            if metadata and history[0]["role"] == "system" and "tools" in history[0]:
+                try:
+                    # 使用tools时候，stream_generate会有问题，因为中间结果是无法结构化解析的
                     def tool_call(**kwargs):
                         return kwargs
-                    try:
-                        # 使用tools时候，stream_generate会有问题，因为中间结果是无法结构化解析的
-                        parameters = eval(content)
-                        content = {"name": metadata.strip(), "parameters": parameters}
-                    except SyntaxError:
-                        content = resp.strip()
-                        history[-1] = {"role": "assistant", "metadata": "", "content": content}
-                else:
-                    content = {"name": metadata.strip(), "content": content}
-                history[-1]['function_call'] = content
-        return str(content)
+                    parameters = eval("\n".join(content.split("\n")[1:-1]))
+                    history[-1]['function_call'] = json.dumps({"name": metadata, "parameters": parameters}, ensure_ascii=False)
+                except SyntaxError:
+                    history[-1] = {"role": "assistant", "metadata": metadata, "content": content.strip()}
+        return content
 
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
@@ -1123,7 +1129,7 @@ class ChatGlm4(Chat):
                 else:
                     content = {"name": metadata.strip(), "content": content}
                 history[-1]['function_call'] = content
-        return content
+        return str(content)
 
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
 class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
@@ -1321,7 +1327,6 @@ class ChatQwen(Chat):
         return raw_text
 
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
-        response = super().process_response_history(response, history)
         func_name, func_args = '', ''
         i = response.find('\nAction:')
         j = response.find('\nAction Input:')
@@ -1341,7 +1346,7 @@ class ChatQwen(Chat):
             if t >= 0:
                 response = response[t + len('Thought: '):]
             response = response.strip()
-            function_call={
+            history[-1]['function_call'] = {
                 'name': func_name,
                 'arguments': func_args
             }
@@ -1349,6 +1354,7 @@ class ChatQwen(Chat):
             z = response.rfind('\nFinal Answer: ')
             if z >= 0:
                 response = response[z + len('\nFinal Answer: '):]
+        response = super().process_response_history(response, history)
         return response
     
 class ChatQwenCli(ChatQwen, ChatCli): pass

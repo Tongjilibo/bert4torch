@@ -6,8 +6,8 @@ from bert4torch.pipelines import ChatGlm3Cli, ChatGlm3WebGradio, ChatGlm3WebStre
 # ===================================参数=======================================
 # chatglm3-6b, chatglm3-6b-32k
 model_dir = f"/data/pretrain_ckpt/glm/chatglm3-6b"
-Chat = ChatGlm3Cli  # cli: 命令行
-# Chat = ChatGlm3WebGradio  # gradio: gradio web demo
+# Chat = ChatGlm3Cli  # cli: 命令行
+Chat = ChatGlm3WebGradio  # gradio: gradio web demo
 # Chat = ChatGlm3WebStreamlit  # streamlit: streamlit web demo
 # Chat = ChatGlm3OpenaiApi  # openai: openai 接口
 # ==============================================================================
