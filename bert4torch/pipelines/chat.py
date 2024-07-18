@@ -96,6 +96,11 @@ __all__ = [
     'ChatQwenWebGradio',
     'ChatQwenWebStreamlit',
     'ChatQwenOpenaiApi',
+    'ChatQwen2',
+    'ChatQwen2Cli',
+    'ChatQwen2WebGradio',
+    'ChatQwen2WebStreamlit',
+    'ChatQwen2OpenaiApi',
     'ChatLLaMA2',
     'ChatLLaMA2Cli',
     'ChatLLaMA2WebGradio',
@@ -347,8 +352,7 @@ class ChatCli(Chat):
             prompt = self.build_prompt(query, history, functions)
             self.model = self._build_model()
             # history是human和assistant的聊天历史
-            # 格式如[('你好', '有什么可以帮您的？'), ('你是谁？', '我是一款人工智能助手。')]
-            # 或者[{'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': '有什么可以帮您的？'}]
+            # 格式如[{'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': '有什么可以帮您的？'}]
             if stream:
                 for response in self.model.stream_generate(prompt, **self.generation_config):
                     response = self.process_response_history(response, history)
@@ -400,6 +404,8 @@ class ChatWebGradio(Chat):
         self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
+            if history[-1].get('raw_content'):
+                response = history[-1]['raw_content']
             if history[-1].get('function_call'):
                 response += f"\n\nFunction：{history[-1]['function_call']}"
             chatbot[-1] = (input, response)
@@ -414,6 +420,8 @@ class ChatWebGradio(Chat):
         self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response_history(response, history)
+        if history[-1].get('raw_content'):
+            response = history[-1]['raw_content']
         if history[-1].get('function_call'):
             response += f"\n\nFunction：{history[-1]['function_call']}"
         chatbot[-1] = (input, response)
@@ -760,12 +768,14 @@ class ChatOpenaiApi(Chat):
             if len(new_response) == current_length:
                 continue
 
-            new_text = self.process_response_history(new_response[current_length:], history)
+            self.process_response_history(new_response, history)
+            new_text = new_response[current_length:]
             current_length = len(new_response)
 
+            function_call = history[-1].get('function_call', None)
             choice_data = ChatCompletionResponseStreamChoice(
                 index=0,
-                delta=DeltaMessage(content=new_text),
+                delta=DeltaMessage(content=new_text, function_call=function_call),
                 finish_reason=None
             )
             chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
@@ -1067,7 +1077,7 @@ class ChatGlm3(Chat):
             
             metadata = metadata.strip()
             content = content.strip().replace("[[训练时间]]", "2023年")
-            raw_content = resp.strip().replace("[[训练时间]]", "2023年")
+            raw_content = resp.strip().replace("[[训练时间]]", "2023年")  # 可用于cli，web_demo展示
             history[-1] = {"role": "assistant", "metadata": metadata, "content": content, "raw_content": raw_content}
             # 有functions
             if metadata and history[0]["role"] == "system" and "tools" in history[0]:
@@ -1076,7 +1086,7 @@ class ChatGlm3(Chat):
                     def tool_call(**kwargs):
                         return kwargs
                     parameters = eval("\n".join(content.split("\n")[1:-1]))
-                    history[-1]['function_call'] = json.dumps({"name": metadata, "parameters": parameters}, ensure_ascii=False)
+                    history[-1]['function_call'] = {"name": metadata, "parameters": parameters}
                 except SyntaxError:
                     pass
         return content
@@ -1107,7 +1117,7 @@ class ChatGlm4(Chat):
         history.append({"role": "user", "content": query})
         if self.no_history_states():
             input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=True,
-                                                           return_tensors="pt", return_dict=True)['input_ids']
+                                                           return_tensors="pt", return_dict=True)
         else:
             input_ids += self.generation_config['states']['last_token']
         return input_ids
@@ -1126,15 +1136,11 @@ class ChatGlm4(Chat):
             
             metadata = metadata.strip()
             content = content.strip().replace("[[训练时间]]", "2024年")
-            raw_content = resp.strip().replace("[[训练时间]]", "2023年")
+            raw_content = resp.strip().replace("[[训练时间]]", "2024年")  # 可用于cli，web_demo展示
             history[-1] = {"role": "assistant", "metadata": metadata, "content": content, "raw_content": raw_content}
             # 有functions        
             if metadata and history[0]["role"] == "system" and "tools" in history[0]:
-                try:
-                    parameters = json.loads(content)
-                    history[-1]['function_call'] = {"name": metadata.strip(), "parameters": parameters}
-                except json.JSONDecodeError:
-                    pass
+                history[-1]['function_call'] = {"name": metadata.strip(), "parameters": content}
         return content
 
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
@@ -1182,6 +1188,7 @@ class ChatQwen(Chat):
         super().__init__(*args, **kwargs)
         self.system = system if system is not None else 'You are a helpful assistant.'
         self.max_window_size = max_window_size
+        self.observation_ids = self.tokenizer.encode('Observation:')
 
     def parse_messages(self, query, messages, functions):
         '''copy from https://github.com/QwenLM/Qwen/blob/main/openai_api.py'''
@@ -1230,8 +1237,7 @@ class ChatQwen(Chat):
                     #   "Format the arguments as a JSON object."
                     #   "Enclose the code within triple backticks (`) at the beginning and end of the code."
                     description_for_model=desc_m,
-                    parameters=json.dumps(func_info['parameters'],
-                                        ensure_ascii=False),
+                    parameters=json.dumps(func_info['parameters'], ensure_ascii=False),
                 )
                 tools_text.append(tool)
                 tools_name_text.append(name_m)
@@ -1298,9 +1304,8 @@ class ChatQwen(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions:
             # 如果使用了functions则需要增加end_id
-            observation_ids = self.tokenizer.encode('Observation:')
-            if observation_ids not in self.generation_config.get('end_id', []):
-                self.generation_config['end_id'] = self.generation_config.get('end_id', []) + [observation_ids]
+            if self.observation_ids not in self.generation_config.get('end_id', []):
+                self.generation_config['end_id'] = self.generation_config.get('end_id', []) + [self.observation_ids]
 
         instruction_query, history_list, system = self.parse_messages(query, history, functions)
         im_start, im_end = "<|im_start|>", "<|im_end|>"
@@ -1353,18 +1358,291 @@ class ChatQwen(Chat):
             if t >= 0:
                 response = response[t + len('Thought: '):]
             response = response.strip()
-            history[-1]['function_call'] = {'name': func_name, 'arguments': func_args}
+            try:
+                json.loads(func_args)
+                history[-1]['function_call'] = {'name': func_name, 'arguments': func_args}
+            except json.JSONDecodeError:
+                pass
         else:
             z = response.rfind('\nFinal Answer: ')
             if z >= 0:
                 response = response[z + len('\nFinal Answer: '):]
         history[-1]['content'] = response
+        # if 'Observation:' in history[-1]['raw_content']:
+        #     history[-1]['raw_content'] = history[-1]['raw_content'].replace('Observation:', '')
         return response
     
 class ChatQwenCli(ChatQwen, ChatCli): pass
 class ChatQwenWebGradio(ChatQwen, ChatWebGradio): pass
 class ChatQwenWebStreamlit(ChatQwen, ChatWebStreamlit): pass
 class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi): pass
+
+
+class ChatQwen2(Chat):
+    '''Qwen2的chat, 含function call的逻辑
+    主要参考了qwen_agent的逻辑
+    '''
+    def __init__(self, *args, system:str=None, parallel_function_calls:bool=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.system = system if system is not None else 'You are a helpful assistant.'
+        self.parallel_function_calls = parallel_function_calls
+
+        self.FN_NAME = '✿FUNCTION✿'
+        self.FN_ARGS = '✿ARGS✿'
+        self.FN_RESULT = '✿RESULT✿'
+        self.FN_EXIT = '✿RETURN✿'
+        self.FN_STOP_WORDS = [self.FN_RESULT, self.FN_EXIT]
+        self.FN_STOP_WORDS_IDS = [self.tokenizer.encode(i) for i in self.FN_STOP_WORDS]
+
+        FN_CALL_TEMPLATE_INFO_ZH = """# 工具
+
+        ## 你拥有如下工具：
+
+        {tool_descs}"""
+
+        FN_CALL_TEMPLATE_INFO_EN = """# Tools
+
+        ## You have access to the following tools:
+
+        {tool_descs}"""
+
+        FN_CALL_TEMPLATE_FMT_ZH = """## 你可以在回复中插入零次、一次或多次以下命令以调用工具：
+
+        %s: 工具名称，必须是[{tool_names}]之一。
+        %s: 工具输入
+        %s: 工具结果
+        %s: 根据工具结果进行回复，需将图片用![](url)渲染出来""" % (
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_RESULT,
+            self.FN_EXIT,
+        )
+
+        FN_CALL_TEMPLATE_FMT_EN = """## When you need to call a tool, please insert the following command in your reply, which can be called zero or multiple times according to your needs:
+
+        %s: The tool to use, should be one of [{tool_names}]
+        %s: The input of the tool
+        %s: Tool results
+        %s: Reply based on tool results. Images need to be rendered as ![](url)""" % (
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_RESULT,
+            self.FN_EXIT,
+        )
+
+        FN_CALL_TEMPLATE_FMT_PARA_ZH = """## 你可以在回复中插入以下命令以并行调用N个工具：
+
+        %s: 工具1的名称，必须是[{tool_names}]之一
+        %s: 工具1的输入
+        %s: 工具2的名称
+        %s: 工具2的输入
+        ...
+        %s: 工具N的名称
+        %s: 工具N的输入
+        %s: 工具1的结果
+        %s: 工具2的结果
+        ...
+        %s: 工具N的结果
+        %s: 根据工具结果进行回复，需将图片用![](url)渲染出来""" % (
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_RESULT,
+            self.FN_RESULT,
+            self.FN_RESULT,
+            self.FN_EXIT,
+        )
+
+        FN_CALL_TEMPLATE_FMT_PARA_EN = """## Insert the following command in your reply when you need to call N tools in parallel:
+
+        %s: The name of tool 1, should be one of [{tool_names}]
+        %s: The input of tool 1
+        %s: The name of tool 2
+        %s: The input of tool 2
+        ...
+        %s: The name of tool N
+        %s: The input of tool N
+        %s: The result of tool 1
+        %s: The result of tool 2
+        ...
+        %s: The result of tool N
+        %s: Reply based on tool results. Images need to be rendered as ![](url)""" % (
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_NAME,
+            self.FN_ARGS,
+            self.FN_RESULT,
+            self.FN_RESULT,
+            self.FN_RESULT,
+            self.FN_EXIT,
+        )
+
+        self.FN_CALL_TEMPLATE = {
+            'zh': FN_CALL_TEMPLATE_INFO_ZH + '\n\n' + FN_CALL_TEMPLATE_FMT_ZH,
+            'en': FN_CALL_TEMPLATE_INFO_EN + '\n\n' + FN_CALL_TEMPLATE_FMT_EN,
+            'zh_parallel': FN_CALL_TEMPLATE_INFO_ZH + '\n\n' + FN_CALL_TEMPLATE_FMT_PARA_ZH,
+            'en_parallel': FN_CALL_TEMPLATE_INFO_EN + '\n\n' + FN_CALL_TEMPLATE_FMT_PARA_EN,
+        }
+        
+    @staticmethod
+    def get_function_description(function: Dict, lang: Literal['en', 'zh']) -> str:
+        """
+        Text description of function  # copy from qwen_agent
+        """
+        tool_desc_template = {
+            'zh': '### {name_for_human}\n\n{name_for_model}: {description_for_model} 输入参数：{parameters} {args_format}',
+            'en': '### {name_for_human}\n\n{name_for_model}: {description_for_model} Parameters: {parameters} {args_format}'
+        }
+        tool_desc = tool_desc_template[lang]
+        name = function.get('name', None)
+        name_for_human = function.get('name_for_human', name)
+        name_for_model = function.get('name_for_model', name)
+        assert name_for_human and name_for_model
+
+        if name_for_model == 'code_interpreter':
+            args_format = {
+                'zh': '此工具的输入应为Markdown代码块。',
+                'en': 'Enclose the code within triple backticks (`) at the beginning and end of the code.',
+            }
+        else:
+            args_format = {
+                'zh': '此工具的输入应为JSON对象。',
+                'en': 'Format the arguments as a JSON object.',
+            }
+        args_format = function.get('args_format', args_format[lang])
+
+        return tool_desc.format(name_for_human=name_for_human,
+                                name_for_model=name_for_model,
+                                description_for_model=function.get('description', function['description_for_model']),
+                                parameters=json.dumps(function['parameters'], ensure_ascii=False),
+                                args_format=args_format).rstrip()
+
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        if functions:
+            # 如果使用了functions则需要增加end_id
+            if all([i not in self.generation_config.get('end_id', []) for i in self.FN_STOP_WORDS_IDS]):
+                self.generation_config['end_id'] = self.generation_config.get('end_id', []) + self.FN_STOP_WORDS_IDS
+
+        if (len(history) == 0) or (history[0]["role"] != "system"):
+            history.insert(0, {"role": "system", "content": self.system})
+            # copy from qwen_agent
+            if functions is not None:
+                lang = 'en'
+                for m in history:
+                    if re.search(r'[\u4e00-\u9fff]', m['content']):
+                        lang = 'zh'
+                        break
+
+                tool_desc_template = self.FN_CALL_TEMPLATE[lang + ('_parallel' if self.parallel_function_calls else '')]
+                tool_descs = '\n\n'.join(self.get_function_description(function, lang=lang) for function in functions)
+                tool_names = ','.join(function.get('name', function.get('name_for_model', '')) for function in functions)
+                tool_system = tool_desc_template.format(tool_descs=tool_descs, tool_names=tool_names)
+                history[0]['content'] += '\n\n' + tool_system
+
+        history.append({"role": "user", "content": query})  # 在终端打印显示原始的
+        if self.no_history_states():
+            # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
+            input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, return_tensors='pt')
+        else:
+            input_ids += self.generation_config['states']['last_token']
+
+        return input_ids
+    
+    def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        """
+        If the model calls function by built-in function call template,
+        convert and display it in function_call format.
+        """
+        response = super().process_response_history(response, history)
+
+        # Remove ': ' brought by continued generation of function calling
+        if response.startswith(': '):
+            response = response[2:]
+        elif response.startswith(':'):
+            response = response[1:]
+
+        i = response.find(f'{self.FN_NAME}:')
+
+        # 没有function call
+        if i < 0:
+            show_text = self.remove_incomplete_special_tokens(response)
+            return show_text
+
+        # 在function call前说了部分描述
+        thought = None
+        if i > 0:
+            answer = response[:i].lstrip('\n').rstrip()
+            if answer.endswith('\n'):
+                answer = answer[:-1]
+            thought = self.remove_incomplete_special_tokens(answer)
+            # if thought:
+            #     history[-1]['content'] = thought
+            response = response[i:]
+
+        # 有function call
+        for part in response.split(f'{self.FN_NAME}:'):
+            if not part:
+                continue
+            if part.endswith('\n'):
+                part = part[:-1]
+
+            arg_sep = f'\n{self.FN_ARGS}:'
+            i = part.find(arg_sep)
+            if i < 0:
+                fn_name = part.strip()
+                list_of_fn_args = ['']
+            else:
+                fn_name = part[:i].strip()
+                list_of_fn_args = [_.strip() for _ in part[i + len(arg_sep):].split(arg_sep)]
+            fn_name = self.remove_incomplete_special_tokens(fn_name)
+            for fn_args in list_of_fn_args:
+                fn_args = self.remove_incomplete_special_tokens(fn_args)
+                fn_args = self.remove_trailing_comment_of_fn_args(fn_args)
+                history[-1]['function_call'] = {'name': fn_name, 'arguments': fn_args}
+        return thought or response
+    
+    def remove_incomplete_special_tokens(self, text: str) -> str:
+        special_tokens = (self.FN_NAME, self.FN_ARGS, self.FN_RESULT, self.FN_EXIT)
+        text = text.rstrip()
+        if text.endswith(special_tokens):
+            for s in special_tokens:
+                if text.endswith(s):
+                    text = text[:-len(s)]
+                    break
+        else:
+            trail_start = text.rfind('✿')
+            trail_token = text[trail_start:]
+            for s in special_tokens:
+                if s.startswith(trail_token):
+                    text = text[:trail_start]
+                    break
+        text = text.lstrip('\n').rstrip()
+        return text
+    
+    @staticmethod
+    def remove_trailing_comment_of_fn_args(fn_args: str):
+        fn_args = fn_args.strip()
+
+        if fn_args.startswith('{'):
+            k = fn_args.rfind('}')
+            if k > 0:
+                fn_args = fn_args[:k + 1]
+
+        if fn_args.startswith('```'):
+            k = fn_args.rfind('\n```')
+            if k > 0:
+                fn_args = fn_args[:k + 4]
+        return fn_args
+
+class ChatQwen2Cli(ChatQwen2, ChatCli): pass
+class ChatQwen2WebGradio(ChatQwen2, ChatWebGradio): pass
+class ChatQwen2WebStreamlit(ChatQwen2, ChatWebStreamlit): pass
+class ChatQwen2OpenaiApi(ChatQwen2, ChatOpenaiApi): pass
 
 
 class ChatLLaMA2(Chat):
@@ -1405,6 +1683,7 @@ class ChatLLaMA3(Chat):
         else:
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
+            return texts
 
 class ChatLLaMA3Cli(ChatLLaMA3, ChatCli): pass
 class ChatLLaMA3WebGradio(ChatLLaMA3, ChatWebGradio): pass
@@ -1414,6 +1693,7 @@ class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 
 class ChatZiya(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        assert functions is None, 'Ziya do not support function call'
         prompt = ''
         if self.no_history_states():
             for human, bot in history:
@@ -1442,6 +1722,7 @@ class ChatChineseAlphaLLaMA(Chat):
             self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        assert functions is None, 'ChineseAlphaLLaMA do not support function call'
         prompt = ''
         if self.no_history_states():
             for inst, resp in history:
@@ -1464,6 +1745,7 @@ class ChatBelle(Chat):
         return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        assert functions is None, 'Belle do not support function call'
         prompt = ''
         if self.no_history_states():
             for item in history:
@@ -1486,6 +1768,7 @@ class ChatBaichuan(Chat):
         self.assistant_token_id = kwargs.get('assistant_token_id', 196)
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        assert functions is None, 'Baichuan do not support function call'
         total_input = []
         if self.no_history_states():
             for user, assistant in history:
