@@ -8,6 +8,7 @@ import inspect
 from torch.utils.checkpoint import CheckpointFunction
 from torch4keras.snippets import log_info, log_warn, Timeit
 from typing import Union
+import re
 
 
 def insert_arguments(**arguments):
@@ -241,3 +242,12 @@ def peft_module_casting_to_bf16(model):
             if hasattr(module, "weight"):
                 if module.weight.dtype == torch.float32:
                     module = module.to(torch.bfloat16)
+
+
+def has_chinese_char(text:str) -> bool:
+    '''判断一句话中是否包含中文'''
+    if text is None:
+        return False
+    elif text.strip() == '':
+        return False
+    return re.search(r'[\u4e00-\u9fff]', text)

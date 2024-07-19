@@ -24,7 +24,8 @@ from bert4torch.snippets import (
     is_fastapi_available, 
     is_pydantic_available, 
     is_sseclient_available, 
-    is_streamlit_available
+    is_streamlit_available,
+    has_chinese_char
 )
 from packaging import version
 import gc
@@ -709,7 +710,9 @@ class ChatOpenaiApi(Chat):
 
     async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
-            raise HTTPException(status_code=404, detail="Invalid model")
+            raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
+        if request.messages[-1]['role'] != self.role_user:  # 最后一条msg的role必须是user
+            raise HTTPException(status_code=400, detail=f"Invalid request: messages last role shold be {self.role_user}")
 
         if request.temperature:
             self.generation_config['temperature'] = request.temperature
@@ -722,8 +725,6 @@ class ChatOpenaiApi(Chat):
         if request.repetition_penalty:
             self.generation_config['repetition_penalty'] = request.repetition_penalty
 
-        if request.messages[-1]['role'] != self.role_user:  # 最后一条msg的role必须是user
-            raise HTTPException(status_code=400, detail="Invalid request")
         query = request.messages[-1]['content']
         history = request.messages[:-1]
         input_text = self.build_prompt(query, history, request.functions)
@@ -846,11 +847,12 @@ class ChatOpenaiClient:
         from openai import OpenAI
         self.client = OpenAI(base_url=base_url, api_key=api_key, **kwargs)
     
-    def stream_chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
+    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''流式返回'''
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
+            functions=functions,
             stream=True,
             max_tokens=max_length,
             temperature=temperature,
@@ -863,11 +865,12 @@ class ChatOpenaiClient:
             if content is not None:
                 yield content
 
-    def chat(self, messages:List[Dict], model:str='default', max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
+    def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''一次性返回'''
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
+            functions=functions,
             stream=False,
             max_tokens=max_length,
             temperature=temperature,
@@ -1534,7 +1537,7 @@ class ChatQwen2(Chat):
             if functions is not None:
                 lang = 'en'
                 for m in history:
-                    if re.search(r'[\u4e00-\u9fff]', m['content']):
+                    if has_chinese_char(m['content']):
                         lang = 'zh'
                         break
 
@@ -1646,20 +1649,36 @@ class ChatQwen2OpenaiApi(ChatQwen2, ChatOpenaiApi): pass
 
 
 class ChatLLaMA2(Chat):
+    '''LLaMA2
+    LLaMA由于只有base模型, 没有chat所以直接model.generate即可
+    '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.system = system if system is not None else SYSTEM_EN
+        self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        if self.no_history_states():
-            texts = [f'[INST] <<SYS>>\n{self.system}\n<</SYS>>\n\n']
-            for user_input, response in history:
-                texts.append(f'{user_input.strip()} [/INST] {response.strip()} </s><s> [INST] ')
-        else:
-            texts = [self.generation_config['states']['last_token']]
+        assert functions is None, 'LLaMA2 do not support function call'
 
-        texts.append(f'{query.strip()} [/INST]')
-        return ''.join(texts)
+        if (len(history) == 0) or (history[0]["role"] != "system"):
+            system = self.system or SYSTEM_ZH if has_chinese_char(query) else SYSTEM_EN
+            history.insert(0, {"role": "system", "content": system})
+
+        texts = ''
+        if self.no_history_states():
+            for query_or_response in history:
+                role, content = query_or_response['role'], query_or_response['content'].strip()
+                if role == 'system':
+                    texts += f'[INST] <<SYS>>\n{content}\n<</SYS>>\n\n'
+                elif role == 'user':
+                    texts += f'{content} [/INST] '
+                elif role == 'assistant':
+                    texts += f"{content} </s><s> [INST] "
+        else:
+            texts = self.generation_config['states']['last_token']
+
+        texts += f'{query.strip()} [/INST]'
+        history.append({"role": "user", "content": query})
+        return texts
 
 class ChatLLaMA2Cli(ChatLLaMA2, ChatCli): pass
 class ChatLLaMA2WebGradio(ChatLLaMA2, ChatWebGradio): pass
@@ -1670,16 +1689,18 @@ class ChatLLaMA2OpenaiApi(ChatLLaMA2, ChatOpenaiApi): pass
 class ChatLLaMA3(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.system = system if system is not None else SYSTEM_ZH
+        self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        assert functions is None, 'LLaMA3 do not support function call'
+
+        if (len(history) == 0) or (history[0]["role"] != "system"):
+            system = self.system or SYSTEM_ZH if has_chinese_char(query) else SYSTEM_EN
+            history.insert(0, {"role": "system", "content": system})
+
+        history.append({"role": "user", "content": query})
         if self.no_history_states():
-            messages = [{"role": "system", "content": self.system}]
-            for user_input, response in history:
-                messages.append({"role": "user", "content": user_input})
-                messages.append({"role": "assistant", "content": response})
-            messages.append({"role": "user", "content": query})
-            return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            return self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
         else:
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
@@ -1694,14 +1715,20 @@ class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 class ChatZiya(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         assert functions is None, 'Ziya do not support function call'
+
         prompt = ''
         if self.no_history_states():
-            for human, bot in history:
-                prompt += f"<human>:{human}\n<bot>:{bot}\n"
+            for query_or_response in history:
+                role, content = query_or_response['role'], query_or_response['content']
+                if role == 'user':
+                    prompt += f"<human>:{content}\n"
+                elif role == 'assistant':
+                    prompt += f"<bot>:{content}\n"
         else:
             prompt += self.generation_config['states']['last_token']
         
         prompt += f"<human>:{query.strip()}\n<bot>:"
+        history.append({"role": "user", "content": query})
         return prompt
 
 class ChatZiyaCli(ChatZiya, ChatCli): pass
@@ -1723,14 +1750,24 @@ class ChatChineseAlphaLLaMA(Chat):
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         assert functions is None, 'ChineseAlphaLLaMA do not support function call'
+        if (len(history) == 0) or (history[0]["role"] != "system"):
+            history.insert(0, {"role": "system", "content": self.system})
+
         prompt = ''
         if self.no_history_states():
-            for inst, resp in history:
-                prompt += f"### Instruction:\n\n{inst}\n\n### Response:\n\n{resp}\n\n"
+            for query_or_response in history:
+                role, content = query_or_response['role'], query_or_response['content']
+                if role == 'system':
+                    prompt = self.system + prompt
+                elif role == 'user':
+                    prompt += f"### Instruction:\n\n{content}\n\n"
+                elif role == 'assistant':
+                    prompt += f"### Response:\n\n{content}\n\n"
             prompt += f"### Instruction:\n\n{query}\n\n### Response:\n\n"
-            prompt = self.system + prompt
         else:
             prompt += self.generation_config['states']['last_token'] + f"### Instruction:\n\n{query}\n\n### Response:\n\n"
+        
+        history.append({"role": "user", "content": query})
         return prompt
 
 class ChatChineseAlphaLLaMACli(ChatChineseAlphaLLaMA, ChatCli): pass
@@ -1740,19 +1777,25 @@ class ChatChineseAlphaLLaMAOpenaiApi(ChatChineseAlphaLLaMA, ChatOpenaiApi): pass
 
 
 class ChatBelle(Chat):
-    def build_tokenizer(self):
+    def build_tokenizer(self, **kwargs):
         from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         assert functions is None, 'Belle do not support function call'
+
         prompt = ''
         if self.no_history_states():
-            for item in history:
-                prompt += f"Human: {item[0]} \n\nAssistant: {item[1]}\n\n"
+            for query_or_response in history:
+                role, content = query_or_response['role'], query_or_response['content']
+                if role == 'user':
+                    prompt += f"Human: {content} \n\n"
+                elif role == 'assistant':
+                    prompt += f"Assistant: {content}\n\n"
         else:
             prompt += self.generation_config['states']['last_token']
         prompt += f"Human: {query} \n\nAssistant: "
+        history.append({"role": "user", "content": query})
         return prompt
 
 class ChatBelleCli(ChatBelle, ChatCli): pass
@@ -1771,13 +1814,17 @@ class ChatBaichuan(Chat):
         assert functions is None, 'Baichuan do not support function call'
         total_input = []
         if self.no_history_states():
-            for user, assistant in history:
-                total_input += [self.user_token_id] + self.tokenizer.encode(user)  
-                total_input += [self.assistant_token_id] + self.tokenizer.encode(assistant) + [self.tokenizer.eos_token_id]
+            for query_or_response in history:
+                role, content = query_or_response['role'], query_or_response['content']
+                if role == 'user':
+                    total_input += [self.user_token_id] + self.tokenizer.encode(content)
+                elif role == 'assistant':
+                    total_input += [self.assistant_token_id] + self.tokenizer.encode(content) + [self.tokenizer.eos_token_id]
         else:
             total_input += [self.generation_config['states']['last_token_id']]
-        total_input += [self.user_token_id] + self.tokenizer.encode(query)
-        total_input.append(self.assistant_token_id)
+        total_input += [self.user_token_id] + self.tokenizer.encode(query) + [self.assistant_token_id]
+        
+        history.append({"role": "user", "content": query})
         return total_input
 
 class ChatBaichuanCli(ChatBaichuan, ChatCli): pass

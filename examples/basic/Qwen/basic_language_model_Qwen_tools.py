@@ -5,9 +5,26 @@ bert4torch_config.json见readme
 - [Qwen-7B](https://huggingface.co/Qwen/Qwen-7B)
 - [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
 """
-from bert4torch.pipelines import ChatQwenCli, ChatQwenOpenaiApi, ChatQwen2Cli, ChatQwen2OpenaiApi
-from bert4torch.pipelines import ChatOpenaiClient, ChatOpenaiClientSseclient
-import re
+from bert4torch.pipelines import ChatQwenCli, ChatQwenOpenaiApi
+from bert4torch.pipelines import ChatQwen2Cli, ChatQwen2OpenaiApi
+
+
+# cli: 命令行
+# openai: openai 接口
+mode = 'cli'
+
+# Qwen-1_8B-Chat  Qwen-7B-Chat Qwen-14B-Chat
+# Qwen1.5-0.5B-Chat  Qwen1.5-1.8B-Chat  Qwen1.5-7B-Chat  Qwen1.5-14B-Chat
+# Qwen2-0.5B-Instruct  Qwen2-1.5B-Instruct  Qwen2-7B-Instruct
+model_dir = f'/data/pretrain_ckpt/Qwen/Qwen2-7B-Instruct'
+
+ChatMap = {
+        'Qwen-cli': ChatQwenCli,
+        'Qwen-openai': ChatQwenOpenaiApi,
+        'Qwen2-cli': ChatQwen2Cli,
+        'Qwen2-openai': ChatQwen2OpenaiApi
+     }
+Chat = ChatMap[f'Qwen-{mode}' if 'Qwen-' in model_dir else f'Qwen2-{mode}']
 
 
 functions = [
@@ -39,22 +56,10 @@ functions = [
         },
     ]
 
-# Qwen-1_8B-Chat  Qwen-7B-Chat Qwen-14B-Chat
-# Qwen1.5-0.5B-Chat  Qwen1.5-1.8B-Chat  Qwen1.5-7B-Chat  Qwen1.5-14B-Chat
-# Qwen2-0.5B-Instruct  Qwen2-1.5B-Instruct  Qwen2-7B-Instruct
-model_dir = f'/data/pretrain_ckpt/Qwen/Qwen2-7B-Instruct'
-
-generation_config = {'top_k': 40, 'repetition_penalty': 1.1, 'temperature': 0.7, 'use_states': False}
-if 'Qwen-' in model_dir:
-    Chat = ChatQwenCli
-    # Chat = ChatQwenOpenaiApi
-else:
-    Chat = ChatQwen2Cli
-    # Chat = ChatQwen2OpenaiApi
 
 demo = Chat(model_dir, 
             system='你是一个乐于助人的AI助手。', 
-            generation_config=generation_config,
+            generation_config={'top_k': 40, 'repetition_penalty': 1.1, 'temperature': 0.7},
             # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
             )
 
