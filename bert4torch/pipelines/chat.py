@@ -25,7 +25,8 @@ from bert4torch.snippets import (
     is_pydantic_available, 
     is_sseclient_available, 
     is_streamlit_available,
-    has_chinese_char
+    has_chinese_char,
+    add_start_docstrings
 )
 from packaging import version
 import gc
@@ -144,13 +145,12 @@ You are a helpful, respectful and honest assistant. Always answer as helpfully a
 If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.\
 """
 
-
-class Chat:
-    '''聊天类
+CHAT_START_DOCSTRING = r"""
     :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
-    :param precision: bool, 精度
+    :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
+    :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
 
     Examples:
     ```python
@@ -166,7 +166,11 @@ class Chat:
     >>> chat = ChatGlm2Cli(checkpoint_path, **generation_config)
     >>> chat.run()
     ```
-    '''
+"""
+
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class Chat:
     def __init__(self, checkpoint_path:str, precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -308,6 +312,7 @@ class Chat:
             yield response
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatCli(Chat):
     '''在命令行中交互的demo
     :param init_str: str, 对话问候句
@@ -367,15 +372,17 @@ class ChatCli(Chat):
             cuda_empty_cache()
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
     默认是stream输出，默认history不会删除，需手动清理
+
     '''
-    def __init__(self, *args, max_length:int=4096, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         import gradio as gr
         self.gr = gr
-        self.max_length = max_length
+        self.max_length = self.generation_config.get('max_length', 4096)
         self.max_repetition_penalty = 10
         self.stream = True  # 一般都是流式，因此未放在页面配置项
         if version.parse(gr.__version__) < version.parse("3.44.4"):
@@ -460,8 +467,9 @@ class ChatWebGradio(Chat):
         demo.queue().launch(**launch_configs)
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatWebStreamlit(Chat):
-    def __init__(self, *args, max_length:int=4096, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not is_streamlit_available():
             raise ModuleNotFoundError('pip install streamlit')
@@ -472,7 +480,7 @@ class ChatWebStreamlit(Chat):
             page_icon=":robot:",
             layout="wide"
         )
-        self.max_length = max_length
+        self.max_length = self.generation_config.get('max_length', 4096)
 
     @st.cache_resource
     def _build_model(_self):
@@ -596,8 +604,8 @@ class ChatCompletionResponse(BaseModel):
     created: Optional[int] = Field(default_factory=lambda: int(time.time()))
 
 
-class ChatOpenaiApi(Chat):
-    """OpenAi的api
+OPENAI_START_DOCSTRING = r"""
+    部署类似OpenAi的api server端
 
     :param checkpoint_path: str, 模型所在的文件夹地址
     :param name: str, 模型名称
@@ -623,7 +631,11 @@ class ChatOpenaiApi(Chat):
     >>> chat = ChatGlm2OpenaiApi(checkpoint_path, **generation_config)
     >>> chat.run()
     ```
+"""
 
+@add_start_docstrings(OPENAI_START_DOCSTRING)
+class ChatOpenaiApi(Chat):
+    """
     TODO:
     1. 在后续调用服务，模型从cpu转到cuda上时，内存不下降，猜测是因为不同线程中操作导致的
     2. 偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误
@@ -953,6 +965,7 @@ class ChatOpenaiClientSseclient:
 # =========================              各个具体模型实现        ============================
 # ==========================================================================================
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         # 没有system和function call
@@ -991,12 +1004,17 @@ class ChatGlm(Chat):
         response = super().process_response_history(response, history)
         return response
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlmCli(ChatGlm, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlmWebGradio(ChatGlm, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlmWebStreamlit(ChatGlm, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatGlmOpenaiApi(ChatGlm, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm2(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         assert functions is None, 'ChatGlm2 do not support function call'
@@ -1032,12 +1050,17 @@ class ChatGlm2(Chat):
         response = super().process_response_history(response, history)
         return response
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm2Cli(ChatGlm2, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm2WebGradio(ChatGlm2, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm2WebStreamlit(ChatGlm2, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatGlm2OpenaiApi(ChatGlm2, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm3(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1094,12 +1117,17 @@ class ChatGlm3(Chat):
                     pass
         return content
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm3Cli(ChatGlm3, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm3WebGradio(ChatGlm3, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm3WebStreamlit(ChatGlm3, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatGlm3OpenaiApi(ChatGlm3, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm4(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1146,12 +1174,17 @@ class ChatGlm4(Chat):
                 history[-1]['function_call'] = {"name": metadata.strip(), "parameters": content}
         return content
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm4Cli(ChatGlm4, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm4WebGradio(ChatGlm4, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm4WebStreamlit(ChatGlm4, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatInternLM(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
         # InternLM v1不支持function call
@@ -1178,12 +1211,17 @@ class ChatInternLM(Chat):
         response = super().process_response_history(response, history)
         return response
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatInternLMCli(ChatInternLM, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatInternLMWebGradio(ChatInternLM, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatInternLMWebStreamlit(ChatInternLM, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwen(Chat):
     '''Qwen从Qwen1开始就支持function call
     '''
@@ -1375,12 +1413,17 @@ class ChatQwen(Chat):
         #     history[-1]['raw_content'] = history[-1]['raw_content'].replace('Observation:', '')
         return response
     
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwenCli(ChatQwen, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwenWebGradio(ChatQwen, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwenWebStreamlit(ChatQwen, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwen2(Chat):
     '''Qwen2的chat, 含function call的逻辑
     主要参考了qwen_agent的逻辑
@@ -1642,12 +1685,17 @@ class ChatQwen2(Chat):
                 fn_args = fn_args[:k + 4]
         return fn_args
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwen2Cli(ChatQwen2, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwen2WebGradio(ChatQwen2, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatQwen2WebStreamlit(ChatQwen2, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatQwen2OpenaiApi(ChatQwen2, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA2(Chat):
     '''LLaMA2
     LLaMA由于只有base模型, 没有chat所以直接model.generate即可
@@ -1680,12 +1728,17 @@ class ChatLLaMA2(Chat):
         history.append({"role": "user", "content": query})
         return texts
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA2Cli(ChatLLaMA2, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA2WebGradio(ChatLLaMA2, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA2WebStreamlit(ChatLLaMA2, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatLLaMA2OpenaiApi(ChatLLaMA2, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA3(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1706,12 +1759,17 @@ class ChatLLaMA3(Chat):
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
             return texts
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA3Cli(ChatLLaMA3, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA3WebGradio(ChatLLaMA3, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatLLaMA3WebStreamlit(ChatLLaMA3, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatZiya(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         assert functions is None, 'Ziya do not support function call'
@@ -1731,12 +1789,17 @@ class ChatZiya(Chat):
         history.append({"role": "user", "content": query})
         return prompt
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatZiyaCli(ChatZiya, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatZiyaWebGradio(ChatZiya, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatZiyaWebStreamlit(ChatZiya, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatZiyaOpenaiApi(ChatZiya, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatChineseAlphaLLaMA(Chat):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1770,12 +1833,17 @@ class ChatChineseAlphaLLaMA(Chat):
         history.append({"role": "user", "content": query})
         return prompt
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatChineseAlphaLLaMACli(ChatChineseAlphaLLaMA, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatChineseAlphaLLaMAWebGradio(ChatChineseAlphaLLaMA, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatChineseAlphaLLaMAWebStreamlit(ChatChineseAlphaLLaMA, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatChineseAlphaLLaMAOpenaiApi(ChatChineseAlphaLLaMA, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBelle(Chat):
     def build_tokenizer(self, **kwargs):
         from transformers import AutoTokenizer
@@ -1798,12 +1866,17 @@ class ChatBelle(Chat):
         history.append({"role": "user", "content": query})
         return prompt
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBelleCli(ChatBelle, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBelleWebGradio(ChatBelle, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBelleWebStreamlit(ChatBelle, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatBelleOpenaiApi(ChatBelle, ChatOpenaiApi): pass
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBaichuan(Chat):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1827,7 +1900,11 @@ class ChatBaichuan(Chat):
         history.append({"role": "user", "content": query})
         return total_input
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBaichuanCli(ChatBaichuan, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBaichuanWebGradio(ChatBaichuan, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBaichuanWebStreamlit(ChatBaichuan, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatBaichuanOpenaiApi(ChatBaichuan, ChatOpenaiApi): pass
