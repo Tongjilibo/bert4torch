@@ -653,7 +653,7 @@ class ChatOpenaiApi(Chat):
         from sse_starlette.sse import EventSourceResponse
         import sse_starlette
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
-            log_warn('Module `sse_starlette` above 1.8 not support stream output')
+                log_warn('Module `sse_starlette` above 1.8 not support stream output')
         self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
         self.scheduler_interval = scheduler_interval
         self.api_keys = api_keys
@@ -969,7 +969,9 @@ class ChatOpenaiClientSseclient:
 class ChatGlm(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         # 没有system和function call
-        assert functions is None, 'ChatGlm do not support function call'
+        if functions is not None:
+                log_warn('ChatGlm do not support function call')
+        
         if not history:
             prompt = query
         else:
@@ -1017,7 +1019,9 @@ class ChatGlmOpenaiApi(ChatGlm, ChatOpenaiApi): pass
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatGlm2(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'ChatGlm2 do not support function call'
+        if functions is not None: 
+            log_warn('ChatGlm2 do not support function call')
+
         # 这里和chatglm的区别是，chatglm的第一轮对话prompt=query, 不加[Round 1]这些前缀
         prompt, turn_i = "", 1
         if self.no_history_states():
@@ -1188,7 +1192,8 @@ class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
 class ChatInternLM(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
         # InternLM v1不支持function call
-        assert functions is None, 'InternLM do not support function call'
+        if functions is not None: 
+            log_warn('InternLM do not support function call')
         prompt = ""
         if self.no_history_states():
             for query_or_response in history:
@@ -1705,7 +1710,8 @@ class ChatLLaMA2(Chat):
         self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'LLaMA2 do not support function call'
+        if functions is not None: 
+            log_warn('LLaMA2 do not support function call')
 
         if (len(history) == 0) or (history[0]["role"] != "system"):
             system = self.system or SYSTEM_ZH if has_chinese_char(query) else SYSTEM_EN
@@ -1745,7 +1751,8 @@ class ChatLLaMA3(Chat):
         self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'LLaMA3 do not support function call'
+        if functions is not None: 
+            log_warn('LLaMA3 do not support function call')
 
         if (len(history) == 0) or (history[0]["role"] != "system"):
             system = self.system or SYSTEM_ZH if has_chinese_char(query) else SYSTEM_EN
@@ -1772,7 +1779,8 @@ class ChatLLaMA3OpenaiApi(ChatLLaMA3, ChatOpenaiApi): pass
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatZiya(Chat):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'Ziya do not support function call'
+        if functions is not None: 
+            log_warn('Ziya do not support function call')
 
         prompt = ''
         if self.no_history_states():
@@ -1812,7 +1820,9 @@ class ChatChineseAlphaLLaMA(Chat):
             self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'ChineseAlphaLLaMA do not support function call'
+        if functions is not None: 
+            log_warn('ChineseAlphaLLaMA do not support function call')
+
         if (len(history) == 0) or (history[0]["role"] != "system"):
             history.insert(0, {"role": "system", "content": self.system})
 
@@ -1850,7 +1860,8 @@ class ChatBelle(Chat):
         return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'Belle do not support function call'
+        if functions is not None: 
+            log_warn('Belle do not support function call')
 
         prompt = ''
         if self.no_history_states():
@@ -1884,7 +1895,9 @@ class ChatBaichuan(Chat):
         self.assistant_token_id = kwargs.get('assistant_token_id', 196)
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        assert functions is None, 'Baichuan do not support function call'
+        if functions is not None: 
+            log_warn('Baichuan do not support function call')
+
         total_input = []
         if self.no_history_states():
             for query_or_response in history:
