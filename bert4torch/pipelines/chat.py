@@ -151,6 +151,7 @@ CHAT_START_DOCSTRING = r"""
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
+    :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
 
     Examples:
     ```python
@@ -404,11 +405,12 @@ class ChatWebGradio(Chat):
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
 
-    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
+    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
         '''流式生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history, self.functions)
+        functions = self.__set_system_functions(system, functions)
+        input_text = self.build_prompt(input, history, functions)
         self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
@@ -420,11 +422,12 @@ class ChatWebGradio(Chat):
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
-    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty):
+    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
         '''一次性生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((input, ""))
-        input_text = self.build_prompt(input, history, self.functions)
+        functions = self.__set_system_functions(system, functions)
+        input_text = self.build_prompt(input, history, functions)
         self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response_history(response, history)
@@ -436,30 +439,50 @@ class ChatWebGradio(Chat):
         cuda_empty_cache()  # 清理显存
         return chatbot, history
 
-    def run(self, functions:List[dict]=None, **launch_configs):
-        self.functions = functions
-        with self.gr.Blocks() as demo:
-            self.gr.HTML("""<h1 align="center">Chabot Web Demo</h1>""")
+    def __set_system_functions(self, system:str=None, functions:List[dict]=None):
+        '''设置system和functions参数'''
+        try:
+            if functions is not None and functions.strip() != '':
+                functions = json.loads(functions)
+            else:
+                functions = None
+        except json.JSONDecodeError:
+            functions = None
+            log_warn('Functions implement not json format')
 
-            chatbot = self.gr.Chatbot()
+        if system is not None and system.strip() != '':
+            self.system = system
+        return functions
+
+    def run(self, **launch_configs):
+        with self.gr.Blocks() as demo:
+            self.gr.HTML("""<h1 align="center">Chabot Gradio Demo</h1>""")
+
             with self.gr.Row():
-                with self.gr.Column(scale=4):
-                    with self.gr.Column(scale=12):
-                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10) # .style(container=False)
-                    with self.gr.Column(min_width=32, scale=1):
-                        submitBtn = self.gr.Button("Submit", variant="primary")
                 with self.gr.Column(scale=1):
-                    emptyBtn = self.gr.Button("Clear History")
                     max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="Maximum length", interactive=True)
                     top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="Top P", interactive=True)
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="Temperature", interactive=True)
                     repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1, step=0.1, label="Repetition penalty", interactive=True)
+                    system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
+                    functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
+
+                with self.gr.Column(scale=4):
+                    chatbot = self.gr.Chatbot()
+                    with self.gr.Column(scale=12):
+                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10, max_lines=10) # .style(container=False)
+                    with self.gr.Row():
+                        with self.gr.Column(min_width=32, scale=1):
+                            emptyBtn = self.gr.Button("Clear History")
+                        with self.gr.Column(min_width=32, scale=1):
+                            submitBtn = self.gr.Button("Submit", variant="primary")
 
             history = self.gr.State([])
+            _input_tuple = [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions]
             if self.stream:
-                submitBtn.click(self.__stream_predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__stream_predict, _input_tuple, [chatbot, history], show_progress=True)
             else:
-                submitBtn.click(self.__predict, [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty], [chatbot, history], show_progress=True)
+                submitBtn.click(self.__predict, _input_tuple, [chatbot, history], show_progress=True)
 
             submitBtn.click(self.reset_user_input, [], [user_input])
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
@@ -469,8 +492,10 @@ class ChatWebGradio(Chat):
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatWebStreamlit(Chat):
+    '''
+    启动方式: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
+    '''
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         if not is_streamlit_available():
             raise ModuleNotFoundError('pip install streamlit')
         if version.parse(st.__version__) < version.parse("1.29.0"):
@@ -480,6 +505,7 @@ class ChatWebStreamlit(Chat):
             page_icon=":robot:",
             layout="wide"
         )
+        super().__init__(*args, **kwargs)
         self.max_length = self.generation_config.get('max_length', 4096)
 
     @st.cache_resource
@@ -490,7 +516,7 @@ class ChatWebStreamlit(Chat):
     def build_tokenizer(_self, **kwarg):
         return super().build_tokenizer(**kwarg)
     
-    def run(self, functions:List[dict]=None):
+    def run(self):
         if "history" not in st.session_state:
             st.session_state.history = []
         if "states" not in st.session_state:
@@ -499,6 +525,28 @@ class ChatWebStreamlit(Chat):
         max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
         top_p = st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
         temperature = st.sidebar.slider("temperature", 0.0, 1.0, 0.6, step=0.01)
+        system = st.sidebar.text_area(
+            label="System Prompt (If exists)",
+            height=200,
+            value="",
+        )
+        functions = st.sidebar.text_area(
+            label="Functions Json Format (If exists)",
+            height=200,
+            value="",
+        )
+
+        try:
+            if functions is not None and functions.strip() != '':
+                functions = json.loads(functions)
+            else:
+                functions = None
+        except json.JSONDecodeError:
+            functions = None
+            log_warn('Functions implement not json format')
+
+        if system is not None and system.strip() != '':
+            self.system = system
 
         buttonClean = st.sidebar.button("清理会话历史", key="clean")
         if buttonClean:
@@ -509,8 +557,10 @@ class ChatWebStreamlit(Chat):
 
         for i, message in enumerate(st.session_state.history):
             role = message['role']
+            if role not in {'user', 'assistant'}:
+                continue
             with st.chat_message(name=role, avatar=role):
-                st.markdown(message['content'])
+                st.markdown(message.get('raw_content', message['content']))
         
         with st.chat_message(name="user", avatar="user"):
             input_placeholder = st.empty()
@@ -530,10 +580,9 @@ class ChatWebStreamlit(Chat):
             input_text = self.build_prompt(prompt_text, history, functions)
             for response in self.model.stream_generate(input_text, **self.generation_config):
                 response = self.process_response_history(response, history)
-                message_placeholder.markdown(response)
-            st.session_state.history = history + [(prompt_text, response)]
+                message_placeholder.markdown(history[-1].get('raw_content', response))
+            st.session_state.history = history
             st.session_state.states = self.generation_config.get('states')
-
 
 
 # ==========================================================================================
@@ -644,6 +693,7 @@ class ChatOpenaiApi(Chat):
     def __init__(self, checkpoint_path:str, name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
                  max_callapi_interval:int=24*3600, scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, 
                  api_keys:List[str]=None, **kwargs):
+        assert kwargs.get('system') is None, "Args `system` is used in request key `message`"
         self.offload_when_nocall = offload_when_nocall
         if offload_when_nocall is not None:
             kwargs['create_model_at_startup'] = False
@@ -1432,6 +1482,7 @@ class ChatQwenOpenaiApi(ChatQwen, ChatOpenaiApi): pass
 class ChatQwen2(Chat):
     '''Qwen2的chat, 含function call的逻辑
     主要参考了qwen_agent的逻辑
+    :param parallel_function_calls: bool, 允许并行调用function tools工具
     '''
     def __init__(self, *args, system:str=None, parallel_function_calls:bool=False, **kwargs):
         super().__init__(*args, **kwargs)
