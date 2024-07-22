@@ -376,8 +376,7 @@ class ChatCli(Chat):
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatWebGradio(Chat):
     '''gradio实现的网页交互的demo
-    默认是stream输出，默认history不会删除，需手动清理
-
+    1. system和functions均在网页上进行设置(若有)
     '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -493,7 +492,8 @@ class ChatWebGradio(Chat):
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatWebStreamlit(Chat):
     '''
-    启动方式: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
+    1. 启动方式: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
+    2. system和functions均在网页上进行设置(若有)
     '''
     def __init__(self, *args, **kwargs):
         if not is_streamlit_available():
