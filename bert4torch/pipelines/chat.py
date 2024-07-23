@@ -25,6 +25,7 @@ from bert4torch.snippets import (
     is_pydantic_available, 
     is_sseclient_available, 
     is_streamlit_available,
+    is_package_available,
     has_chinese_char,
     add_start_docstrings
 )
@@ -93,6 +94,11 @@ __all__ = [
     'ChatInternLMWebGradio',
     'ChatInternLMWebStreamlit',
     'ChatInternLMOpenaiApi',
+    'ChatInternLM2',
+    'ChatInternLM2Cli',
+    'ChatInternLM2WebGradio',
+    'ChatInternLM2WebStreamlit',
+    'ChatInternLM2OpenaiApi',
     'ChatQwen',
     'ChatQwenCli',
     'ChatQwenWebGradio',
@@ -208,7 +214,12 @@ class Chat:
         from transformers import AutoTokenizer
         init_kwargs = {'additional_special_tokens'}
         new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
-        return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True, **new_kwargs)
+        try:
+            return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True, **new_kwargs)
+        except Exception as e:
+            _, transformer_version = is_package_available('transformers', return_version=True)
+            log_warn(f'Please check your transformer version == {transformer_version}, which may not compatible.')
+            raise e
 
     def build_model(self):
         '''初始化model, 方便外部继承'''
@@ -1240,23 +1251,31 @@ class ChatGlm4OpenaiApi(ChatGlm4, ChatOpenaiApi): pass
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatInternLM(Chat):
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.system = system if system is not None else SYSTEM_ZH
+
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
         # InternLM v1不支持function call
         if functions is not None: 
             log_warn('InternLM do not support function call')
-        prompt = ""
+        if self.tokenizer.add_bos_token:
+            prompt = ""
+        else:
+            prompt = self.tokenizer.bos_token
+        
         if self.no_history_states():
+            prompt += f"""<|System|>:{self.system}\n"""
             for query_or_response in history:
                 if query_or_response['role'] == 'user':
-                    prompt += f"""<s><|User|>:{query_or_response['content']}<eoh>\n"""
+                    prompt += f"""<|User|>:{query_or_response['content']}\n"""
                 elif query_or_response['role'] == 'assistant':
                     prompt += f"""<|Bot|>:{query_or_response['content']}<eoa>\n"""
         else:
             prompt += self.generation_config['states']['last_token']
 
-        if len(prompt) == 0:
-            prompt += "<s>"
-        prompt += f"""<|User|>:{query}<eoh>\n<|Bot|>:"""
+        prompt += f"""<|User|>:{query}\n<|Bot|>:"""
+        history.append({"role": "user", "content": query})
         return prompt
 
     def process_response_history(self, response, history=None):
@@ -1274,6 +1293,51 @@ class ChatInternLMWebGradio(ChatInternLM, ChatWebGradio): pass
 class ChatInternLMWebStreamlit(ChatInternLM, ChatWebStreamlit): pass
 @add_start_docstrings(OPENAI_START_DOCSTRING)
 class ChatInternLMOpenaiApi(ChatInternLM, ChatOpenaiApi): pass
+
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class ChatInternLM2(Chat):
+    def __init__(self, *args, system:str=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.system = system if system is not None else SYSTEM_ZH
+
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
+        if functions is not None: 
+            log_warn('InternLM do not support function call')
+        if self.tokenizer.add_bos_token:
+            prompt = ""
+        else:
+            prompt = self.tokenizer.bos_token
+        
+        if self.no_history_states():
+            prompt += f"""<|im_start|>system\n{self.system}<|im_end|>\n"""
+            for query_or_response in history:
+                if query_or_response['role'] == 'user':
+                    prompt += f"""<|im_start|>user\n{query_or_response['content']}<|im_end|>\n"""
+                elif query_or_response['role'] == 'assistant':
+                    prompt += f"""<|im_start|>assistant\n{query_or_response['content']}<|im_end|>\n"""
+        else:
+            prompt += self.generation_config['states']['last_token']
+
+        prompt += f"""<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"""
+        history.append({"role": "user", "content": query})
+        return prompt
+
+    def process_response_history(self, response, history=None):
+        response = response.split("<eoa>")[0]
+        # for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
+        #     response = response.replace(reg, '')
+        response = super().process_response_history(response, history)
+        return response
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class ChatInternLM2Cli(ChatInternLM2, ChatCli): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class ChatInternLM2WebGradio(ChatInternLM2, ChatWebGradio): pass
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class ChatInternLM2WebStreamlit(ChatInternLM2, ChatWebStreamlit): pass
+@add_start_docstrings(OPENAI_START_DOCSTRING)
+class ChatInternLM2OpenaiApi(ChatInternLM2, ChatOpenaiApi): pass
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)

@@ -139,7 +139,7 @@ class TokenizerBase(object):
         return [self.token_to_id(token) for token in tokens]
 
     def _encode(self, first_text:str, second_text:str=None, maxlen:int=None, pattern:str='S*E*E', 
-                truncate_from:Literal['left', 'right']='right', return_offsets:bool=False):
+                truncate_from:Literal['left', 'right']='right', return_offsets:Literal['transformers', True, False]=False):
         """输出文本对应token id和segment id
         """
         first_tokens = self.tokenize(first_text) if is_string(first_text) else first_text
@@ -177,7 +177,10 @@ class TokenizerBase(object):
         
         encode_output = [first_token_ids, first_segment_ids]
         if return_offsets != False:
-            offset = self.rematch(first_text, first_tokens) + self.rematch(second_text, second_tokens)
+            offset = self.rematch(first_text, first_tokens)
+            if second_text is not None:
+                offset += self.rematch(second_text, second_tokens)
+            
             if return_offsets == 'transformers':  # transformers包中tokenizer的形式
                 encode_output.append([[0, 0] if not k else [k[0], k[-1]+1] for k in offset])
             else:
@@ -188,7 +191,7 @@ class TokenizerBase(object):
         return self.encode(*args, **kwds)
         
     def encode(self, first_texts:Union[str, List[str]], second_texts:Union[str, List[str]]=None, maxlen:int=None, pattern:str='S*E*E', 
-               truncate_from:Literal['left', 'right']='right', return_offsets:bool=False, return_tensors:Literal[True, 'pt', 'np']=None, 
+               truncate_from:Literal['left', 'right']='right', return_offsets:Literal['transformers', True, False]=False, return_tensors:Literal[True, 'pt', 'np']=None, 
                return_dict:bool=False, **kwargs) -> Union[List[Union[List, np.ndarray, torch.Tensor]], Dict[str, Union[List, np.ndarray, torch.Tensor]]]:
         '''可以处理多条或者单条
         :param first_texts: 需要encode的文本/文本列表
@@ -263,6 +266,9 @@ class TokenizerBase(object):
         """基本分词函数
         """
         raise NotImplementedError
+    
+    def rematch(self, text:str, tokens:List[str]) -> List[List]:
+        return []
     
 
 class Tokenizer(TokenizerBase):
@@ -479,6 +485,7 @@ class Tokenizer(TokenizerBase):
                 offset = end
 
         return token_mapping
+
 
 class BasicTokenizer(object):
     """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""

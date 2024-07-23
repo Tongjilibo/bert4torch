@@ -20,7 +20,7 @@ from bert4torch.models.xlnet import XLNET
 from bert4torch.models.uie import UIE
 from bert4torch.models.bloom import Bloom
 from bert4torch.models.qwen import Qwen, Qwen2
-from bert4torch.models.internlm import InternLM
+from bert4torch.models.internlm import InternLM, InternLM2
 from bert4torch.models.falcon import Falcon
 from bert4torch.models.deepseek import DeepSeek
 from bert4torch.snippets import set_default_torch_dtype, get_checkpoint_path, get_config_path
@@ -161,11 +161,12 @@ def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint
         'qwen': Qwen,
         'qwen2': Qwen2,
         'internlm': InternLM,
+        'internlm2': InternLM2,
         'falcon': Falcon,
         'deepseek': DeepSeek
     }
 
-    model = model or config.get('model', 'bert')
+    model = model or config.get('model', config.get('model_type', 'bert'))
     if isinstance(model, str):  # string表示使用自带的模型
         MODEL = models[model.lower()]
         if model.endswith('t5.1.1'):
