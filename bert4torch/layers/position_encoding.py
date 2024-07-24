@@ -195,16 +195,14 @@ class RoPEPositionEncoding(nn.Module):
         self.max_position = max_seq_len_cache
         self.max_seq_len_cache = max_seq_len_cache
         self._set_cos_sin_cache(max_seq_len_cache)
-
-    def reset_ntk_alpha(self, ntk_alpha):
-        if ntk_alpha != self.ntk_alpha:
-            self.ntk_alpha = ntk_alpha
-            self.max_seq_len_cache = -1
         
     def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
-        self.max_seq_len_cache = seq_len
+        if (self.scaling_type is not None) and (self.scaling_type == 'dynamic'):
+            scaling_factor = None
+        else:
+            scaling_factor = self.scaling_factor
         position_embeddings = get_sinusoid_encoding_table(seq_len, self.embedding_size, base=self.rope_theta,
-                                                          ntk_alpha=self.ntk_alpha, scaling_factor=self.scaling_factor)  # [seq_len, hdsz]
+                                                          ntk_alpha=self.ntk_alpha, scaling_factor=scaling_factor)  # [seq_len, hdsz]
 
         if self.rope_rank == 'adjacent':
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
@@ -257,10 +255,13 @@ class RoPEPositionEncoding(nn.Module):
         # Dynamic NTK scaling，其实仅仅在step=1时候会触发
         if (self.scaling_type is not None) and (self.scaling_type == 'dynamic') and (seq_len == q_len):
             context_value = math.log(seq_len / self.max_position, 2) + 1
-            ntk_alpha = 2 ** math.ceil(context_value) - 1
-            self.reset_ntk_alpha(max(ntk_alpha, 1))
+            ntk_alpha = max(2 ** math.ceil(context_value) - 1, 1)
+            if ntk_alpha != self.ntk_alpha:
+                self.ntk_alpha = ntk_alpha
+                self.max_seq_len_cache = -1
 
         if seq_len > self.max_seq_len_cache:
+            self.max_seq_len_cache = seq_len
             self._set_cos_sin_cache(seq_len, device, dtype)
         if (self.cos_cache.dtype != dtype) or (self.cos_cache.device != device):
             self._register_buffer(self.cos_cache, self.sin_cache, device, dtype)

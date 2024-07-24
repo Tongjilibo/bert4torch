@@ -133,7 +133,7 @@ class ChatBase:
             log_warn(f'Please check your transformer version == {transformer_version}, which may not compatible.')
             raise e
 
-    def build_model(self):
+    def build_model(self) -> Union[Decoder, Transformer]:
         '''初始化model, 方便外部继承'''
         # 初始化
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
