@@ -1856,7 +1856,7 @@ class Chat:
     :param scheduler_interval: int, 定时任务的执行间隔
     :param api_keys: List[str], api keys的list
 
-    Examples:
+    ### Examples:
     ```python
     >>> from bert4torch.pipelines import Chat
 

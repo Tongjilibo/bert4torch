@@ -24,7 +24,6 @@ generation_config = {
 cli_demo = Chat(model_dir, 
                     system='You are an AI assistant whose name is InternLM (书生·浦语).\n- InternLM (书生·浦语) is a conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.\n- InternLM (书生·浦语) can understand and communicate fluently in the language chosen by the user such as English and 中文.',
                     generation_config=generation_config,
-                    template='ChatInternLM2',
-                    mode='gradio'
+                    mode='cli'
                     )
 cli_demo.run()

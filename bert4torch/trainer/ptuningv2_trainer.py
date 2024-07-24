@@ -18,8 +18,8 @@ class PrefixEncoder(torch.nn.Module):
         super().__init__()
         self.prefix_projection = config.prefix_projection
         self.shape_4 = config.hidden_size // config.num_attention_heads
-        if config.get('multi_query_group_num') is not None:
-            self.shape_3 = config.multi_query_group_num
+        if config.get('num_key_value_heads') is not None:
+            self.shape_3 = config.num_key_value_heads
             embed_size = self.shape_3 * self.shape_4
         else:
             self.shape_3 = config.num_attention_heads

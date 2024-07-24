@@ -70,10 +70,10 @@ class MultiHeadAttentionLayer(nn.Module):
         k_inner_dim = q_inner_dim
         v_inner_dim = self.attention_head_size * num_attention_heads
 
-        # multi query attention: chatglm中叫multi_query_group_num, llama中叫num_key_value_heads
-        if (kwargs.get('multi_query_group_num') is not None) or (kwargs.get('num_key_value_heads') is not None):
-            self.multi_query_group_num = kwargs.get('multi_query_group_num') or kwargs.get('num_key_value_heads')
-            k_inner_dim_tmp = self.attention_head_size * self.multi_query_group_num
+        # multi query attention: chatglm中叫num_key_value_heads
+        if kwargs.get('num_key_value_heads') is not None:
+            self.num_key_value_heads = kwargs.get('num_key_value_heads')
+            k_inner_dim_tmp = self.attention_head_size * self.num_key_value_heads
             v_inner_dim_tmp = k_inner_dim_tmp
 
         # longlora
@@ -81,8 +81,8 @@ class MultiHeadAttentionLayer(nn.Module):
             self.longlora_group_size = kwargs.get('longlora_group_size')
 
         self.q = nn.Linear(hidden_size, q_inner_dim, bias=bias)
-        self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else k_inner_dim, bias=bias)
-        self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'multi_query_group_num') else v_inner_dim, bias=bias)
+        self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'num_key_value_heads') else k_inner_dim, bias=bias)
+        self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'num_key_value_heads') else v_inner_dim, bias=bias)
         self.o = nn.Linear(v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob) if attention_probs_dropout_prob > 0 else lambda x: x
 
@@ -174,7 +174,7 @@ class MultiHeadAttentionLayer(nn.Module):
             past_key_value = (key_layer, value_layer)
 
         # multi_query_attention
-        if hasattr(self, 'multi_query_group_num') and self.multi_query_group_num > 1:
+        if hasattr(self, 'num_key_value_heads') and self.num_key_value_heads > 1:
             key_layer = self.repeat_kv(key_layer)
             value_layer = self.repeat_kv(value_layer)
 
@@ -227,7 +227,7 @@ class MultiHeadAttentionLayer(nn.Module):
     
     def repeat_kv(self, hidden_states):
         hidden_states = hidden_states.unsqueeze(2)
-        hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.multi_query_group_num, -1, -1)
+        hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.num_key_value_heads, -1, -1)
         hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
         return hidden_states
 
@@ -257,16 +257,16 @@ class MultiHeadAttentionLayer(nn.Module):
         return x.permute(0, 2, 1, 3)
 
     def transpose_for_k_scores(self, x):
-        if hasattr(self, 'multi_query_group_num'):
-            new_x_shape = x.size()[:-1] + (self.multi_query_group_num, self.attention_key_size)
+        if hasattr(self, 'num_key_value_heads'):
+            new_x_shape = x.size()[:-1] + (self.num_key_value_heads, self.attention_key_size)
         else:
             new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
     def transpose_for_v_scores(self, x):
-        if hasattr(self, 'multi_query_group_num'):
-            new_x_shape = x.size()[:-1] + (self.multi_query_group_num, self.attention_head_size)
+        if hasattr(self, 'num_key_value_heads'):
+            new_x_shape = x.size()[:-1] + (self.num_key_value_heads, self.attention_head_size)
         else:
             new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
