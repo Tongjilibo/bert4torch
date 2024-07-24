@@ -31,7 +31,7 @@ class MultiHeadAttentionLayer(nn.Module):
     '''
     def __init__(self, hidden_size:int, num_attention_heads:int, attention_probs_dropout_prob:float, dropout_rate:float=0.1, attention_scale:bool=True,
                  output_attentions:bool=False, bias:bool=True, p_bias:Literal[None, 'typical_relative', 'rotary', 't5_relative', 'deberta_v2', 'alibi']=None, 
-                 use_dynamic_ntk:bool=False, flash_attention:Literal[None, True, 'sdpa', 'xformers', 'flash_attn_2']=None, use_logn_attn:bool=None, **kwargs):
+                 rope_scaling:dict=None, flash_attention:Literal[None, True, 'sdpa', 'xformers', 'flash_attn_2']=None, use_logn_attn:bool=None, **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
@@ -41,7 +41,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.output_attentions = output_attentions
         self.bias = bias
         self.p_bias = p_bias
-        self.use_dynamic_ntk = use_dynamic_ntk
+        self.rope_scaling = rope_scaling or dict()
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
         self.layer_idx = kwargs.get('layer_idx')
@@ -96,10 +96,10 @@ class MultiHeadAttentionLayer(nn.Module):
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
             self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, 
                                                                     max_seq_len_cache=max_position, 
-                                                                    rope_rank=kwargs.get('rope_rank', 'adjacent'), 
-                                                                    ntk_alpha=kwargs.get('ntk_alpha', 1.0),
-                                                                    rope_scaling_factor=kwargs.get('rope_scaling_factor', 1.0),
-                                                                    rope_theta=kwargs.get('rope_theta', 10000.0))
+                                                                    rope_rank=kwargs.get('rope_rank'), 
+                                                                    scaling_type=self.rope_scaling.get("type"),
+                                                                    scaling_factor=self.rope_scaling.get("factor"),
+                                                                    rope_theta=kwargs.get('rope_theta'))
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
@@ -286,14 +286,15 @@ class MultiHeadAttentionLayer(nn.Module):
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
         
-        if self.use_dynamic_ntk:
-            # rotary的ntk，其实仅仅在step=1时候会触发
-            if kv_seq_len == query_layer.shape[-2]:
-                context_value = math.log(kv_seq_len / self.max_position, 2) + 1
-                ntk_alpha = 2 ** math.ceil(context_value) - 1
-                self.relative_positions_encoding.reset_ntk_alpha(max(ntk_alpha, 1))
+        # if self.rope_scaling is not None and self.rope_scaling['type'] == 'dynamic':
+        #     # rotary的Dynamic NTK scaling，其实仅仅在step=1时候会触发
+        #     if kv_seq_len == query_layer.shape[-2]:
+        #         context_value = math.log(kv_seq_len / self.max_position, 2) + 1
+        #         ntk_alpha = 2 ** math.ceil(context_value) - 1
+        #         self.relative_positions_encoding.reset_ntk_alpha(max(ntk_alpha, 1))
 
-        if self.position_encoding_2d:  # chatglm独有逻辑
+        # chatglm独有逻辑
+        if self.position_encoding_2d:
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
             k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
             if len(position_ids.shape) == 3:
@@ -303,10 +304,13 @@ class MultiHeadAttentionLayer(nn.Module):
                 q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
             query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
             key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
-        else:  # 原rotary逻辑
+        
+        # 原rotary逻辑
+        else:
             query_layer, key_layer = self.relative_positions_encoding([query_layer, key_layer], position_ids, kv_seq_len)
         
-        if past_key_value is not None:  # 过了rope再concat
+        # 过了rope再concat
+        if past_key_value is not None:
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         return query_layer, key_layer, value_layer

@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from typing import Union, List, Literal, Optional
 
 
-def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, scaling_factor:float=1.0, padding_idx:Optional[int]=None):
+def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
+                                scaling_factor:float=1.0, padding_idx:Optional[int]=None):
     ''' sinusoid编码
         
         :param n_position: int, 位置长度
@@ -15,13 +16,13 @@ def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, n
         :param scaling_factor: int, chatglm中32k的插值
         :return: [seq_len, d_hid]
     '''
-    if ntk_alpha != 1:
+    if (ntk_alpha is not None) and (ntk_alpha != 1):
         base = base * ntk_alpha ** (d_hid / (d_hid-2))
     
     position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
     div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
     embeddings_table = torch.zeros(n_position, d_hid)
-    if scaling_factor != 1:
+    if (scaling_factor is not None) and (scaling_factor != 1):
         position = position / scaling_factor
     embeddings_table[:, 0::2] = torch.sin(position * div_term)
     embeddings_table[:, 1::2] = torch.cos(position * div_term)
@@ -171,20 +172,27 @@ class RoPEPositionEncoding(nn.Module):
     :param embedding_size: embedding的大小
     :param rope_rank: 排序的方式，目前支持'adjacent', 'updown/rotate_half'
     :param ntk_alpha: ntk外推的alpha
-    :param rope_scaling_factor: 对position_ids进行缩放的尺度参数
+    :param scaling_factor: 对position_ids进行缩放的尺度参数
     :param rope_theta: rope中使用的base大小
     """
-    def __init__(self, embedding_size:int, max_seq_len_cache:int=2048, rope_rank:Literal['adjacent', 'updown', 'rotate_half']='adjacent', 
-                 ntk_alpha:float=1.0, rope_scaling_factor:float=1.0, rope_theta:float=10000.0, **kwargs):
+    def __init__(self, 
+                 embedding_size: int, 
+                 max_seq_len_cache: int=2048, 
+                 rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
+                 scaling_type: Literal['linear', 'dynamic', None] = None,
+                 scaling_factor: float=1.0, 
+                 rope_theta: float=10000.0, 
+                 **kwargs):
         super(RoPEPositionEncoding, self).__init__()
-        self.max_seq_len_cache = -1
         self.embedding_size = embedding_size
         # 支持两种方式，一种是奇偶相邻排列，一种是上下排列, 目前只在chatglm中看到updown排列
-        assert rope_rank in {'adjacent', 'updown', 'rotate_half'}, "rank kwarg only support 'adjacent/updown/rotate_half' "
-        self.rope_rank = rope_rank
-        self.ntk_alpha = ntk_alpha  # ntk外推
-        self.rope_scaling_factor = rope_scaling_factor  # chatglm中32k的插值
-        self.rope_theta = rope_theta
+        self.rope_rank = rope_rank or 'adjacent'
+        assert self.rope_rank in {'adjacent', 'updown', 'rotate_half'}, "rank kwarg only support 'adjacent/updown/rotate_half' "
+        self.ntk_alpha = 1.0  # ntk外推
+        self.scaling_type = scaling_type
+        self.scaling_factor = scaling_factor  # chatglm中32k的插值
+        self.rope_theta = rope_theta or 10000.0
+        self.max_position = max_seq_len_cache
         self.max_seq_len_cache = max_seq_len_cache
         self._set_cos_sin_cache(max_seq_len_cache)
 
@@ -196,7 +204,7 @@ class RoPEPositionEncoding(nn.Module):
     def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
         self.max_seq_len_cache = seq_len
         position_embeddings = get_sinusoid_encoding_table(seq_len, self.embedding_size, base=self.rope_theta,
-                                                          ntk_alpha=self.ntk_alpha, scaling_factor=self.rope_scaling_factor)  # [seq_len, hdsz]
+                                                          ntk_alpha=self.ntk_alpha, scaling_factor=self.scaling_factor)  # [seq_len, hdsz]
 
         if self.rope_rank == 'adjacent':
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
@@ -232,8 +240,10 @@ class RoPEPositionEncoding(nn.Module):
         '''修改了原有的q和k重复走一遍embedding，实现加速'''
         if isinstance(qk, list):
             device, dtype = qk[0].device, qk[0].dtype
+            q_len = qk[0].shape[-2]
         else:
             device, dtype = qk.device, qk.dtype
+            q_len = qk.shape[-2]
 
         # 超过缓存长度
         if seq_len is None:
@@ -244,6 +254,12 @@ class RoPEPositionEncoding(nn.Module):
             elif isinstance(qk, torch.Tensor):
                 seq_len = qk.shape[seq_dim]
         
+        # Dynamic NTK scaling，其实仅仅在step=1时候会触发
+        if (self.scaling_type is not None) and (self.scaling_type == 'dynamic') and (seq_len == q_len):
+            context_value = math.log(seq_len / self.max_position, 2) + 1
+            ntk_alpha = 2 ** math.ceil(context_value) - 1
+            self.reset_ntk_alpha(max(ntk_alpha, 1))
+
         if seq_len > self.max_seq_len_cache:
             self._set_cos_sin_cache(seq_len, device, dtype)
         if (self.cos_cache.dtype != dtype) or (self.cos_cache.device != device):
