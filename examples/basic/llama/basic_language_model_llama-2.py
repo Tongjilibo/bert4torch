@@ -2,7 +2,7 @@
 """
 基本测试：原生llama模型的测试 https://github.com/facebookresearch/llama
 """
-from bert4torch.pipelines import ChatLLaMA2Cli
+from bert4torch.pipelines import Chat
 
 
 # llama-2-7b  llama-2-7b-chat  llama-2-13b  llama-2-13b-chat
@@ -10,7 +10,7 @@ dir_path = '/data/pretrain_ckpt/llama/llama-2-7b-chat'
 with_prompt = True if 'chat' in dir_path else False
 
 generation_config = {'max_length': 512, 'include_input': not with_prompt}
-cli_demo = ChatLLaMA2Cli(dir_path, generation_config=generation_config)
+cli_demo = Chat(dir_path, generation_config=generation_config)
 
 
 if __name__ == '__main__':

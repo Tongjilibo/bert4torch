@@ -2,7 +2,7 @@
 """
 基本测试：baichuan模型的测试 https://github.com/baichuan-inc/Baichuan-7B
 """
-from bert4torch.pipelines import ChatBaichuanCli
+from bert4torch.pipelines import Chat
 
 # Baichuan-7B Baichuan-13B-Base Baichuan-13B-Chat Baichuan2-7B-Base Baichuan2-7B-Chat Baichuan2-13B-Base Baichuan2-13B-Chat
 model_dir = 'E:/pretrain_ckpt/llama/Baichuan2-7B-Chat'
@@ -18,7 +18,7 @@ generation_config = {
     'include_input': not with_prompt
 }
 
-cli_demo = ChatBaichuanCli(
+cli_demo = Chat(
     model_dir, generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )

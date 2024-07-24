@@ -1,7 +1,7 @@
 '''
 基本测试: chatglm3/glm4 function call测试
 '''
-from bert4torch.pipelines import ChatGlm3Cli, ChatGlm4Cli
+from bert4torch.pipelines import Chat
 
 # ===================================参数=======================================
 # chatglm3-6b, chatglm3-6b-32k
@@ -26,7 +26,6 @@ if 'glm3' in model_dir:
                 }
         }
     ]
-    demo = ChatGlm3Cli(model_dir)
 
 else:
     tools = [
@@ -53,8 +52,8 @@ else:
             }
         },
     ]
-    demo = ChatGlm4Cli(model_dir)
 
 
 if __name__ == '__main__':
+    demo = Chat(model_dir)
     demo.run(functions=tools)

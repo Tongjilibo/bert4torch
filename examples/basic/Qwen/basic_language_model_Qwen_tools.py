@@ -5,8 +5,7 @@ bert4torch_config.json见readme
 - [Qwen-7B](https://huggingface.co/Qwen/Qwen-7B)
 - [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
 """
-from bert4torch.pipelines import ChatQwenCli, ChatQwenOpenaiApi
-from bert4torch.pipelines import ChatQwen2Cli, ChatQwen2OpenaiApi
+from bert4torch.pipelines import Chat
 
 
 # cli: 命令行
@@ -17,14 +16,6 @@ mode = 'cli'
 # Qwen1.5-0.5B-Chat  Qwen1.5-1.8B-Chat  Qwen1.5-7B-Chat  Qwen1.5-14B-Chat
 # Qwen2-0.5B-Instruct  Qwen2-1.5B-Instruct  Qwen2-7B-Instruct
 model_dir = f'/data/pretrain_ckpt/Qwen/Qwen2-7B-Instruct'
-
-ChatMap = {
-        'Qwen-cli': ChatQwenCli,
-        'Qwen-openai': ChatQwenOpenaiApi,
-        'Qwen2-cli': ChatQwen2Cli,
-        'Qwen2-openai': ChatQwen2OpenaiApi
-     }
-Chat = ChatMap[f'Qwen-{mode}' if 'Qwen-' in model_dir else f'Qwen2-{mode}']
 
 
 functions = [

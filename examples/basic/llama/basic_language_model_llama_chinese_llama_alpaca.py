@@ -8,7 +8,7 @@ model_dir = '/data/pretrain_ckpt/llama/chinese_alpaca_plus_7b'
 with_prompt = True if 'alpaca' in model_dir else False
 
 
-from bert4torch.pipelines import ChatChineseAlphaLLaMACli
+from bert4torch.pipelines import Chat
 generation_config = {
     'max_length': 256, 
     'include_input': not with_prompt,
@@ -19,7 +19,7 @@ generation_config = {
 }
 
 
-cli_demo = ChatChineseAlphaLLaMACli(
+cli_demo = Chat(
     model_dir, generation_config=generation_config,
     # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )

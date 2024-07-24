@@ -12,10 +12,7 @@
 - hf链接：https://huggingface.co/THUDM/chatglm3-6b
 - hf链接：https://huggingface.co/THUDM/chatglm3-6b-32k
 '''
-from bert4torch.pipelines import ChatGlmCli, ChatGlmWebGradio, ChatGlmWebStreamlit, ChatGlmOpenaiApi
-from bert4torch.pipelines import ChatGlm2Cli, ChatGlm2WebGradio, ChatGlm2WebStreamlit, ChatGlm2OpenaiApi
-from bert4torch.pipelines import ChatGlm3Cli, ChatGlm3WebGradio, ChatGlm3WebStreamlit, ChatGlm3OpenaiApi
-from bert4torch.pipelines import ChatGlm4Cli, ChatGlm4WebGradio, ChatGlm4WebStreamlit, ChatGlm4OpenaiApi
+from bert4torch.pipelines import Chat
 import re
 
 # ===================================参数=======================================
@@ -23,15 +20,7 @@ import re
 # chatglm2-6b, chatglm2-6b-int4, chatglm2-6b-32k
 # chatglm3-6b, chatglm3-6b-32k
 # glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
-model_dir = f"/data/pretrain_ckpt/glm/chatglm3-6b"
-
-# cli: 命令行
-# gradio: gradio web demo
-# streamlit: streamlit web demo
-# openai: openai 接口
-mode = 'gradio'
-# ==============================================================================
-
+model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b-chat"
 
 generation_config = {
     'topp': 0.8, 
@@ -40,37 +29,11 @@ generation_config = {
     # 'n': 5
     }
 
-ChatMap = {
-    'glm-cli': ChatGlmCli,
-    'glm-gradio': ChatGlmWebGradio,
-    'glm-streamlit': ChatGlmWebStreamlit,
-    'glm-openai': ChatGlmOpenaiApi,
-    'glm2-cli': ChatGlm2Cli,
-    'glm2-gradio': ChatGlm2WebGradio,
-    'glm2-streamlit': ChatGlm2WebStreamlit,
-    'glm2-openai': ChatGlm2OpenaiApi,
-    'glm3-cli': ChatGlm3Cli,
-    'glm3-gradio': ChatGlm3WebGradio,
-    'glm3-streamlit': ChatGlm3WebStreamlit,
-    'glm3-openai': ChatGlm3OpenaiApi,
-    'glm4-cli': ChatGlm4Cli,
-    'glm4-gradio': ChatGlm4WebGradio,
-    'glm4-streamlit': ChatGlm4WebStreamlit,
-    'glm4-openai': ChatGlm4OpenaiApi
-}
-
-if re.search('glm-4', model_dir):
-    Chat = ChatMap[f'glm4-{mode}']
-elif re.search('glm3', model_dir):
-    Chat = ChatMap[f'glm3-{mode}']
-elif re.search('glm2', model_dir):
-    Chat = ChatMap[f'glm2-{mode}']
-elif re.search('glm', model_dir):
-    Chat = ChatMap[f'glm-{mode}']
-else:
-    raise ValueError('not supported')
-
-demo = Chat(model_dir, generation_config=generation_config)
+# cli: 命令行
+# gradio: gradio web demo
+# streamlit: streamlit web demo
+# openai: openai 接口
+demo = Chat(model_dir, generation_config=generation_config, mode='cli')
 
 
 if __name__ == '__main__':
@@ -87,5 +50,5 @@ if __name__ == '__main__':
             print(f'续写: {response}')
 
     else:
-        # 命令行聊天
+        # 聊天
         demo.run()

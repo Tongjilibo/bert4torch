@@ -6,8 +6,7 @@ bert4torch_config.json链接
 - https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/Meta-Llama-3-8B
 - https://huggingface.co/Tongjilibo/bert4torch_config/tree/main/Meta-Llama-3-8B-Instruct
 """
-from bert4torch.pipelines import ChatLLaMA3Cli
-from transformers import AutoTokenizer
+from bert4torch.pipelines import Chat
 
 # Meta-Llama-8B-Instruct  Meta-Llama-8B-Instruct
 model_dir = '/data/pretrain_ckpt/llama/Meta-Llama-3-8B-Instruct'
@@ -21,7 +20,7 @@ generation_config = {
     'top_p': 0.9
 }
 
-cli_demo = ChatLLaMA3Cli(model_dir, generation_config=generation_config)
+cli_demo = Chat(model_dir, generation_config=generation_config)
 
 
 if __name__ == '__main__':
