@@ -16,9 +16,9 @@ from bert4torch.layers.misc import (
 )
 from bert4torch.layers.position_encoding import (
     get_sinusoid_encoding_table,
-    RelativePositionsEncodingDebertaV2, 
-    RelativePositionsEncoding, 
-    RelativePositionsEncodingT5, 
+    DebertaV2PositionsEncoding, 
+    NezhaPositionsEncoding, 
+    T5PositionsEncoding, 
     SinusoidalPositionEncoding, 
     RoPEPositionEncoding, 
     XlnetPositionsEncoding, 

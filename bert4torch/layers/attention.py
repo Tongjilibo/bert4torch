@@ -4,10 +4,13 @@ import math
 import numpy as np
 import torch.nn.functional as F
 from bert4torch.layers.position_encoding import (
-    RelativePositionsEncodingDebertaV2, 
-    RelativePositionsEncoding, 
-    RelativePositionsEncodingT5, 
+    DebertaV2PositionsEncoding, 
+    NezhaPositionsEncoding, 
+    T5PositionsEncoding, 
     RoPEPositionEncoding, 
+    RoPELinearScalingPositionEncoding,
+    RoPEDynamicNTKScalingPositionEncoding,
+    RoPEDynamicNTKScalingQwenPositionEncoding,
     ALiBiPositionsEncoding
 )
 from bert4torch.activations import get_activation
@@ -36,6 +39,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
+        self.dropout_rate = dropout_rate
         self.is_decoder = kwargs.get('is_decoder', False)
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
@@ -61,7 +65,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.flash_attention = flash_attention
         
         self.use_logn_attn = use_logn_attn # 使用logn_attn
-        self.max_position = max_position = kwargs.get('max_position')
+        self.max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
@@ -85,26 +89,44 @@ class MultiHeadAttentionLayer(nn.Module):
         self.v = nn.Linear(hidden_size, v_inner_dim_tmp if hasattr(self, 'num_key_value_heads') else v_inner_dim, bias=bias)
         self.o = nn.Linear(v_inner_dim, hidden_size, bias=bias)
         self.dropout = nn.Dropout(attention_probs_dropout_prob) if attention_probs_dropout_prob > 0 else lambda x: x
+        self.init_position_encoding(**kwargs)
 
+    def init_position_encoding(self, **kwargs):
+        '''初始化相对位置编码'''
         if self.p_bias == 'typical_relative':  # nezha
-            self.relative_positions_encoding = RelativePositionsEncoding(qlen=max_position, klen=max_position,
+            self.relative_positions_encoding = NezhaPositionsEncoding(qlen=self.max_position, klen=self.max_position,
                                                                          embedding_size=self.attention_head_size,
                                                                          max_relative_position=kwargs.get('max_relative_position'))
         elif self.p_bias == 'rotary':  # roformer, llama, chatglm
             # position_encoding_2d 目前仅在chatglm中使用
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=embedding_size, 
-                                                                    max_seq_len_cache=max_position, 
-                                                                    rope_rank=kwargs.get('rope_rank'), 
-                                                                    scaling_type=self.rope_scaling.get("type"),
-                                                                    scaling_factor=self.rope_scaling.get("factor"),
-                                                                    rope_theta=kwargs.get('rope_theta'))
+            scaling_type = self.rope_scaling.get("type")
+            scaling_factor = self.rope_scaling.get("factor")
+            rope_theta = kwargs.get('rope_theta')
+            rope_rank = kwargs.get('rope_rank')
+            if scaling_type is None:
+                '''标准rope'''
+                assert scaling_factor is None , f'Args `rope_scaling.factor` not supported in standard rope'
+                RoPE = RoPEPositionEncoding
+            elif scaling_type == 'linear':
+                assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
+                RoPE = RoPELinearScalingPositionEncoding
+            elif scaling_type == 'dynamic':
+                assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
+                RoPE = RoPEDynamicNTKScalingPositionEncoding
+            elif scaling_type == 'dynamic_qwen':
+                RoPE = RoPEDynamicNTKScalingQwenPositionEncoding
+            else:
+                raise ValueError(f"Not supported args rope_scaling.type=={scaling_type}")
+            self.relative_positions_encoding = RoPE(embedding_size=embedding_size, max_position=self.max_position, rope_rank=rope_rank, 
+                                                    scaling_factor=scaling_factor, rope_theta=rope_theta)
+            
         elif self.p_bias == 't5_relative':  # t5
-            self.relative_positions = RelativePositionsEncodingT5(qlen=max_position,  klen=max_position, 
+            self.relative_positions = T5PositionsEncoding(qlen=self.max_position,  klen=self.max_position, 
                                                                   relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
                                                                   is_decoder=kwargs.get('is_decoder'))
-            self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), num_attention_heads)
+            self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
         elif self.p_bias == 'deberta_v2':  # deberta_v2
             # 配置文件
             self.share_att_key = kwargs.get("share_att_key", False)
@@ -118,16 +140,16 @@ class MultiHeadAttentionLayer(nn.Module):
 
             # position_embedding
             self.pos_att_type = kwargs.get('pos_att_type', [])
-            self.relative_positions = RelativePositionsEncodingDebertaV2(qlen=max_position, klen=max_position, 
+            self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position, klen=self.max_position, 
                                                                          position_buckets=kwargs.get('position_buckets'),
-                                                                         max_position=max_position)
-            self.relative_positions_encoding = nn.Embedding(max_position, self.hidden_size)
+                                                                         max_position=self.max_position)
+            self.relative_positions_encoding = nn.Embedding(self.max_position, self.hidden_size)
             self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
             if "layer_norm" in self.norm_rel_ebd:
                 self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
-            self.pos_dropout = nn.Dropout(dropout_rate)
+            self.pos_dropout = nn.Dropout(self, self.dropout_rate)
         elif self.p_bias == 'alibi':
-            self.relative_positions_encoding = ALiBiPositionsEncoding(num_attention_heads)
+            self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
 
     def forward(self, hidden_states:Optional[torch.Tensor]=None, attention_mask:Optional[torch.FloatTensor]=None, 
                 encoder_hidden_states:Optional[torch.FloatTensor]=None, encoder_attention_mask:Optional[torch.FloatTensor]=None, 
@@ -286,13 +308,6 @@ class MultiHeadAttentionLayer(nn.Module):
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
         
-        # if self.rope_scaling is not None and self.rope_scaling['type'] == 'dynamic':
-        #     # rotary的Dynamic NTK scaling，其实仅仅在step=1时候会触发
-        #     if kv_seq_len == query_layer.shape[-2]:
-        #         context_value = math.log(kv_seq_len / self.max_position, 2) + 1
-        #         ntk_alpha = 2 ** math.ceil(context_value) - 1
-        #         self.relative_positions_encoding.reset_ntk_alpha(max(ntk_alpha, 1))
-
         # chatglm独有逻辑
         if self.position_encoding_2d:
             q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
