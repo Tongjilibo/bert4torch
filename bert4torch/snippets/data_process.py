@@ -369,7 +369,7 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 
-def entity_extract_rule_placeholder(self, text, **pat_config):
+def entity_extract_rule_placeholder(text, **pat_config):
     ''' 按照预设的正则规则来解析实体, 允许占位符
     '''
     placeholder = pat_config.get('placeholder')
@@ -387,11 +387,24 @@ def entity_extract_rule_placeholder(self, text, **pat_config):
     return result
 
 
-def entity_extract_rule(text:str, pattern:str=None, label:str=None, start:int=0, end:int=-1, dotall:bool=True, 
-            replace_pattern:Optional[Union[str,list]]=None, extract_pattern:Optional[Union[str,list]]=None, minlen:int=None, maxlen:int=None, 
-            exist_subword:Union[list,str,tuple]=None, noexist_subword:Union[list,str,tuple]=None, 
-            prefix_exist_subword:List[Tuple[str,int]]=None, prefix_noexist_subword:List[Tuple[str,int]]=None, 
-            postfix_exist_subword:List[Tuple[str,int]]=None, postfix_noexist_subword:List[Tuple[str,int]]=None, **kwargs):
+def entity_extract_rule(
+        text: str,
+        pattern: str = None,
+        label: str = None,
+        start: int = 0,
+        end: int = -1,
+        dotall: bool = True,
+        replace_pattern: Optional[Union[str, list]] = None,
+        extract_pattern: Optional[Union[str, list]] = None,
+        min_entity_len: int = None,
+        max_entity_len: int = None,
+        exist_subword: Union[list, str, tuple] = None,
+        noexist_subword: Union[list, str, tuple] = None,
+        prefix_exist_subword: List[Tuple[str, int]] = None,
+        prefix_noexist_subword: List[Tuple[str, int]] = None,
+        postfix_exist_subword: List[Tuple[str, int]] = None,
+        postfix_noexist_subword: List[Tuple[str, int]] = None,
+        **kwargs):
     ''' 按照预设的正则规则来从字符串中提取实体 
 
     :param text: 待提取的字符串
@@ -401,8 +414,8 @@ def entity_extract_rule(text:str, pattern:str=None, label:str=None, start:int=0,
     :param dotall: 正则识别时候是否忽略\n
     :param replace_pattern: 对正则识别出来的结果二次修正, 比如去除前缀, 去除后缀
     :param extract_pattern: 对正则识别出来的结果二次修正, 比如仅保留其中部分要素
-    :param minlen: 最短长度，低于长度（含）则不认为是有效实体
-    :param maxlen: 最长长度，超过长度（含）则不认为是有效实体
+    :param min_entity_len: 最短长度，低于长度（含）则不认为是有效实体
+    :param max_entity_len: 最长长度，超过长度（含）则不认为是有效实体
     :param exist_subword: 必须包含的subword
     :param noexist_subword: 必须不含的subword
     :param prefix_exist_subword: 必须包含的prefix subword, 格式为[('subword', distance)]
@@ -468,11 +481,11 @@ def entity_extract_rule(text:str, pattern:str=None, label:str=None, start:int=0,
                     context, start, end = adjust_start_end(context, new_context, start)
 
         # 太短
-        if (minlen is not None) and (len(context) <= minlen):
+        if (min_entity_len is not None) and (len(context) <= min_entity_len):
             continue
         
         # 超长
-        if (maxlen is not None) and (len(context) >= maxlen):
+        if (max_entity_len is not None) and (len(context) >= max_entity_len):
             continue
         
         # exist_subword: 必须存在的subword
