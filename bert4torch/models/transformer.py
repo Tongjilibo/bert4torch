@@ -142,8 +142,7 @@ class Decoder(LM_Mask, BERT):
     def stream_generate(self, text:str, **kwargs):
         '''单条样本stream输出预测的结果'''
         self._prepare_generation(**kwargs)
-        for response in self.generation.stream_generate(text, **kwargs):
-            yield response
+        yield from self.generation.stream_generate(text, **kwargs)
 
 
 class Transformer(BERT_BASE):
@@ -195,5 +194,4 @@ class Transformer(BERT_BASE):
     def stream_generate(self, text:str, **generation_config):
         '''单条样本stream输出预测的结果'''
         self._prepare_generation(**generation_config)
-        for response in self.generation.stream_generate(text, **generation_config):
-            yield response
+        yield from self.generation.stream_generate(text, **generation_config)

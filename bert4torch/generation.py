@@ -876,25 +876,25 @@ class SeqGeneration(AutoRegressiveDecoder):
             # hf的tokenize
             return [self.tokenizer(text, **self.tokenizer_encode_config)['input_ids']]
     
-    def post_process(self, outputs):
+    def post_process(self, output_ids:Union[torch.Tensor, List[torch.Tensor]]):
         '''后处理，可以继承后自定义，主要用于第三方tokenizer的decode'''
         if self.tokenizer is None:
-            return outputs
+            return output_ids
         
         if self.return_states:
-            output_ids, states = outputs
+            output_ids, states = output_ids
         else:
-            output_ids = outputs
+            output_ids = output_ids
 
-        if len(output_ids) > 1:
-            outputs = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
+        if isinstance(output_ids, (tuple, list)):
+            output_text = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
             if isinstance(self.input_text, str):
                 # 输入是str，则在前面直接添加
-                output_text = [self.input_text + item for item in outputs]
-            elif isinstance(self.input_text, (tuple, list)) and (len(self.input_text) == len(outputs)):
+                output_text = [self.input_text + item for item in output_text]
+            elif isinstance(self.input_text, (tuple, list)) and (len(self.input_text) == len(output_text)):
                 # 输入是list且和outputs同维度
-                output_text = [self.input_text[i] + item for i, item in enumerate(outputs)]
-        elif len(output_ids) == 1:
+                output_text = [self.input_text[i] + item for i, item in enumerate(output_text)]
+        else:  # len(output_ids) == 1
             output_text = self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         
         if self.return_states:
@@ -944,11 +944,11 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(text)
         if self.mode == 'random_sample':
-            for outputs in self.stream_random_sample(inputs, states=kwargs.get('states')):  # stream随机采样
-                yield self.post_process(outputs)
+            for output_ids in self.stream_random_sample(inputs, states=kwargs.get('states')):  # stream随机采样
+                yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for outputs in self.stream_beam_search(inputs, states=kwargs.get('states')):  # stream beam采样
-                yield self.post_process(outputs)
+            for output_ids in self.stream_beam_search(inputs, states=kwargs.get('states')):  # stream beam采样
+                yield self.post_process(output_ids)
 
 
 class Seq2SeqGeneration(SeqGeneration):
@@ -988,8 +988,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self.pre_process(text)
         inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
-        output = super()._generate(encoder_output, states=kwargs.get('states'))
-        return self.post_process(output)
+        output_ids = super()._generate(encoder_output, states=kwargs.get('states'))
+        return self.post_process(output_ids)
 
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
@@ -1002,8 +1002,8 @@ class Seq2SeqGeneration(SeqGeneration):
         inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
         if self.mode == 'random_sample':
-            for outputs in self.stream_random_sample(encoder_output, states=kwargs.get('states')):  # stream随机采样
-                yield self.post_process(outputs)
+            for output_ids in self.stream_random_sample(encoder_output, states=kwargs.get('states')):  # stream随机采样
+                yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for outputs in self.stream_beam_search(encoder_output, states=kwargs.get('states')):  # stream beam采样
-                yield self.post_process(outputs)
+            for output_ids in self.stream_beam_search(encoder_output, states=kwargs.get('states')):  # stream beam采样
+                yield self.post_process(output_ids)

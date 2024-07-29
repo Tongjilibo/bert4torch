@@ -232,8 +232,7 @@ class ChatBase:
     def stream_generate(self, query:str):
         '''base模型使用, 单条样本stream输出预测的结果'''
         self.model = self._build_model()
-        for response in self.model.stream_generate(query, **self.generation_config):
-            yield response
+        yield from self.model.stream_generate(query, **self.generation_config)
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -1009,6 +1008,25 @@ class Glm2(ChatBase):
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class Glm3(ChatBase):
+    ''' functions格式如下:
+    ```python
+    [
+        {
+            "name": "track", "description": "追踪指定股票的实时价格",
+            "parameters":
+                {
+                    "type": "object", "properties":
+                    {"symbol":
+                        {
+                            "description": "需要追踪的股票代码"
+                        }
+                    },
+                    "required": []
+                }
+        }
+    ]
+    ```
+    '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system
@@ -1018,15 +1036,16 @@ class Glm3(ChatBase):
             # 增加system信息
             if self.system is not None:
                 history.insert(0, {"role": "system", "content": self.system})
-            # 增加tools信息
-            if functions is not None and self.system is not None:
-                history[0]['tools'] = functions
-            elif functions is not None and self.system is None:
+            elif functions is not None:
                 history.insert(0, {
                     "role": "system", 
                     "content": "Answer the following questions as best as you can. You have access to the following tools:",
                     "tools": functions
                 })
+
+        # 增加tools信息
+        if (functions is not None) and all(['tools' not in h for h in history]):
+            history[0]['tools'] = functions
 
         if self.no_history_states():
             # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
@@ -1067,6 +1086,34 @@ class Glm3(ChatBase):
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class Glm4(ChatBase):
+    '''functions格式如下:
+    ```python
+    [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_current_weather",
+                "description": "Get the current weather",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "The temperature unit to use. Infer this from the users location.",
+                        },
+                    },
+                    "required": ["location", "format"],
+                },
+            }
+        },
+    ]
+    ```
+    '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system
@@ -1076,11 +1123,12 @@ class Glm4(ChatBase):
             # 增加system信息
             if self.system is not None:
                 history.insert(0, {"role": "system", "content": self.system})
-            # 增加tools信息
-            if functions is not None and self.system is not None:
-                history[0]['tools'] = functions
-            elif functions is not None and self.system is None:
+            elif functions is not None:
                 history.insert(0, {"role": "system", "tools": functions, "content": ""})
+
+        # 增加tools信息
+        if (functions is not None) and all(['tools' not in h for h in history]):
+            history[0]['tools'] = functions
 
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         history.append({"role": "user", "content": query})
@@ -1151,25 +1199,65 @@ class InternLM(ChatBase):
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class InternLM2(ChatBase):
+    '''internlm2支持function call, 格式如下:
+    ```python
+    [
+        {
+            "name": "track", 
+            "description": "追踪指定股票的实时价格",
+            "parameters":
+                {
+                    "type": "object", 
+                    "properties": {"symbol":
+                                    {
+                                        "description": "需要追踪的股票代码"
+                                    }
+                                },
+                    "required": []
+                }
+        }
+    ]
+    ```
+    由于_additional_special_tokens为['<|im_start|>', '<|im_end|>', '<|action_start|>', '<|action_end|>', '<|interpreter|>', '<|plugin|>']
+    在function call时候若skip_special_tokens=True, 则捕捉不到'<|action_start|>', '<|action_end|>', '<|interpreter|>', '<|plugin|>'
+    因此bert4torch_config.json中未设置skip_special_tokens, 默认为False
+    '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_ZH
-
+    
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
-        if functions is not None: 
-            log_warn('InternLM do not support function call')
+        if (len(history) == 0) or (history[0]["role"] != "system"):
+            history.insert(0, {"role": "system", "content": self.system})
+
+        if (functions is not None) and all([h['role'] !='function' for h in history]):
+            # history中没有function
+            start = [i for i, v in enumerate(history) if v['role']=='system'][-1] + 1
+            for i, func in enumerate(functions, start=start):
+                name, description = func['name'], func['description']
+                if not name.startswith('<|') and not name.endswith('|>'):
+                    name = f'<|{name}|>'
+                if func.get('conifg', {}).get('with_name', True):
+                    content = f"""<|im_start|>system name={name}\n{description}<|im_end|>\n"""
+                else:
+                    content = f"""<|im_start|>system\n{name}\n{description}<|im_end|>\n"""
+                history.insert(i, {"role": "function", "content": content})
+
         if self.tokenizer.add_bos_token:
             prompt = ""
         else:
             prompt = self.tokenizer.bos_token
-        
         if self.no_history_states():
-            prompt += f"""<|im_start|>system\n{self.system}<|im_end|>\n"""
             for query_or_response in history:
-                if query_or_response['role'] == 'user':
-                    prompt += f"""<|im_start|>user\n{query_or_response['content']}<|im_end|>\n"""
-                elif query_or_response['role'] == 'assistant':
-                    prompt += f"""<|im_start|>assistant\n{query_or_response['content']}<|im_end|>\n"""
+                role, content = query_or_response['role'], query_or_response['content']
+                if role == 'system':
+                    prompt += f"""<|im_start|>system\n{content}<|im_end|>\n"""
+                elif role == 'function':
+                    prompt += content
+                elif role == 'user':
+                    prompt += f"""<|im_start|>user\n{content}<|im_end|>\n"""
+                elif role == 'assistant':
+                    prompt += f"""<|im_start|>assistant\n{content}<|im_end|>\n"""
         else:
             prompt += self.generation_config['states']['last_token']
 
@@ -1181,13 +1269,49 @@ class InternLM2(ChatBase):
         response = response.split("<eoa>")[0]
         # for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
         #     response = response.replace(reg, '')
+
+        for key in ['<|im_start|>', '<|im_end|>']:
+            response = response.replace(key, '')
         response = super().process_response_history(response, history)
+
+        start_token = '<|action_start|>'
+        end_token = '<|action_end|>'
+        plugin_token = '<|plugin|>'
+        interpreter_token = '<|interpreter|>'
+        if plugin_token in response:
+            response, arguments = response.split(f"{start_token}{plugin_token}")
+            arguments = arguments.split(end_token)[0]
+            response = response.split(start_token)[0]
+            history[-1]['function_call'] = {"name": 'plugin', "arguments": arguments}
+
+        if interpreter_token in response:  # 
+            response, arguments = response.split(f"{start_token}{interpreter_token}")
+            arguments = arguments.split(end_token)[0].strip()
+            response = response.split(start_token)[0]
+            history[-1]['function_call'] = {"name": 'interpreter', "arguments": arguments}
+
         return response
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class Qwen(ChatBase):
-    '''Qwen从Qwen1开始就支持function call
+    '''functions格式如下:
+    ```python
+    [
+        {
+            'name_for_human': '谷歌搜索',
+            'name_for_model': 'google_search',
+            'description_for_model': '谷歌搜索是一个通用搜索引擎，可用于访问互联网、查询百科知识、了解时事新闻等。 Format the arguments as a JSON object.',
+            'parameters': [{
+                'name': 'search_query',
+                'description': '搜索关键词或短语',
+                'required': True,
+                'schema': {
+                    'type': 'string'
+                },
+            }],
+        },
+    ]
     '''
     def __init__(self, *args, system:str=None, max_window_size=6144, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1383,6 +1507,24 @@ class Qwen2(ChatBase):
     '''Qwen2的chat, 含function call的逻辑
     主要参考了qwen_agent的逻辑
     :param parallel_function_calls: bool, 允许并行调用function tools工具
+
+    ### functions格式如下:
+    ```python
+    [
+        {
+            'name_for_human': '文生图',
+            'name_for_model': 'image_gen',
+            'description_for_model': '文生图是一个AI绘画（图像生成）服务，输入文本描述，返回根据文本作画得到的图片的URL。 Format the arguments as a JSON object.',
+            'parameters': [{
+                'name': 'prompt',
+                'description': '英文关键词，描述了希望图像具有什么内容',
+                'required': True,
+                'schema': {
+                    'type': 'string'
+                },
+            }],
+        },
+    ]
     '''
     def __init__(self, *args, system:str=None, parallel_function_calls:bool=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1532,19 +1674,21 @@ class Qwen2(ChatBase):
 
         if (len(history) == 0) or (history[0]["role"] != "system"):
             history.insert(0, {"role": "system", "content": self.system})
-            # copy from qwen_agent
-            if functions is not None:
-                lang = 'en'
-                for m in history:
-                    if has_chinese_char(m['content']):
-                        lang = 'zh'
-                        break
+        
+        # 处理functions的逻辑, copy from qwen_agent
+        if (functions is not None) and all(['tools' not in h for h in history]):
+            lang = 'en'
+            for m in history:
+                if has_chinese_char(m['content']):
+                    lang = 'zh'
+                    break
 
-                tool_desc_template = self.FN_CALL_TEMPLATE[lang + ('_parallel' if self.parallel_function_calls else '')]
-                tool_descs = '\n\n'.join(self.get_function_description(function, lang=lang) for function in functions)
-                tool_names = ','.join(function.get('name', function.get('name_for_model', '')) for function in functions)
-                tool_system = tool_desc_template.format(tool_descs=tool_descs, tool_names=tool_names)
-                history[0]['content'] += '\n\n' + tool_system
+            tool_desc_template = self.FN_CALL_TEMPLATE[lang + ('_parallel' if self.parallel_function_calls else '')]
+            tool_descs = '\n\n'.join(self.get_function_description(function, lang=lang) for function in functions)
+            tool_names = ','.join(function.get('name', function.get('name_for_model', '')) for function in functions)
+            tool_system = tool_desc_template.format(tool_descs=tool_descs, tool_names=tool_names)
+            history[0]['content'] += '\n\n' + tool_system
+            history[0]['tools'] = tool_system  # 仅用于是否已经添加过functions的判断
 
         history.append({"role": "user", "content": query})  # 在终端打印显示原始的
         if self.no_history_states():
@@ -1839,13 +1983,11 @@ class Chat:
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
+    :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
 
     ### 模式
     :param mode: 命令行, web, api服务模式, Literal['cli', 'gradio', 'streamlit', 'openai']
     :param template: 使用的模板, 一般在bert4torch_config.json中无需单独设置, 可自行指定
-
-    ### cli命令行参数
-    :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
 
     ### openai api参数
     :param name: str, 模型名称
@@ -1887,7 +2029,8 @@ class Chat:
                  api_keys:List[str]=None,
                  # 模式
                  mode:Literal['cli', 'gradio', 'streamlit', 'openai']='cli',
-                 template: str=None
+                 template: str=None,
+                 **kwargs
                  ) -> None:
         pass
 
