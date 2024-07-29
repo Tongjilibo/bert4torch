@@ -1191,8 +1191,6 @@ class InternLM(ChatBase):
 
     def process_response_history(self, response, history=None):
         response = response.split("<eoa>")[0]
-        # for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
-        #     response = response.replace(reg, '')
         response = super().process_response_history(response, history)
         return response
 
@@ -1266,10 +1264,7 @@ class InternLM2(ChatBase):
         return prompt
 
     def process_response_history(self, response, history=None):
-        response = response.split("<eoa>")[0]
-        # for reg in ['<s>', '</s>', '<eoh>', '<eoa>']:
-        #     response = response.replace(reg, '')
-
+        response = response.split("<|im_end|>")[0]
         for key in ['<|im_start|>', '<|im_end|>']:
             response = response.replace(key, '')
         response = super().process_response_history(response, history)
