@@ -24,16 +24,6 @@ functions = [
     {
         "name": "interpreter", 
         "description": "你现在已经能够在一个有状态的 Jupyter 笔记本环境中运行 Python 代码。当你向 python 发送含有 Python 代码的消息时，它将在该环境中执行。这个工具适用于多种场景，如数据分析或处理（包括数据操作、统计分析、图表绘制），复杂的计算问题（解决数学和物理难题），编程示例（理解编程概念或特性），文本处理和分析（比如文本解析和自然语言处理），机器学习和数据科学（用于展示模型训练和数据可视化），以及文件操作和数据导入（处理CSV、JSON等格式的文件）。",
-        "parameters":
-            {
-                "type": "object", 
-                "properties": {"symbol":
-                                {
-                                    "description": "需要追踪的股票代码"
-                                }
-                            },
-                "required": []
-            }
     }
 ]
 
