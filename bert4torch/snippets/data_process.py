@@ -375,7 +375,7 @@ def entity_extract_rule_placeholder(text, **pat_config):
     placeholder = pat_config.get('placeholder')
     result = []
     if placeholder is not None:
-        pattern = pat_config.pop('pattern')
+        pattern:str = pat_config.pop('pattern')
         for ph, pv in placeholder.items():
             if isinstance(pv, str):
                 result.extend(entity_extract_rule(text, pattern.replace(ph, pv), **pat_config))
