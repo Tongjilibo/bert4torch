@@ -25,8 +25,8 @@ model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', 
-                           tokenizer_config={'skip_special_tokens': True}, maxlen=200, default_rtype='logits', use_states=True)
+generation = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tokenizer.eos_token_id, mode='random_sample', 
+                           tokenizer_config={'skip_special_tokens': True}, max_length=200, default_rtype='logits', use_states=True)
 
 
 if __name__ == '__main__':
@@ -43,6 +43,6 @@ if __name__ == '__main__':
             continue
         # 官方测试用例
         # query = "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:"
-        response = generation.generate(query, topk=10, include_input=include_input)      
+        response = generation.generate(query, top_k=10, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nfalcon：{response}")

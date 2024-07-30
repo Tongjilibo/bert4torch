@@ -36,20 +36,20 @@ class AutoTitle(AutoRegressiveDecoder):
         res = model.decoder.predict([output_ids] + inputs)
         return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-    def generate(self, text, topk=1):
+    def generate(self, text, top_k=1):
         token_ids, _ = tokenizer.encode(text, maxlen=256)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
-        output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
+        output_ids = self.beam_search(encoder_output, top_k=top_k)[0]  # 基于beam search
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 autotitle = AutoTitle(bos_token_id=tokenizer._token_start_id, eos_token_id=tokenizer._token_end_id, max_new_tokens=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短
 
 # 第二种方式
-# autotitle = Seq2SeqGeneration(model, tokenizer, start_id=tokenizer._token_start_id, end_id=tokenizer._token_end_id, 
+# autotitle = Seq2SeqGeneration(model, tokenizer, bos_token_id=tokenizer._token_start_id, eos_token_id=tokenizer._token_end_id, 
 #                               maxlen=32, default_rtype='logits', mode='beam_search')
 
 if __name__ == '__main__':
-    print(autotitle.generate('今天天气不错啊', topk=1))
+    print(autotitle.generate('今天天气不错啊', top_k=1))
 
 # small版输出：我是个女的，我想知道我是怎么想的
 # base版输出：请问明天的天气怎么样啊？

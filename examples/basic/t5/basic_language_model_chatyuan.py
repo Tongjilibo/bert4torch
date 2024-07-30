@@ -28,7 +28,7 @@ class AutoTitle(AutoRegressiveDecoder):
         res = encoder.decoder.predict([output_ids] + inputs)
         return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-    def generate(self, text, n=1, topp=1, temperature=0.7):
+    def generate(self, text, n=1, top_p=1, temperature=0.7):
         text = text.replace("\n", "\\n").replace("\t", "\\t")
         token_ids, _ = tokenizer.encode(text, maxlen=768)
         token_ids = torch.tensor([token_ids], device=device)

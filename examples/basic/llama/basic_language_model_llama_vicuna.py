@@ -30,9 +30,9 @@ class ArticleCompletion(AutoRegressiveDecoder):
         logits = model.predict([token_ids])
         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.95):
+    def generate(self, text, n=1, top_p=0.95):
         token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n=n, topp=topp)  # 基于随机采样
+        results = self.random_sample([token_ids], n=n, top_p=top_p)  # 基于随机采样
         return [tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 
@@ -44,8 +44,8 @@ article_completion = ArticleCompletion(
 )
 
 # 第二种方式
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=2, mode='random_sample',
-                                   maxlen=256, default_rtype='logits', use_states=True)
+article_completion = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=2, mode='random_sample',
+                                   max_length=256, default_rtype='logits', use_states=True)
 
 if __name__ == '__main__':
     os_name = platform.system()

@@ -137,8 +137,8 @@ scheduler = get_linear_schedule_with_warmup(optimizer, 0, (len(train_dataloader)
 model.compile(loss=CausalLMLoss(offset=True, ignore_index=tokenizer.pad_token_id), optimizer=optimizer, scheduler=scheduler, grad_accumulation_steps=grad_accumulation_steps, clip_grad_norm=1.0)
 
 tokenizer_config = {'skip_special_tokens': True, 'add_special_tokens': False}
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
-                           maxlen=max_seq_length, default_rtype='logits', use_states=True)
+generation = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tokenizer.eos_token_id, mode='random_sample', tokenizer_config=tokenizer_config,
+                           max_length=max_seq_length, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
@@ -152,7 +152,7 @@ class Evaluator(Callback):
     def evaluate(self, data, epoch='final'):
         preds, labels = [], []
         for prompt, label in tqdm(data, desc='Evaluating'):
-            pred = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
+            pred = generation.generate(prompt, top_k=50, top_p=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
             with open(f'./preds_{epoch}.txt', 'a+', encoding='utf-8') as f:

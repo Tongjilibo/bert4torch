@@ -21,9 +21,9 @@ model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-article_completion = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, 
+article_completion = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tokenizer.eos_token_id, 
                                    mode='random_sample', tokenizer_config={'skip_special_tokens': True},
-                                   maxlen=256, default_rtype='logits', use_states=True)
+                                   max_length=256, default_rtype='logits', use_states=True)
 
 
 if __name__ == '__main__':

@@ -112,12 +112,12 @@ class AutoTitle(AutoRegressiveDecoder):
         res = model.decoder.predict([output_ids] + inputs)
         return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-    def generate(self, text, topk=1):
+    def generate(self, text, top_k=1):
         token_ids, _ = tokenizer.encode(text, maxlen=max_i_len)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
         # 基于beam search
-        output_ids = self.beam_search(encoder_output, topk=topk)[0]
+        output_ids = self.beam_search(encoder_output, top_k=top_k)[0]
         return tokenizer.decode([int(i) for i in output_ids.cpu().numpy()])
 
 

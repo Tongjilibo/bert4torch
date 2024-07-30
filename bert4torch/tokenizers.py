@@ -138,8 +138,13 @@ class TokenizerBase(object):
         """
         return [self.token_to_id(token) for token in tokens]
 
-    def _encode(self, first_text:str, second_text:str=None, maxlen:int=None, pattern:str='S*E*E', 
-                truncate_from:Literal['left', 'right']='right', return_offsets:Literal['transformers', True, False]=False):
+    def _encode(self, 
+                first_text:str, 
+                second_text:str=None, 
+                maxlen:int=None, 
+                pattern:str='S*E*E', 
+                truncate_from:Literal['left', 'right']='right', 
+                return_offsets:Literal['transformers', True, False]=False):
         """输出文本对应token id和segment id
         """
         first_tokens = self.tokenize(first_text) if is_string(first_text) else first_text
@@ -190,9 +195,16 @@ class TokenizerBase(object):
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.encode(*args, **kwds)
         
-    def encode(self, first_texts:Union[str, List[str]], second_texts:Union[str, List[str]]=None, maxlen:int=None, pattern:str='S*E*E', 
-               truncate_from:Literal['left', 'right']='right', return_offsets:Literal['transformers', True, False]=False, return_tensors:Literal[True, 'pt', 'np']=None, 
-               return_dict:bool=False, **kwargs) -> Union[List[Union[List, np.ndarray, torch.Tensor]], Dict[str, Union[List, np.ndarray, torch.Tensor]]]:
+    def encode(self, 
+               first_texts: Union[str, List[str]], 
+               second_texts: Union[str, List[str]] = None, 
+               maxlen: int = None, 
+               pattern: str = 'S*E*E', 
+               truncate_from: Literal['left', 'right'] = 'right', 
+               return_offsets: Literal['transformers', True, False] = False, 
+               return_tensors: Literal[True, 'pt', 'np'] = None, 
+               return_dict: bool = False, 
+               **kwargs) -> Union[List[Union[List, np.ndarray, torch.Tensor]], Dict[str, Union[List, np.ndarray, torch.Tensor]]]:
         '''可以处理多条或者单条
         :param first_texts: 需要encode的文本/文本列表
         :param second_texts: 需要encode的文本/文本列表二, 一般需要切分segment_ids使用, 默认未None

@@ -45,7 +45,7 @@ def test_internlm(model_dir):
     generation_config = {
         'tokenizer': tokenizer,
         'tokenizer_config': {'skip_special_tokens': True},
-        'end_id': [tokenizer.eos_token_id, tokenizer.encode('<eoa>')[-1]], 
+        'eos_token_id': [tokenizer.eos_token_id, tokenizer.encode('<eoa>')[-1]], 
         'mode': 'random_sample', 
         'max_length': 20, 
         'default_rtype': 'logits',

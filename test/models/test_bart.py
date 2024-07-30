@@ -31,7 +31,7 @@ def test_bart(ckpt_dir):
     checkpoint_path = f'{ckpt_dir}/pytorch_model.bin'
     dict_path = f'{ckpt_dir}/vocab.txt'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    topk = 1
+    top_k = 1
     mode = 'random_sample'
     maxlen = 20
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
@@ -46,13 +46,13 @@ def test_bart(ckpt_dir):
             res = model.decoder.predict([output_ids] + inputs)
             return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-        def generate(self, text, topk=1):
+        def generate(self, text, top_k=1):
             token_ids, _ = tokenizer.encode(text, maxlen=maxlen)
             token_ids = torch.tensor([token_ids], device=device)
             encoder_output = model.encoder.predict([token_ids])  # [encoder_hiddenstates, encoder_attention_mask]
-            output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
+            output_ids = self.beam_search(encoder_output, top_k=top_k)[0]  # 基于beam search
             return tokenizer.decode(output_ids.cpu().numpy())
-    autotitle = AutoTitle(bos_token_id=102, eos_token_id=tokenizer._token_end_id, maxlen=maxlen, device=device)
+    autotitle = AutoTitle(bos_token_id=102, eos_token_id=tokenizer._token_end_id, max_length=maxlen, device=device)
     bert4torch_outputs = []
     for text in texts:
         bert4torch_outputs.append(autotitle.generate(text))
@@ -61,33 +61,33 @@ def test_bart(ckpt_dir):
 
 
     print('==============默认单条无cache================')
-    autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
-                                maxlen=maxlen, default_rtype='logits', use_states=False)
+    autotitle = Seq2SeqGeneration(model, tokenizer, bos_token_id=102, eos_token_id=tokenizer._token_end_id, mode=mode,
+                                  max_length=maxlen, default_rtype='logits', use_states=False)
     bert4torch_outputs = []
     for text in texts:
-        bert4torch_outputs.append(autotitle.generate(text, topk=topk))
+        bert4torch_outputs.append(autotitle.generate(text, top_k=top_k))
     print('bert4torch_outputs: ', bert4torch_outputs)
     assert transformer_outputs == bert4torch_outputs
 
 
     print('==============默认batch 无cache================')
-    bert4torch_outputs = autotitle.generate(texts, topk=topk)
+    bert4torch_outputs = autotitle.generate(texts, top_k=top_k)
     print('bert4torch_outputs: ', bert4torch_outputs)
     assert transformer_outputs == bert4torch_outputs
 
     
     print('==============默认单条cache================')
-    autotitle = Seq2SeqGeneration(model, tokenizer, start_id=102, end_id=tokenizer._token_end_id, mode=mode,
-                                maxlen=maxlen, default_rtype='logits', use_states=True)
+    autotitle = Seq2SeqGeneration(model, tokenizer, bos_token_id=102, eos_token_id=tokenizer._token_end_id, mode=mode,
+                                  max_length=maxlen, default_rtype='logits', use_states=True)
     bert4torch_outputs = []
     for text in texts:
-        bert4torch_outputs.append(autotitle.generate(text, topk=topk))
+        bert4torch_outputs.append(autotitle.generate(text, top_k=top_k))
     print('bert4torch_outputs: ', bert4torch_outputs)
     assert transformer_outputs == bert4torch_outputs
 
 
     print('==============默认batch cache================')
-    bert4torch_outputs = autotitle.generate(texts, topk=topk)
+    bert4torch_outputs = autotitle.generate(texts, top_k=top_k)
     print('bert4torch_outputs: ', bert4torch_outputs)
     assert transformer_outputs == bert4torch_outputs
 
@@ -95,7 +95,7 @@ def test_bart(ckpt_dir):
     print('==============默认stream================')
     bert4torch_outputs = []
     for text in texts:
-        for output in autotitle.stream_generate(text, topk=topk):
+        for output in autotitle.stream_generate(text, top_k=top_k):
             os.system('clear')
             print(texts[0], ' -> ', output, flush=True)
         bert4torch_outputs.append(output)

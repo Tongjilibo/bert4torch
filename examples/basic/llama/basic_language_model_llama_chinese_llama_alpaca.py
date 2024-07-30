@@ -12,8 +12,8 @@ from bert4torch.pipelines import Chat
 generation_config = {
     'max_length': 256, 
     'include_input': not with_prompt,
-    'topk': 40, 
-    'topp': 0.9, 
+    'top_k': 40, 
+    'top_p': 0.9, 
     'temperature': 0.2, 
     'repetition_penalty': 1.3
 }

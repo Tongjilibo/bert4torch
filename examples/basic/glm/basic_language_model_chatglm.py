@@ -23,7 +23,7 @@ import re
 model_dir = f"/data/pretrain_ckpt/glm/glm-4-9b-chat"
 
 generation_config = {
-    'topp': 0.8, 
+    'top_p': 0.8, 
     'temperature': 0.8, 
     'include_input': True if re.search('glm-4-9b$', model_dir) else False, 
     # 'n': 5

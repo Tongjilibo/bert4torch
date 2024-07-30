@@ -1427,9 +1427,9 @@ class Qwen(ChatBase):
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions:
-            # 如果使用了functions则需要增加end_id
-            if self.observation_ids not in self.generation_config.get('end_id', []):
-                self.generation_config['end_id'] = self.generation_config.get('end_id', []) + [self.observation_ids]
+            # 如果使用了functions则需要增加eos_token_id
+            if self.observation_ids not in self.generation_config.get('eos_token_id', []):
+                self.generation_config['eos_token_id'] = self.generation_config.get('eos_token_id', []) + [self.observation_ids]
 
         instruction_query, history_list, system = self.parse_messages(query, history, functions)
         im_start, im_end = "<|im_start|>", "<|im_end|>"
@@ -1663,9 +1663,9 @@ class Qwen2(ChatBase):
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions:
-            # 如果使用了functions则需要增加end_id
-            if all([i not in self.generation_config.get('end_id', []) for i in self.FN_STOP_WORDS_IDS]):
-                self.generation_config['end_id'] = self.generation_config.get('end_id', []) + self.FN_STOP_WORDS_IDS
+            # 如果使用了functions则需要增加eos_token_id
+            if all([i not in self.generation_config.get('eos_token_id', []) for i in self.FN_STOP_WORDS_IDS]):
+                self.generation_config['eos_token_id'] = self.generation_config.get('eos_token_id', []) + self.FN_STOP_WORDS_IDS
 
         if (len(history) == 0) or (history[0]["role"] != "system"):
             history.insert(0, {"role": "system", "content": self.system})

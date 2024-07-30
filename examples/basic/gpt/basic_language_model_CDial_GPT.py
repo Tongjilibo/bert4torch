@@ -34,7 +34,7 @@ class ChatBot(AutoRegressiveDecoder):
         logits = encoder.predict([token_ids, segment_ids])
         return logits[:, -1, :]
 
-    def response(self, texts, n=1, topk=5):
+    def response(self, texts, n=1, top_k=5):
         token_ids = [tokenizer._token_start_id, speakers[0]]
         segment_ids = [tokenizer._token_start_id, speakers[0]]
         for i, text in enumerate(texts):
@@ -42,7 +42,7 @@ class ChatBot(AutoRegressiveDecoder):
             token_ids.extend(ids)
             segment_ids.extend([speakers[i % 2]] * len(ids))
             segment_ids[-1] = speakers[(i + 1) % 2]
-        results = self.random_sample([token_ids, segment_ids], n=n, topk=topk)  # 基于随机采样
+        results = self.random_sample([token_ids, segment_ids], n=n, top_k=top_k)  # 基于随机采样
         return tokenizer.decode(results[0].cpu().numpy())
 
 

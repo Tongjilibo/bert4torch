@@ -232,9 +232,9 @@ class AutoQA(AutoRegressiveDecoder):
         new_probas /= new_probas.sum(axis=1, keepdims=True)  # 重新归一化
         return new_probas
 
-    def generate(self, text, topk=1):
+    def generate(self, text, top_k=1):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        output_ids = self.beam_search([token_ids, segment_ids], topk=topk, min_ends=3)[0]  # 基于beam search
+        output_ids = self.beam_search([token_ids, segment_ids], top_k=top_k, min_ends=3)[0]  # 基于beam search
         end_idxs = [i for i, j in enumerate(output_ids) if j == self.eos_token_id]
         subject_ids = output_ids[:end_idxs[0]]
         predicate_ids = output_ids[end_idxs[0]:end_idxs[1]]
@@ -256,7 +256,7 @@ class Evaluator(Callback):
 
     def on_epoch_end(self, steps, epoch, logs=None):
         # 保存最优
-        em, f1, score = self.evaluate(valid_data, topk=3)
+        em, f1, score = self.evaluate(valid_data, top_k=3)
         if score >= self.best_score:
             self.best_score = score
             # model.save_weights('./best_model.weights')
@@ -276,14 +276,14 @@ class Evaluator(Callback):
             lcs_len = lcs(text_a, text_b)[0]
             return 2. * lcs_len / (len(text_a) + len(text_b))
 
-    def evaluate(self, data, topk=1):
+    def evaluate(self, data, top_k=1):
         """评估函数
         注意：同一(S, P)对应的O可能有多个，但标注数据只保留了
         一个，为了跟标注数据对齐来提高分数，这里也只保留第一个。
         """
         em, f1, total = 0., 0., 0.
         for d in tqdm(data, ncols=0):
-            a = autoqa.generate(d[0], topk=topk)
+            a = autoqa.generate(d[0], top_k=top_k)
             o = a[3].split('\t')[0]  # 如果有多个，只保留第一个
             em += float(o == d[1][3])
             f1 += self.f1sim(o, d[1][3])
@@ -293,7 +293,7 @@ class Evaluator(Callback):
         return em, f1, (em + f1) / 2
 
 
-def test_predict(in_file, out_file, topk=1):
+def test_predict(in_file, out_file, top_k=1):
     """输出测试结果到文件
     结果文件可以提交到 https://www.cluebenchmarks.com 评测。
     """
@@ -302,7 +302,7 @@ def test_predict(in_file, out_file, topk=1):
     with open(in_file) as fr:
         for l in tqdm(fr):
             l = json.loads(l)
-            s, p, m, o = autoqa.generate(l['question'], topk=topk)
+            s, p, m, o = autoqa.generate(l['question'], top_k=top_k)
             if m:
                 s += u'（%s）' % m
             l['answer'] = '%s ||| %s ||| %s' % (s, p, o.split('\t')[0])
@@ -324,14 +324,14 @@ if __name__ == '__main__':
     )
 
     model.load_weights('./best_model.weights')
-    em, f1, score = evaluator.evaluate(test_data, topk=1)
-    print(u'[TEST] topk=1, em: %.5f, f1: %.5f, score: %.5f' % (em, f1, score))
-    em, f1, score = evaluator.evaluate(test_data, topk=3)
-    print(u'[TEST] topk=3, em: %.5f, f1: %.5f, score: %.5f' % (em, f1, score))
-    em, f1, score = evaluator.evaluate(test_data, topk=5)
-    print(u'[TEST] topk=5, em: %.5f, f1: %.5f, score: %.5f' % (em, f1, score))
+    em, f1, score = evaluator.evaluate(test_data, top_k=1)
+    print(u'[TEST] top_k=1, em: %.5f, f1: %.5f, score: %.5f' % (em, f1, score))
+    em, f1, score = evaluator.evaluate(test_data, top_k=3)
+    print(u'[TEST] top_k=3, em: %.5f, f1: %.5f, score: %.5f' % (em, f1, score))
+    em, f1, score = evaluator.evaluate(test_data, top_k=5)
+    print(u'[TEST] top_k=5, em: %.5f, f1: %.5f, score: %.5f' % (em, f1, score))
 
 else:
 
     model.load_weights('./best_model.weights')
-    # test_predict('../datasets/test.json', 'kgclue_predict.json', topk=3)
+    # test_predict('../datasets/test.json', 'kgclue_predict.json', top_k=3)

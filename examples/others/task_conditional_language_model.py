@@ -114,8 +114,8 @@ class RandomSentiment(AutoRegressiveDecoder):
         label = inputs[0]
         return model.predict([token_ids, segment_ids, label])[:, -1, :]
 
-    def generate(self, label, n=1, topp=0.95):
-        results = self.random_sample([[label]], n=n, topp=topp)  # 基于随机采样
+    def generate(self, label, n=1, top_p=0.95):
+        results = self.random_sample([[label]], n=n, top_p=top_p)  # 基于随机采样
         return [tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 

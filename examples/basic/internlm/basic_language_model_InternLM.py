@@ -15,7 +15,7 @@ import re
 model_dir = '/data/pretrain_ckpt/internlm/internlm2-chat-1_8b'
 
 generation_config = {
-    'topp': 0.8, 
+    'top_p': 0.8, 
     'temperature': 0.8,
     'include_input': False if re.search('chat', model_dir) else True
 }

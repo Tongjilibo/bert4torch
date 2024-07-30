@@ -36,9 +36,9 @@ class AutoTitle(AutoRegressiveDecoder):
         res = model.predict([[token_ids], [output_ids]])
         return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-    def generate(self, text, topk=1, topp=0.95):
+    def generate(self, text, top_k=1, top_p=0.95):
         token_ids, _ = tokenizer.encode(text, maxlen=256)
-        output_ids = self.beam_search([token_ids], topk=topk)[0]  # 基于beam search
+        output_ids = self.beam_search([token_ids], top_k=top_k)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
 autotitle = AutoTitle(bos_token_id=tokenizer._token_start_id, eos_token_id=1, max_new_tokens=32, device=device)  # 这里end_id可以设置为tokenizer._token_end_id这样结果更短

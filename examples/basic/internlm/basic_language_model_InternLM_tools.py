@@ -15,9 +15,9 @@ import re
 model_dir = '/data/pretrain_ckpt/internlm/internlm2_5-7b-chat'
 
 generation_config = {
-    'topp': 0.8, 
+    'top_p': 0.8, 
     'temperature': 0.1,
-    'topk': None,
+    'top_k': None,
 }
 
 functions = [

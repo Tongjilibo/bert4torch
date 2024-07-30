@@ -11,8 +11,8 @@ with_prompt = True if 'Chat' in model_dir else False
 
 generation_config = {
     'max_length': 1024, 
-    'topk': 40, 
-    'topp': 0.9, 
+    'top_k': 40, 
+    'top_p': 0.9, 
     'temperature': 0.9, 
     'repetition_penalty': 1,
     'include_input': not with_prompt

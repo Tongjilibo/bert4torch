@@ -199,8 +199,8 @@ class Chat(SeqGeneration):
         return [tokenizer(text, max_length=max_source_length, truncation=True)['input_ids']]
     def post_process(self, output_ids):
         return [tokenizer.decode(output_id.cpu().numpy()) for output_id in output_ids]
-generation = Chat(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id, pad_id=tokenizer.pad_token_id, 
-                  mode='random_sample', maxlen=512, default_rtype='logits', use_states=True)
+generation = Chat(model, tokenizer, bos_token_id=None, eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.pad_token_id, 
+                  mode='random_sample', max_length=512, default_rtype='logits', use_states=True)
 
 class Evaluator(Callback):
     """评估与保存
@@ -222,7 +222,7 @@ class Evaluator(Callback):
     def evaluate(self, data, epoch='final'):
         preds, labels = [], []
         for prompt, label in tqdm(data, desc='Evaluating'):
-            pred = generation.generate(prompt, topk=50, topp=0.7, temperature=0.95)
+            pred = generation.generate(prompt, top_k=50, top_p=0.7, temperature=0.95)
             preds.extend(pred)
             labels.extend(label)
             with open(f'./preds_{epoch}.txt', 'a+', encoding='utf-8') as f:

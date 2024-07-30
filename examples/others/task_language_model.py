@@ -123,9 +123,9 @@ class StoryCompletion(AutoRegressiveDecoder):
         _, mlm_scores = model.predict([token_ids, segment_ids])
         return mlm_scores[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.95):
+    def generate(self, text, n=1, top_p=0.95):
         token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids[:-1]], n=n, topp=topp)  # 基于随机采样
+        results = self.random_sample([token_ids[:-1]], n=n, top_p=top_p)  # 基于随机采样
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 story_completion = StoryCompletion(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=maxlen, device=device)

@@ -142,9 +142,9 @@ class AutoSolve(AutoRegressiveDecoder):
         _, y_pred = model.predict([token_ids, segment_ids])
         return y_pred[:, -1, :]
 
-    def generate(self, text, topk=1):
+    def generate(self, text, top_k=1):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        output_ids = self.beam_search([token_ids, segment_ids], topk=topk)[0]  # 基于beam search
+        output_ids = self.beam_search([token_ids, segment_ids], top_k=top_k)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy()).replace(' ', '')
 
 
@@ -166,11 +166,11 @@ class Evaluator(Callback):
         print('valid_data:', metrics)
         print()
 
-    def evaluate(self, data, topk=1):
+    def evaluate(self, data, top_k=1):
         total, right = 0.0, 0.0
         for question, equation, answer in tqdm(data, desc='Evaluate'):
             total += 1
-            pred_equation = autosolve.generate(question=n, topk=topk)
+            pred_equation = autosolve.generate(question=question, top_k=top_k)
             try:
                 right += int(is_equal(eval(pred_equation), eval(answer)))
             except:

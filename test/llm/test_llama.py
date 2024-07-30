@@ -42,13 +42,13 @@ def test_baichuan(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode':'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 20, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
         'include_input': True
     }
     sequence_output = model.generate(query, **generation_config).replace(' ', '')
@@ -66,12 +66,12 @@ def test_belle(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode': 'random_sample',
         'max_length': 50, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
     }
     sequence_output = model.generate(query, **generation_config)
 
@@ -89,14 +89,14 @@ def test_chinese_llama_alpaca(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode': 'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 50, 
         'default_rtype': 'logits', 
         'use_states': True,
         'include_input': True,
-        'topk': 1
+        'top_k': 1
     }
     sequence_output = model.generate(query, **generation_config)
 
@@ -122,13 +122,13 @@ def test_vicuna(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode':'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 20, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
         'include_input': True
     }
     sequence_output = model.generate(query, **generation_config).replace(' ', '')
@@ -156,13 +156,13 @@ def test_ziya(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode':'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 20, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
         'include_input': True
     }
     sequence_output = model.generate(query, **generation_config).replace(' ', '')
@@ -191,13 +191,13 @@ def test_llama2(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode':'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 20, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
         'include_input': True
     }
     sequence_output = model.generate(query, **generation_config).replace(' ', '')
@@ -224,13 +224,13 @@ def test_llama(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': 2, 
+        'eos_token_id': 2, 
         'mode':'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 20, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
         'include_input': True
     }
     sequence_output = model.generate(query, **generation_config).replace(' ', '')
@@ -255,13 +255,13 @@ def test_yi(model_dir):
     model = get_bert4torch_model(model_dir)
     generation_config = {
         'tokenizer': tokenizer,
-        'end_id': tokenizer.eos_token_id, 
+        'eos_token_id': tokenizer.eos_token_id, 
         'mode':'random_sample', 
         'tokenizer_config': {'skip_special_tokens': True},
         'max_length': 20, 
         'default_rtype': 'logits', 
         'use_states': True,
-        'topk': 1, 
+        'top_k': 1, 
         'include_input': True
     }
     sequence_output = model.generate(query, **generation_config).replace(' ', '')

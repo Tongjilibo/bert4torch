@@ -21,12 +21,12 @@ model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir
 # model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 
-generation = SeqGeneration(model, tokenizer, start_id=None, end_id=tokenizer.eos_token_id,
+generation = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tokenizer.eos_token_id,
                            tokenizer_config={'skip_special_tokens': True})
 
 
 if __name__ == '__main__':
     while True:
         query = input("\n输入：")
-        response = generation.generate(query, topk=1, include_input=True)      
+        response = generation.generate(query, top_k=1, include_input=True)      
         print(f"续写:{response}")

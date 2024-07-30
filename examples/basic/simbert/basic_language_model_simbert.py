@@ -81,9 +81,9 @@ class SynonymsGenerator(AutoRegressiveDecoder):
         seq_logit, _ = model.predict([token_ids, segment_ids])
         return seq_logit[:, -1, :]
 
-    def generate(self, text, n=1, topk=5):
+    def generate(self, text, n=1, top_k=5):
         token_ids, segment_ids = tokenizer.encode(text, maxlen=maxlen)
-        output_ids = self.random_sample([token_ids, segment_ids], n=n, topk=topk)  # 基于随机采样
+        output_ids = self.random_sample([token_ids, segment_ids], n=n, top_k=top_k)  # 基于随机采样
         return [tokenizer.decode(ids.cpu().numpy()) for ids in output_ids]
 
 

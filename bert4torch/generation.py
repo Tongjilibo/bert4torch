@@ -16,7 +16,7 @@ from contextlib import contextmanager
 import gc
 
 
-INPUT_TYPE = Union[torch.Tensor, List[Union[int, list, torch.Tensor, np.ndarray]], Tuple[Union[int, list, torch.Tensor, np.ndarray]], np.ndarray]
+INPUT_TYPE = Union[torch.Tensor, List[Union[int, list, tuple, torch.Tensor, np.ndarray]], Tuple[Union[int, list, tuple, torch.Tensor, np.ndarray]], np.ndarray]
 TUPLE_LIST_TENSOR_TYPE = Union[Tuple[torch.Tensor], List[torch.Tensor]]
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):
@@ -74,9 +74,22 @@ class AutoRegressiveDecoder(object):
 
     """
     @model_inference_mode()
-    def __init__(self, bos_token_id:int=None, eos_token_id:int=-1, max_new_tokens:int=None, min_new_tokens:int=1, max_length:int=64, 
-                 pad_token_id:int=0, pad_mode:Literal['pre', 'left', 'post', 'right']='post', device:str='cpu', n:int=1, 
-                 top_k:int=None, top_p:float=None, temperature:float=1, repetition_penalty:float=1.0, min_ends:int=1, **generation_config):
+    def __init__(self, 
+                 bos_token_id:int=None, 
+                 eos_token_id:int=-1, 
+                 max_new_tokens:int=None, 
+                 min_new_tokens:int=1, 
+                 max_length:int=64, 
+                 pad_token_id:int=0, 
+                 pad_mode:Literal['pre', 'left', 'post', 'right']='post', 
+                 device:str='cpu', 
+                 n:int=1, 
+                 top_k:int=None, 
+                 top_p:float=None,
+                 temperature:float=1, 
+                 repetition_penalty:float=1.0, 
+                 min_ends:int=1, 
+                 **generation_config):
         # generation_config
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
@@ -388,8 +401,7 @@ class AutoRegressiveDecoder(object):
         
         return inputs, output_ids, output_scores, results, break_tag
 
-    def beam_search(self, inputs:Union[torch.Tensor, List[Union[int, list, tuple, torch.Tensor, np.ndarray]], Tuple[Union[int, list, tuple, torch.Tensor, np.ndarray]], np.ndarray], 
-                    states: Optional[dict]=None, **generation_config):
+    def beam_search(self, inputs: INPUT_TYPE, states: Optional[dict]=None, **generation_config):
         """beam search解码
         
         :param inputs: 编码器的输入，包含encoder_hidden_states, encoder_attention_mask
@@ -400,7 +412,7 @@ class AutoRegressiveDecoder(object):
         :return: 最优解码序列。
         """
         self.set_generation_config(generation_config)
-        assert self.top_k is not None, 'Arg `topk` means beam_size anc can not be None'
+        assert self.top_k is not None, 'Arg `top_k` means beam_size anc can not be None'
         inputs = self._trans2tensors(inputs)
         btz = inputs[0].shape[0]
         output_ids = self.first_output_ids.repeat(btz, 1) if btz > 1 else self.first_output_ids
@@ -616,7 +628,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param use_states: str, 是否使用cache
     :param device: str, 默认为None，因为可以直接使用传入的model.device
 
-    > generation_config: 接受两种传参方式，1）接受两种传参方式，generation_config={'topk':50}; 2) topk=50, topp=0.9, ...
+    > generation_config: 接受两种传参方式，1）接受两种传参方式，generation_config={'top_k':50}; 2) top_k=50, top_p=0.9, ...
     :param bos_token_id: int, 解码使用的起始token_id，不同预训练模型设置可能不一样
     :param eos_token_id: int/tuple/list, 解码使用的结束token_id，不同预训练模型设置可能不一样, 默认给的-1（真实场景中不存在，表示输出到max_length）
     :param max_new_tokens: int, 最大解码长度
@@ -635,8 +647,15 @@ class SeqGeneration(AutoRegressiveDecoder):
         1) 理论上stream模式下，应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分，只输出last_token会显示乱码
         2) 可以设置为True的情形: 一是tokenize对于字符不会拆分的情况（乱码）；二是tokenizer=None时，返回的是last_token_id，用户自行decode也可以
     '''
-    def __init__(self, model:BaseModel, tokenizer=None, tokenizer_config:dict=None, mode:Literal['beam_search', 'random_sample']='random_sample', 
-                 default_rtype:Literal['logits', 'probas']='logits', use_states:bool=True, optimize_cuda_cache:bool=False, **kwargs):
+    def __init__(self, 
+                 model:BaseModel, 
+                 tokenizer=None, 
+                 tokenizer_config:dict=None, 
+                 mode:Literal['beam_search', 'random_sample']='random_sample', 
+                 default_rtype:Literal['logits', 'probas']='logits',
+                 use_states:bool=True, 
+                 optimize_cuda_cache:bool=False,
+                 **kwargs):
         # 如果传进来的是Trainer
         if isinstance(model, Trainer) and hasattr(model, 'module'):
             # log_info(f'Args `model` is a Trainer instance, will `use model.module` instead')
@@ -669,7 +688,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     
     @staticmethod
     def _default_generation_config(tokenizer, model, kwargs):
-        # 可以直接以generation_config方式传参，也可以topp=0.9, topk=50方式传参
+        # 可以直接以generation_config方式传参，也可以top_p=0.9, top_k=50方式传参
         if kwargs.get('generation_config'):
             generation_config = kwargs.pop('generation_config')
             kwargs.update(**generation_config)

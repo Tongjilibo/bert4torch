@@ -47,8 +47,8 @@ def test_gpt2(model_dir):
     generation_config = {
         'tokenizer': tokenizer,
         'tokenizer_config': {'skip_special_tokens': True, 'clean_up_tokenization_spaces': True, 'add_special_tokens': False},
-        'start_id': None, 
-        'end_id': tokenizer.eos_token_id or 50256, 
+        'bos_token_id': None, 
+        'eos_token_id': tokenizer.eos_token_id or 50256, 
         'mode': 'random_sample',
         'max_length': 50, 
         'default_rtype': 'logits', 
@@ -76,8 +76,8 @@ def test_gpt2_ml(model_dir):
 
     generation_config = {
         'tokenizer': tokenizer,
-        'start_id': None, 
-        'end_id': 511, 
+        'bos_token_id': None, 
+        'eos_token_id': 511, 
         'mode': 'random_sample',
         'max_length': 50, 
         'default_rtype': 'logits', 

@@ -52,14 +52,14 @@ def test_qwen(model_dir):
     model = get_bert4torch_model(model_dir)
 
     if 'Chat' in model_dir:
-        end_id = [tokenizer.im_start_id, tokenizer.im_end_id]
+        eos_token_id = [tokenizer.im_start_id, tokenizer.im_end_id]
     else:
-        end_id = tokenizer.encode("<|endoftext|>", **tokenizer_encode_config)
+        eos_token_id = tokenizer.encode("<|endoftext|>", **tokenizer_encode_config)
 
     generation_config = {
         'tokenizer': tokenizer,
         'tokenizer_config': {**tokenizer_encode_config, **tokenizer_decode_config}, 
-        'end_id': end_id, 
+        'eos_token_id': eos_token_id, 
         'mode': 'random_sample', 
         'max_length': 20, 
         'default_rtype': 'logits',

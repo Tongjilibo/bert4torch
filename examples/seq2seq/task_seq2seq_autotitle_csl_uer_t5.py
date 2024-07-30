@@ -95,11 +95,11 @@ class AutoTitle(AutoRegressiveDecoder):
         res = model.decoder.predict([output_ids] + inputs)
         return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-    def generate(self, text, topk=1):
+    def generate(self, text, top_k=1):
         token_ids, _ = tokenizer.encode(text, maxlen=max_c_len)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = model.encoder.predict([token_ids])
-        output_ids = self.beam_search(encoder_output, topk=topk)[0]  # 基于beam search
+        output_ids = self.beam_search(encoder_output, top_k=top_k)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
 autotitle = AutoTitle(bos_token_id=tokenizer._token_start_id, eos_token_id=tokenizer._token_end_id, max_new_tokens=max_t_len, device=device)
@@ -123,13 +123,13 @@ class Evaluator(Callback):
         print('valid_data:', metrics)
         print('test_data:', metrics_test)
     
-    def evaluate(self, data, topk=1):
+    def evaluate(self, data, top_k=1):
         total = 0
         rouge_1, rouge_2, rouge_l, bleu = 0, 0, 0, 0
         for title, content in tqdm(data):
             total += 1
             title = ' '.join(title).lower()
-            pred_title = ' '.join(autotitle.generate(content, topk)).lower()
+            pred_title = ' '.join(autotitle.generate(content, top_k)).lower()
             if pred_title.strip():
                 scores = self.rouge.get_scores(hyps=pred_title, refs=title)
                 rouge_1 += scores[0]['rouge-1']['f']

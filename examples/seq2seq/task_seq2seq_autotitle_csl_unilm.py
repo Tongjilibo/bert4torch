@@ -94,10 +94,10 @@ class AutoTitle(AutoRegressiveDecoder):
         _, y_pred = model.predict([token_ids, segment_ids])
         return y_pred[:, -1, :]
 
-    def generate(self, text, topk=1, topp=0.95):
+    def generate(self, text, top_k=1, top_p=0.95):
         max_c_len = maxlen - self.max_new_tokens
         token_ids, segment_ids = tokenizer.encode(text, maxlen=max_c_len)
-        output_ids = self.beam_search([token_ids, segment_ids], topk=topk)[0]  # 基于beam search
+        output_ids = self.beam_search([token_ids, segment_ids], top_k=top_k)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
 
@@ -122,13 +122,13 @@ class Evaluator(Callback):
         print('valid_data:', metrics)
         print('test_data:', metrics_test)
     
-    def evaluate(self, data, topk=1):
+    def evaluate(self, data, top_k=1):
         total = 0
         rouge_1, rouge_2, rouge_l, bleu = 0, 0, 0, 0
         for title, content in tqdm(data):
             total += 1
             title = ' '.join(title).lower()
-            pred_title = ' '.join(autotitle.generate(content, topk)).lower()
+            pred_title = ' '.join(autotitle.generate(content, top_k)).lower()
             if pred_title.strip():
                 scores = self.rouge.get_scores(hyps=pred_title, refs=title)
                 rouge_1 += scores[0]['rouge-1']['f']

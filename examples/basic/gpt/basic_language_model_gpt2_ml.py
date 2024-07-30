@@ -27,9 +27,9 @@ class ArticleCompletion(AutoRegressiveDecoder):
         logits = model.predict([token_ids])
         return logits[:, -1, :]
 
-    def generate(self, text, n=1, topp=0.95):
+    def generate(self, text, n=1, top_p=0.95):
         token_ids, _ = tokenizer.encode(text)
-        results = self.random_sample([token_ids], n=n, topp=topp)  # 基于随机采样
+        results = self.random_sample([token_ids], n=n, top_p=top_p)  # 基于随机采样
         return [text + tokenizer.decode(ids.cpu().numpy()) for ids in results]
 
 

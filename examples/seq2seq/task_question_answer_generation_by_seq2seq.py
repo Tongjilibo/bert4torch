@@ -128,19 +128,19 @@ class QuestionAnswerGeneration(AutoRegressiveDecoder):
         _, y_pred = model.predict([token_ids, segment_ids])
         return y_pred[:, -1, :]
 
-    def generate(self, passage, topk=1, topp=0.95):
+    def generate(self, passage, top_k=1, top_p=0.95):
         token_ids, segment_ids = tokenizer.encode(passage, maxlen=max_p_len)
-        a_ids = self.random_sample([token_ids, segment_ids], n=1, topp=topp)[0]  # 基于随机采样
+        a_ids = self.random_sample([token_ids, segment_ids], n=1, top_p=top_p)[0]  # 基于随机采样
         token_ids += list(a_ids.cpu().numpy())
         segment_ids += [1] * len(a_ids)
-        q_ids = self.beam_search([token_ids, segment_ids], topk=topk)[0]  # 基于beam search
+        q_ids = self.beam_search([token_ids, segment_ids], top_k=top_k)[0]  # 基于beam search
         return (tokenizer.decode(q_ids.cpu().numpy()), tokenizer.decode(a_ids.cpu().numpy()))
 
 
 qag = QuestionAnswerGeneration(bos_token_id=None, eos_token_id=tokenizer._token_end_id, max_new_tokens=max_q_len, device=device)
 
 
-def predict_to_file(data, filename, topk=1):
+def predict_to_file(data, filename, top_k=1):
     """将预测结果输出到文件，方便评估
     """
     with open(filename, 'w', encoding='utf-8') as f:

@@ -52,8 +52,8 @@ def test_glm(model_dir):
     generation_config = {
         'tokenizer': tokenizer,
         'tokenizer_config': {'skip_special_tokens': True},
-        'start_id': None, 
-        'end_id': tokenizer.eos_token_id, 
+        'bos_token_id': None, 
+        'eos_token_id': tokenizer.eos_token_id, 
         'mode': 'random_sample',
         'max_length': 20, 
         'default_rtype': 'logits', 

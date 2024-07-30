@@ -31,13 +31,13 @@ class ChatBot(AutoRegressiveDecoder):
         segment_ids = torch.concat([segment_ids, curr_segment_ids], 1)
         return model.predict([token_ids, segment_ids])[-1][:, -1]
 
-    def response(self, texts, topk=5):
+    def response(self, texts, top_k=5):
         token_ids, segment_ids = [tokenizer._token_start_id], [0]
         for i, text in enumerate(texts):
             ids = tokenizer.encode(text)[0][1:]
             token_ids.extend(ids)
             segment_ids.extend([i % 2] * len(ids))
-        results = self.random_sample([token_ids, segment_ids], n=1, topk=topk)
+        results = self.random_sample([token_ids, segment_ids], n=1, top_k=top_k)
         return tokenizer.decode(results[0].cpu().numpy())
 
 

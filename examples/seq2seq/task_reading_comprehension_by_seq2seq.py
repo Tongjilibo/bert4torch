@@ -139,7 +139,7 @@ class ReadingComprehension(AutoRegressiveDecoder):
     @AutoRegressiveDecoder.wraps(default_rtype='probas', use_states=True)
     def predict(self, inputs, output_ids, states):
         inputs = [i for i in inputs if i[0, 0].item() > -1]  # 过滤掉无答案篇章
-        topk = len(inputs[0])
+        top_k = len(inputs[0])
         all_token_ids, all_segment_ids = [], []
         for token_ids in inputs:  # inputs里每个元素都代表一个篇章
             token_ids = torch.cat([token_ids, output_ids], 1)
@@ -154,9 +154,9 @@ class ReadingComprehension(AutoRegressiveDecoder):
         probas = nn.Softmax(dim=-1)(logits)
         # 这里改成用torch.gather来做了
         # probas = [probas[i, len(ids) - 1] for i, ids in enumerate(all_token_ids)]
-        # probas = torch.stack(probas).reshape((len(inputs), topk, -1))
+        # probas = torch.stack(probas).reshape((len(inputs), top_k, -1))
         index_ = torch.tensor([[len(i)-1] for i in all_token_ids], device=probas.device).view(-1, 1, 1).expand(-1, 1, probas.shape[-1])
-        probas = torch.gather(probas, dim=1, index=index_).reshape((len(inputs), topk, -1))
+        probas = torch.gather(probas, dim=1, index=index_).reshape((len(inputs), top_k, -1))
         
         if states == 0:
             # 这一步主要是排除没有答案的篇章
@@ -191,33 +191,33 @@ class ReadingComprehension(AutoRegressiveDecoder):
             probas = new_probas
         return (probas**2).sum(0) / (probas.sum(0) + 1), states + 1  # 某种平均投票方式
 
-    def answer(self, question, passages, topk=1):
+    def answer(self, question, passages, top_k=1):
         token_ids = []
         for passage in passages:
             passage = re.sub(u' |、|；|，', ',', passage)
             p_token_ids = tokenizer.encode(passage, maxlen=max_p_len)[0]
             q_token_ids = tokenizer.encode(question, maxlen=max_q_len + 1)[0]
             token_ids.append(p_token_ids + q_token_ids[1:])
-        output_ids = self.beam_search(token_ids, topk=topk, states=0)[0]  # 基于beam search
+        output_ids = self.beam_search(token_ids, top_k=top_k, states=0)[0]  # 基于beam search
         return tokenizer.decode(output_ids.cpu().numpy())
 
 
 reader = ReadingComprehension(
-    start_id=None,
-    end_id=tokenizer._token_end_id,
+    bos_token_id=None,
+    eos_token_id=tokenizer._token_end_id,
     maxlen=max_a_len,
     mode='extractive',
     device=device
 )
 
-def predict_to_file(data, filename, topk=1):
+def predict_to_file(data, filename, top_k=1):
     """将预测结果输出到文件，方便评估
     """
     with open(filename, 'w', encoding='utf-8') as f:
         for d in tqdm(iter(data), desc=u'正在预测(共%s条样本)' % len(data)):
             q_text = d['question']
             p_texts = [p['passage'] for p in d['passages']]
-            a = reader.answer(q_text, p_texts, topk)
+            a = reader.answer(q_text, p_texts, top_k)
             if a:
                 s = u'%s\t%s\n' % (d['id'], a)
             else:
