@@ -63,6 +63,7 @@ def main():
 
     generation_config = {'top_k': 40, 'include_input': False if re.search('Chat|Instruct', model_dir) else True, 'repetition_penalty': 1.1, 'temperature': 0.7, 'use_states': False}
     demo = Chat(model_dir, 
+                mode = 'openai' if choice == 'openai' else 'cli',
                 system='You are a helpful assistant.', 
                 generation_config=generation_config,
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}

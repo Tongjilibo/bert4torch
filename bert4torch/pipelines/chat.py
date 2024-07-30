@@ -565,7 +565,7 @@ class ChatCompletionResponseChoice(BaseModel):
 class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
     delta: DeltaMessage
-    finish_reason: Literal['stop', 'length', 'function_call']
+    finish_reason: Literal['stop', 'length', 'function_call', None]
 
 
 class ChatCompletionResponse(BaseModel):
@@ -683,7 +683,7 @@ class ChatOpenaiApi(ChatBase):
     async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
             raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
-        if request.messages[-1]['role'] != self.role_user:  # 最后一条msg的role必须是user
+        if request.messages[-1].role != self.role_user:  # 最后一条msg的role必须是user
             raise HTTPException(status_code=400, detail=f"Invalid request: messages last role shold be {self.role_user}")
 
         if request.temperature:
@@ -697,8 +697,8 @@ class ChatOpenaiApi(ChatBase):
         if request.repetition_penalty:
             self.generation_config['repetition_penalty'] = request.repetition_penalty
 
-        query = request.messages[-1]['content']
-        history = request.messages[:-1]
+        query = request.messages[-1].content
+        history = [{'role': item.role, 'content': item.content} for item in request.messages[:-1]]
         input_text = self.build_prompt(query, history, request.functions)
         
         if self.offload_when_nocall is None:

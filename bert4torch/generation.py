@@ -895,7 +895,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             # hf的tokenize
             return [self.tokenizer(text, **self.tokenizer_encode_config)['input_ids']]
     
-    def post_process(self, output_ids:Union[torch.Tensor, List[torch.Tensor]]):
+    def post_process(self, output_ids:List[torch.Tensor]):
         '''后处理, 可以继承后自定义, 主要用于第三方tokenizer的decode'''
         if self.tokenizer is None:
             return output_ids
@@ -905,7 +905,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             output_ids = output_ids
 
-        if isinstance(output_ids, (tuple, list)):
+        if len(output_ids) > 1:
             output_text = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
             if isinstance(self.input_text, str):
                 # 输入是str, 则在前面直接添加
@@ -913,7 +913,7 @@ class SeqGeneration(AutoRegressiveDecoder):
             elif isinstance(self.input_text, (tuple, list)) and (len(self.input_text) == len(output_text)):
                 # 输入是list且和outputs同维度
                 output_text = [self.input_text[i] + item for i, item in enumerate(output_text)]
-        else:  # len(output_ids) == 1
+        elif len(output_ids) == 1:
             output_text = self.input_text + self.tokenizer.decode(output_ids[0].cpu().numpy(), **self.tokenizer_decode_config)
         
         if self.return_states:
