@@ -26,18 +26,18 @@ batch_size = 12
 epochs = 10
 
 # bert配置
-config_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def process_data():
-    if os.path.exists('/data/corpus/qa/CIPS-SOGOU/train_data.json'):
+    if os.path.exists('F:/data/corpus/qa/CIPS-SOGOU/train_data.json'):
         return
 
     # 标注数据
-    webqa_data = json.load(open('/data/corpus/qa/WebQA.json', encoding='utf-8'))
-    sogou_data = json.load(open('/data/corpus/qa/SogouQA.json', encoding='utf-8'))
+    webqa_data = json.load(open('F:/data/corpus/qa/WebQA.json', encoding='utf-8'))
+    sogou_data = json.load(open('F:/data/corpus/qa/SogouQA.json', encoding='utf-8'))
 
     # 保存一个随机序（供划分valid用）
     random_order = list(range(len(sogou_data)))
@@ -50,8 +50,8 @@ def process_data():
     train_data.extend(train_data)
     train_data.extend(webqa_data)  # 将SogouQA和WebQA按2:1的比例混合
 
-    json.dump(train_data, open('/data/corpus/qa/CIPS-SOGOU/train_data.json', 'w', encoding='utf-8'), indent=4)
-    json.dump(valid_data, open('/data/corpus/qa/CIPS-SOGOU/valid_data.json', 'w', encoding='utf-8'), indent=4)
+    json.dump(train_data, open('F:/data/corpus/qa/CIPS-SOGOU/train_data.json', 'w', encoding='utf-8'), indent=4)
+    json.dump(valid_data, open('F:/data/corpus/qa/CIPS-SOGOU/valid_data.json', 'w', encoding='utf-8'), indent=4)
 
 process_data()
 
@@ -103,9 +103,9 @@ def collate_fn(batch):
     batch_a_token_ids = torch.tensor(sequence_padding(batch_a_token_ids, max_a_len), dtype=torch.long, device=device)
     return [batch_token_ids, batch_segment_ids], batch_a_token_ids
 
-train_dataloader = DataLoader(MyDataset('/data/corpus/qa/CIPS-SOGOU/train_data.json'), 
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/qa/CIPS-SOGOU/train_data.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('/data/corpus/qa/CIPS-SOGOU/valid_data.json')
+valid_dataset = MyDataset('F:/data/corpus/qa/CIPS-SOGOU/valid_data.json')
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=collate_fn) 
 
 model = build_transformer_model(

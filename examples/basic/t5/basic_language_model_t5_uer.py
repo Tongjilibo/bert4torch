@@ -7,13 +7,13 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.generation import AutoRegressiveDecoder
 
-config_path = '/data/pretrain_ckpt/t5/uer@t5-small-chinese-cluecorpussmall/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/t5/uer@t5-small-chinese-cluecorpussmall/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/t5/uer@t5-small-chinese-cluecorpussmall/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/t5/uer@t5-small-chinese-cluecorpussmall/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/t5/uer@t5-small-chinese-cluecorpussmall/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/t5/uer@t5-small-chinese-cluecorpussmall/vocab.txt'
 
-# config_path = '/data/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/bert4torch_config.json'
-# checkpoint_path = '/data/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/pytorch_model.bin'
-# dict_path = '/data/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/vocab.txt'
+# config_path = 'E:/data/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/bert4torch_config.json'
+# checkpoint_path = 'E:/data/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/pytorch_model.bin'
+# dict_path = 'E:/data/pretrain_ckpt/t5/uer@t5-base-chinese-cluecorpussmall/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

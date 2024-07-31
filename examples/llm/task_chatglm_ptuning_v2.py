@@ -54,8 +54,8 @@ prompt_column = 'content'
 response_column = 'summary'
 history_column = None
 use_states = True
-data_dir = '/data/corpus/sft/AdvertiseGen'  # 数据路径
-model_dir = f"/data/pretrain_ckpt/glm/{model_name}"  # 模型路径
+data_dir = 'F:/data/corpus/sft/AdvertiseGen'  # 数据路径
+model_dir = f"E:/data/pretrain_ckpt/glm/{model_name}"  # 模型路径
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 seed_everything(42)

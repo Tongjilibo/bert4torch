@@ -20,9 +20,9 @@ batch_size = 32
 
 # 这里加载的是simbert权重，在此基础上用自己的数据继续pretrain/finetune
 # 自己从头预训练也可以直接加载bert/roberta等checkpoint
-config_path = '/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base/config.json'
-checkpoint_path = '/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base/config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器

@@ -2,8 +2,6 @@
 '''Tokenization classes
 '''
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import collections
 import logging
 from typing import Any, Literal, List, Union, Dict, Callable

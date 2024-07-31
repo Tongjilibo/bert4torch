@@ -24,10 +24,10 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 
 # 基本信息
 maxlen = 32
-model_dir = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny"  # simbert_tiny
-# model_dir = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_small"  # simbert_small
-# model_dir = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base"  # simbert_base
-# model_dir = "/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"  # simbert_v2
+model_dir = "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny"  # simbert_tiny
+# model_dir = "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_small"  # simbert_small
+# model_dir = "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base"  # simbert_base
+# model_dir = "E:/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"  # simbert_v2
 
 # 加载simbert权重或roformer_v2
 dict_path = model_dir + "/vocab.txt"

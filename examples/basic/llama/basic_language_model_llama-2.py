@@ -6,7 +6,7 @@ from bert4torch.pipelines import Chat
 
 
 # llama-2-7b  llama-2-7b-chat  llama-2-13b  llama-2-13b-chat
-dir_path = '/data/pretrain_ckpt/llama/llama-2-7b-chat'
+dir_path = 'E:/data/pretrain_ckpt/llama/llama-2-7b-chat'
 with_prompt = True if 'chat' in dir_path else False
 
 generation_config = {'max_length': 512, 'include_input': not with_prompt}

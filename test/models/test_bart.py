@@ -9,8 +9,8 @@ import torch
 import pytest
 
 
-@pytest.mark.parametrize("ckpt_dir", ["/data/pretrain_ckpt/bart/fnlp@bart-base-chinese/",
-                                      "/data/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/"])
+@pytest.mark.parametrize("ckpt_dir", ["E:/data/pretrain_ckpt/bart/fnlp@bart-base-chinese/",
+                                      "E:/data/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/"])
 @torch.inference_mode()
 def test_bart(ckpt_dir):
     texts = ["北京是[MASK]的首都", "今天的天气是[MASK]，可以正常出海"]
@@ -104,4 +104,4 @@ def test_bart(ckpt_dir):
 
 
 if __name__=='__main__':
-    test_bart("/data/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/")
+    test_bart("E:/data/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/")

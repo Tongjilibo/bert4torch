@@ -8,7 +8,7 @@
 from bert4torch.pipelines import Chat
 
 
-model_dir = '/data/pretrain_ckpt/llama/belle-llama-7b-2m'
+model_dir = 'E:/data/pretrain_ckpt/llama/belle-llama-7b-2m'
 generation_config = {'max_length': 512}
 
 

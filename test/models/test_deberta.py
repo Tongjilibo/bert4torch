@@ -27,9 +27,9 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese",
-                                       "/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese",
-                                       "/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese",
+                                       "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese",
+                                       "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese"])
 @torch.inference_mode()
 def test_deberta(model_dir):
     model, _ = get_bert4torch_model(model_dir)
@@ -47,6 +47,6 @@ def test_deberta(model_dir):
 
 
 if __name__=='__main__':
-    test_deberta("/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese")
-    test_deberta("/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese")
-    test_deberta("/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese")
+    test_deberta("E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese")
+    test_deberta("E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese")
+    test_deberta("E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese")

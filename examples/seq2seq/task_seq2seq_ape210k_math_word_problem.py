@@ -26,9 +26,9 @@ batch_size = 16
 epochs = 100
 
 # bert配置
-config_path = '/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/config.json'
-checkpoint_path = '/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
@@ -113,10 +113,10 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('/data/corpus/seq2seq/ape210k/train.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-valid_dataset = MyDataset('/data/corpus/seq2seq/ape210k/valid.ape.json')
+train_dataloader = DataLoader(MyDataset('F:/data/corpus/seq2seq/ape210k/train.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+valid_dataset = MyDataset('F:/data/corpus/seq2seq/ape210k/valid.ape.json')
 # valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-# test_dataloader = DataLoader(MyDataset('/data/corpus/seq2seq/ape210k/test.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+# test_dataloader = DataLoader(MyDataset('F:/data/corpus/seq2seq/ape210k/test.ape.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
 
 model = build_transformer_model(

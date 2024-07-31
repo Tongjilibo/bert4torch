@@ -5,7 +5,7 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 
-root_model_path = "/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"
+root_model_path = "E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'

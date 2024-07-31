@@ -49,9 +49,9 @@ learning_rate = 2.5e-5
 epochs = 15
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-config_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 
 
 def read_data(data_file, table_file):
@@ -175,7 +175,7 @@ def collate_fn(batch):
     cop = torch.tensor(sequence_padding(cop, length=x1.shape[1]), dtype=torch.long, device=device)
     return [x1, h, hm], [sel, conn, csel, cop, xm, hm]
 
-datadir = '/data/corpus/other/ZhuiyiTechnology_NL2SQL'
+datadir = 'F:/data/corpus/other/ZhuiyiTechnology_NL2SQL'
 train_dataloader = DataLoader(MyDataset(*read_data(f'{datadir}/train/train.json', f'{datadir}/train/train.tables.json')), 
                               batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 valid_data, valid_table = read_data(f'{datadir}/val/val.json', f'{datadir}/val/val.tables.json')

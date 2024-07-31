@@ -8,7 +8,7 @@ from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
 
 
-model_dir = '/data/pretrain_ckpt/deepseek/deepseek-ai@deepseek-moe-16b-chat'
+model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@deepseek-moe-16b-chat'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)

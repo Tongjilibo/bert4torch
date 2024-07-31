@@ -4,7 +4,7 @@
 """
 
 # chinese_alpaca_plus_7b，chinese_llama_plus_7b
-model_dir = '/data/pretrain_ckpt/llama/chinese_alpaca_plus_7b'
+model_dir = 'E:/data/pretrain_ckpt/llama/chinese_alpaca_plus_7b'
 with_prompt = True if 'alpaca' in model_dir else False
 
 

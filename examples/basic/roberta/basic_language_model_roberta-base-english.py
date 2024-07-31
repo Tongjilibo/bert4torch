@@ -8,7 +8,7 @@ from transformers import AutoTokenizer, RobertaForMaskedLM
 from torch.nn.functional import softmax
 
 # 加载模型，请更换成自己的路径
-root_model_path = "/data/pretrain_ckpt/roberta/huggingface@roberta-base-english"
+root_model_path = "E:/data/pretrain_ckpt/roberta/huggingface@roberta-base-english"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 

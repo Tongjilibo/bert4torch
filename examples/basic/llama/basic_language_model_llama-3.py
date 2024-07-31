@@ -9,7 +9,7 @@ bert4torch_config.json链接
 from bert4torch.pipelines import Chat
 
 # Meta-Llama-8B-Instruct  Meta-Llama-8B-Instruct
-model_dir = '/data/pretrain_ckpt/llama/Meta-Llama-3-8B-Instruct'
+model_dir = 'E:/data/pretrain_ckpt/llama/Meta-Llama-3-8B-Instruct'
 with_prompt = True if 'Instruct' in model_dir else False
 
 

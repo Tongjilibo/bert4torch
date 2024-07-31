@@ -4,18 +4,18 @@ import pytest
 from sentence_transformers import SentenceTransformer
 from bert4torch.pipelines import Text2Vec
 
-# model_path = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny"
-# model_path = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_small"
-# model_path = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base"
-# model_path = "/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"
-# model_path = "/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base"
+# model_path = "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny"
+# model_path = "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_small"
+# model_path = "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base"
+# model_path = "E:/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"
+# model_path = "E:/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base"
 
-@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/embedding/BAAI--bge-large-en-v1.5',
-                                       '/data/pretrain_ckpt/embedding/BAAI--bge-large-zh-v1.5',
-                                       '/data/pretrain_ckpt/embedding/thenlper@gte-base-zh',
-                                       '/data/pretrain_ckpt/embedding/thenlper@gte-base-zh',
-                                       '/data/pretrain_ckpt/embedding/moka-ai@m3e-base',
-                                       "/data/pretrain_ckpt/embedding/shibing624@text2vec-base-chinese"
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/embedding/BAAI--bge-large-en-v1.5',
+                                       'E:/data/pretrain_ckpt/embedding/BAAI--bge-large-zh-v1.5',
+                                       'E:/data/pretrain_ckpt/embedding/thenlper@gte-base-zh',
+                                       'E:/data/pretrain_ckpt/embedding/thenlper@gte-base-zh',
+                                       'E:/data/pretrain_ckpt/embedding/moka-ai@m3e-base',
+                                       "E:/data/pretrain_ckpt/embedding/shibing624@text2vec-base-chinese"
                                         ])
 @torch.inference_mode()
 def test_embedding(model_dir):
@@ -43,4 +43,4 @@ def test_embedding(model_dir):
 
 
 if __name__=='__main__':
-    test_embedding('/data/pretrain_ckpt/embedding/BAAI@bge-large-en-v1.5')
+    test_embedding('E:/data/pretrain_ckpt/embedding/BAAI@bge-large-en-v1.5')

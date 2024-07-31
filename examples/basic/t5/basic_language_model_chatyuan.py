@@ -8,7 +8,7 @@ from bert4torch.generation import AutoRegressiveDecoder
 
 
 # 配置
-pretrain_model = '/data/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/'
+pretrain_model = 'E:/data/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'

@@ -1,7 +1,7 @@
 from bert4torch.pipelines import FillMask
 import pytest
 
-@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/bert/google@bert-base-chinese'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/bert/google@bert-base-chinese'])
 def test_fill_mask(model_dir):
     model = FillMask(model_dir)
     res = model.predict(["今天[MASK]气不错，[MASK]情很好", '[MASK]学技术是第一生产力'])
@@ -12,5 +12,5 @@ def test_fill_mask(model_dir):
 
 if __name__ == '__main__':
     from pprint import pprint
-    res = test_fill_mask('/data/pretrain_ckpt/bert/google@bert-base-chinese')
+    res = test_fill_mask('E:/data/pretrain_ckpt/bert/google@bert-base-chinese')
     pprint(res)

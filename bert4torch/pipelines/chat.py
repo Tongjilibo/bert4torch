@@ -2011,7 +2011,7 @@ class Chat:
     ```python
     >>> from bert4torch.pipelines import Chat
 
-    >>> checkpoint_path = "/data/pretrain_ckpt/glm/chatglm2-6b"
+    >>> checkpoint_path = "E:/data/pretrain_ckpt/glm/chatglm2-6b"
     >>> generation_config  = {'mode':'random_sample',
     ...                     'max_length':2048, 
     ...                     'default_rtype':'logits', 

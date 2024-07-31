@@ -39,17 +39,17 @@ maxlen = 128 if task_name == 'PAWSX' else 64
 
 # bert配置
 model_dir = {
-    'BERT': '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
-    'RoBERTa': '/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
-    'NEZHA': '/data/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
-    'RoFormer': '/data/pretrain_ckpt/roformer/sushen@roformer_v1_base',
-    'SimBERT': '/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base',
+    'BERT': 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
+    'RoBERTa': 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
+    'NEZHA': 'E:/data/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
+    'RoFormer': 'E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base',
+    'SimBERT': 'E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base',
 }[model_type]
 
 config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
-data_path = '/data/corpus/sentence_embedding/'
+data_path = 'F:/data/corpus/sentence_embedding/'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # =============================加载数据集=============================

@@ -11,7 +11,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-pretrained_model = "/data/pretrain_ckpt/transformer_xl/huggingface@transfo-xl-wt103"
+pretrained_model = "E:/data/pretrain_ckpt/transformer_xl/huggingface@transfo-xl-wt103"
 
 # ----------------------transformers包----------------------
 tokenizer = AutoTokenizer.from_pretrained(pretrained_model)

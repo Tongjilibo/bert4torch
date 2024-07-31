@@ -17,3 +17,5 @@ test_local/
 *.ckpt
 .vscode
 .pytest_cache
+E:
+F:

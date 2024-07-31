@@ -1,5 +1,5 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
-dir_path = "/data/pretrain_ckpt/llama/01-ai@Yi-6B"
+dir_path = "E:/data/pretrain_ckpt/llama/01-ai@Yi-6B"
 query = "There's a place where time stands still. A place of breath taking wonder, but also"
 
 # print('==========================transformers=============================')

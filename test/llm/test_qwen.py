@@ -27,9 +27,9 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/Qwen/Qwen-7B-Chat',
-                                       '/data/pretrain_ckpt/Qwen/Qwen-7B',
-                                       '/data/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/Qwen/Qwen-7B-Chat',
+                                       'E:/data/pretrain_ckpt/Qwen/Qwen-7B',
+                                       'E:/data/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'])
 @torch.inference_mode()
 def test_qwen(model_dir):
     im_start, im_end = "<|im_start|>", "<|im_end|>"
@@ -76,4 +76,4 @@ def test_qwen(model_dir):
 
 
 if __name__=='__main__':
-    test_qwen('/data/pretrain_ckpt/Qwen/Qwen-1_8B-Chat')
+    test_qwen('E:/data/pretrain_ckpt/Qwen/Qwen-1_8B-Chat')

@@ -8,9 +8,9 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
-config_path = '/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器

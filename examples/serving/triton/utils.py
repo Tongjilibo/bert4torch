@@ -2,7 +2,7 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.snippets import sequence_padding
 import numpy as np
 
-dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+dict_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 

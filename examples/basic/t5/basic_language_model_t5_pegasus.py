@@ -9,8 +9,8 @@ import jieba
 jieba.initialize()
 
 # bert配置
-# model_dir = '/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/'
-model_dir = '/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_torch/'
+# model_dir = 'E:/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/'
+model_dir = 'E:/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_torch/'
 config_path = model_dir + 'bert4torch_config.json'
 checkpoint_path = model_dir + 'pytorch_model.bin'
 dict_path = model_dir + 'vocab.txt'

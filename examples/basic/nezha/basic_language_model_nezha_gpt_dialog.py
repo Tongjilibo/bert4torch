@@ -9,9 +9,9 @@ from bert4torch.generation import AutoRegressiveDecoder
 import torch
 
 # nezha配置
-config_path = '/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog/vocab.txt'
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
