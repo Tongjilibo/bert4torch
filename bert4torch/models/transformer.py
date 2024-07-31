@@ -64,7 +64,7 @@ class Decoder(LM_Mask, BERT):
     def tie_weights(self):
         # decoder底层的embedding和顶层的全连接共享
         # [True]: fudan_bart和uer_t5的t5, [False]: mt5和t5_pegasus
-        if (self.tie_word_embeddings is True) and self.with_lm:
+        if self.tie_word_embeddings and self.with_lm:
             self.lm_head.weight = self.embeddings.word_embeddings.weight
 
     def apply_main_layers(self, **model_kwargs):
@@ -148,10 +148,10 @@ class Decoder(LM_Mask, BERT):
 class Transformer(BERT_BASE):
     '''encoder-decoder结构'''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, tie_word_embeddings=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
         self.max_position = kwargs['max_position']
-        self.tie_word_embeddings = tie_word_embeddings
+        self.tie_word_embeddings = kwargs.get('tie_word_embeddings', False)
         self.is_encoder_decoder = True
         self.model_type = 'transformer'
 

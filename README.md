@@ -93,7 +93,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 ### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
-|20240730| 0.5.2          | 0.2.5 | 【新功能】chatglm/qwen系列支持function call调用, 增加internlm2系列；【小优化】简化pipeline中chat demo的调用，generate的终止token元素允许为列表, 统一rope_scaling参数名，增加rope衍生类；【bug】修复flash_attn2的推理bug|
+|20240730| 0.5.2          | 0.2.5 | 【新功能】chatglm/qwen系列支持function call调用, 增加internlm2系列；【小优化】简化pipeline中chat demo的调用，generate的终止token元素允许为列表, 统一rope_scaling参数名，增加rope衍生类；【bug】修复flash_attn2的推理bug, 修复bart的tie_word_embedding的bug|
 |20240619| 0.5.1          | 0.2.4 | 增加Qwen1.5, Qwen2, glm4; 增加SWA/convert_lm_logits_dtype；调整各个trainer(重点DPOTrainer), generation中segment_ids, repetition_penalty需带query, RMSNorm中转类型bug|
 |20240418| 0.5.0          | 0.2.2 | 修复chatglm3的bug, 修复save_pretrained时多文件的bug，增加CausalLMLoss, 修改deepspeed的传参逻辑，修改Text2Vec的bug, 完善openai client, 增加get_weight_decay_optim_groups|
 

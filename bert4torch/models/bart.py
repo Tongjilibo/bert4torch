@@ -15,11 +15,7 @@ class BART(Transformer):
 
     def load_variable(self, variable, old_key, new_key):
         # 加载单个变量的函数
-        if old_key in {
-            'shared.weight',
-            'encoder.embed_tokens.weight',
-            'decoder.embed_tokens.weight',
-        }:
+        if old_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -38,7 +34,7 @@ class BART(Transformer):
             else:
                 k_new = k
 
-            # 主要变更就是默认有514个位置，舍弃前两个位置
+            # 主要变更就是默认有514个位置，把前两个位置放到最后
             if 'embed_positions.weight' in k:
                 state_dict[k] = torch.cat([state_dict[k][self.postion_offset:], state_dict[k][:self.postion_offset]])
         self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)

@@ -6,7 +6,8 @@
 - [examples/basic](https://github.com/Tongjilibo/bert4torch/blob/master/examples/basic)
 
 ## 其他
-- [instruct_gpt](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/instruct_gpt): 按照三个步骤复现rlhf的实现
+- [build_MiniLLM_from_scratch](https://github.com/Tongjilibo/build_MiniLLM_from_scratch)：构建一个小参数量的llm，走完`预训练` -> `指令微调`  -> `奖励模型`  -> `强化学习` 四个阶段，以可控的成本完成一个可以完成简单聊天任务的chat模型（代码+权重）
+- [instruct_gpt](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/instruct_gpt): 按照三个步骤复现rlhf的实现（仅代码）
 - [task_chatglm_nbce.py](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm/task_chatglm_nbce.py): 测试[chatglm-6b](https://github.com/THUDM/ChatGLM-6B)模型, 使用朴素贝叶斯增加LLM的Context处理长度。
 
 ## 微调

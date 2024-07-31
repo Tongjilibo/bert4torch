@@ -2,8 +2,8 @@
 # 权重地址：https://github.com/fastnlp/CPT
 
 # 选择v1还是v2
-ckpt_dir = "E:/pretrain_ckpt/bart/fnlp@bart-base-chinese/"  # v1.0
-# ckpt_dir = "E:/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/"  # v2.0
+# ckpt_dir = "/data/pretrain_ckpt/bart/fnlp@bart-base-chinese/"  # v1.0
+ckpt_dir = "/data/pretrain_ckpt/bart/fnlp@bart-base-chinese-v2.0/"  # v2.0
 texts = ["北京是[MASK]的首都", "今天的天气是[MASK]，可以正常出海"]
 
 # ==============================transformers=====================================
