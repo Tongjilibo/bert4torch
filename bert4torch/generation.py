@@ -62,10 +62,10 @@ class AutoRegressiveDecoder(object):
     :param pad_mode: str, padding在前面还是后面, pre或者post
     :param device: str, 默认为'cpu'
     :param n: int, random_sample时候表示生成的个数; beam_search时表示束宽
-    :param top_k: int, 这里的topk是指仅保留topk的值
-    :param top_p: float, 这里的topp是token的概率阈值设置
-    :param temperature: 温度参数, 默认为1
-    :param repetition_penalty: 重复的惩罚系数
+    :param top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)
+    :param top_p: float, 这里的topp是token的概率阈值设置(仅在头部top_p上进行概率采样)
+    :param temperature: float, 温度参数, 默认为1, 越小结果越确定, 越大结果越多样
+    :param repetition_penalty: float, 重复的惩罚系数, 越大结果越不重复
     :param min_ends: int, 最小的end_id的个数
     :param return_last_token: bool, 在stream_generate模式下, 是否仅输出last_token, 默认为False表示输出解码出来的历史token
         1) 理论上stream模式下, 应该只返回last_token, 但由于有的模型的tokenizer单个字符会被拆分, 只输出last_token会显示乱码
@@ -234,10 +234,6 @@ class AutoRegressiveDecoder(object):
             else:
                 raise TypeError('Beam search inputs ele only support tensor、array、list、tuple')
             inputs.append(input_new)
-        
-        input_seqlen = get_max_input_seqlen(self.input_seqlen)  # 超长警告
-        if input_seqlen >= self.max_length:
-            log_warn(f'Prompt len={input_seqlen} >= max_length={self.max_length}')
         return inputs
     
     def _define_stopping_criteria(self, states: Optional[dict]=None):
@@ -250,6 +246,9 @@ class AutoRegressiveDecoder(object):
             # 这里用max是因为batch_generate时候self.input_seqlen是多个
             input_seqlen = get_max_input_seqlen(self.input_seqlen)
             max_new_tokens = max(0, self.max_length-input_seqlen)
+            if input_seqlen >= self.max_length:
+                # 超长警告
+                log_warn(f'Prompt len={input_seqlen} >= max_length={self.max_length}')
 
         if (states is not None) and (states.get('past_key_values') is not None):
             past_key_values_lenghth = states.get('past_key_values')[0][0].shape[2]
@@ -876,16 +875,17 @@ class SeqGeneration(AutoRegressiveDecoder):
     def pre_process(self, text:Union[str, torch.Tensor, List[Union[int, torch.Tensor]], Tuple[Union[int, torch.Tensor]]]) -> Union[torch.Tensor, List[Union[torch.Tensor, List[int]]]]:
         '''前处理, 可以继承后自定义, 主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
-        # 传入的时候text已经是token_ids
-        if self.tokenizer is None:
-            return text
-        elif isinstance(text, torch.Tensor):  # tensor
+        # 传入的时候text已经是token_ids, 直接返回
+        if isinstance(text, torch.Tensor):  # tensor
             return text
         elif isinstance(text, (tuple, list)) and all([isinstance(i, torch.Tensor) for i in text]):  # list[tensor]
             return text
         elif isinstance(text, (tuple, list)) and all([isinstance(i, int) for i in text]):  # list[int]
             return [text]
-
+        
+        if self.tokenizer is None:
+            raise ValueError(f"tokenizer can not be None when query'format is {type(text)}")
+        
         # 传入的是text或者list(text)
         if self.tokenizer_type == 'b4t':
             # bert4torch的tokenizer

@@ -27,8 +27,8 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/ernie/baidu@ernie-1-base-zh",
-                                       "E:/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/ernie/baidu@ernie-1-base-zh",
+                                       "/data/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"])
 @torch.inference_mode()
 def test_ernie(model_dir):
     model, _ = get_bert4torch_model(model_dir)
@@ -46,4 +46,4 @@ def test_ernie(model_dir):
 
 
 if __name__=='__main__':
-    test_ernie("E:/pretrain_ckpt/ernie/baidu@ernie-3-base-zh")
+    test_ernie("/data/pretrain_ckpt/ernie/baidu@ernie-3-base-zh")

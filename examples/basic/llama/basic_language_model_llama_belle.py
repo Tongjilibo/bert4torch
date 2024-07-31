@@ -13,7 +13,8 @@ generation_config = {'max_length': 512}
 
 
 cli_demo = Chat(
-    model_dir, generation_config=generation_config,
+    model_dir, 
+    generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )
 

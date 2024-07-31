@@ -18,7 +18,7 @@ from bert4torch.callbacks import Callback
 from bert4torch.tokenizers import Tokenizer
 
 # 一些基础配置
-base_path = 'E:/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog'
+base_path = '/data/pretrain_ckpt/nezha/sushen@nezha_gpt_dialog'
 config_path = os.path.join(base_path, 'bert4torch_config.json')
 checkpoint_path = os.path.join(base_path, 'pytorch_model.bin')
 dict_path = os.path.join(base_path, 'vocab.txt')

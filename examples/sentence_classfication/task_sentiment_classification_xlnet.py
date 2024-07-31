@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 maxlen = 256
 batch_size = 16
-pretrain_model = 'E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base/'
+pretrain_model = '/data/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'
@@ -62,9 +62,9 @@ def collate_fn(batch):
     return batch_token_ids, batch_labels.flatten()
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
-test_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+valid_dataloader = DataLoader(MyDataset(['/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=batch_size, collate_fn=collate_fn) 
+test_dataloader = DataLoader(MyDataset(['/data/corpus/sentence_classification/sentiment/sentiment.test.data']),  batch_size=batch_size, collate_fn=collate_fn) 
 
 # 定义bert上的模型结构
 class Model(BaseModel):

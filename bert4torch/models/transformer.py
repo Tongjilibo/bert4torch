@@ -133,7 +133,7 @@ class Decoder(LM_Mask, BERT):
         if not hasattr(self, 'generation'):
             self.generation = SeqGeneration(self, **kwargs)
 
-    def generate(self, text:Union[str,list], **kwargs):
+    def generate(self, text:Union[str, list], **kwargs):
         '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre'
         '''
         self._prepare_generation(**kwargs)
@@ -146,12 +146,19 @@ class Decoder(LM_Mask, BERT):
 
 
 class Transformer(BERT_BASE):
-    '''encoder-decoder结构'''
+    '''encoder-decoder结构
+    :param tie_word_embeddings: bool, decoder的word_embeddings和lm_head的权重共享
+    :param tie_word_embeddings_encoder_decoder: bool, encoder和decoder之间的word_embedding权重共享
+    '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, tie_word_embeddings:bool=False, tie_word_embeddings_encoder_decoder:bool=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
         self.max_position = kwargs['max_position']
-        self.tie_word_embeddings = kwargs.get('tie_word_embeddings', False)
+        # decoder的word_embeddings和lm_head的权重共享
+        self.tie_word_embeddings = kwargs['tie_word_embeddings'] = tie_word_embeddings
+        # encoder和decoder之间的word_embedding权重共享
+        self.tie_word_embeddings_encoder_decoder = tie_word_embeddings_encoder_decoder
+
         self.is_encoder_decoder = True
         self.model_type = 'transformer'
 
@@ -163,8 +170,8 @@ class Transformer(BERT_BASE):
 
     def tie_weights(self):
         self.decoder.tie_weights()
-        # encoder和decoder的embedding权重共享
-        if self.tie_word_embeddings:
+        # encoder和decoder之间的word_embedding权重共享
+        if self.tie_word_embeddings_encoder_decoder:
             assert self.encoder.vocab_size == self.decoder.vocab_size, "To share word embedding, the vocab size of src/tgt shall be the same."
             self.decoder.embeddings.word_embeddings.weight = self.encoder.embeddings.word_embeddings.weight
 

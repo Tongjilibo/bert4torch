@@ -6,8 +6,8 @@ from bert4torch.tokenizers import Tokenizer
 
 
 # 加载模型，
-base_path = 'E:/pretrain_ckpt/roberta/sushen@chinese_roberta_L-6_H-384_A-12'
-# base_path = 'E:/pretrain_ckpt/roberta/sushen@chinese_roberta_L-4_H-312_A-12'
+base_path = '/data/pretrain_ckpt/roberta/sushen@chinese_roberta_L-6_H-384_A-12'
+# base_path = '/data/pretrain_ckpt/roberta/sushen@chinese_roberta_L-4_H-312_A-12'
 
 dict_path = base_path + '/vocab.txt'
 config_path = base_path + '/bert4torch_config.json'

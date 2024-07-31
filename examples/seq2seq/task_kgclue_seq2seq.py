@@ -145,9 +145,9 @@ batch_size = 32
 epochs = 10
 
 # 模型路径
-config_path = 'E:/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base/vocab.txt'
+config_path = '/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base/config.json'
+checkpoint_path = '/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_ft_base/vocab.txt'
 device =  'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载分词器
@@ -158,7 +158,7 @@ KG = Trie()
 if os.path.exists('../datasets/KG.json'):
     KG.load('../datasets/KG.json')
 else:
-    with open('F:/data/corpus/kg/KgCLUE/Knowledge_20211215.txt', 'r', encoding='utf-8') as f:
+    with open('/data/corpus/kg/KgCLUE/Knowledge_20211215.txt', 'r', encoding='utf-8') as f:
         # count = 0
         for l in tqdm(f):
             s, p, o = l.split('\t')
@@ -192,10 +192,10 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], [batch_token_ids, batch_segment_ids]
 
 # 读取数据集
-train_data = load_data('F:/data/corpus/kg/KgCLUE/train.json')
+train_data = load_data('/data/corpus/kg/KgCLUE/train.json')
 train_dataloader = DataLoader(ListDataset(train_data), shuffle=True, collate_fn=collate_fn)
-valid_data = load_data('F:/data/corpus/kg/KgCLUE/dev.json')
-test_data = load_data('F:/data/corpus/kg/KgCLUE/test_public.json')
+valid_data = load_data('/data/corpus/kg/KgCLUE/dev.json')
+test_data = load_data('/data/corpus/kg/KgCLUE/test_public.json')
 
 
 model = build_transformer_model(config_path, checkpoint_path, model='roformer', application='unilm', add_trainer=True).to(device)

@@ -4,10 +4,13 @@ import torch
 
 
 class BART(Transformer):
-    '''encoder-decoder结构'''
-    def __init__(self, *args, **kwargs):
+    '''BART: encoder-decoder结构
+    decoder: tie_word_embeddings=True
+    encoder-decoder: tie_word_embeddings_encoder_decoder=False
+    '''
+    def __init__(self, *args, tie_word_embeddings:bool=True, **kwargs):
+        kwargs['tie_word_embeddings'] = tie_word_embeddings
         kwargs['logit_scale'] = kwargs.get('logit_scale', False)
-        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         self.postion_offset = 2
         kwargs['max_position'] = kwargs['max_position'] + self.postion_offset  # bart有个值为2的offset
         super(BART, self).__init__(*args, **kwargs)

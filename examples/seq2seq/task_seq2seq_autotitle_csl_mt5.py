@@ -28,11 +28,11 @@ steps_per_epoch = None
 pad_token_id = -100
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/t5/google@mt5_torch_base/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/t5/google@mt5_torch_base/pytorch_model.bin'
+config_path = '/data/pretrain_ckpt/t5/google@mt5_torch_base/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/t5/google@mt5_torch_base/pytorch_model.bin'
 # 下面两个config是从bert4keras中拿的，项目连接https://github.com/bojone/t5_in_bert4keras
-spm_path = 'E:/pretrain_ckpt/t5/google@mt5_bert4keras/sentencepiece_cn.model'
-keep_tokens_path = 'E:/pretrain_ckpt/t5/google@mt5_bert4keras/sentencepiece_cn_keep_tokens.json'
+spm_path = '/data/pretrain_ckpt/t5/google@mt5_bert4keras/sentencepiece_cn.model'
+keep_tokens_path = '/data/pretrain_ckpt/t5/google@mt5_bert4keras/sentencepiece_cn_keep_tokens.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
@@ -69,10 +69,10 @@ def collate_fn(batch):
     batch_titile_ids = torch.tensor(sequence_padding(batch_titile_ids, value=pad_token_id), dtype=torch.long, device=device)
     return [[batch_content_ids], [batch_titile_ids[:, :-1]]], batch_titile_ids[:, 1:].flatten()
 
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
+train_dataloader = DataLoader(MyDataset('/data/corpus/seq2seq/summary/csl_title_public/csl_title_train.json'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-valid_dataset = MyDataset('F:/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
-test_dataset = MyDataset('F:/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
+valid_dataset = MyDataset('/data/corpus/seq2seq/summary/csl_title_public/csl_title_dev.json')
+test_dataset = MyDataset('/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
 
 model = build_transformer_model(
     config_path,

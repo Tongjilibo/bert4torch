@@ -10,7 +10,7 @@ import time
 import os
 
 # chatglm-6b, chatglm-6b-int4, chatglm-6b-int8
-model_dir = "E:/pretrain_ckpt/glm/chatglm-6b"
+model_dir = "/data/pretrain_ckpt/glm/chatglm-6b"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']
 

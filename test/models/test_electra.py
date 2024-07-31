@@ -24,7 +24,7 @@ def get_hf_model(model_dir):
     model = AutoModel.from_pretrained(model_dir)
     return model.to(device), tokenizer
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator"])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator"])
 @torch.inference_mode()
 def test_electra(model_dir):
     model, tokenizer = get_bert4torch_model(model_dir)
@@ -41,4 +41,4 @@ def test_electra(model_dir):
 
 
 if __name__=='__main__':
-    test_electra("E:/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator")
+    test_electra("/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator")

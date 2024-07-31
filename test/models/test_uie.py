@@ -6,7 +6,7 @@ from bert4torch.pipelines import UIEPredictor
 import os
 
 
-@pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/uie/uie_base_pytorch'])
+@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/uie/uie_base_pytorch'])
 @torch.inference_mode()
 def test_uie(model_dir):
     # 情感倾向分类
@@ -19,4 +19,4 @@ def test_uie(model_dir):
 
 
 if __name__ == '__main__':
-    test_uie('E:/pretrain_ckpt/uie/uie_base_pytorch')
+    test_uie('/data/pretrain_ckpt/uie/uie_base_pytorch')

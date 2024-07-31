@@ -17,8 +17,8 @@ def compare(data_path, tokenizer, tokenizer_b4t, truncation=False):
             assert tokens1 == tokens2, ''.join(tokens1) + ' <------> ' + ''.join(tokens2)
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"])
-@pytest.mark.parametrize("data_path", ['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"])
+@pytest.mark.parametrize("data_path", ['/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
 def test_bert_tokenizer(model_dir, data_path):
     '''测试bert的tokenizer'''
     print('Test BertTokenizer')
@@ -27,8 +27,8 @@ def test_bert_tokenizer(model_dir, data_path):
     compare(data_path, tokenizer, tokenizer_b4t, truncation=True)
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base"])
-@pytest.mark.parametrize("data_path", ['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base"])
+@pytest.mark.parametrize("data_path", ['/data/corpus/sentence_classification/sentiment/sentiment.train.data'])
 def test_xlnet_tokenizer(model_dir, data_path):
     '''测试xlnet的tokenizer'''
     print('Test SpTokenizer')
@@ -39,5 +39,5 @@ def test_xlnet_tokenizer(model_dir, data_path):
 
 
 if __name__ == '__main__':
-    test_bert_tokenizer("E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12", 'F:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
-    test_xlnet_tokenizer("E:/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base", 'F:/data/corpus/sentence_classification/sentiment/sentiment.train.data')
+    test_bert_tokenizer("/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12", '/data/corpus/sentence_classification/sentiment/sentiment.train.data')
+    test_xlnet_tokenizer("/data/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base", '/data/corpus/sentence_classification/sentiment/sentiment.train.data')

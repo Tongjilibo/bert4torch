@@ -13,7 +13,7 @@ from transformers import AutoTokenizer, LlamaTokenizer
 import platform
 import os
 
-model_dir = 'E:/pretrain_ckpt/llama/llama-7b'  # llama-7b, llama-13b
+model_dir = '/data/pretrain_ckpt/llama/llama-7b'  # llama-7b, llama-13b
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)

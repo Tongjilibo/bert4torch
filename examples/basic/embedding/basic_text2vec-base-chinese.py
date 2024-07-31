@@ -2,7 +2,7 @@
 # 预训练模型：https://huggingface.co/shibing624/text2vec-base-chinese
 # 方案是Cosent方案
 
-root_model_path = "E:/pretrain_ckpt/embedding/shibing624@text2vec-base-chinese"
+root_model_path = "/data/pretrain_ckpt/embedding/shibing624@text2vec-base-chinese"
 sentences = ['如何更换花呗绑定银行卡', '花呗更改绑定银行卡']
 
 print('=========================================sentence transformer====================================')

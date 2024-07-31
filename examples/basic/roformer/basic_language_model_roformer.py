@@ -5,11 +5,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import torch
 
-choice = 'roformer_v2'  # roformer roformer_v2
-if choice == 'roformer':
-    args_model_path = "E:/pretrain_ckpt/roformer/sushen@roformer_v1_base/"
-else:
-    args_model_path = "E:/pretrain_ckpt/roformer/sushen@roformer_v2_char_base/"
+args_model_path = "/data/pretrain_ckpt/roformer/sushen@roformer_v1_base/"
+# args_model_path = "/data/pretrain_ckpt/roformer/sushen@roformer_v2_char_base/"
     
 # 加载模型，请更换成自己的路径
 root_model_path = args_model_path

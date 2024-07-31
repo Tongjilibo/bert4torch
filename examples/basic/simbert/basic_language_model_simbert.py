@@ -24,25 +24,15 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 
 # 基本信息
 maxlen = 32
-choice = 'simbert_tiny'  # simbert_tiny, simbert_small, simbert_base simbert_v2
-if choice == 'simbert_tiny':
-    args_model_path = "E:/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny"
-    args_model = 'bert'
-elif choice == 'simbert_small':
-    args_model_path = "E:/pretrain_ckpt/simbert/sushen@simbert_chinese_small"
-    args_model = 'bert'
-elif choice == 'simbert_base':
-    args_model_path = "E:/pretrain_ckpt/simbert/sushen@simbert_chinese_base"
-    args_model = 'bert'
-elif choice == 'simbert_v2':
-    args_model_path = "E:/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"
-    args_model = 'roformer'
+model_dir = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny"  # simbert_tiny
+# model_dir = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_small"  # simbert_small
+# model_dir = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base"  # simbert_base
+# model_dir = "/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"  # simbert_v2
 
 # 加载simbert权重或roformer_v2
-root_model_path = args_model_path
-dict_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
+dict_path = model_dir + "/vocab.txt"
+config_path = model_dir + "/config.json"
+checkpoint_path = model_dir + '/pytorch_model.bin'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -59,8 +49,11 @@ tokenizer = Tokenizer(token_dict, do_lower_case=True)
 class Model(BaseModel):
     def __init__(self, pool_method='cls'):
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool='linear', model=args_model,
-                                            application='unilm', keep_tokens=keep_tokens)
+        self.bert = build_transformer_model(config_path=config_path, 
+                                            checkpoint_path=checkpoint_path, 
+                                            with_pool='linear', 
+                                            application='unilm', 
+                                            keep_tokens=keep_tokens)
         self.pool_method = pool_method
 
     def forward(self, token_ids, segment_ids):

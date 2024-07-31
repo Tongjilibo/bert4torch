@@ -8,8 +8,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
-root_path = '/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT-LCCC-base'
-# root_path = 'E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-large'
+root_path = '/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base'
+# root_path = '/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-large'
 
 config_path = root_path + '/bert4torch_config.json'
 checkpoint_path = root_path + '/pytorch_model.bin'

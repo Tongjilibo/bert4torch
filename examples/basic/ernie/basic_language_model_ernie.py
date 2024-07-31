@@ -7,8 +7,8 @@ import torch
 from torch.nn.functional import softmax
 
 # 加载模型，请更换成自己的路径
-# root_model_path = "E:/pretrain_ckpt/ernie/baidu@ernie-1-base-zh"
-root_model_path = "E:/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"
+# root_model_path = "/data/pretrain_ckpt/ernie/baidu@ernie-1-base-zh"
+root_model_path = "/data/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"
 input_text = "科学[MASK][MASK]是第一生产力"
 
 # ==========================bert4torch调用=========================

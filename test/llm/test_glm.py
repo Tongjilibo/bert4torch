@@ -27,14 +27,14 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/glm/chatglm-6b",
-                                    #    "E:/pretrain_ckpt/glm/chatglm-6b-int4",
-                                    #    "E:/pretrain_ckpt/glm/chatglm-6b-int8",
-                                       "E:/pretrain_ckpt/glm/chatglm2-6b",
-                                    #    "E:/pretrain_ckpt/glm/chatglm2-6b-int4",
-                                       "E:/pretrain_ckpt/glm/chatglm2-6b-32k",
-                                       "E:/pretrain_ckpt/glm/chatglm3-6b",
-                                       "E:/pretrain_ckpt/glm/chatglm3-6b-32k"])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/glm/chatglm-6b",
+                                    #    "/data/pretrain_ckpt/glm/chatglm-6b-int4",
+                                    #    "/data/pretrain_ckpt/glm/chatglm-6b-int8",
+                                       "/data/pretrain_ckpt/glm/chatglm2-6b",
+                                    #    "/data/pretrain_ckpt/glm/chatglm2-6b-int4",
+                                       "/data/pretrain_ckpt/glm/chatglm2-6b-32k",
+                                       "/data/pretrain_ckpt/glm/chatglm3-6b",
+                                       "/data/pretrain_ckpt/glm/chatglm3-6b-32k"])
 @torch.inference_mode()
 def test_glm(model_dir):
     query = '你好'
@@ -68,4 +68,4 @@ def test_glm(model_dir):
 
 
 if __name__=='__main__':
-    test_glm("E:/pretrain_ckpt/glm/chatglm3-6b-32k")
+    test_glm("/data/pretrain_ckpt/glm/chatglm3-6b-32k")

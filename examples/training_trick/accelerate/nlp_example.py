@@ -45,9 +45,9 @@ if batch_size > MAX_GPU_BATCH_SIZE:
 
 seed_everything(seed)
 
-config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
@@ -81,8 +81,8 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_labels.flatten()
 
 
-train_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
-eval_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=EVAL_BATCH_SIZE, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset(['/data/corpus/sentence_classification/sentiment/sentiment.train.data']), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+eval_dataloader = DataLoader(MyDataset(['/data/corpus/sentence_classification/sentiment/sentiment.valid.data']), batch_size=EVAL_BATCH_SIZE, collate_fn=collate_fn) 
 
 
 # Instantiate the model (we build the model here so that the seed also control new weights initialization)

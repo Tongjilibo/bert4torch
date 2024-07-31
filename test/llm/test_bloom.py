@@ -27,8 +27,8 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/bloom/bloom-560m',
-                                       'E:/pretrain_ckpt/bloom/bloomz-560m'])
+@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/bloom/bloom-560m',
+                                       '/data/pretrain_ckpt/bloom/bloomz-560m'])
 @torch.inference_mode()
 def test_bloom(model_dir):
     query = '你好'
@@ -57,4 +57,4 @@ def test_bloom(model_dir):
 
 
 if __name__=='__main__':
-    test_bloom('E:/pretrain_ckpt/bloom/bloom-560m')
+    test_bloom('/data/pretrain_ckpt/bloom/bloom-560m')

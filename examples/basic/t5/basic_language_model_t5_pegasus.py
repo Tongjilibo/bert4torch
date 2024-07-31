@@ -9,11 +9,11 @@ import jieba
 jieba.initialize()
 
 # bert配置
-pretrain_model = 'E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/'
-# pretrain_model = 'E:/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_torch/'
-config_path = pretrain_model + 'bert4torch_config.json'
-checkpoint_path = pretrain_model + 'pytorch_model.bin'
-dict_path = pretrain_model + 'vocab.txt'
+# model_dir = '/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_small_torch/'
+model_dir = '/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_torch/'
+config_path = model_dir + 'bert4torch_config.json'
+checkpoint_path = model_dir + 'pytorch_model.bin'
+dict_path = model_dir + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
@@ -46,7 +46,7 @@ autotitle = AutoTitle(bos_token_id=tokenizer._token_start_id, eos_token_id=token
 
 # 第二种方式
 # autotitle = Seq2SeqGeneration(model, tokenizer, bos_token_id=tokenizer._token_start_id, eos_token_id=tokenizer._token_end_id, 
-#                               maxlen=32, default_rtype='logits', mode='beam_search')
+#                               max_length=32, default_rtype='logits', mode='beam_search')
 
 if __name__ == '__main__':
     print(autotitle.generate('今天天气不错啊', top_k=1))

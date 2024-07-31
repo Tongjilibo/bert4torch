@@ -27,9 +27,9 @@
 2. 用项目中[脚本](https://github.com/IDEA-CCNL/Fengshenbang-LM/blob/main/fengshen/utils/apply_delta.py)合并权重
 ```python
 python3 -m apply_delta 
-    --base E:/pretrain_ckpt/llama/13B-hf 
-    --target E:/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1 
-    --delta E:/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1-delta
+    --base /data/pretrain_ckpt/llama/13B-hf 
+    --target /data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1 
+    --delta /data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1-delta
 ```
 
 ## [Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
@@ -37,17 +37,17 @@ python3 -m apply_delta
 1. 用transformer脚本转换facebook的llama模型, 如直接下载的是hf版的llama则此步骤忽略；
 ```python
 python D:/ProgramData/Anaconda3/Lib/site-packages/transformers/models/llama/convert_llama_weights_to_hf.py  
-    --input_dir E:/pretrain_ckpt/llama  
+    --input_dir /data/pretrain_ckpt/llama  
     --model_size 7B  
-    --output_dir E:/pretrain_ckpt/llama/7B-hf
+    --output_dir /data/pretrain_ckpt/llama/7B-hf
 ```
 2. 用项目中脚本合并lora权重；
 ```python
 python scripts/merge_llama_with_chinese_lora.py 
-    --base_model E:/pretrain_ckpt/llama/7B-hf  
-    --lora_model E:/pretrain_ckpt/llama/chinese-llama/hfl@chinese_llama_plus_lora_7b  
+    --base_model /data/pretrain_ckpt/llama/7B-hf  
+    --lora_model /data/pretrain_ckpt/llama/chinese-llama/hfl@chinese_llama_plus_lora_7b  
     --output_type huggingface
-    --output_dir E:/pretrain_ckpt/llama/chinese-llama/hfl@chinese_llama_plus_7b 
+    --output_dir /data/pretrain_ckpt/llama/chinese-llama/hfl@chinese_llama_plus_7b 
 ```
 
 
@@ -55,10 +55,10 @@ python scripts/merge_llama_with_chinese_lora.py
 转换同上，只是合并lora权重需要合并多个lora权重
 ```python
 python scripts/merge_llama_with_chinese_lora.py 
-    --base_model E:/pretrain_ckpt/llama/7B-hf 
-    --lora_model E:/pretrain_ckpt/llama/hfl@chinese_llama_plus_lora_7b,E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_lora_7b  
+    --base_model /data/pretrain_ckpt/llama/7B-hf 
+    --lora_model /data/pretrain_ckpt/llama/hfl@chinese_llama_plus_lora_7b,/data/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_lora_7b  
     --output_type huggingface 
-    --output_dir E:/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b 
+    --output_dir /data/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b 
 ```
 
 ## [belle-llama](https://github.com/LianjiaTech/BELLE/tree/main/models)

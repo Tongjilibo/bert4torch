@@ -4,16 +4,21 @@ from transformers import AutoTokenizer, FalconForCausalLM
 import torch
 
 
-model_dir = 'E:/pretrain_ckpt/falcon/falcon-rw-1b'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+def test_generate_speed():
+    model_dir = '/data/pretrain_ckpt/falcon/falcon-rw-1b'
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
-model = FalconForCausalLM.from_pretrained(model_dir, trust_remote_code=True).half().to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
+    model = FalconForCausalLM.from_pretrained(model_dir, trust_remote_code=True).half().to(device)
 
-query = '你好'
-inputs = tokenizer.encode(query, return_tensors="pt").to(device)
+    query = '你好'
+    inputs = tokenizer.encode(query, return_tensors="pt").to(device)
 
-with GenerateSpeed() as gs:
-    response = model.generate(inputs, top_k=1, max_length=20)
-    tokens_len = len(tokenizer(response, return_tensors='pt')['input_ids'][0])
-    gs(tokens_len)
+    with GenerateSpeed() as gs:
+        response = model.generate(inputs, top_k=1, max_length=20)
+        tokens_len = len(response[0]) - len(inputs[0])
+        gs(tokens_len)
+
+
+if __name__=='__main__':
+    test_generate_speed()

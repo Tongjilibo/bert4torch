@@ -20,8 +20,8 @@ def get_bert4torch_model(root_path):
     return encoder.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base',
-                                       'E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-large'])
+@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base',
+                                       '/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-large'])
 @torch.inference_mode()
 def test_gpt(model_dir):
     encoder, tokenizer = get_bert4torch_model(model_dir)
@@ -59,4 +59,4 @@ def test_gpt(model_dir):
 
 
 if __name__=='__main__':
-    test_gpt('E:/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base')
+    test_gpt('/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base')

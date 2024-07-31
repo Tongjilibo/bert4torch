@@ -1977,6 +1977,20 @@ class Chat:
     :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
+        - bos_token_id: int, 解码使用的起始token_id, 不同预训练模型设置可能不一样
+        - eos_token_id: int/tuple/list, 解码使用的结束token_id, 不同预训练模型设置可能不一样, 默认给的-1(真实场景中不存在, 表示输出到max_length)
+        - max_new_tokens: int, 最大解码长度
+        - min_new_tokens: int, 最小解码长度, 默认为1
+        - max_length: int, 最大文本长度
+        - pad_token_id: int, pad_id, 在batch解码时候使用
+        - pad_mode: str, padding在前面还是后面, pre或者post
+        - device: str, 默认为'cpu'
+        - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
+        - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)
+        - top_p: float, 这里的topp是token的概率阈值设置(仅在头部top_p上进行概率采样)
+        - temperature: float, 温度参数, 默认为1, 越小结果越确定, 越大结果越多样
+        - repetition_penalty: float, 重复的惩罚系数, 越大结果越不重复
+        - min_ends: int, 最小的end_id的个数
     :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
     :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
 
@@ -1997,7 +2011,7 @@ class Chat:
     ```python
     >>> from bert4torch.pipelines import Chat
 
-    >>> checkpoint_path = "E:/pretrain_ckpt/glm/chatglm2-6b"
+    >>> checkpoint_path = "/data/pretrain_ckpt/glm/chatglm2-6b"
     >>> generation_config  = {'mode':'random_sample',
     ...                     'max_length':2048, 
     ...                     'default_rtype':'logits', 

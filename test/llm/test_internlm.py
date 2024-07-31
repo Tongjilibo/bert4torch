@@ -27,7 +27,7 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ['E:/pretrain_ckpt/internlm/internlm-chat-7b'])
+@pytest.mark.parametrize("model_dir", ['/data/pretrain_ckpt/internlm/internlm-chat-7b'])
 @torch.inference_mode()
 def test_internlm(model_dir):
     query = '你好'
@@ -60,4 +60,4 @@ def test_internlm(model_dir):
 
 
 if __name__=='__main__':
-    test_internlm('E:/pretrain_ckpt/internlm/internlm-chat-7b')
+    test_internlm('/data/pretrain_ckpt/internlm/internlm-chat-7b')

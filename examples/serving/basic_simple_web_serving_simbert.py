@@ -14,10 +14,10 @@ from bert4torch.snippets import WebServing
 maxlen = 32
 choice = 'simbert'  # simbert simbert_v2
 if choice == 'simbert':
-    args_model_path = "E:/pretrain_ckpt/simbert/sushen@simbert_chinese_base"
+    args_model_path = "/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base"
     args_model = 'bert'
 else:
-    args_model_path = "E:/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"
+    args_model_path = "/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"
     args_model = 'roformer'
 
 # 加载simbert权重或simbert_v2

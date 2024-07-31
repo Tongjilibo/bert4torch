@@ -147,7 +147,7 @@ class MultiHeadAttentionLayer(nn.Module):
             self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
             if "layer_norm" in self.norm_rel_ebd:
                 self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
-            self.pos_dropout = nn.Dropout(self, self.dropout_rate)
+            self.pos_dropout = nn.Dropout(self.dropout_rate)
         elif self.p_bias == 'alibi':
             self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
 

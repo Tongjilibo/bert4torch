@@ -1,4 +1,6 @@
-# 多进程/线程parallel_apply测试
+'''多进程/线程parallel_apply测试
+'''
+
 from tqdm import tqdm
 from bert4torch.tokenizers import Tokenizer
 import torch
@@ -6,7 +8,7 @@ import numpy as np
 from bert4torch.snippets import parallel_apply
 import time
 
-dict_path = 'E:/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
+dict_path = '/data/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 categories = {'LOC':2, 'PER':3, 'ORG':4}
 
@@ -109,7 +111,7 @@ def func(inputs):
     
     return tokens_ids, _pieces2word, _dist_inputs, _grid_labels, _grid_mask2d, _entity_text
 
-corpus = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+corpus = load_data('/data/corpus/ner/china-people-daily-ner-corpus/example.train')
 
 start = time.time()
 train_samples = parallel_apply(

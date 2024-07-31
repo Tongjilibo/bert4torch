@@ -19,9 +19,9 @@ batch_size = 8
 epochs = 10000
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
@@ -86,7 +86,7 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_token_ids
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/pretrain/金庸小说/*.txt'), 
+train_dataloader = DataLoader(MyDataset('/data/corpus/pretrain/金庸小说/*.txt'), 
                    batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 建模

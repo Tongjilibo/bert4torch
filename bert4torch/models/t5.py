@@ -134,10 +134,13 @@ class T5_Decoder(Decoder):
 
 
 class T5(Transformer):
-    """Google的T5模型（Encoder-Decoder）"""
+    """Google的T5模型: Encoder-Decoder
+    decoder: tie_word_embeddings=False
+    encoder-decoder: tie_word_embeddings_encoder_decoder=True
+    """
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args,  **kwargs):
-        kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
+    def __init__(self, *args,  tie_word_embeddings_encoder_decoder:bool=True, **kwargs):
+        kwargs['tie_word_embeddings_encoder_decoder'] = tie_word_embeddings_encoder_decoder
         super(T5, self).__init__(*args, **kwargs)
 
         # encoder
@@ -148,11 +151,6 @@ class T5(Transformer):
         kwargs['logit_scale'] = kwargs.get('logit_scale', True)
         self.decoder = T5_Decoder(*args, **kwargs)
         self.model_type = 't5'
-
-    def tie_weights(self):
-        super().tie_weights()
-        self.encoder.tie_weights()
-        self.decoder.tie_weights()
     
     def load_variable(self, variable, old_key, new_key):
         # 加载单个变量的函数
@@ -164,7 +162,7 @@ class T5(Transformer):
     def variable_mapping(self):
         mapping = self.encoder.variable_mapping()
         mapping.update(self.decoder.variable_mapping())
-        if self.tie_word_embeddings:
+        if self.tie_word_embeddings_encoder_decoder:
             mapping.update({'encoder.embeddings.word_embeddings.weight': 'shared.weight',
                             'decoder.embeddings.word_embeddings.weight': 'shared.weight'})
         return mapping

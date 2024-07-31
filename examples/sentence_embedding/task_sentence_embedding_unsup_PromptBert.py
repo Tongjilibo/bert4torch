@@ -53,10 +53,10 @@ maxlen = template_len + (128 if task_name == 'PAWSX' else 64)
 # bert配置
 model_dir = {
     'BERT': '/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12',
-    'RoBERTa': 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
-    'NEZHA': 'E:/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
-    'RoFormer': 'E:/pretrain_ckpt/roformer/sushen@roformer_v1_base',
-    'SimBERT': 'E:/pretrain_ckpt/simbert/sushen@simbert_chinese_base',
+    'RoBERTa': '/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base',
+    'NEZHA': '/data/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base',
+    'RoFormer': '/data/pretrain_ckpt/roformer/sushen@roformer_v1_base',
+    'SimBERT': '/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base',
 }[model_type]
 
 config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'

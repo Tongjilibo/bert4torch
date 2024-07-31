@@ -21,8 +21,8 @@ def get_bert4torch_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/roformer/sushen@roformer_v1_base",
-                                       "E:/pretrain_ckpt/roformer/sushen@roformer_v2_char_base"])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/roformer/sushen@roformer_v1_base",
+                                       "/data/pretrain_ckpt/roformer/sushen@roformer_v2_char_base"])
 @torch.inference_mode()
 def test_roformer(model_dir):
     query = "今天[MASK]很好，我[MASK]去公园玩。"
@@ -51,4 +51,4 @@ def test_roformer(model_dir):
 
 
 if __name__=='__main__':
-    test_roformer("E:/pretrain_ckpt/roformer/sushen@roformer_v1_base")
+    test_roformer("/data/pretrain_ckpt/roformer/sushen@roformer_v1_base")

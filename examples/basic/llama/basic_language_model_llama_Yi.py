@@ -1,5 +1,5 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
-dir_path = "E:/pretrain_ckpt/llama/01-ai@Yi-6B"
+dir_path = "/data/pretrain_ckpt/llama/01-ai@Yi-6B"
 query = "There's a place where time stands still. A place of breath taking wonder, but also"
 
 # print('==========================transformers=============================')
@@ -23,7 +23,6 @@ query = "There's a place where time stands still. A place of breath taking wonde
 
 print('==========================bert4torch=============================')
 from bert4torch.models import build_transformer_model
-import os
 model = build_transformer_model(config_path=dir_path, checkpoint_path=dir_path).half().cuda()
 
 generation_config = {

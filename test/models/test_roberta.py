@@ -25,9 +25,9 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/pretrain_ckpt/roberta/ethanyt@guwenbert-base",
-                                       "E:/pretrain_ckpt/roberta/huggingface@roberta-base-english",
-                                       'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base'])
+@pytest.mark.parametrize("model_dir", ["/data/pretrain_ckpt/roberta/ethanyt@guwenbert-base",
+                                       "/data/pretrain_ckpt/roberta/huggingface@roberta-base-english",
+                                       '/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base'])
 @torch.inference_mode()
 def test_roberta(model_dir):
     model = get_bert4torch_model(model_dir)
@@ -47,4 +47,4 @@ def test_roberta(model_dir):
 
 
 if __name__=='__main__':
-    test_roberta("E:/pretrain_ckpt/roberta/huggingface@roberta-base-english")
+    test_roberta("/data/pretrain_ckpt/roberta/huggingface@roberta-base-english")

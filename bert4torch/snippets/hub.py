@@ -6,7 +6,13 @@ import os
 import json
 from pathlib import Path
 from typing import Union, Optional, Dict
-from torch4keras.snippets import log_error_once, log_info_once, log_error, is_safetensors_available, check_file_modified
+from torch4keras.snippets import (
+    log_error_once, 
+    log_error, 
+    log_info_once, 
+    log_warn,
+    is_safetensors_available, 
+    check_file_modified)
 
 
 if os.environ.get('SAFETENSORS_FIRST', False):
@@ -219,29 +225,34 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
     elif isinstance(pretrained_model_name_or_path, (tuple,list)):
         pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path[0])
 
-    config_path = None
-    # 文件
-    if os.path.isfile(pretrained_model_name_or_path):
-        if pretrained_model_name_or_path.endswith('.json'):
-            return pretrained_model_name_or_path
-        else:
-            pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
+    config_path = None       
+    # 本地文件存在
+    if os.path.isfile(pretrained_model_name_or_path) and pretrained_model_name_or_path.endswith('.json'):
+        # 本地存在bert4torch_config.json或config.json文件
+        return pretrained_model_name_or_path
+    elif os.path.isfile(pretrained_model_name_or_path) or pretrained_model_name_or_path.endswith('.json'):
+        # 本地文件存在，或者.json结尾的不存在的本地路径
+        pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
 
-    # 文件夹
+    # 本地文件夹存在
     if os.path.isdir(pretrained_model_name_or_path):
-        for _config in ['bert4torch_config.json', 'config.json']:
-            if os.path.exists(tmp := os.path.join(pretrained_model_name_or_path, _config)):
-                config_path = tmp
-                break
+        if os.path.exists(tmp := os.path.join(pretrained_model_name_or_path, 'bert4torch_config.json')):
+            # bert4torch_config存在
+            config_path = tmp
+        elif os.path.exists(tmp := os.path.join(pretrained_model_name_or_path, 'config.json')):
+            config_path = tmp
+            log_warn(f'`bert4torch_config.json` not found in {pretrained_model_name_or_path}, use `config.json` instead')
+        
         if (not allow_none) and (config_path is None):
             raise FileNotFoundError('bert4torch_config.json or config.json not found')
 
     # model_name: 从hf下载bert4torch_config.json文件
     else:
-        # 独立的repo
         if pretrained_model_name_or_path.startswith('Tongjilibo/'):
+            # 独立的repo
             config_path = snapshot_download(pretrained_model_name_or_path, filename='bert4torch_config.json', **kwargs)
         else:
+            # 单独下载bert4torch_config.json文件
             filename = pretrained_model_name_or_path.split('/')[-1] + '/bert4torch_config.json'
             config_path = snapshot_download('Tongjilibo/bert4torch_config', filename=filename, **kwargs)
 

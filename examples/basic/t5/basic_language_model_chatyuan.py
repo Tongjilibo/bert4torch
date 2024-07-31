@@ -8,7 +8,7 @@ from bert4torch.generation import AutoRegressiveDecoder
 
 
 # 配置
-pretrain_model = 'E:/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/'
+pretrain_model = '/data/pretrain_ckpt/t5/ClueAI@ClueAI-ChatYuan-large-v1/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'
@@ -28,16 +28,17 @@ class AutoTitle(AutoRegressiveDecoder):
         res = encoder.decoder.predict([output_ids] + inputs)
         return res[-1][:, -1, :] if isinstance(res, list) else res[:, -1, :]  # 保留最后一位
 
-    def generate(self, text, n=1, top_p=1, temperature=0.7):
+    def generate(self, text, n=1, top_k=40, temperature=0.7):
         text = text.replace("\n", "\\n").replace("\t", "\\t")
         token_ids, _ = tokenizer.encode(text, maxlen=768)
         token_ids = torch.tensor([token_ids], device=device)
         encoder_output = encoder.encoder.predict([token_ids])
-        output_ids = self.random_sample(encoder_output, n=n, top_k=1, temperature=temperature)  # 基于随机采样
+        output_ids = self.random_sample(encoder_output, n=n, top_k=top_k, temperature=temperature)  # 基于随机采样
         out_text = tokenizer.decode([int(i.cpu().numpy()) for i in output_ids[0]])
         return out_text.replace("\\n", "\n").replace("\\t", "\t")
 
 autotitle = AutoTitle(bos_token_id=0, eos_token_id=tokenizer._token_end_id, max_new_tokens=512, device=device)
+
 
 if __name__ == '__main__':
     input_list = [

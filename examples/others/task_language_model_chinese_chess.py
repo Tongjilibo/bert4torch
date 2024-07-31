@@ -22,9 +22,9 @@ epochs = 10000
 batch_size = 16
 
 # bert配置
-config_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'E:/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = '/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/config.json'
+checkpoint_path = '/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -81,7 +81,7 @@ def collate_fn(batch):
     return [batch_token_ids, batch_segment_ids], batch_token_ids
 
 # 加载数据集
-train_dataloader = DataLoader(MyDataset('F:/data/corpus/seq2seq/qipu/qipu.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
+train_dataloader = DataLoader(MyDataset('/data/corpus/seq2seq/qipu/qipu.json'), batch_size=batch_size, shuffle=True, collate_fn=collate_fn) 
 
 # 由于字典中0不代表padding位，为避免attention_mask计算错误，这里pad_token_id=-100
 model = build_transformer_model(config_path, checkpoint_path, application='lm', with_mlm=True,

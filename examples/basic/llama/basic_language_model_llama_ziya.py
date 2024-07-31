@@ -9,7 +9,9 @@ Ziya-LLaMA-13B_pretrain: https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-Pretrai
 from bert4torch.pipelines import Chat
 
 
-# Ziya-LLaMA-13B_v1.1 Ziya-LLaMA-13B_v1 Ziya-LLaMA-13B_pretrain
+# Ziya-LLaMA-13B_v1.1 
+# Ziya-LLaMA-13B_v1 
+# Ziya-LLaMA-13B_pretrain
 dir_path = '/data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1'
 with_prompt = False if '_pretrain' in dir_path else True
 
@@ -17,7 +19,8 @@ generation_config = {'include_input': not with_prompt}
 
 
 cli_demo = Chat(
-    dir_path, generation_config=generation_config,
+    dir_path, 
+    generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )
 

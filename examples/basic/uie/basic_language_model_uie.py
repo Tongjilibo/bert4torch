@@ -5,7 +5,7 @@ from pprint import pprint
 if __name__ == '__main__':
     # 命名实体识别
     schema = ['时间', '选手', '赛事名称'] # Define the schema for entity extraction
-    ie = UIEPredictor(checkpoint_path='E:/pretrain_ckpt/uie/uie_base_pytorch', schema=schema)
+    ie = UIEPredictor(checkpoint_path='/data/pretrain_ckpt/uie/uie_base_pytorch', schema=schema)
     pprint(ie("2月8日上午北京冬奥会自由式滑雪女子大跳台决赛中中国选手谷爱凌以188.25分获得金牌！"))
 
     schema = ['肿瘤的大小', '肿瘤的个数', '肝癌级别', '脉管内癌栓分级']

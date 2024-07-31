@@ -9,7 +9,7 @@ from bert4torch.generation import AutoRegressiveDecoder
 
 
 # 配置
-pretrain_model = 'E:/pretrain_ckpt/t5/ClueAi@PromptCLUE-base-v1-5/'
+pretrain_model = '/data/pretrain_ckpt/t5/ClueAi@PromptCLUE-base-v1-5/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'

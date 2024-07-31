@@ -4,7 +4,6 @@
 # 博客介绍：https://kexue.fm/archives/7912
 # bert4torch_config.json见readme
 
-import numpy as np
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import SpTokenizer
 from bert4torch.generation import AutoRegressiveDecoder
@@ -13,9 +12,9 @@ import jieba
 jieba.initialize()
 
 # 模型路径
-config_path = 'E:/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/bert4torch_config.json'
-checkpoint_path = 'E:/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/pytorch_model.bin'
-spm_path = 'E:/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/chinese_vocab.model'
+config_path = '/data/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/pytorch_model.bin'
+spm_path = '/data/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/chinese_vocab.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def pre_tokenize(text):

@@ -1,4 +1,4 @@
-root_model_path = 'E:\pretrain_ckpt\embedding\moka-ai@m3e-base'
+root_model_path = '/data/pretrain_ckpt/embedding/moka-ai@m3e-base'
 sentences = [
     '* Mixed 此文本嵌入模型支持中英双语的同质文本相似度计算，异质文本检索等功能，未来还会支持代码检索，ALL in one',
     '* Moka 此文本嵌入模型由 MokaAI 训练并开源，训练脚本使用 uniem',
