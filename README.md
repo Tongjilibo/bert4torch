@@ -230,6 +230,7 @@ model = build_transformer_model(config_path, checkpoint_path)
 ## 8. 其他
 
 - Wechat & Star History Chart
+- 微信群人数超过200个（有邀请限制），可添加个人微信拉群
 
 <table border="0">
   <tbody>
