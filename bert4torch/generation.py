@@ -86,7 +86,7 @@ class AutoRegressiveDecoder(object):
                  n:int=1, 
                  top_k:int=None, 
                  top_p:float=None,
-                 temperature:float=1, 
+                 temperature:float=1.0, 
                  repetition_penalty:float=1.0, 
                  min_ends:int=1, 
                  **generation_config):
@@ -99,15 +99,42 @@ class AutoRegressiveDecoder(object):
         self.pad_token_id = pad_token_id   # pad_token_id兼容bert4torch和hf的, 如错误则需要显式传入pad_id:int
         self.pad_mode = pad_mode
         self.device = device
+
+        # 生成的样本个数
+        if not isinstance(n, int) or n <= 0:
+            raise ValueError(f"`n` has to be a strictly positive integer, but is {n}")
         self.n = n
+
+        # topk采样
+        if top_k is not None and (not isinstance(top_k, int) or top_k <= 0):
+            raise ValueError(f"`top_k` has to be a strictly positive integer, but is {top_k}")
         self.top_k = top_k
+
+        # top_p采样
+        if top_p is not None and (top_p < 0 or top_p > 1.0):
+            raise ValueError(f"`top_p` has to be a float > 0 and < 1, but is {top_p}")
         self.top_p = top_p
+        
+        # 温度系数
+        if not isinstance(temperature, (int,float)) or not (temperature > 0):
+            except_msg = (
+                f"`temperature` (={temperature}) has to be a strictly positive float, otherwise your next token "
+                "scores will be invalid."
+            )
+            if isinstance(temperature, (int,float)) and temperature == 0.0:
+                except_msg += " If you're looking for greedy decoding strategies, set `top_k=1`."
+            raise ValueError(except_msg)
         self.temperature = temperature
+
+        # 重复性惩罚系数
+        if not isinstance(repetition_penalty, (int,float)) or not (repetition_penalty > 0):
+            raise ValueError(f"`repetition_penalty` has to be a strictly positive float, but is {repetition_penalty}")
         self.repetition_penalty = repetition_penalty
-        self.min_ends = min_ends
+
+        self.min_ends = min_ends        
         self.return_last_token = False
         self.return_states = False
-        # 参数别名：兼容transformers的参数设置
+        # 参数别名：兼容bert4torch旧示例
         self.alias = {'start_id': 'bos_token_id',
                       'end_id': 'eos_token_id',
                       'topk': 'top_k',

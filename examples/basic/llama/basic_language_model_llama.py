@@ -1,43 +1,31 @@
 #! -*- coding: utf-8 -*-
 """
-基本测试：原生llama模型的测试 https://github.com/facebookresearch/llama
+基本测试: 原生llama模型的测试(需要搭配bert4torch_config.json, 见Github readme)
+
+# llama: https://github.com/facebookresearch/llama
     权重下载：[Github](https://github.com/facebookresearch/llama)
     [huggingface](https://huggingface.co/huggyllama)
     [torrent](https://pan.baidu.com/s/1yBaYZK5LHIbJyCCbtFLW3A?pwd=phhd)
+
+# llama2: https://huggingface.co/collections/meta-llama/llama-2-family-661da1f90a9d678b6f55773b
+
+# llama3: https://huggingface.co/collections/meta-llama/meta-llama-3-66214712577ca38149ebb2b6
 """
 
-import torch
-from bert4torch.models import build_transformer_model
-from bert4torch.generation import SeqGeneration
-from transformers import AutoTokenizer, LlamaTokenizer
-import platform
-import os
+from bert4torch.pipelines import Chat
+import re
 
-model_dir = 'E:/data/pretrain_ckpt/llama/llama-7b'  # llama-7b, llama-13b
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# llama-7b, llama-13b
+# llama-2-7b  llama-2-7b-chat  llama-2-13b  llama-2-13b-chat
+# Meta-Llama-8B-Instruct  Meta-Llama-8B-Instruct
+model_dir = 'E:/data/pretrain_ckpt/llama/llama-7b'
+generation_config = {
+    'max_length': 512, 
+    'include_input': False if re.search('chat|Instruct', model_dir) else True,
+}
 
-tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
-# model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
-model = model.to(device)
-
-article_completion = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tokenizer.eos_token_id, 
-                                   mode='random_sample', tokenizer_config={'skip_special_tokens': True},
-                                   max_length=256, default_rtype='logits', use_states=True)
+demo = Chat(model_dir, generation_config=generation_config)
 
 
 if __name__ == '__main__':
-    os_name = platform.system()
-    print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
-    while True:
-        query = input("\nUser：")
-        if query == "stop":
-            break
-        if query == "clear":
-            command = 'cls' if os_name == 'Windows' else 'clear'
-            os.system(command)
-            print("Welcome to use llama model，type `clear` to clear history，type `stop` to stop program")
-            continue
-        response = article_completion.generate(query, include_input=True)      
-        torch.cuda.empty_cache()  # 清理显存
-        print(f"\nllama：{response}")
+    demo.run()

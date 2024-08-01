@@ -5,7 +5,7 @@
     Implements API for LLM in OpenAI's format. (https://platform.openai.com/docs/api-reference/chat)
     Usage: python openai_api.py
     Visit http://localhost:8000/docs for documents.
-3. web界面快速搭建demo
+3. web界面快速搭建demo(gradio+streamlit)
 
 # TODO: 设置return_states=True时候，受到build_prompt影响，很难保证prompt完全复现
 这里采用添加self.generation_config['states']['last_token']，是因为推理完成可能是因为到达max_length，未必是遇到了eos
@@ -1198,24 +1198,7 @@ class InternLM(ChatBase):
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class InternLM2(ChatBase):
     '''internlm2支持function call, 格式如下:
-    ```python
-    [
-        {
-            "name": "track", 
-            "description": "追踪指定股票的实时价格",
-            "parameters":
-                {
-                    "type": "object", 
-                    "properties": {"symbol":
-                                    {
-                                        "description": "需要追踪的股票代码"
-                                    }
-                                },
-                    "required": []
-                }
-        }
-    ]
-    ```
+
     由于_additional_special_tokens为['<|im_start|>', '<|im_end|>', '<|action_start|>', '<|action_end|>', '<|interpreter|>', '<|plugin|>']
     在function call时候若skip_special_tokens=True, 则捕捉不到'<|action_start|>', '<|action_end|>', '<|interpreter|>', '<|plugin|>'
     因此bert4torch_config.json中未设置skip_special_tokens, 默认为False
@@ -1223,23 +1206,49 @@ class InternLM2(ChatBase):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system if system is not None else SYSTEM_ZH
+        self.plugin_with_name = True
+
+        self.api_prefix = (
+            "This is the subfunction for tool '{tool_name}', you can use this tool. "
+            'The description of this function is: \n{description}')
+
+        self.meta_prompt = ('当开启工具以及代码时，根据需求选择合适的工具进行调用')
+
+        INTERPRETER_CN = ('你现在已经能够在一个有状态的 Jupyter 笔记本环境中运行 Python 代码。'
+                        '当你向 python 发送含有 Python 代码的消息时，它将在该环境中执行。'
+                        '这个工具适用于多种场景，如数据分析或处理（包括数据操作、统计分析、图表绘制），'
+                        '复杂的计算问题（解决数学和物理难题），编程示例（理解编程概念或特性），'
+                        '文本处理和分析（比如文本解析和自然语言处理），'
+                        '机器学习和数据科学（用于展示模型训练和数据可视化），'
+                        '以及文件操作和数据导入（处理CSV、JSON等格式的文件）。')
+
+        self.plugin_prompt = ('你可以使用如下工具：'
+                    '\n{prompt}\n'
+                    '如果你已经获得足够信息，请直接给出答案. 避免不必要的工具调用! '
+                    '同时注意你可以使用的工具，不要随意捏造！')
+
     
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
         if (len(history) == 0) or (history[0]["role"] != "system"):
-            history.insert(0, {"role": "system", "content": self.system})
+            history.insert(0, {"role": "system", "content": self.system if functions is None else self.meta_prompt})
 
         if (functions is not None) and all([h['role'] !='function' for h in history]):
             # history中没有function
             start = [i for i, v in enumerate(history) if v['role']=='system'][-1] + 1
+            plugin_descriptions = []
             for i, func in enumerate(functions, start=start):
-                name, description = func['name'], func['description']
-                if not name.startswith('<|') and not name.endswith('|>'):
-                    name = f'<|{name}|>'
-                if func.get('conifg', {}).get('with_name', True):
-                    content = f"""<|im_start|>system name={name}\n{description}<|im_end|>\n"""
-                else:
-                    content = f"""<|im_start|>system\n{name}\n{description}<|im_end|>\n"""
-                history.insert(i, {"role": "function", "content": content})
+                plugin = copy.deepcopy(func)
+                name = plugin['name'].split('.')[0]
+                plugin['description'] = self.api_prefix.format(tool_name=name, description=plugin['description'])
+                plugin_descriptions.append(plugin)
+            
+            plugin_prompt = self.plugin_prompt.format(prompt=json.dumps(plugin_descriptions, ensure_ascii=False, indent=4))
+            
+            if self.plugin_with_name:
+                content = f"""<|im_start|>system name=<|plugin|>\n{plugin_prompt}<|im_end|>\n"""
+            else:
+                content = f"""<|im_start|>system\n<|plugin|>\n{plugin_prompt}<|im_end|>\n"""
+            history.insert(i, {"role": "function", "content": content})
 
         if self.tokenizer.add_bos_token:
             prompt = ""
@@ -1271,19 +1280,12 @@ class InternLM2(ChatBase):
 
         start_token = '<|action_start|>'
         end_token = '<|action_end|>'
-        plugin_token = '<|plugin|>'
-        interpreter_token = '<|interpreter|>'
-        if plugin_token in response:
-            response, arguments = response.split(f"{start_token}{plugin_token}")
-            arguments = arguments.split(end_token)[0]
-            response = response.split(start_token)[0]
-            history[-1]['function_call'] = {"name": 'plugin', "arguments": arguments}
-
-        if interpreter_token in response:  # 
-            response, arguments = response.split(f"{start_token}{interpreter_token}")
-            arguments = arguments.split(end_token)[0].strip()
-            response = response.split(start_token)[0]
-            history[-1]['function_call'] = {"name": 'interpreter', "arguments": arguments}
+        for _token in ['<|plugin|>', '<|interpreter|>']:
+            if _token in response:
+                response, arguments = response.split(f"{start_token}{_token}")
+                arguments = arguments.split(end_token)[0].strip()
+                response = response.split(start_token)[0]
+                history[-1]['function_call'] = {"name": 'plugin', "arguments": arguments}
 
         return response
 
@@ -1950,6 +1952,33 @@ class Baichuan(ChatBase):
         return total_input
 
 
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class PretrainedTextContinuation(ChatBase):
+    '''预训练的模型续写'''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
+        if functions is not None: 
+            log_warn('PretrainedTextContinuation do not support function call')
+
+        total_input = ''
+        if self.no_history_states():
+            for query_or_response in history:
+                role, content = query_or_response['role'], query_or_response['content']
+                if self.generation_config.get('include_input', False):
+                    if role == 'assistant':
+                        total_input += content
+                else:
+                    total_input += content
+        else:
+            total_input += [self.generation_config['states']['last_token_id']]
+        total_input += query
+        
+        history.append({"role": "user", "content": query})
+        return total_input
+
+
 MAPPING = {
     'glm': Glm,
     'glm2': Glm2,
@@ -2054,8 +2083,11 @@ class Chat:
         if template is None:
             raise ValueError('template/model/model_type not found in bert4torch_config.json')
         elif template not in MAPPING:
-            raise ValueError(f'template:{template} not supported')
-        ChatTemplate = MAPPING[template]
+            log_info('PretrainedTextContinuation is used, only can continue your text.')
+            ChatTemplate = PretrainedTextContinuation
+        else:
+            ChatTemplate = MAPPING[template]
+            log_info(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
 
         if mode == 'cli':
             @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -2071,5 +2103,4 @@ class Chat:
             class ChatDemo(ChatTemplate, ChatOpenaiApi): pass
         else:
             raise ValueError(f'Unsupported mode={mode}')
-        log_info(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
         return ChatDemo(*args, **kwargs)
