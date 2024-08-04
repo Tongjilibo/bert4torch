@@ -193,10 +193,14 @@ class RoPEPositionEncoding(nn.Module):
         self.max_position = max_position  # 原始支持的最大长度
         self.max_seq_len_cache = max_position  # 推理过程中遇到的最大长度max(seq_len, max_position)
         self._set_cos_sin_cache(max_position)
-        
+    
+    def get_sinusoid_encoding_table(self, n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
+                                     scaling_factor:float=1.0, padding_idx:Optional[int]=None):
+        return get_sinusoid_encoding_table(n_position, d_hid, base, ntk_alpha=ntk_alpha, scaling_factor=scaling_factor)
+
     def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
-        position_embeddings = get_sinusoid_encoding_table(seq_len, self.embedding_size, base=self.rope_theta,
-                                                          ntk_alpha=self.ntk_alpha, scaling_factor=self.scaling_factor)  # [seq_len, hdsz]
+        position_embeddings = self.get_sinusoid_encoding_table(seq_len, self.embedding_size, base=self.rope_theta,
+                                                               ntk_alpha=self.ntk_alpha, scaling_factor=self.scaling_factor)  # [seq_len, hdsz]
 
         if self.rope_rank == 'adjacent':
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
@@ -294,6 +298,51 @@ class RoPEDynamicNTKScalingPositionEncoding(RoPEPositionEncoding):
         return super()._set_cos_sin_cache(seq_len, device, dtype)
 
 
+class RoPELlama3PositionEncoding(RoPEPositionEncoding):
+    '''使用Dynamic NTK scaling的rope'''
+    def __init__(self, 
+                 embedding_size: int, 
+                 max_position: int=2048, 
+                 rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
+                 scaling_factor: float=1.0, 
+                 rope_theta: float=10000.0, 
+                 **kwargs):
+        self.low_freq_factor = kwargs["low_freq_factor"]  # `1` in the original implementation
+        self.high_freq_factor = kwargs["high_freq_factor"]  # `4` in the original implementation
+        self.old_context_len = kwargs["original_max_position_embeddings"]  # `8192` in the original implementation
+        super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
+
+    def get_sinusoid_encoding_table(self, n_position: int, d_hid: int, base: float = 10000, ntk_alpha: float = 1, 
+                                    scaling_factor: float = 1, padding_idx:Optional[int]=None):
+        if (ntk_alpha is not None) and (ntk_alpha != 1):
+            base = base * ntk_alpha ** (d_hid / (d_hid-2))
+        
+        position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
+        inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
+
+        low_freq_wavelen = self.old_context_len / self.low_freq_factor
+        high_freq_wavelen = self.old_context_len / self.high_freq_factor
+        new_freqs = []
+        for freq in inv_freq:
+            wavelen = 2 * math.pi / freq
+            if wavelen < high_freq_wavelen:
+                new_freqs.append(freq)
+            elif wavelen > low_freq_wavelen:
+                new_freqs.append(freq / self.scaling_factor)
+            else:
+                assert low_freq_wavelen != high_freq_wavelen
+                smooth = (self.old_context_len / wavelen - self.low_freq_factor) / (self.high_freq_factor - self.low_freq_factor)
+                new_freqs.append((1 - smooth) * freq / self.scaling_factor + smooth * freq)
+        inv_freq = torch.tensor(new_freqs, dtype=inv_freq.dtype, device=inv_freq.device)
+
+        embeddings_table = torch.zeros(n_position, d_hid)
+        if (scaling_factor is not None) and (scaling_factor != 1):
+            position = position / scaling_factor
+        embeddings_table[:, 0::2] = torch.sin(position * inv_freq)
+        embeddings_table[:, 1::2] = torch.cos(position * inv_freq)
+        return embeddings_table    
+
+
 class RoPEDynamicNTKScalingQwenPositionEncoding(RoPEPositionEncoding):
     '''使用Dynamic NTK scaling的rope (Qwen版)'''
     def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
@@ -302,6 +351,15 @@ class RoPEDynamicNTKScalingQwenPositionEncoding(RoPEPositionEncoding):
         if ntk_alpha != self.ntk_alpha:
             self.ntk_alpha = ntk_alpha
         return super()._set_cos_sin_cache(seq_len, device, dtype)
+
+
+ROPE_ENCODGING_MAP = {
+    None: RoPEPositionEncoding,
+    'linear': RoPELinearScalingPositionEncoding,
+    'dynamic': RoPEDynamicNTKScalingPositionEncoding,
+    'dynamic_qwen': RoPEDynamicNTKScalingQwenPositionEncoding,
+    'llama3': RoPELlama3PositionEncoding
+}
 
 
 class XlnetPositionsEncoding(nn.Module):

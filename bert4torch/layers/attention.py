@@ -11,6 +11,8 @@ from bert4torch.layers.position_encoding import (
     RoPELinearScalingPositionEncoding,
     RoPEDynamicNTKScalingPositionEncoding,
     RoPEDynamicNTKScalingQwenPositionEncoding,
+    RoPELlama3PositionEncoding,
+    ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
 from bert4torch.activations import get_activation
@@ -101,31 +103,26 @@ class MultiHeadAttentionLayer(nn.Module):
             # position_encoding_2d 目前仅在chatglm中使用
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
-            scaling_type = self.rope_scaling.get("type")
-            scaling_factor = self.rope_scaling.get("factor")
+            scaling_type = self.rope_scaling.pop("rope_type", self.rope_scaling.pop('type', None))
+            scaling_factor = self.rope_scaling.pop("factor", None)
             rope_theta = kwargs.get('rope_theta')
             rope_rank = kwargs.get('rope_rank')
             if scaling_type is None:
-                '''标准rope'''
                 assert scaling_factor is None , f'Args `rope_scaling.factor` not supported in standard rope'
-                RoPE = RoPEPositionEncoding
-            elif scaling_type == 'linear':
+            elif scaling_type in {'linear', 'dynamic'}:
                 assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
-                RoPE = RoPELinearScalingPositionEncoding
-            elif scaling_type == 'dynamic':
-                assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
-                RoPE = RoPEDynamicNTKScalingPositionEncoding
-            elif scaling_type == 'dynamic_qwen':
-                RoPE = RoPEDynamicNTKScalingQwenPositionEncoding
-            else:
-                raise ValueError(f"Not supported args rope_scaling.type=={scaling_type}")
-            self.relative_positions_encoding = RoPE(embedding_size=embedding_size, max_position=self.max_position, rope_rank=rope_rank, 
-                                                    scaling_factor=scaling_factor, rope_theta=rope_theta)
             
+            self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](embedding_size=embedding_size, 
+                                                                                max_position=self.max_position, 
+                                                                                rope_rank=rope_rank, 
+                                                                                scaling_factor=scaling_factor, 
+                                                                                rope_theta=rope_theta,
+                                                                                **self.rope_scaling)
         elif self.p_bias == 't5_relative':  # t5
-            self.relative_positions = T5PositionsEncoding(qlen=self.max_position,  klen=self.max_position, 
-                                                                  relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
-                                                                  is_decoder=kwargs.get('is_decoder'))
+            self.relative_positions = T5PositionsEncoding(qlen=self.max_position,  
+                                                          klen=self.max_position, 
+                                                          relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
+                                                          is_decoder=kwargs.get('is_decoder'))
             self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
         elif self.p_bias == 'deberta_v2':  # deberta_v2
             # 配置文件
@@ -140,9 +137,10 @@ class MultiHeadAttentionLayer(nn.Module):
 
             # position_embedding
             self.pos_att_type = kwargs.get('pos_att_type', [])
-            self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position, klen=self.max_position, 
-                                                                         position_buckets=kwargs.get('position_buckets'),
-                                                                         max_position=self.max_position)
+            self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position, 
+                                                                 klen=self.max_position, 
+                                                                 position_buckets=kwargs.get('position_buckets'),
+                                                                 max_position=self.max_position)
             self.relative_positions_encoding = nn.Embedding(self.max_position, self.hidden_size)
             self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
             if "layer_norm" in self.norm_rel_ebd:
