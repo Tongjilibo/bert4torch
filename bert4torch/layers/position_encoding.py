@@ -196,6 +196,7 @@ class RoPEPositionEncoding(nn.Module):
     
     def get_sinusoid_encoding_table(self, n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
                                      scaling_factor:float=1.0, padding_idx:Optional[int]=None):
+        '''这里重新定义主要是为了后续继承'''
         return get_sinusoid_encoding_table(n_position, d_hid, base, ntk_alpha=ntk_alpha, scaling_factor=scaling_factor)
 
     def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
@@ -299,7 +300,7 @@ class RoPEDynamicNTKScalingPositionEncoding(RoPEPositionEncoding):
 
 
 class RoPELlama3PositionEncoding(RoPEPositionEncoding):
-    '''使用Dynamic NTK scaling的rope'''
+    '''使用llama3的rope'''
     def __init__(self, 
                  embedding_size: int, 
                  max_position: int=2048, 
@@ -317,6 +318,7 @@ class RoPELlama3PositionEncoding(RoPEPositionEncoding):
         if (ntk_alpha is not None) and (ntk_alpha != 1):
             base = base * ntk_alpha ** (d_hid / (d_hid-2))
         
+        scaling_factor = scaling_factor or 1
         position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
         inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
 
@@ -328,11 +330,11 @@ class RoPELlama3PositionEncoding(RoPEPositionEncoding):
             if wavelen < high_freq_wavelen:
                 new_freqs.append(freq)
             elif wavelen > low_freq_wavelen:
-                new_freqs.append(freq / self.scaling_factor)
+                new_freqs.append(freq / scaling_factor)
             else:
                 assert low_freq_wavelen != high_freq_wavelen
                 smooth = (self.old_context_len / wavelen - self.low_freq_factor) / (self.high_freq_factor - self.low_freq_factor)
-                new_freqs.append((1 - smooth) * freq / self.scaling_factor + smooth * freq)
+                new_freqs.append((1 - smooth) * freq / scaling_factor + smooth * freq)
         inv_freq = torch.tensor(new_freqs, dtype=inv_freq.dtype, device=inv_freq.device)
 
         embeddings_table = torch.zeros(n_position, d_hid)

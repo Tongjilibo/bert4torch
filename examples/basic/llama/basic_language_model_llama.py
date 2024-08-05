@@ -24,7 +24,7 @@ import re
 model_dir = 'E:/data/pretrain_ckpt/llama/Meta-Llama-3.1-8B-Instruct'
 generation_config = {
     'max_length': 512, 
-    'include_input': False if re.search('chat|Instruct', model_dir) else True,
+    'include_input': False if re.search('chat|Instruct', model_dir) else True
 }
 
 demo = Chat(model_dir, generation_config=generation_config)
