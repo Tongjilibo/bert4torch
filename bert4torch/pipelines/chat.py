@@ -104,10 +104,11 @@ class ChatBase:
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
-        self.generation_config['tokenizer'] = self.tokenizer
         if create_model_at_startup:
             self.model = self._build_model()
+        # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
+        self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
+        self.generation_config['tokenizer'] = self.tokenizer
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''

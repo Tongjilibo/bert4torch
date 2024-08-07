@@ -12,15 +12,14 @@ from torch4keras.snippets import (
     log_info_once, 
     log_warn,
     is_safetensors_available, 
-    check_file_modified)
-
+    check_file_modified
+)
 
 if os.environ.get('SAFETENSORS_FIRST', False):
     SAFETENSORS_BINS = ['.safetensors', '.bin']  # 优先查找safetensors格式权重
 else:
     SAFETENSORS_BINS = ['.bin', '.safetensors']  # 优先查找bin格式权重
 _CACHED_NO_EXIST = object()
-HF_ENDPOINT = os.environ.get('HF_ENDPOINT')
 
 
 def try_to_load_from_cache(
@@ -110,7 +109,7 @@ def snapshot_download(
 
     from huggingface_hub import HfApi, hf_hub_download
     from huggingface_hub.utils import EntryNotFoundError
-    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE, _HF_DEFAULT_ENDPOINT
 
     if cache_dir is None:
         cache_dir = HUGGINGFACE_HUB_CACHE
@@ -190,6 +189,7 @@ def snapshot_download(
         else:
             # 下载指定文件
             try:
+                endpoint = os.environ.get('HF_ENDPOINT') or _HF_DEFAULT_ENDPOINT
                 resolved_file = hf_hub_download(
                     repo_id = repo_id,
                     filename = filename,
@@ -200,15 +200,16 @@ def snapshot_download(
                     library_name = library_name,
                     library_version = library_version,
                     user_agent = user_agent,
-                    endpoint = HF_ENDPOINT
+                    endpoint = endpoint 
                 )
                 if check_file_modified(resolved_file, duration=2):
                     # 如果文件在2s内下载的，则不打印
                     log_info_once(f'Download {repo_id} to {resolved_file}')
             except EntryNotFoundError:
                 log_error(
-                    f"{repo_id} does not appear to have a file named {filename}. Checkout "
-                    f"'https://huggingface.co/{repo_id}/tree/main' for available files."
+                    f"First check your network can access '{endpoint}', "
+                    f"if not set 'export HF_ENDPOINT=https://hf-mirror.com'. "
+                    f"Then check '{filename}' exists in 'https://huggingface.co/{repo_id}/tree/main'."
                 )
                 resolved_file = None
         return resolved_file
@@ -294,3 +295,8 @@ def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], **kwargs)
         if len(ckpt_names) == 0:
             raise FileNotFoundError(f'No weights found in {pretrained_model_name_or_path}')    
     return pretrained_model_name_or_path
+
+
+def set_hf_endpoint(url="https://hf-mirror.com"):
+    '''使用huggingface国内镜像'''
+    os.environ['HF_ENDPOINT'] = url

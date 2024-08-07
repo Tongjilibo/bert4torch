@@ -31,9 +31,15 @@ import os
 import torch
 
 
-def build_transformer_model(config_path:Union[str, os.PathLike]=None, checkpoint_path:Union[str, os.PathLike, list]=None, 
-                            model:Union[str, BERT_BASE]=None, application:Literal['encoder', 'lm', 'unilm']=None, 
-                            add_trainer:bool=False, verbose:int=1, **kwargs) -> Union[BERT_BASE, BERT, Transformer, Trainer]:
+def build_transformer_model(
+        config_path: Union[str, os.PathLike] = None, 
+        checkpoint_path: Union[str, os.PathLike, list] = None, 
+        model: Union[str, BERT_BASE] = None, 
+        application: Literal['encoder', 'lm', 'unilm', None] = None, 
+        add_trainer: bool = False, 
+        verbose: int = 1, 
+        **kwargs
+        ) -> Union[BERT_BASE, BERT, Transformer, Trainer]:
     """根据配置文件构建模型, 可选加载checkpoint权重, 类似AutoModel.from_pretrained(...)
 
     :param config_path: str, 模型的config文件地址, 大部分模型都提供了bert4torch_config.json

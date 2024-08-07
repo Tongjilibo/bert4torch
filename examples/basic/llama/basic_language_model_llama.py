@@ -19,7 +19,7 @@ import re
 
 # llama-7b, llama-13b
 # llama-2-7b  llama-2-7b-chat  llama-2-13b  llama-2-13b-chat
-# Meta-Llama-8B-Instruct  Meta-Llama-8B-Instruct
+# Meta-Llama-3-8B  Meta-Llama-3-8B-Instruct
 # Meta-Llama-3.1-8B  Meta-Llama-3.1-8B-Instruct
 model_dir = 'E:/data/pretrain_ckpt/llama/Meta-Llama-3.1-8B-Instruct'
 generation_config = {
@@ -27,7 +27,10 @@ generation_config = {
     'include_input': False if re.search('chat|Instruct', model_dir) else True
 }
 
-demo = Chat(model_dir, generation_config=generation_config)
+demo = Chat(model_dir, 
+            generation_config=generation_config,
+            # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+            )
 
 
 if __name__ == '__main__':
