@@ -1,10 +1,16 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
-dir_path = "E:/data/pretrain_ckpt/llama/01-ai@Yi-6B"
-query = "There's a place where time stands still. A place of breath taking wonder, but also"
+from bert4torch.pipelines import Chat
+import re
 
-tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
+
+# 01-ai@Yi-6B
+# 01-ai@Yi-1.5-9B-Chat-16K
+model_dir = "E:/data/pretrain_ckpt/llama/01-ai@Yi-1.5-9B-Chat-16K"
+
 
 # print('==========================transformers=============================')
+# query = "There's a place where time stands still. A place of breath taking wonder, but also"
+# tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
 # model = AutoModelForCausalLM.from_pretrained(dir_path, device_map="auto", torch_dtype="auto", trust_remote_code=True)
 # inputs = tokenizer(query, return_tensors="pt")
 
@@ -23,17 +29,14 @@ tokenizer = AutoTokenizer.from_pretrained(dir_path, trust_remote_code=True)
 
 
 print('==========================bert4torch=============================')
-from bert4torch.models import build_transformer_model
-model = build_transformer_model(config_path=dir_path, checkpoint_path=dir_path).half().cuda()
-
 generation_config = {
-    "tokenizer": tokenizer,
-    "repetition_penalty": 1.3, 
-    "temperature": 0.7, 
-    "top_k": 40, 
-    "top_p": 0.8, 
-    "include_input": True
+    "include_input": False if re.search('Chat', model_dir) else True
 }
 
-response = model.generate(query, **generation_config)
-print(response)
+demo = Chat(model_dir, 
+            generation_config=generation_config,
+            )
+
+
+if __name__ == '__main__':
+    demo.run()
