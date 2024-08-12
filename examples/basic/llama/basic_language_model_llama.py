@@ -32,6 +32,31 @@ demo = Chat(model_dir,
             # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
             )
 
+functions = [{
+    "type": "function",
+    "function": {
+        "name": "get_current_temperature",
+        "description": "Get the current temperature at a location.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The location to get the temperature for, in the format \"City, Country\""
+                }
+            },
+            "required": [
+                "location"
+            ]
+        },
+        "return": {
+            "type": "number",
+            "description": "The current temperature at the specified location in the specified units, as a float."
+        }
+    }
+}]
 
 if __name__ == '__main__':
-    demo.run()
+    demo.run(
+        functions=functions  # llama3.1支持function call
+        )

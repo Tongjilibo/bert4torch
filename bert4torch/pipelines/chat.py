@@ -931,7 +931,7 @@ class Glm(ChatBase):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         # 没有system和function call
         if functions is not None:
-                log_warn('ChatGlm do not support function call')
+            log_warn('ChatGlm do not support function call')
         
         if not history:
             prompt = query
@@ -1821,25 +1821,52 @@ class LLaMA2(ChatBase):
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class LLaMA3(ChatBase):
+    '''llama3不支持function call, llama3.1支持function call
+    
+    ### LLaMA3.1请求的Example
+    ```json
+    [
+        {"role": "system", "content": "You are a bot that responds to weather queries."},
+        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
+        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
+        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
+    ]
+    ```
+    '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        if functions is not None: 
-            log_warn('LLaMA3 do not support function call')
-
         if (len(history) == 0) or (history[0]["role"] != "system"):
             system = self.system or SYSTEM_ZH if has_chinese_char(query) else SYSTEM_EN
             history.insert(0, {"role": "system", "content": system})
 
         history.append({"role": "user", "content": query})
         if self.no_history_states():
-            return self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
+            if functions is None:
+                texts = self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
+            else:
+                # llama3.1支持function call
+                texts = self.tokenizer.apply_chat_template(history, 
+                                                           tools=functions if isinstance(functions, list) else [functions],
+                                                           add_generation_prompt=True, 
+                                                           tokenize=False,
+                                                           tools_in_user_message=False)
+            return texts
         else:
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
             return texts
+    
+    def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        response = super().process_response_history(response, history)
+        try:
+            json.loads(response)
+            history[-1]['function_call'] = response
+        except json.JSONDecodeError:
+            pass
+        return response
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
