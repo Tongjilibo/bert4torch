@@ -38,6 +38,7 @@ from contextlib import asynccontextmanager
 import threading
 import re
 import copy
+from argparse import REMAINDER, ArgumentParser
 
 
 if is_fastapi_available():
@@ -2131,3 +2132,69 @@ class Chat:
         else:
             raise ValueError(f'Unsupported mode={mode}')
         return ChatDemo(*args, **kwargs)
+
+
+def get_args_parser() -> ArgumentParser:
+    """Helper function parsing the command line options."""
+
+    parser = ArgumentParser(description="Bert4torch Pipelines LLM Chat Launcher")
+
+    parser.add_argument("--checkpoint_path", type=str, help="pretrained model name or path")
+    parser.add_argument("--config_path", type=str, default=None, 
+                        help="bert4torch_config.json file path or pretrained_model_name_or_path, if not set use `checkpoint_path` instead")
+    parser.add_argument("--mode", type=str, choices=['cli', 'gradio', 'streamlit', 'openai'], default='cli', 
+                        help="deploy model in cli,gradio,streamlit,openai mode")
+    parser.add_argument("--precision", type=str, choices=['double', 'float', 'half', 'float16', 'bfloat16', None], default=None, 
+                        help="modify model precision")
+    
+    # generation_config
+    parser.add_argument("--top_k", type=int, default=None, help="generation_config: top_k")
+    parser.add_argument("--top_p", type=float, default=None, help="generation_config: top_p")
+    parser.add_argument("--temperature", type=float, default=None, help="generation_config: temperature")
+    parser.add_argument("--repetition_penalty", type=float, default=None, help="generation_config: repetition_penalty")
+    parser.add_argument("--max_new_tokens", type=int, default=None, help="generation_config: max_new_tokens")
+    parser.add_argument("--max_length", type=int, default=None, help="generation_config: max_length")
+
+    # quantization_config: 量化参数，显存不够时候可使用
+    parser.add_argument("--quantization_method", type=str, default=None, choices=['cpm_kernels', 'load_in_8bit', 'load_in_4bit'], 
+                        help="quantization_config: quantization_method")
+    parser.add_argument("--quantization_config_others", type=dict, default=None, help="quantization_config: quantization_config_others")
+
+    # openai参数
+    parser.add_argument("--create_model_at_startup", type=bool, default=True, help="openai api args: whether create model at startup")
+    parser.add_argument("--name", type=str, default='default', help="openai api args: model name")
+    parser.add_argument("--route_api", type=str, default='/chat/completions', help="openai api args: `/chat/completions` route url")
+    parser.add_argument("--route_models", type=str, default='/models', help="openai api args: `/models` route url")
+    parser.add_argument("--api_keys", type=List[str], default=None, help="openai api args: authorized api keys list")
+    # parser.add_argument("--max_callapi_interval", type=int, default=24*3600, help="openai api args: ")
+    # parser.add_argument("--scheduler_interval", type=int, default=10*60, help="openai api args: ")
+    # parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk'], default=None, help="openai api args: ")
+    
+    args = parser.parse_args()
+    generation_config = {
+        "top_k": args.top_k,
+        "top_p": args.top_p,
+        "temperature": args.temperature,
+        "repetition_penalty": args.repetition_penalty,
+        "max_new_tokens": args.max_new_tokens,
+        "max_length": args.max_length
+        }
+    args.generation_config = {k: v for k, v in generation_config.items() if v is not None}
+
+    if args.quantization_method is not None:
+        quantization_config = {"quantization_method": args.quantization_method}
+        if args.quantization_config_others is not None and isinstance(args.quantization_config_others, dict):
+            quantization_config.update(args.quantization_config_others)
+        args.quantization_config = quantization_config
+    return args
+
+def main():
+    '''命令行bert4torch-llmchat直接部署模型'''
+    args = get_args_parser()
+
+    demo = Chat(args.checkpoint_path, 
+                config_path =  getattr(args, 'config_path', None),
+                generation_config = args.generation_config,
+                quantization_config = getattr(args, 'quantization_config', None)
+                )
+    demo.run(functions = getattr(args, 'functions', None))
