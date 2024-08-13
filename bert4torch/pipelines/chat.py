@@ -1838,9 +1838,8 @@ class LLaMA3(ChatBase):
         self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        if (len(history) == 0) or (history[0]["role"] != "system"):
-            system = self.system or SYSTEM_ZH if has_chinese_char(query) else SYSTEM_EN
-            history.insert(0, {"role": "system", "content": system})
+        if (self.system is not None) and ((len(history) == 0) or (history[0]["role"] != "system")):
+            history.insert(0, {"role": "system", "content": self.system})
 
         history.append({"role": "user", "content": query})
         if self.no_history_states():
