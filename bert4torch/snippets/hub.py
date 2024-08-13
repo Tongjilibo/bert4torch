@@ -12,8 +12,10 @@ from torch4keras.snippets import (
     log_info_once, 
     log_warn,
     is_safetensors_available, 
-    check_file_modified
+    check_file_modified,
+    check_url_available_cached
 )
+
 
 if os.environ.get('SAFETENSORS_FIRST', False):
     SAFETENSORS_BINS = ['.safetensors', '.bin']  # 优先查找safetensors格式权重
@@ -101,22 +103,38 @@ def snapshot_download(
     **kwargs
 ) -> str:
     """
-    Download pretrained model from https://huggingface.co/
+    Download pretrained model from huggingface
     """
     _commit_hash = kwargs.get('_commit_hash', None)
     force_download = kwargs.get('force_download', False)
     local_files_only = kwargs.get('local_files_only', False)
 
+    # 设置下载的镜像url
+    default_endpoint, alternate_endpoint = "https://huggingface.co", "https://hf-mirror.com"
+    if os.environ.get('HF_ENDPOINT') is not None:
+        # 用户指定
+        endpoint = os.environ.get('HF_ENDPOINT')
+    elif check_url_available_cached(default_endpoint):
+        # https://huggingface.co 可以访问
+        endpoint = default_endpoint
+    elif check_url_available_cached(alternate_endpoint):
+        # https://hf-mirror.com 可以访问
+        endpoint = alternate_endpoint
+    else:
+        log_error_once(f'Check your network can access "{default_endpoint}" or "{alternate_endpoint}"')
+        endpoint = default_endpoint
+    os.environ['HF_ENDPOINT'] = endpoint
+
     from huggingface_hub import HfApi, hf_hub_download
     from huggingface_hub.utils import EntryNotFoundError
-    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE, _HF_DEFAULT_ENDPOINT
+    from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
     if cache_dir is None:
         cache_dir = HUGGINGFACE_HUB_CACHE
     if isinstance(cache_dir, Path):
         cache_dir = str(cache_dir)
     repo_cache = os.path.join(cache_dir, f'models--{repo_id.replace("/", "--")}')
-
+    
     storage_folder = None
     # 下载repo下所有文件
     if filename is None:
@@ -126,7 +144,7 @@ def snapshot_download(
             file_names = json.load(open(b4t_filenames_path, "r", encoding='utf-8'))
         else:
             # web获取需要的文件列表
-            model_info = HfApi().model_info(repo_id=repo_id, revision=revision)
+            model_info = HfApi(endpoint=endpoint).model_info(repo_id=repo_id, revision=revision)
             file_names = []
             for model_file in model_info.siblings:
                 file_name = model_file.rfilename
@@ -155,17 +173,23 @@ def snapshot_download(
                         log_info_once(f'Resume {repo_id} from {storage_folder}')
             else:
                 # 下载指定文件
-                resolved_file = hf_hub_download(
-                    repo_id = repo_id,
-                    filename = file_name,
-                    cache_dir = cache_dir,
-                    revision = revision,
-                    force_download = force_download,
-                    # force_filename = filename,
-                    library_name = library_name,
-                    library_version = library_version,
-                    user_agent = user_agent,
-                )
+                try:
+                    resolved_file = hf_hub_download(
+                        repo_id = repo_id,
+                        filename = file_name,
+                        cache_dir = cache_dir,
+                        revision = revision,
+                        force_download = force_download,
+                        # force_filename = filename,
+                        library_name = library_name,
+                        library_version = library_version,
+                        user_agent = user_agent,
+                        endpoint = endpoint 
+                    )
+                except EntryNotFoundError as e:
+                    log_error(f'Download {repo_id} {file_name} failed')
+                    raise EntryNotFoundError(e)
+                
                 if resolved_file.endswith('config.json'):
                     storage_folder = os.path.dirname(resolved_file)
                     if check_file_modified(resolved_file, duration=2):
@@ -189,7 +213,6 @@ def snapshot_download(
         else:
             # 下载指定文件
             try:
-                endpoint = os.environ.get('HF_ENDPOINT') or _HF_DEFAULT_ENDPOINT
                 resolved_file = hf_hub_download(
                     repo_id = repo_id,
                     filename = filename,
@@ -206,11 +229,8 @@ def snapshot_download(
                     # 如果文件在2s内下载的，则不打印
                     log_info_once(f'Download {repo_id} to {resolved_file}')
             except EntryNotFoundError:
-                log_error(
-                    f"First check your network can access '{endpoint}', "
-                    f"if not set 'export HF_ENDPOINT=https://hf-mirror.com'. "
-                    f"Then check '{filename}' exists in 'https://huggingface.co/{repo_id}/tree/main'."
-                )
+                log_error_once(f'Check your network can access "{default_endpoint}" or "{alternate_endpoint}"')
+                log_error(f"Check '{filename}' exists in 'https://huggingface.co/{repo_id}/tree/main'.")
                 resolved_file = None
         return resolved_file
 
