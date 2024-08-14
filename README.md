@@ -122,9 +122,9 @@ bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Inst
 ### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20240814| 0.5.3          | 0.2.6 | 【新功能】增加llama3.1/Yi1.5；自动选择从hfmirror下载；支持命令行参数`bert4torch-llm-server`|
 |20240801| 0.5.2          | 0.2.5 | 【新功能】chatglm/qwen系列支持function call调用, 增加internlm2系列；【小优化】简化pipeline中chat demo的调用，generate的终止token元素允许为列表, 统一rope_scaling参数名，增加rope衍生类；【bug】修复flash_attn2的推理bug, 修复bart的tie_word_embedding的bug|
 |20240619| 0.5.1          | 0.2.4 | 增加Qwen1.5, Qwen2, glm4; 增加SWA/convert_lm_logits_dtype；调整各个trainer(重点DPOTrainer), generation中segment_ids, repetition_penalty需带query, RMSNorm中转类型bug|
-|20240418| 0.5.0          | 0.2.2 | 修复chatglm3的bug, 修复save_pretrained时多文件的bug，增加CausalLMLoss, 修改deepspeed的传参逻辑，修改Text2Vec的bug, 完善openai client, 增加get_weight_decay_optim_groups|
 
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 
@@ -141,16 +141,17 @@ from bert4torch.models import build_transformer_model
 model = build_transformer_model('./model/bert4torch_config.json')
 
 # 2. 仅指定checkpoint_path: 
-## 2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json/config.json文件
+## 2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + 需把bert4torch_config.json下载并放于该目录下
 model = build_transformer_model(checkpoint_path='./model')
 
-## 2.2 文件路径/列表: 文件路径即权重路径/列表, config会从同级目录下寻找
+## 2.2 文件路径/列表: 文件路径即权重路径/列表, bert4torch_config.json会从同级目录下寻找
 model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
 
 ## 2.3 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
 model = build_transformer_model(checkpoint_path='bert-base-chinese')
 
 # 3. 同时指定config_path和checkpoint_path(本地路径名或model_name排列组合): 
+#    本地路径从本地加载，pretrained_model_name会联网下载
 config_path = './model/bert4torch_config.json'  # 或'bert-base-chinese'
 checkpoint_path = './model/pytorch_model.bin'  # 或'bert-base-chinese'
 model = build_transformer_model(config_path, checkpoint_path)

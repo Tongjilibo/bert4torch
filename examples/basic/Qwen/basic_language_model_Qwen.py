@@ -59,7 +59,7 @@ def main():
     # cli: 命令行聊天
     # openai: 启动一个openai的server服务
     # gradio: web demo
-    # streamlit: web demo
+    # streamlit: web demo  [启动命令]: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
     choice = 'cli'
 
     generation_config = {'repetition_penalty': 1.1, 

@@ -2154,7 +2154,7 @@ def get_args_parser() -> ArgumentParser:
     parser.add_argument("--config_path", type=str, default=None, 
                         help="bert4torch_config.json file path or pretrained_model_name_or_path, if not set use `checkpoint_path` instead")
     parser.add_argument("--mode", type=str, choices=['cli', 'gradio', 'openai'], default='cli', 
-                        help="deploy model in cli,gradio,streamlit,openai mode")
+                        help="deploy model in cli / gradio / openai mode")
     parser.add_argument("--precision", type=str, choices=['double', 'float', 'half', 'float16', 'bfloat16', None], default=None, 
                         help="modify model precision")
     
