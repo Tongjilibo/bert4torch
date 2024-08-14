@@ -16,6 +16,6 @@ setup(
     author='Tongjilibo',
     install_requires=['numpy', 'tqdm', 'torch>1.6', 'torch4keras==0.2.5', 'six'],
     packages=find_packages(),
-    entry_points={"console_scripts": ["bert4torch-llmchat = bert4torch.pipelines.chat:main"]},
+    entry_points={"console_scripts": ["bert4torch-llm-server = bert4torch.pipelines.chat:main"]},
 
 )

@@ -12,13 +12,17 @@
 [Documentation](https://bert4torch.readthedocs.io) |
 [Torch4keras](https://github.com/Tongjilibo/torch4keras) |
 [Examples](https://github.com/Tongjilibo/bert4torch/blob/master/examples) |
-[build_MiniLLM_from_scratch](https://github.com/Tongjilibo/build_MiniLLM_from_scratch)
+[build_MiniLLM_from_scratch](https://github.com/Tongjilibo/build_MiniLLM_from_scratch) |
+[bert4vector](https://github.com/Tongjilibo/bert4vector)
+
 
 ## 目录
 - [目录](#目录)
 - [1. 下载安装](#1-下载安装)
 - [2. 功能](#2-功能)
 - [3. 快速上手](#3-快速上手)
+  - [3.1 上手教程](#31-上手教程)
+  - [3.2 命令行快速部署大模型服务](#32-命令行快速部署大模型服务)
 - [4. 版本和更新历史](#4-版本和更新历史)
   - [4.1 版本历史](#41-版本历史)
   - [4.2 更新历史](#42-更新历史)
@@ -48,7 +52,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **开发环境**：原使用`torch==1.10`版本进行开发，现已切换到`torch2.0`开发，如其他版本遇到不适配，欢迎反馈
 
 ## 2. 功能
-- **LLM模型**: 加载chatglm、llama、 baichuan、ziya、bloom等开源大模型权重进行推理和微调
+- **LLM模型**: 加载chatglm、llama、 baichuan、ziya、bloom等开源大模型权重进行推理和微调，命令行一行部署大模型
 - **核心功能**：加载bert、roberta、albert、xlnet、nezha、bart、RoFormer、RoFormer_V2、ELECTRA、GPT、GPT2、T5、GAU-alpha、ERNIE等预训练权重继续进行finetune、并支持在bert基础上灵活定义自己模型
 - [**丰富示例**](https://github.com/Tongjilibo/bert4torch/blob/master/examples/)：包含[llm](https://github.com/Tongjilibo/bert4torch/blob/master/examples/llm)、[pretrain](https://github.com/Tongjilibo/bert4torch/blob/master/examples/pretrain)、[sentence_classfication](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sentence_classfication)、[sentence_embedding](https://github.com/Tongjilibo/bert4torch/tree/master/examples/sentence_embedding)、[sequence_labeling](https://github.com/Tongjilibo/bert4torch/blob/master/examples/sequence_labeling)、[relation_extraction](https://github.com/Tongjilibo/bert4torch/blob/master/examples/relation_extraction)、[seq2seq](https://github.com/Tongjilibo/bert4torch/blob/master/examples/seq2seq)、[serving](https://github.com/Tongjilibo/bert4torch/blob/master/examples/serving/)等多种解决方案
 - **实验验证**：已在公开数据集实验验证，使用如下[examples数据集](https://github.com/Tongjilibo/bert4torch/blob/master/data/README.md)和[实验指标](https://github.com/Tongjilibo/bert4torch/blob/master/examples/Experiments.md)
@@ -81,13 +85,38 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 |丰富tricks                    | ✅         |      ❌        |对抗训练等tricks即插即用|
 |代码简洁易懂，自定义空间大        | ✅         |      ❌        |代码复用度高, keras代码训练风格|
 |仓库的维护能力/影响力/使用量/兼容性| ❌         |      ✅        |目前仓库个人维护|
-
+|一键部署大模型                   |
 
 ## 3. 快速上手
 
+### 3.1 上手教程
 - [Quick-Start](https://bert4torch.readthedocs.io/en/latest//Quick-Start.html)
 - [快速上手教程](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/README.md)，[教程示例](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials)，[实战示例](https://github.com/Tongjilibo/bert4torch/blob/master/examples)
 - [bert4torch介绍(知乎)](https://zhuanlan.zhihu.com/p/486329434)，[bert4torch快速上手(知乎)](https://zhuanlan.zhihu.com/p/508890807)，[bert4torch又双叒叕更新啦(知乎)](https://zhuanlan.zhihu.com/p/560885427?)
+
+### 3.2 命令行快速部署大模型服务
+- 本地 / 联网加载
+```shell
+# 联网下载全部文件
+bert4torch-llm-server --checkpoint_path Qwen2-0.5B-Instruct
+
+# 加载本地大模型，联网下载bert4torch_config.json
+bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --config_path Qwen/Qwen2-0.5B-Instruct
+
+# 加载本地大模型，且bert4torch_config.json已经下载并放于同名目录下
+bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct
+```
+- 命令行 / gradio网页 / openai_api
+```shell
+# 命令行
+bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode cli
+
+# gradio网页
+bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode gradio
+
+# openai_api
+bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode openai
+```
 
 ## 4. 版本和更新历史
 ### 4.1 版本历史

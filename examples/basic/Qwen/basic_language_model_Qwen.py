@@ -52,18 +52,23 @@ def main():
     # Qwen-1_8B  Qwen-1_8B-Chat  Qwen-7B  Qwen-7B-Chat  Qwen-14B  Qwen-14B-Chat
     # Qwen1.5-0.5B  Qwen1.5-0.5B-Chat  Qwen1.5-1.8B  Qwen1.5-1.8B-Chat  Qwen1.5-7B  Qwen1.5-7B-Chat  Qwen1.5-14B  Qwen1.5-14B-Chat
     # Qwen2-0.5B  Qwen2-0.5B-Instruct  Qwen2-1.5B  Qwen2-1.5B-Instruct  Qwen2-7B  Qwen2-7B-Instruct
-    model_dir = f'E:/data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct'
+    model_dir = f'/data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct'
 
     # batch: 同时infer多条query
     # gen_1toN: 为一条query同时生成N条response
+    # cli: 命令行聊天
     # openai: 启动一个openai的server服务
-    # cli_chat: 命令行聊天
-    # cli_continue: 命令行续写
-    choice = 'cli_chat'
+    # gradio: web demo
+    # streamlit: web demo
+    choice = 'cli'
 
-    generation_config = {'top_k': 40, 'include_input': False if re.search('Chat|Instruct', model_dir) else True, 'repetition_penalty': 1.1, 'temperature': 0.7, 'use_states': False}
+    generation_config = {'repetition_penalty': 1.1, 
+                         'temperature': 1.0,
+                         'top_k': 1,
+                         'top_p': 0.8,
+                         }
     demo = Chat(model_dir, 
-                mode = 'openai' if choice == 'openai' else 'cli',
+                mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
                 system='You are a helpful assistant.', 
                 generation_config=generation_config,
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
@@ -80,19 +85,7 @@ def main():
         res = demo.chat('你是谁？')
         print(res)
 
-    elif choice == 'cli_continue':
-        # 命令行续写
-        while True:
-            query = input('\n输入:')
-            response = demo.generate(query)
-            print(f'续写: {response}')
-
-    elif choice == 'cli_chat':
-        # 命令行聊天
-        demo.run()
-
-    elif choice == 'openai':
-        # 启动一个openai的server服务
+    else:
         demo.run()
 
 if __name__ == '__main__':

@@ -12,14 +12,18 @@
 '''
 
 import os
+import subprocess
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
+from bert4torch.pipelines.base import PipeLineBase
 from bert4torch.models import build_transformer_model, Decoder, Transformer
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
     log_info, 
+    log_info_once,
     log_warn, 
+    log_error,
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
@@ -90,12 +94,14 @@ CHAT_START_DOCSTRING = r"""
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
-class ChatBase:
-    def __init__(self, checkpoint_path:str, precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
-                 quantization_config:dict=None, generation_config:dict=None, create_model_at_startup:bool=True, **kwargs):
+class ChatBase(PipeLineBase):
+    def __init__(self, checkpoint_path:str, config_path:str=None, 
+                 precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
+                 quantization_config:dict=None, generation_config:dict=None, 
+                 create_model_at_startup:bool=True, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
-        self.config_path = kwargs.get('config_path', checkpoint_path)
+        self.config_path = config_path or checkpoint_path
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
         config_path_tmp = get_config_path(self.config_path, allow_none=True)
         if config_path_tmp is not None:
@@ -129,7 +135,7 @@ class ChatBase:
         init_kwargs = {'additional_special_tokens'}
         new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
         try:
-            return AutoTokenizer.from_pretrained(self.config_path, trust_remote_code=True, **new_kwargs)
+            return AutoTokenizer.from_pretrained(self.checkpoint_path, trust_remote_code=True, **new_kwargs)
         except Exception as e:
             _, transformer_version = is_package_available('transformers', return_version=True)
             log_warn(f'Please check your transformer version == {transformer_version}, which may not compatible.')
@@ -377,16 +383,16 @@ class ChatWebGradio(ChatBase):
             self.system = system
         return functions
 
-    def run(self, **launch_configs):
+    def run(self, host:str=None, port:int=None, **launch_configs):
         with self.gr.Blocks() as demo:
             self.gr.HTML("""<h1 align="center">Chabot Gradio Demo</h1>""")
 
             with self.gr.Row():
                 with self.gr.Column(scale=1):
-                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="Maximum length", interactive=True)
-                    top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="Top P", interactive=True)
-                    temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="Temperature", interactive=True)
-                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1, step=0.1, label="Repetition penalty", interactive=True)
+                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="max_length", interactive=True)
+                    top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="top_p", interactive=True)
+                    temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="temperature", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1, step=0.1, label="repetition_penalty", interactive=True)
                     system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
                     functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
 
@@ -410,7 +416,9 @@ class ChatWebGradio(ChatBase):
             submitBtn.click(self.reset_user_input, [], [user_input])
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
 
-        demo.queue().launch(**launch_configs)
+        demo.queue().launch(server_name = launch_configs.pop('server_name', host), 
+                            server_port = launch_configs.pop('server_port', port), 
+                            **launch_configs)
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -431,6 +439,7 @@ class ChatWebStreamlit(ChatBase):
         )
         super().__init__(*args, **kwargs)
         self.max_length = self.generation_config.get('max_length', 4096)
+        log_warn_once('You should use command `streamlit run app.py --server.address 0.0.0.0 --server.port 8001` to launch')
 
     @st.cache_resource
     def _build_model(_self):
@@ -2085,6 +2094,8 @@ class Chat:
                  quantization_config:dict=None, 
                  generation_config:dict=None, 
                  create_model_at_startup:bool=True,
+                 # cli参数
+                 system:str=None,
                  # openapi参数
                  name:str='default', 
                  route_api:str='/chat/completions', 
@@ -2105,17 +2116,17 @@ class Chat:
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
         else:
-            config_path_tmp = get_config_path(kwargs.get('config_path', args[0]), allow_none=True)
-            config = json.load(open(config_path_tmp))
+            config_path = kwargs['config_path'] if kwargs.get('config_path') is not None else args[0]
+            config = json.load(open(get_config_path(config_path, allow_none=True)))
             template = config.get('template', config.get('model', config.get('model_type')))
         if template is None:
             raise ValueError('template/model/model_type not found in bert4torch_config.json')
         elif template not in MAPPING:
-            log_info('PretrainedTextContinuation is used, only can continue your text.')
+            log_info_once('PretrainedTextContinuation is used, only can continue your text.')
             ChatTemplate = PretrainedTextContinuation
         else:
             ChatTemplate = MAPPING[template]
-            log_info(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
+            log_info_once(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
 
         if mode == 'cli':
             @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -2137,16 +2148,20 @@ class Chat:
 def get_args_parser() -> ArgumentParser:
     """Helper function parsing the command line options."""
 
-    parser = ArgumentParser(description="Bert4torch Pipelines LLM Chat Launcher")
+    parser = ArgumentParser(description="Bert4torch Pipelines LLM Server Launcher")
 
     parser.add_argument("--checkpoint_path", type=str, help="pretrained model name or path")
     parser.add_argument("--config_path", type=str, default=None, 
                         help="bert4torch_config.json file path or pretrained_model_name_or_path, if not set use `checkpoint_path` instead")
-    parser.add_argument("--mode", type=str, choices=['cli', 'gradio', 'streamlit', 'openai'], default='cli', 
+    parser.add_argument("--mode", type=str, choices=['cli', 'gradio', 'openai'], default='cli', 
                         help="deploy model in cli,gradio,streamlit,openai mode")
     parser.add_argument("--precision", type=str, choices=['double', 'float', 'half', 'float16', 'bfloat16', None], default=None, 
                         help="modify model precision")
     
+    # 命令行参数
+    parser.add_argument("--system", type=str, default=None, help="cli args: model system/prompt/instrunctions")
+    parser.add_argument("--functions", type=list, default=None, help="cli args: functions")
+
     # generation_config
     parser.add_argument("--top_k", type=int, default=None, help="generation_config: top_k")
     parser.add_argument("--top_p", type=float, default=None, help="generation_config: top_p")
@@ -2170,6 +2185,10 @@ def get_args_parser() -> ArgumentParser:
     # parser.add_argument("--scheduler_interval", type=int, default=10*60, help="openai api args: ")
     # parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk'], default=None, help="openai api args: ")
     
+    # host和port
+    parser.add_argument("--host", type=str, default='0.0.0.0', help="server host")
+    parser.add_argument("--port", type=int, default=8000, help="server port")
+
     args = parser.parse_args()
     generation_config = {
         "top_k": args.top_k,
@@ -2188,13 +2207,25 @@ def get_args_parser() -> ArgumentParser:
         args.quantization_config = quantization_config
     return args
 
+
 def main():
     '''命令行bert4torch-llmchat直接部署模型'''
     args = get_args_parser()
 
     demo = Chat(args.checkpoint_path, 
-                config_path =  getattr(args, 'config_path', None),
+                mode = args.mode,
+                system = args.system,
+                config_path = getattr(args, 'config_path', None),
                 generation_config = args.generation_config,
                 quantization_config = getattr(args, 'quantization_config', None)
                 )
-    demo.run(functions = getattr(args, 'functions', None))
+    if args.mode == 'cli':
+        demo.run(functions = getattr(args, 'functions', None))
+    elif args.mode == 'gradio':
+        demo.run(host=args.host, port=args.port)
+    # elif args.mode == 'streamlit':
+    #     demo.run()
+    elif args.mode == 'openai':
+        demo.run(host=args.host, port=args.port)
+    else:
+        raise ValueError(f'Args `mode`={args.mode} not supported')

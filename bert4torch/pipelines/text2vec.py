@@ -26,8 +26,8 @@ class Text2Vec(PipeLineBase):
     >>> print(similarity)
     ```
     '''
-    def __init__(self, checkpoint_path:str, device:str=None, **kwargs) -> None:
-        super().__init__(checkpoint_path, device, **kwargs)
+    def __init__(self, checkpoint_path:str, config_path:str=None, device:str=None, **kwargs) -> None:
+        super().__init__(checkpoint_path, config_path=config_path, device=device, **kwargs)
         self.pool_strategy = self.config.get('pool_strategy', 'cls')
         
     @torch.inference_mode()
