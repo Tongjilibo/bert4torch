@@ -53,8 +53,11 @@ class Decoder(LM_Mask, BERT):
             self.final_activation = get_activation('linear' if self.with_lm is True else self.with_lm)  # 添加激活，一般是线性激活或softmax
         self.tie_weights()
 
-        if logit_scale:  # T5默认会有logit_scale, bart默认没有
+        if isinstance(logit_scale, bool) and logit_scale:
+            # bool类型，T5默认会有logit_scale, bart默认没有
             self.logit_scale = (self.hidden_size ** -0.5)
+        elif not isinstance(logit_scale, bool) and isinstance(logit_scale, (int, float)):
+            self.logit_scale = logit_scale
         
         if self.final_layernorm:
             self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), 

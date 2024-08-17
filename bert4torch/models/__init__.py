@@ -10,7 +10,7 @@ from bert4torch.models.ernie import ERNIE
 from bert4torch.models.gau_alpha import GAU_alpha
 from bert4torch.models.glm import GLM, GLM2
 from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
-from bert4torch.models.llama import LLaMA, Baichuan
+from bert4torch.models.llama import LLaMA, Baichuan, MiniCPM
 from bert4torch.models.nezha import NEZHA
 from bert4torch.models.roformer import RoFormer, RoFormerV2
 from bert4torch.models.t5 import T5, T5_Encoder, T5_Decoder
@@ -169,7 +169,8 @@ def build_transformer_model(
         'internlm': InternLM,
         'internlm2': InternLM2,
         'falcon': Falcon,
-        'deepseek': DeepSeek
+        'deepseek': DeepSeek,
+        'minicpm': MiniCPM
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))

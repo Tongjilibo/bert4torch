@@ -1,8 +1,11 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
-from bert4torch.layers import BlockIdentity, LlamaFeedForward, NormHead
+from bert4torch.layers import BlockIdentity, LlamaFeedForward, NormHead, BertLayer
 import torch
+from torch import nn
 import re
+import torch.nn.functional as F
+import math
 
 
 class LLaMA(Decoder):
@@ -90,3 +93,27 @@ class Baichuan(LLaMA):
     def variable_mapping(self):
         mapping = super().variable_mapping()
         return {k:v for k, v in mapping.items() if not re.search('(q|k|v)_proj.weight', v)}
+
+
+class MiniCPM(LLaMA):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        kwargs.update({'p_bias': 'rotary', 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
+
+        self.decoderLayer = nn.ModuleList([self.MiniCPMLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
+                                    if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
+
+        # 修改feedword
+        for layer in self.decoderLayer:
+            layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
+
+        self.logit_scale = 1 / (self.hidden_size / kwargs.get('dim_model_base'))
+
+    class MiniCPMLayer(BertLayer):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.scale_depth = kwargs.get("scale_depth")
+            self.num_hidden_layers = kwargs['num_hidden_layers']
+        def dropout_add(self, x: torch.Tensor, residual: torch.Tensor) -> torch.Tensor:
+            return residual + x * (self.scale_depth / math.sqrt(self.num_hidden_layers))

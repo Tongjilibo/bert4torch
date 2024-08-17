@@ -44,28 +44,45 @@ class BertLayer(nn.Module):
                 past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, cross_past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, **model_kwargs):
         return_tensors = dict()
         # ============== self attention ==============
-        x = self.attnLayerNorm(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
+        # pre layernorm
+        if self.pre_layernorm:
+            x = self.attnLayerNorm(hidden_states, conditional_emb)
+        else:
+            x = hidden_states
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
         residual = x if self.apply_residual_post_layernorm else hidden_states
         hidden_states = self.dropout_add(self_attn_output[0], residual)
-        hidden_states = self.attnLayerNorm(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
+        # post layernorm
+        if not self.pre_layernorm:
+            hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
         
         # ============== cross attention ==============
         if self.is_decoder and encoder_hidden_states is not None:
-            x = self.crossLayerNorm(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
+            # pre layernorm
+            if self.pre_layernorm:
+                x = self.crossLayerNorm(hidden_states, conditional_emb)
+            else:
+                x = hidden_states
             cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, position_ids=position_ids)
             residual = x if self.apply_residual_post_layernorm else hidden_states
             hidden_states = self.dropout_add(cross_attn_output[0], residual)
             if model_kwargs.get('use_states', False):
                 return_tensors['cross_past_key_value'] = cross_attn_output[-1]
-            hidden_states = self.crossLayerNorm(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
+            # post layernorm
+            if not self.pre_layernorm:
+                hidden_states = self.crossLayerNorm(hidden_states, conditional_emb)
 
         # ============== feedforward ==============
-        x = self.ffnLayerNorm(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states  # pre/post layernorm
+        # pre layernorm
+        if self.pre_layernorm:
+            x = self.ffnLayerNorm(hidden_states, conditional_emb)
+        else:
+            x = hidden_states
         feedforward_output = self.feedForward(x)
         residual = x if self.apply_residual_post_layernorm else hidden_states
         hidden_states = self.dropout_add(feedforward_output, residual)
-        hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb) if not self.pre_layernorm else hidden_states
+        if not self.pre_layernorm:
+            hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb)
         
         if self.is_decoder and model_kwargs.get('use_states', False):
             return_tensors['past_key_value'] = self_attn_output[-1]
