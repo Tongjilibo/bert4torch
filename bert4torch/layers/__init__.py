@@ -24,5 +24,16 @@ from bert4torch.layers.position_encoding import (
     XlnetPositionsEncoding, 
     ALiBiPositionsEncoding
 )
-from bert4torch.layers.transformer_block import BertLayer, XlnetLayer, T5Layer
+from bert4torch.layers.transformer_block import (
+    TRANSFORMER_BLOCKS, 
+    BertLayer, 
+    XlnetLayer, 
+    T5Layer,
+    MiniCPMLayer,
+    FalconParallelAttnLayer,
+    GlmLayer,
+    Glm2Layer,
+    Gpt2MlLayer,
+    GAU_Layer
+)
 from bert4torch.layers.moe import DeepseekMoE, MoEGate, AddAuxiliaryLoss

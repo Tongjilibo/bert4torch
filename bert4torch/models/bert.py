@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 from bert4torch.models.base import BERT_BASE
-from bert4torch.layers import LayerNorm, BertEmbeddings
+from bert4torch.layers import LayerNorm, BertEmbeddings, TRANSFORMER_BLOCKS
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
 from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_padding, DottableDict, modify_variable_mapping
 from bert4torch.activations import get_activation
@@ -28,6 +28,7 @@ class BERT(BERT_BASE):
             additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False, # additional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
             is_dropout:bool=False,
             pad_token_id:int=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
+            layer_type:str='BertLayer',
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
@@ -46,7 +47,7 @@ class BERT(BERT_BASE):
         self.additional_embs = additional_embs
         self.conditional_size = conditional_size
         self.embeddings = BertEmbeddings(**self.get_kw(*self._embedding_args, **kwargs))
-        self.encoderLayer = nn.ModuleList([BertLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
+        self.encoderLayer = nn.ModuleList([TRANSFORMER_BLOCKS[layer_type](layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
                                            if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         
         if self.with_pool:

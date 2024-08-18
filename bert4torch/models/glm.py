@@ -18,14 +18,12 @@ class GLM(Decoder):
     5) embedding之后没有layernorm
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
-    def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})
+    def __init__(self, *args, layer_type='GlmLayer', **kwargs):
+        kwargs.update({'layer_type': layer_type, 'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs.get('bos_token_id'), kwargs.get('mask_token_id'), kwargs.get('gmask_token_id')
         self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
         del self.embeddings.layerNorm
-        self.decoderLayer = nn.ModuleList([self.GlmBlock(layer_idx=layer_idx, **self.get_kw('num_hidden_layers', *self._layer_args, **kwargs)) 
-                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.model_type = 'glm'
 
@@ -154,30 +152,6 @@ class GLM(Decoder):
         model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
        
-    class GlmBlock(BertLayer):
-        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.num_hidden_layers = kwargs['num_hidden_layers']
-            hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-            self.attnLayerNorm = torch.nn.LayerNorm(hidden_size, eps=eps)
-            self.ffnLayerNorm = torch.nn.LayerNorm(hidden_size, eps=eps)
-
-        def forward(self, hidden_states=None, attention_mask=None, past_key_value=None, **model_kwargs):
-            # 和bert区别有两点, 一个是有alpha, 还有一个是跳跃链接用的是经过了layernorm后的
-            x = self.attnLayerNorm(hidden_states)
-            alpha = (2 * self.num_hidden_layers) ** 0.5
-            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, **model_kwargs)
-            hidden_states = x * alpha + self_attn_output[0]
-
-            x = self.ffnLayerNorm(hidden_states)
-            hidden_states = x *alpha +  self.feedForward(x)
-
-            if self.is_decoder and model_kwargs.get('use_states', False):
-                model_kwargs['past_key_value'] = self_attn_output[-1]
-            model_kwargs['hidden_states'] = hidden_states
-            return model_kwargs
-
         
 class GLM2(GLM):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
@@ -186,7 +160,7 @@ class GLM2(GLM):
              3) multi_query_attention
     """
     def __init__(self, *args, **kwargs):
-        kwargs.update({'norm_mode': 'rmsnorm', 'pre_layernorm': True})
+        kwargs.update({'layer_type': "Glm2Layer", 'norm_mode': 'rmsnorm', 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-5), norm_mode='rmsnorm', bias=False)
         self.model_type = 'glm2'
@@ -247,14 +221,3 @@ class GLM2(GLM):
 
     def prepare_inputs(self, *inputs, **model_kwargs):
         return model_kwargs
-    
-    class GlmBlock(BertLayer):
-        '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-            self.attnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-            self.ffnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-            self.multiHeadAttention.o.register_parameter('bias', None)
-            self.feedForward.intermediateDense.register_parameter('bias', None)
-            self.feedForward.outputDense.register_parameter('bias', None)

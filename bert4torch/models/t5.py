@@ -1,21 +1,18 @@
 from bert4torch.models.transformer import Encoder, Decoder, Transformer
 from bert4torch.snippets import insert_arguments, delete_arguments
-from bert4torch.layers import LayerNorm, T5Layer, BlockIdentity
+from bert4torch.layers import LayerNorm
 from torch import nn
-import copy
 
 
 class T5_Encoder(Encoder):
     @insert_arguments(version='t5.1.0')
-    def __init__(self, *args, **kwargs):
-        kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version, 
-                       'bias': False, 'norm_mode': 'rmsnorm'})  # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
+    def __init__(self, *args, layer_type='T5Layer', **kwargs):
+        # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
+        kwargs.update({'p_bias': 't5_relative', 'layer_type': layer_type,
+                       'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 
+                       'version': self.version, 'bias': False, 'norm_mode': 'rmsnorm'})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
-
-        # t5的layernorm都在前面，因此重新定义了下
-        self.encoderLayer = nn.ModuleList([T5Layer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs))
-                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
 
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
@@ -67,15 +64,11 @@ class T5_Encoder(Encoder):
 class T5_Decoder(Decoder):
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
+        # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
         kwargs.update({'p_bias': 't5_relative', 'relative_attention_num_buckets': kwargs.get('relative_attention_num_buckets'), 'version': self.version,
-                       'bias': False, 'norm_mode': 'rmsnorm'})  # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
+                       'bias': False, 'norm_mode': 'rmsnorm', 'layer_type': 'T5Layer', 'is_decoder':True})
         super().__init__(*args, **kwargs)
-        del self.embeddings.layerNorm
-
-        # t5的layernorm都在前面，因此重新定义了下
-        self.decoderLayer = nn.ModuleList([T5Layer(is_decoder=True, layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
-                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
-        
+        del self.embeddings.layerNorm        
         self.final_layer_norm = LayerNorm(self.hidden_size, eps=1e-12, conditional_size=self.conditional_size, bias=False, norm_mode='rmsnorm')
         self.dropout = nn.Dropout(self.dropout_rate)
         self.model_type = 't5_decoder'

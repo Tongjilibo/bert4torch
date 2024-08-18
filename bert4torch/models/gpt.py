@@ -202,10 +202,8 @@ class GPT2_ML(Decoder):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
-        kwargs['is_decoder'] = True  # 标记是decoder
+        kwargs['layer_type'] = "Gpt2MlLayer"
         super().__init__(*args, **kwargs)
-        self.decoderLayer = nn.ModuleList([self.Gpt2MlLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
-                                           if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         self.model_type = 'gpt2_ml'
     
     def load_trans_ckpt(self, checkpoint):
@@ -284,25 +282,3 @@ class GPT2_ML(Decoder):
             f'decoderLayer.{i}.ffnLayerNorm.bias': f'h.{i}.ln_2.bias'
             })
         return mapping
-
-    class Gpt2MlLayer(BertLayer):
-        '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
-        顺序：Att --> Add --> LN --> FFN --> Add --> LN
-        '''
-        def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, past_key_value=None, **model_kwargs):
-            # attn
-            self_attn_output = self.multiHeadAttention(hidden_states, attention_mask, past_key_value=past_key_value)
-            hidden_states = self.dropout_add(self_attn_output[0], hidden_states)
-            x = self.attnLayerNorm(hidden_states, conditional_emb)
-
-            # ffn
-            ffn_output = self.feedForward(x)
-            # bert的第二个跳跃连接的输入1是经过了multiHeadAttention+attnLayerNorm的hidden_states, 即这里的x
-            # gpt2_ml的第二个跳跃连接的输入1是经过了multiHeadAttention的hidden_states, 不加attnLayerNorm
-            hidden_states = self.dropout_add(ffn_output, hidden_states)
-            hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb)
-
-            if self.is_decoder and model_kwargs.get('use_states', False):
-                model_kwargs['past_key_value'] = self_attn_output[-1]
-            model_kwargs['hidden_states'] = hidden_states
-            return model_kwargs

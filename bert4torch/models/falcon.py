@@ -23,9 +23,7 @@ class Falcon(Decoder):
         self.multi_query_attention = kwargs.get('num_key_value_heads') is not None
         del self.embeddings.layerNorm
 
-        if kwargs.get('parallel_attn') is True:
-            self.decoderLayer = nn.ModuleList([self.ParallelAttnLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
-                                               if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
+        if kwargs.get('layer_type') == 'FalconParallelAttnLayer':
             self.LayerNormFinal.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
 
     def load_trans_ckpt(self, checkpoint):
@@ -98,30 +96,6 @@ class Falcon(Decoder):
             f'decoderLayer.{i}.ffnLayerNorm.bias': f'transformer.h.{i}.post_attention_layernorm.bias'
             })
         return mapping
-
-    class ParallelAttnLayer(BertLayer):
-        '''适用于Falcon的transformer block
-        主要区别是attention和feedForward是平行的
-        '''
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.attnLayerNorm.bias = nn.Parameter(torch.zeros(kwargs['hidden_size']))
-            del self.ffnLayerNorm
-
-        def forward(self, hidden_states=None, attention_mask=None, position_ids=None, conditional_emb=None, past_key_value=None, **model_kwargs):
-            # ============== self attention ==============
-            x = self.attnLayerNorm(hidden_states, conditional_emb)
-            self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
-            
-            # ============== feedforward ==============
-            feedforward_output = self.feedForward(x)
-            feedforward_output += self_attn_output[0]
-            hidden_states = self.dropout_add(feedforward_output, hidden_states)
-
-            if self.is_decoder and model_kwargs.get('use_states', False):
-                model_kwargs['past_key_value'] = self_attn_output[-1]
-            model_kwargs['hidden_states'] = hidden_states
-            return model_kwargs
 
 
 def apply_alibi_pos_emb(self, attention_scores, key_layer):
