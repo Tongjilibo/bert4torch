@@ -60,11 +60,6 @@ class InternLM2(Decoder):
         self.model_type = 'internlm2'
         del self.embeddings.layerNorm
 
-        # 修改网络结构
-        kwargs.pop('bias')
-        for layer in self.decoderLayer:
-            layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
-
     def load_trans_ckpt(self, checkpoint):
         '''原始权重中qkv是一个全连接, 需要拆分成q,k,v'''
         state_dict = super().load_trans_ckpt(checkpoint)

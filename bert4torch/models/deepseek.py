@@ -1,6 +1,5 @@
 from bert4torch.layers import DeepseekMoE
 from bert4torch.models.transformer import Decoder
-from bert4torch.layers import LlamaFeedForward
 
 
 class DeepSeek(Decoder):
@@ -11,7 +10,8 @@ class DeepSeek(Decoder):
     '''
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
-                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True,
+                       'mlp_type': 'LlamaFeedForward'})
         super().__init__(*args, **kwargs)
         self.model_type = 'deepseek'
         del self.embeddings.layerNorm
@@ -24,8 +24,6 @@ class DeepSeek(Decoder):
         for layer_idx, layer in enumerate(self.decoderLayer):
             if layer_idx >= self.first_k_dense_replace and layer_idx % self.moe_layer_freq == 0:
                 layer.feedForward = DeepseekMoE(**kwargs)
-            else:
-                layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
 
         self.LayerNormFinal.register_parameter('bias', None)
 

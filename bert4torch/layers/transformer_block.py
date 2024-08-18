@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from bert4torch.layers.core import LayerNorm, PositionWiseFeedForward
+from bert4torch.layers.core import LayerNorm, PositionWiseFeedForward, LlamaFeedForward
 from bert4torch.layers.attention import MultiHeadAttentionLayer, GatedAttentionUnit
 from typing import Union, Optional, Tuple
 
@@ -25,13 +25,19 @@ class BertLayer(nn.Module):
         self.apply_residual_post_layernorm = apply_residual_post_layernorm
         self.is_decoder = kwargs.get('is_decoder', False)
         self.add_cross_attention = kwargs.get('add_cross_attention', False)
+        self.mlp_type = kwargs.get('mlp_type', 'PositionWiseFeedForward')
         
         # self attention
         self.multiHeadAttention = MultiHeadAttentionLayer(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
         self.attnLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
         # feedforward
-        self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
+        if self.mlp_type == 'PositionWiseFeedForward':
+            self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
+        elif self.mlp_type == 'LlamaFeedForward':
+            self.feedForward = LlamaFeedForward(hidden_size, intermediate_size, hidden_act, kwargs['bias'])
+        else:
+            raise ValueError(f'mlp_type={self.mlp_type} not supported')
         self.ffnLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
         # cross attention

@@ -1,11 +1,8 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
-from bert4torch.layers import BlockIdentity, LlamaFeedForward, NormHead, BertLayer
+from bert4torch.layers import LlamaFeedForward, NormHead
 import torch
-from torch import nn
 import re
-import torch.nn.functional as F
-import math
 
 
 class LLaMA(Decoder):
@@ -19,15 +16,12 @@ class LLaMA(Decoder):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
-                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True, 
+                       'mlp_type': 'LlamaFeedForward'})
         super().__init__(*args, **kwargs)
         del self.embeddings.layerNorm
         self.model_type = 'llama'
 
-        # 修改feedword
-        for layer in self.decoderLayer:
-            layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
-        
         # 修改lm_head，目前在Baichuan2中使用
         if kwargs.get('norm_head') is True:
             self.lm_head = NormHead(self.hidden_size, self.vocab_size)
@@ -99,9 +93,4 @@ class MiniCPM(LLaMA):
     def __init__(self, *args, **kwargs):
         kwargs['layer_type'] = 'MiniCPMLayer'
         super().__init__(*args, **kwargs)
-
-        # 修改feedword
-        for layer in self.decoderLayer:
-            layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
-
         self.logit_scale = 1 / (self.hidden_size / kwargs.get('dim_model_base'))
