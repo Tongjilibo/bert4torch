@@ -1,7 +1,10 @@
 from bert4torch.pipelines import Chat
 
-
-model_dir = 'E:/data/pretrain_ckpt/MiniCPM/MiniCPM-2B-sft-bf16'
+# MiniCPM-2B-sft-bf16
+# MiniCPM-2B-dpo-bf16
+# MiniCPM-1B-sft-bf16
+# MiniCPM-2B-128k
+model_dir = 'E:/data/pretrain_ckpt/MiniCPM/MiniCPM-1B-sft-bf16'
 generation_config = {
     'max_length': 512, 
 }
