@@ -968,9 +968,14 @@ class SeqGeneration(AutoRegressiveDecoder):
         elif isinstance(text, list):
             # batch生成
             self.use_batch = True
+            # 为多个query同时生成时候，仅允许为每条query生成1条response，即n=1
             if 'generation_config' in kwargs:
+                if kwargs['generation_config'].get('n', 0) > 1:
+                    log_warn_once(f"Args `generation_config['n']`={kwargs['n']} has been reset to `1` when batch generate")
                 kwargs['generation_config']['n'] = 1
             else:
+                if kwargs.get('n', 0) > 1:
+                    log_warn_once(f"Args `n`={kwargs['n']} has been reset to `1` when batch generate")
                 kwargs['n'] = 1
             if self.use_states and (self.pad_mode in {'post', 'right'}):
                 self.pad_mode = 'pre'

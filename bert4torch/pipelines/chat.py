@@ -111,8 +111,7 @@ class ChatBase(PipeLineBase):
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        if create_model_at_startup:
-            self.model = self._build_model()
+        self.model = self.build_model()
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
@@ -143,29 +142,26 @@ class ChatBase(PipeLineBase):
 
     def build_model(self) -> Union[Decoder, Transformer]:
         '''初始化model, 方便外部继承'''
-        # 初始化
-        model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
-        model.eval()
-
-        # 精度
-        if self.precision == 'double':
-            model = model.double()
-        elif self.precision == 'float':
-            model = model.float()
-        elif self.precision in {'half', 'float16'}:
-            model = model.half()
-        elif self.precision == 'bfloat16':
-            model = model.bfloat16()
-
-        # 量化
-        if self.quantization_config is not None:
-            model = model.quantize(**self.quantization_config)
-        return model.to(self.device)
-
-    def _build_model(self) -> Union[Decoder, Transformer]:
         if (not hasattr(self, 'model')) or (self.model is None):
-            self.model = self.build_model()
+            # 初始化
+            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
+            model.eval()
 
+            # 精度
+            if self.precision == 'double':
+                model = model.double()
+            elif self.precision == 'float':
+                model = model.float()
+            elif self.precision in {'half', 'float16'}:
+                model = model.half()
+            elif self.precision == 'bfloat16':
+                model = model.bfloat16()
+
+            # 量化
+            if self.quantization_config is not None:
+                model = model.quantize(**self.quantization_config)
+            self.model = model.to(self.device)
+        
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
             cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
@@ -210,36 +206,46 @@ class ChatBase(PipeLineBase):
             process_history(response[0])
             return response[0]
         else:
-            raise TypeError('`response` type error')
+            raise TypeError(f'`response` type={type(response)} which is not supported')
 
-    def chat(self, query:Union[str,list], history:List[dict]=None, functions:List[dict]=None) -> str:
+    def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
         if isinstance(query, str):
+            # 单条输入
             prompt = self.build_prompt(query, history, functions)
+            response = self.model.generate(prompt, **self.generation_config)
+            if isinstance(response, str):
+                # 生成单条输出
+                return self.process_response_history(response, history=history)
+            elif isinstance(response, list):
+                # 为单条query生成多条response
+                return [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
+            else:
+                raise TypeError(f'`response` type={type(response)} which is not supported')
+            
         elif isinstance(query, list):
-            prompt = [self.build_prompt(q, history, functions) for q in query]
-        self.model = self._build_model()
-        response = self.model.generate(prompt, **self.generation_config)
-        return self.process_response_history(response, history=history)
+            # 多条输入
+            history_copy = [copy.deepcopy(history) for _ in query]
+            prompt = [self.build_prompt(q, hist, functions) for q, hist in zip(query, history_copy)]
+            response = self.model.generate(prompt, **self.generation_config)
+            return [self.process_response_history(response, history=hist) for r, hist in zip(response, history_copy)]
+        else:
+            raise TypeError(f'Args `query` type={type(query)} which is not supported')
 
     def stream_chat(self, query:str, history:List[dict]=None, functions:List[dict]=None):
         '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
         history = history or []
         prompt = self.build_prompt(query, history, functions)
-        self.model = self._build_model()
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response_history(response, history)
 
-    def generate(self, query:str) -> str:
+    def generate(self, query:Union[str, List[str]]) -> Union[str, List[str]]:
         '''base模型使用'''
-        self.model = self._build_model()
-        response = self.model.generate(query, **self.generation_config)
-        return response
+        return self.model.generate(query, **self.generation_config)
 
     def stream_generate(self, query:str):
         '''base模型使用, 单条样本stream输出预测的结果'''
-        self.model = self._build_model()
         yield from self.model.stream_generate(query, **self.generation_config)
 
 
@@ -287,7 +293,6 @@ class ChatCli(ChatBase):
                 continue
             
             prompt = self.build_prompt(query, history, functions)
-            self.model = self._build_model()
             # history是human和assistant的聊天历史
             # 格式如[{'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': '有什么可以帮您的？'}]
             if stream:
@@ -340,7 +345,6 @@ class ChatWebGradio(ChatBase):
         chatbot.append((input, ""))
         functions = self.__set_system_functions(system, functions)
         input_text = self.build_prompt(input, history, functions)
-        self.model = self._build_model()
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
             if history[-1].get('raw_content'):
@@ -357,7 +361,6 @@ class ChatWebGradio(ChatBase):
         chatbot.append((input, ""))
         functions = self.__set_system_functions(system, functions)
         input_text = self.build_prompt(input, history, functions)
-        self.model = self._build_model()
         response = self.model.generate(input_text, **self.generation_config)
         response = self.process_response_history(response, history)
         if history[-1].get('raw_content'):
@@ -442,8 +445,8 @@ class ChatWebStreamlit(ChatBase):
         log_warn_once('You should use command `streamlit run app.py --server.address 0.0.0.0 --server.port 8001` to launch')
 
     @st.cache_resource
-    def _build_model(_self):
-        return super()._build_model()
+    def build_model(_self):
+        return super().build_model()
     
     @st.cache_resource
     def build_tokenizer(_self, **kwarg):
@@ -713,10 +716,10 @@ class ChatOpenaiApi(ChatBase):
         input_text = self.build_prompt(query, history, request.functions)
         
         if self.offload_when_nocall is None:
-            self.model = self._build_model()
+            self.model = self.build_model()
         else:
             with self.lock:
-                self.model = self._build_model()
+                self.model = self.build_model()
             self.last_callapi_timestamp = time.time()
 
         # 流式输出
