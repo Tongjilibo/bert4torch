@@ -166,6 +166,8 @@ class AutoRegressiveDecoder(object):
     @staticmethod
     def wraps(default_rtype:Literal['probas', 'logits']='probas', use_states:bool=False):
         """用来进一步完善predict函数
+        :param default_rtype: probas不会进行softmax处理，logits会进行softmax处理
+        :param use_states: bool, 表示是否使用cache
 
         目前包含: 
             1. 设置rtype参数, 并做相应处理; 
@@ -175,7 +177,7 @@ class AutoRegressiveDecoder(object):
         def actual_decorator(predict):
             def new_predict(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, states:Optional[dict], rtype=default_rtype):
                 assert rtype in ['probas', 'logits']
-                prediction = predict(self, inputs, output_ids, states)
+                prediction = predict(self, inputs, output_ids, states)  # logits / (logits, states)
 
                 if use_states:
                     assert len(prediction) == 2, 'Should return 2 output when set use_states=True'
@@ -512,15 +514,17 @@ class AutoRegressiveDecoder(object):
         self.step = step
         probas, states = self.predict(inputs, output_ids, states, 'probas')  # 计算当前概率
         probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
-        if step == 0:  # 第1步预测后将结果重复n次
-            if self.n > 1:
-                probas = probas.repeat([self.n]+[1]*(len(probas.shape)-1))
-                inputs = [i.repeat([self.n]+[1]*(len(i.shape)-1)) for i in inputs]
-                output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
+        
+        if step == 0 and self.n > 1:  # 第1步预测后将结果重复n次
+            probas = probas.repeat([self.n]+[1]*(len(probas.shape)-1))
+            inputs = [i.repeat([self.n]+[1]*(len(i.shape)-1)) for i in inputs]
+            output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
+        
         if self.top_k is not None:
             k_indices = probas.argsort(dim=-1, descending=True)[:, :self.top_k]  # 仅保留topk
             probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
             probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
+        
         if self.top_p is not None:
             p_indices = probas.argsort(dim=-1, descending=True)  # 从高到低排序
             probas = take_along_dim(probas, p_indices, dim=-1)  # 排序概率
