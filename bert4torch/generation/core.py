@@ -180,13 +180,8 @@ class AutoRegressiveDecoder(object):
 
                 # prepared_logits_processor
                 # past_token_ids: 包含query部分的input_ids
-                if (states is not None) and (states.get('past_token_ids') is not None):
-                    past_token_ids = states['past_token_ids']
-                elif len(inputs[0].shape) == len(output_ids.shape):
-                    past_token_ids = torch.cat([inputs[0], output_ids], 1)
-                else:
-                    past_token_ids = None
-                logits = self.prepared_logits_processor(past_token_ids, logits)    
+                input_ids_or_encoder_hidden_states = inputs[0]
+                logits = self.prepared_logits_processor(input_ids_or_encoder_hidden_states, logits, output_ids=output_ids, states=states)    
 
                 if default_rtype == 'logits':
                     logits = nn.functional.softmax(logits, dim=-1)  # 转为概率
@@ -878,7 +873,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             raise ValueError(f'Only support `encode` and `decode` options, {mode} not supported')
 
-    def pre_process(self, text:Union[str, torch.Tensor, List[Union[int, torch.Tensor]], Tuple[Union[int, torch.Tensor]]]) -> Union[torch.Tensor, List[Union[torch.Tensor, List[int]]]]:
+    def pre_process(self, text:Union[str, torch.Tensor, List[Union[int, torch.Tensor]], Tuple[Union[int, torch.Tensor]]]) -> \
+                    Union[torch.Tensor, List[Union[torch.Tensor, List[int]]]]:
         '''前处理, 可以继承后自定义, 主要用于第三方tokenizer的encode'''
         self.input_text = text if self.include_input else ''
         # 传入的时候text已经是token_ids, 直接返回
@@ -961,6 +957,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 log_info("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
         else:
             raise TypeError('Args `text` only support `str/list(str)` format')
+        
         self.set_generation_config(kwargs)
         inputs = self.pre_process(text)
         output_ids = self._generate(inputs, states=kwargs.get('states'))
@@ -999,41 +996,10 @@ class Seq2SeqGeneration(SeqGeneration):
         self.input_seqlen = torch.zeros(decoder_inputs.shape[0], dtype=torch.long).to(self.device)
         return inputs
 
-    @model_inference_mode()
-    @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
-        '''单条样本生成 / batch生成'''
-        if isinstance(text, (str, torch.Tensor)):
-            # 单条样本
-            self.use_batch = False
-        elif isinstance(text, list):
-            # batch生成
-            self.use_batch = True
-            if 'generation_config' in kwargs:
-                kwargs['generation_config']['n'] = 1
-            else:
-                kwargs['n'] = 1
-
-        self.set_generation_config(kwargs)
-        inputs = self.pre_process(text)
+    def pre_process(self, text:Union[str, torch.Tensor, List[Union[int, torch.Tensor]], Tuple[Union[int, torch.Tensor]]]) -> \
+                    Union[torch.Tensor, List[Union[torch.Tensor, List[int]]]]:
+        inputs = super().pre_process(text)
         inputs = self._trans2tensors(inputs)
         encoder_output = self.encoder.predict(inputs)
-        output_ids = super()._generate(encoder_output, states=kwargs.get('states'))
-        return self.post_process(output_ids)
-
-    @model_inference_mode()
-    @EmptyCacheDecorators.empty_cuda_cache()
-    def stream_generate(self, text:Union[str, torch.Tensor], **kwargs):
-        '''stream输出t时刻预测的结果'''
-        self.set_generation_config(kwargs)
-
-        self.use_batch = False
-        inputs = self.pre_process(text)
-        inputs = self._trans2tensors(inputs)
-        encoder_output = self.encoder.predict(inputs)
-        if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(encoder_output, states=kwargs.get('states')):  # stream随机采样
-                yield self.post_process(output_ids)
-        elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(encoder_output, states=kwargs.get('states')):  # stream beam采样
-                yield self.post_process(output_ids)
+        return encoder_output
+    

@@ -56,17 +56,7 @@ class LogitsProcessorList(list):
 
         """
         for processor in self:
-            function_args = inspect.signature(processor.__call__).parameters
-            if len(function_args) > 2:
-                if not all(arg in kwargs for arg in list(function_args.keys())[2:]):
-                    raise ValueError(
-                        f"Make sure that all the required parameters: {list(function_args.keys())} for "
-                        f"{processor.__class__} are passed to the logits processor."
-                    )
-                scores = processor(input_ids, scores, **kwargs)
-            else:
-                scores = processor(input_ids, scores)
-
+            scores = processor(input_ids, scores, **kwargs)
         return scores
     
 
@@ -76,20 +66,29 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
     def __init__(self, penalty: float):
         if not isinstance(penalty, float) or not (penalty > 0):
             raise ValueError(f"`penalty` has to be a strictly positive float, but is {penalty}")
-
         self.penalty = penalty
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
         if self.penalty == 1.0:
             return scores
         
-        score = torch.gather(scores, 1, input_ids)
+        # 拼接历史的输入input_ids
+        states: dict = kwargs.get('states')
+        output_ids: torch.LongTensor = kwargs.get('output_ids')
+        if (states is not None) and (states.get('past_token_ids') is not None):
+            past_token_ids = states['past_token_ids']
+        elif len(input_ids.shape) == len(output_ids.shape):
+            past_token_ids = torch.cat([input_ids, output_ids], 1)
+        else:
+            past_token_ids = output_ids
+    
+        score = torch.gather(scores, 1, past_token_ids)
 
         # if score < 0 then repetition penalty has to be multiplied to reduce the token probabilities
         score = torch.where(score < 0, score * self.penalty, score / self.penalty)
 
-        scores_processed = scores.scatter(1, input_ids, score)
+        scores_processed = scores.scatter(1, past_token_ids, score)
         return scores_processed
 
 
@@ -107,7 +106,7 @@ class TopPLogitsWarper(LogitsProcessor):
         self.min_tokens_to_keep = min_tokens_to_keep
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
         if self.top_p is None:
             return scores
         
@@ -131,15 +130,15 @@ class TopKLogitsWarper(LogitsProcessor):
     def __init__(self, top_k: int, filter_value: float = -float("Inf"), min_tokens_to_keep: int = 1):
         if top_k is not None and (not isinstance(top_k, int) or top_k <= 0):
             raise ValueError(f"`top_k` has to be a strictly positive integer, but is {top_k}")
-        self.top_k = max(top_k, min_tokens_to_keep) if top_k is not None else top_k
+        self.top_k = top_k
         self.filter_value = filter_value
+        self.min_tokens_to_keep = min_tokens_to_keep
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
         if self.top_k is None:
             return scores
-        
-        top_k = min(self.top_k, scores.size(-1))  # Safety check
+        top_k = min(max(top_k, self.min_tokens_to_keep), scores.size(-1))  # Safety check
         # Remove all tokens with a probability less than the last token of the top-k
         indices_to_remove = scores < torch.topk(scores, top_k)[0][..., -1, None]
         scores_processed = scores.masked_fill(indices_to_remove, self.filter_value)
@@ -162,6 +161,6 @@ class TemperatureLogitsWarper(LogitsProcessor):
         self.temperature = temperature
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
         scores_processed = scores / self.temperature
         return scores_processed

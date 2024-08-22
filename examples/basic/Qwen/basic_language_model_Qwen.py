@@ -63,7 +63,7 @@ def main():
     choice = 'cli'
 
     generation_config = {'repetition_penalty': 1.1, 
-                         'temperature': 1.0,
+                         'temperature':0.8,
                          'top_k': 40,
                          'top_p': 0.8,
                          }
