@@ -5,9 +5,9 @@ from typing import Union, Optional, List, Tuple, Literal
 import torch
 import torch.nn as nn
 import numpy as np
-import inspect
-from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding
-from bert4torch.snippets import log_info, log_warn, log_warn_once
+from bert4torch.generation.logits_process import *
+from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, \
+    log_info, log_warn, log_warn_once
 from bert4torch.tokenizers import TokenizerBase
 from torch4keras.model import BaseModel
 from torch4keras.trainer import Trainer
@@ -24,12 +24,6 @@ if version.parse(torch.__version__) >= version.parse("1.10.0"):
 else:
     model_inference_mode = torch.no_grad
 
-def repetition_penalty_func(input_ids: torch.LongTensor, scores: torch.FloatTensor, penalty: float) -> torch.FloatTensor:
-    score = torch.gather(scores, 1, input_ids)
-    # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
-    score = torch.where(score < 0, score * penalty, score / penalty)
-    scores.scatter_(1, input_ids, score)
-    return scores
 
 def get_max_input_seqlen(input_seqlen:torch.Tensor):
     # 获取一个tensor中最大的值
@@ -103,35 +97,13 @@ class AutoRegressiveDecoder(object):
         # 生成的样本个数
         if not isinstance(n, int) or n <= 0:
             raise ValueError(f"`n` has to be a strictly positive integer, but is {n}")
-        self.n = n
-
-        # topk采样
-        if top_k is not None and (not isinstance(top_k, int) or top_k <= 0):
-            raise ValueError(f"`top_k` has to be a strictly positive integer, but is {top_k}")
-        self.top_k = top_k
-
-        # top_p采样
-        if top_p is not None and (top_p < 0 or top_p > 1.0):
-            raise ValueError(f"`top_p` has to be a float > 0 and < 1, but is {top_p}")
-        self.top_p = top_p
-        
-        # 温度系数
-        if not isinstance(temperature, (int,float)) or not (temperature > 0):
-            except_msg = (
-                f"`temperature` (={temperature}) has to be a strictly positive float, otherwise your next token "
-                "scores will be invalid."
-            )
-            if isinstance(temperature, (int,float)) and temperature == 0.0:
-                except_msg += " If you're looking for greedy decoding strategies, set `top_k=1`."
-            raise ValueError(except_msg)
-        self.temperature = temperature
-
-        # 重复性惩罚系数
-        if not isinstance(repetition_penalty, (int,float)) or not (repetition_penalty > 0):
-            raise ValueError(f"`repetition_penalty` has to be a strictly positive float, but is {repetition_penalty}")
-        self.repetition_penalty = repetition_penalty
-
-        self.min_ends = min_ends        
+        self.n = n  # 为每条样本生成几个输出
+        self.top_k = top_k  # topk采样
+        self.top_p = top_p  # top_p采样
+        self.temperature = temperature  # 温度系数
+        self.repetition_penalty = repetition_penalty  # 重复性惩罚系数
+        self.prepared_logits_processor = self._get_logits_processor()
+        self.min_ends = min_ends
         self.return_last_token = False
         self.return_states = False
         # 参数别名：兼容bert4torch旧示例
@@ -162,6 +134,27 @@ class AutoRegressiveDecoder(object):
                 setattr(self, key, value)  # 在generate()时候动态设置属性
             # else:
             #     log_warn_once(f'Generation_config `{key}` has not been pre maintained')
+        self._set_logits_processor()
+
+    def _get_logits_processor(self):
+        processors = LogitsProcessorList()
+        processors.append(RepetitionPenaltyLogitsProcessor(penalty=self.repetition_penalty))
+        
+        processors.append(TemperatureLogitsWarper(self.temperature))
+        processors.append(TopKLogitsWarper(top_k=self.top_k))
+        processors.append(TopPLogitsWarper(top_p=self.top_p))
+        return processors
+    
+    def _set_logits_processor(self):
+        for processor in self.prepared_logits_processor:
+            if isinstance(processor, RepetitionPenaltyLogitsProcessor):
+                processor.penalty = self.repetition_penalty
+            elif isinstance(processor, TemperatureLogitsWarper):
+                processor.temperature = self.temperature
+            elif isinstance(processor, TopKLogitsWarper):
+                processor.top_k = self.top_k
+            elif isinstance(processor, TopPLogitsWarper):
+                processor.top_p = self.top_p
 
     @staticmethod
     def wraps(default_rtype:Literal['probas', 'logits']='probas', use_states:bool=False):
@@ -181,28 +174,27 @@ class AutoRegressiveDecoder(object):
 
                 if use_states:
                     assert len(prediction) == 2, 'Should return 2 output when set use_states=True'
+                    logits, states = prediction
                 else:
-                    prediction = (prediction, None)
+                    logits, states = prediction, None
 
-                # repetition_penalty
-                if self.repetition_penalty != 1.0:
-                    if states is None or states.get('past_token_ids') is None:
-                        past_token_ids = torch.cat([inputs[0], output_ids], 1)  # 重复性惩罚需要带入query段
-                    else:
-                        past_token_ids = states['past_token_ids']
-                    prediction = (repetition_penalty_func(past_token_ids, prediction[0], self.repetition_penalty), prediction[1])
+                # prepared_logits_processor
+                # past_token_ids: 包含query部分的input_ids
+                if (states is not None) and (states.get('past_token_ids') is not None):
+                    past_token_ids = states['past_token_ids']
+                elif len(inputs[0].shape) == len(output_ids.shape):
+                    past_token_ids = torch.cat([inputs[0], output_ids], 1)
+                else:
+                    past_token_ids = None
+                logits = self.prepared_logits_processor(past_token_ids, logits)    
 
                 if default_rtype == 'logits':
-                    prediction = (nn.Softmax(dim=-1)(prediction[0] / self.temperature), prediction[1])
-                elif self.temperature != 1:
-                    probas = torch.pow(prediction[0], 1.0 / self.temperature)
-                    probas = probas / probas.sum(axis=-1, keepdims=True)
-                    prediction = (probas, prediction[1])
+                    logits = nn.functional.softmax(logits, dim=-1)  # 转为概率
 
                 if rtype == 'probas':
-                    return prediction
+                    return logits, states
                 else:
-                    return torch.log(prediction[0] + 1e-12), prediction[1]
+                    return torch.log(logits + 1e-12), states
 
             # 增加函数, 用于动态修改闭包中的属性
             def set_default_rtype(value):
@@ -513,34 +505,17 @@ class AutoRegressiveDecoder(object):
         '''为了random_sample和stream_random_sample共用, 抽离出来的单步逻辑'''
         self.step = step
         probas, states = self.predict(inputs, output_ids, states, 'probas')  # 计算当前概率
-        probas /= probas.sum(dim=-1, keepdims=True)  # 确保归一化
-        
+        probas: torch.FloatTensor = probas / probas.sum(dim=-1, keepdims=True)  # 确保归一化
+
         if step == 0 and self.n > 1:  # 第1步预测后将结果重复n次
             probas = probas.repeat([self.n]+[1]*(len(probas.shape)-1))
             inputs = [i.repeat([self.n]+[1]*(len(i.shape)-1)) for i in inputs]
             output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
         
-        if self.top_k is not None:
-            k_indices = probas.argsort(dim=-1, descending=True)[:, :self.top_k]  # 仅保留topk
-            probas = take_along_dim(probas, k_indices, dim=1)  # topk概率
-            probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
-        
-        if self.top_p is not None:
-            p_indices = probas.argsort(dim=-1, descending=True)  # 从高到低排序
-            probas = take_along_dim(probas, p_indices, dim=-1)  # 排序概率
-            cumsum_probas = torch.cumsum(probas, dim=-1)  # 累积概率
-            flag = torch.roll(cumsum_probas >= self.top_p, 1, dims=1)  # 标记超过topp的部分
-            flag[:, 0] = False  # 结合上面的torch.roll, 实现平移一位的效果
-            probas[flag] = 0  # 后面的全部置零
-            probas /= probas.sum(dim=1, keepdims=True)  # 重新归一化
-
         sample_func = lambda p: torch.multinomial(p, 1)  # 按概率采样函数
         sample_ids = torch.stack([sample_func(p) for p in probas])
         sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
-        if self.top_p is not None:
-            sample_ids = take_along_dim(p_indices, sample_ids, dim=1)  # 对齐原id
-        if self.top_k is not None:
-            sample_ids = take_along_dim(k_indices, sample_ids, dim=1)  # 对齐原id
+
         output_ids = torch.cat([output_ids, sample_ids], 1)  # 更新输出
         return inputs, output_ids, states
 

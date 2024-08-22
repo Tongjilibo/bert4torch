@@ -1,3 +1,9 @@
+"""
+参考transformers.generation.logits_process.py
+url: https://github.com/huggingface/transformers/blob/main/src/transformers/generation/logits_process.py
+
+- 做了部分简化，没有区分LogitsProcessor和LogitsWarper
+"""
 import torch
 from bert4torch.snippets import add_start_docstrings
 import inspect
@@ -75,6 +81,9 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        if self.penalty == 1.0:
+            return scores
+        
         score = torch.gather(scores, 1, input_ids)
 
         # if score < 0 then repetition penalty has to be multiplied to reduce the token probabilities
@@ -88,8 +97,7 @@ class TopPLogitsWarper(LogitsProcessor):
     """TopP采样
     """
     def __init__(self, top_p: float, filter_value: float = -float("Inf"), min_tokens_to_keep: int = 1):
-        top_p = float(top_p)
-        if top_p < 0 or top_p > 1.0:
+        if top_p is not None and (top_p < 0 or top_p > 1.0):
             raise ValueError(f"`top_p` has to be a float > 0 and < 1, but is {top_p}")
         if not isinstance(min_tokens_to_keep, int) or (min_tokens_to_keep < 1):
             raise ValueError(f"`min_tokens_to_keep` has to be a positive integer, but is {min_tokens_to_keep}")
@@ -100,6 +108,9 @@ class TopPLogitsWarper(LogitsProcessor):
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        if self.top_p is None:
+            return scores
+        
         sorted_logits, sorted_indices = torch.sort(scores, descending=False)
         cumulative_probs = sorted_logits.softmax(dim=-1).cumsum(dim=-1)
 
@@ -118,14 +129,16 @@ class TopKLogitsWarper(LogitsProcessor):
     """TopK采样
     """
     def __init__(self, top_k: int, filter_value: float = -float("Inf"), min_tokens_to_keep: int = 1):
-        if not isinstance(top_k, int) or top_k <= 0:
+        if top_k is not None and (not isinstance(top_k, int) or top_k <= 0):
             raise ValueError(f"`top_k` has to be a strictly positive integer, but is {top_k}")
-
-        self.top_k = max(top_k, min_tokens_to_keep)
+        self.top_k = max(top_k, min_tokens_to_keep) if top_k is not None else top_k
         self.filter_value = filter_value
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        if self.top_k is None:
+            return scores
+        
         top_k = min(self.top_k, scores.size(-1))  # Safety check
         # Remove all tokens with a probability less than the last token of the top-k
         indices_to_remove = scores < torch.topk(scores, top_k)[0][..., -1, None]
