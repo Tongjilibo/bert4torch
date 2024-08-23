@@ -20,11 +20,25 @@ def is_string(s):
     return isinstance(s, basestring)
     
 
-def truncate_sequences(maxlen:int, indices:Union[List[int], Tuple[int]], *sequences):
-    """截断总长度至不超过maxlen"""
+def truncate_sequences(sequences:Iterable[List[int]], maxlen:int, indices:Union[int, List[int], Tuple[int]]=-1):
+    """截断各个sequences以保证总长度至不超过maxlen, 原地修改，优先从最长的sequence开始截断
+    :param sequences: List[List[int]], 需要截断的序列
+    :param maxlen: int, 所有序列的总长度
+    :param indices: int/List[int]/Tuple[int] 每次去掉的token_id的index
+
+    ### Example
+    ```python
+    from bert4torch.snippets import truncate_sequences
+    seq = [list(range(20)), list(range(30))]
+    res = truncate_sequences(seq, maxlen=11, indices=-1)
+    print(res, seq)
+    # 输出：[[0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5]] [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5]]
+    ```
+    """
     sequences = [s for s in sequences if s]
     if not isinstance(indices, (list, tuple)):
         indices = [indices] * len(sequences)
+    assert len(indices) == len(sequences)
 
     while True:
         lengths = [len(s) for s in sequences]
@@ -35,36 +49,108 @@ def truncate_sequences(maxlen:int, indices:Union[List[int], Tuple[int]], *sequen
             return sequences
 
 
-def text_segmentate(text:str, maxlen:int, seps:str='\n', strips:str=None, truncate:bool=True):
+def text_segmentate(text:str, maxlen:int, seps:str='\n', strips:str=None, truncate:bool=True, greed:bool=False):
     """将文本按照标点符号划分为若干个短句
        
-       :param text: 待划分的句子
-       :param maxlen: int, 截断长度
-       :param seps: 分隔符
-       :param strips: ''.strip()
-       :param truncate: True表示标点符号切分后仍然超长时, 按照maxlen硬截断分成若干个短句
-       :return: List[str], 划分后的句子列表
+    :param text: 待划分的句子
+    :param maxlen: int, 截断长度
+    :param seps: 分隔符
+    :param strips: ''.strip()
+    :param truncate: True表示标点符号切分后仍然超长时, 按照maxlen硬截断分成若干个短句
+    :param greed: bool, 是否贪婪切分
+        - True表示seps之间没有优先级，从左向右寻找以任意sep结尾且尽量填满maxlen的片段，如果找不到则以maxlen硬截断，切分后每个片段比较满
+        - False表示按照seps从前往后的优先级切分，容易切的比较碎
+    :return: List[str], 划分后的句子列表
+
+    ### Example
+    ```python
+    from bert4torch.snippets import text_segmentate
+    from pprint import pprint
+    seps, strips = u'\n。！？!?；;，, ', u'；;，, '
+    text = '''
+    你好，大家好！我叫小明，是一名刚刚踏出大学校门，满怀憧憬与热情的新晋毕业生。在过去的几年里，我在XX大学深造，专业聚焦于XX领域，这段学习经历不仅为我打下了坚实的理论基础，也让我在实践中积累了宝贵的经验。
+    在校期间，我积极参与各类学术科研活动，曾参与XX项目的研究，这段经历锻炼了我的问题解决能力和团队合作精神。同时，我还担任了学生会的XX职位，负责组织策划了多场校园活动，这些经历极大地提升了我的组织协调能力和领导力，也让我学会了如何在压力下保持高效工作。
+    除了专业学习和社会实践，我还热衷于XX技能/爱好，比如编程、摄影或是公共演讲，这不仅丰富了我的大学生活，也让我在兴趣中找到了自我成长的另一种可能。
+    现在，我带着对未知世界的好奇和对职业发展的渴望，站在了人生的新起点上。我期望能够将所学应用到实际工作中，为团队带来创新思维和活力，同时也期待在新的工作环境中不断学习，实现个人价值与公司目标的双赢。
+    最后，非常感谢有这个机会向大家介绍自己，我期待着与大家一起成长，共同面对挑战，创造美好的未来。谢谢大家！
+    '''
+    maxlen = 50
+    res = text_segmentate(text, maxlen, seps, strips, greed=False)
+    pprint(res)
+
+    # 输出
+    # ['你好，大家好！我叫小明，是一名刚刚踏出大学校门，满怀憧憬与热情的新晋毕业生。',
+    # '在过去的几年里，我在XX大学深造，专业聚焦于XX领域，这段学习经历不仅为我打下了坚实的理论基础',
+    # '也让我在实践中积累了宝贵的经验。',
+    # '在校期间，我积极参与各类学术科研活动，曾参与XX项目的研究',
+    # '这段经历锻炼了我的问题解决能力和团队合作精神。',
+    # '同时，我还担任了学生会的XX职位，负责组织策划了多场校园活动',
+    # '这些经历极大地提升了我的组织协调能力和领导力，也让我学会了如何在压力下保持高效工作。',
+    # '除了专业学习和社会实践，我还热衷于XX技能/爱好，比如编程、摄影或是公共演讲',
+    # '这不仅丰富了我的大学生活，也让我在兴趣中找到了自我成长的另一种可能。',
+    # '现在，我带着对未知世界的好奇和对职业发展的渴望，站在了人生的新起点上。',
+    # '我期望能够将所学应用到实际工作中，为团队带来创新思维和活力，同时也期待在新的工作环境中不断学习',
+    # '实现个人价值与公司目标的双赢。',
+    # '最后，非常感谢有这个机会向大家介绍自己，我期待着与大家一起成长，共同面对挑战，创造美好的未来。',
+    # '谢谢大家！']
+
+    res = text_segmentate(text, maxlen, seps, strips, greed=True)
+    pprint(res)
+
+    # 输出
+    # ['你好，大家好！我叫小明，是一名刚刚踏出大学校门，满怀憧憬与热情的新晋毕业生。在过去的几年里',
+    # '我在XX大学深造，专业聚焦于XX领域，这段学习经历不仅为我打下了坚实的理论基础',
+    # '也让我在实践中积累了宝贵的经验。\n在校期间，我积极参与各类学术科研活动，曾参与XX项目的研究',
+    # '这段经历锻炼了我的问题解决能力和团队合作精神。同时，我还担任了学生会的XX职位',
+    # '负责组织策划了多场校园活动，这些经历极大地提升了我的组织协调能力和领导力',
+    # '也让我学会了如何在压力下保持高效工作。\n除了专业学习和社会实践，我还热衷于XX技能/爱好',
+    # '比如编程、摄影或是公共演讲，这不仅丰富了我的大学生活，也让我在兴趣中找到了自我成长的另一种可能。\n',
+    # '现在，我带着对未知世界的好奇和对职业发展的渴望，站在了人生的新起点上。',
+    # '我期望能够将所学应用到实际工作中，为团队带来创新思维和活力，同时也期待在新的工作环境中不断学习',
+    # '实现个人价值与公司目标的双赢。\n最后，非常感谢有这个机会向大家介绍自己，我期待着与大家一起成长',
+    # '共同面对挑战，创造美好的未来。谢谢大家！']
+    ```
     """
     text = text.strip().strip(strips)
-    if seps and len(text) > maxlen:
-        pieces = text.split(seps[0])
-        text, texts = '', []
-        for i, p in enumerate(pieces):
-            if text and p and len(text) + len(p) > maxlen - 1:
+    if not greed:
+        if seps and len(text) > maxlen:
+            pieces = text.split(seps[0])  # 按照最优先级的sep截断
+            text, texts = '', []
+            for i, p in enumerate(pieces):
+                if text and p and len(text) + len(p) > maxlen - 1:  # text+当前piece后超长了
+                    texts.extend(text_segmentate(text, maxlen, seps[1:], strips, truncate))
+                    text = ''
+                if i + 1 == len(pieces):  # 最后一个片段
+                    text = text + p
+                else:
+                    text = text + p + seps[0]  # 追加到当前text
+            if text:
                 texts.extend(text_segmentate(text, maxlen, seps[1:], strips, truncate))
-                text = ''
-            if i + 1 == len(pieces):
-                text = text + p
-            else:
-                text = text + p + seps[0]
-        if text:
-            texts.extend(text_segmentate(text, maxlen, seps[1:], strips, truncate))
-        return texts
-    elif truncate and (not seps) and (len(text) > maxlen):
-        # 标点符号用完，仍然超长，且设置了truncate=True
-        return [text[i*maxlen:(i+1)*maxlen] for i in range(0, int(np.ceil(len(text)/maxlen)))]
+            return texts
+        elif truncate and (not seps) and (len(text) > maxlen):
+            # 标点符号用完，仍然超长，且设置了truncate=True
+            return [text[i*maxlen:(i+1)*maxlen] for i in range(0, int(np.ceil(len(text)/maxlen)))]
+        else:
+            return [text]
     else:
-        return [text]
+        texts = ['']
+        chunk = ''
+        for char in text:
+            if char in seps:
+                if len(texts[-1]) + len(chunk) < maxlen:
+                    texts[-1] += chunk + char
+                    chunk = ''
+                else:
+                    texts.append(chunk + char)
+                    chunk = ''
+            else:
+                if len(chunk) < maxlen:
+                    chunk += char
+                else:
+                    texts.append(chunk[:maxlen])
+                    chunk = chunk[maxlen:] + char
+        texts = [text.strip(strips) for text in texts]
+        return texts
 
 
 def merge_segmentate(sequences:List[str], maxlen:int, sep:str=''):

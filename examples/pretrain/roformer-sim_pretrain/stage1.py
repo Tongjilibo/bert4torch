@@ -84,7 +84,7 @@ def collate_fn(batch):
             else:
                 text_ids = tokenizer.encode(text)[0]
             synonym_ids = tokenizer.encode(synonym)[0][1:]
-            truncate_sequences(maxlen * 2, -2, text_ids, synonym_ids)
+            truncate_sequences([text_ids, synonym_ids], maxlen * 2, -2)
             token_ids = text_ids + synonym_ids
             segment_ids = [0] * len(text_ids) + [1] * len(synonym_ids)
             batch_token_ids.append(token_ids)
