@@ -60,20 +60,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - **其他特性**：[加载transformers库模型](https://github.com/Tongjilibo/bert4torch/blob/master//tutorials/tutorials_load_transformers_model.py)一起使用；调用方式简洁高效；有训练进度条动态展示；配合torchinfo打印参数量；默认Logger和Tensorboard简便记录训练过程；自定义fit过程，满足高阶需求
 - **训练过程**：
 
-  ```text
-  2022-10-28 23:16:10 - Start Training
-  2022-10-28 23:16:10 - Epoch: 1/2
-  5000/5000 [==============================] - 13s 3ms/step - loss: 0.1351 - acc: 0.9601
-  Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 798.09it/s] 
-  test_acc: 0.98045. best_test_acc: 0.98045
-
-  2022-10-28 23:16:27 - Epoch: 2/2
-  5000/5000 [==============================] - 13s 3ms/step - loss: 0.0465 - acc: 0.9862
-  Evaluate: 100%|██████████████████████████████████████████████████| 2500/2500 [00:03<00:00, 635.78it/s] 
-  test_acc: 0.98280. best_test_acc: 0.98280
-
-  2022-10-28 23:16:44 - Finish Training
-  ```
+  ![训练过程](./docs/pics/training_process.gif)
 
 |          功能                | bert4torch |  transformers | 备注 |
 |-----------------------------|------------|----------------|--------|
