@@ -122,7 +122,7 @@ class TokenizerBase(object):
 
         if maxlen is not None:
             index = int(self._token_end is not None) + 1
-            truncate_sequences(maxlen, -index, tokens)
+            truncate_sequences([tokens], maxlen, -index)
 
         return tokens
 
@@ -164,7 +164,7 @@ class TokenizerBase(object):
                 index = truncate_from
             if second_text is not None and pattern == 'S*E*E':
                 maxlen += 1
-            truncate_sequences(maxlen, index, first_tokens, second_tokens)
+            truncate_sequences([first_tokens, second_tokens], maxlen, index)
 
         first_token_ids = self.tokens_to_ids(first_tokens)
         first_segment_ids = [0] * len(first_token_ids)
