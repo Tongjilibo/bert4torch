@@ -21,7 +21,6 @@ class DPOModel(BaseModel):
 
     :param model: 待训练模型
     :param ref_model: 参考模型
-    :param args: dpo训练的部分参数
     :param model_init_kwargs: model的build_transformer_model参数
     :param ref_model_init_kwargs: ref_model的build_transformer_model参数
     :param model_adapter_name: model的adapter_name
@@ -34,7 +33,6 @@ class DPOModel(BaseModel):
         self, 
         model: Optional[Union[BaseModel, str]], 
         ref_model:BaseModel=None,
-        args: Optional[DottableDict] = DottableDict(),
         model_init_kwargs: Optional[Dict] = None,
         ref_model_init_kwargs: Optional[Dict] = None,
         model_adapter_name: Optional[str] = None,
@@ -42,6 +40,10 @@ class DPOModel(BaseModel):
         peft_config: Optional[Dict] = None,
         disable_dropout: bool = True,
         force_use_ref_model: bool = False,
+
+        gradient_checkpointing_kwargs: Optional[Dict] = None,
+        bf16: bool = False,
+        **kwargs
         ):
         super().__init__()
 
@@ -62,7 +64,7 @@ class DPOModel(BaseModel):
                 "You passed a model_id to the DPOTrainer. This will automatically create an "
                 "`build_transformer_model` or a `PeftModel` (if you passed a `peft_config`) for you."
             )
-            model = build_transformer_model(checkpoint_path=model, **model_init_kwargs).to(self.device)
+            model: BaseModel = build_transformer_model(checkpoint_path=model, **model_init_kwargs).to(self.device)
 
         if isinstance(ref_model, str):
             warnings.warn(
@@ -89,19 +91,17 @@ class DPOModel(BaseModel):
                 )
 
             if getattr(model, "is_loaded_in_8bit", False) or getattr(model, "is_loaded_in_4bit", False):
-                _support_gc_kwargs = hasattr(
-                    args, "gradient_checkpointing_kwargs"
-                ) and "gradient_checkpointing_kwargs" in list(
+                _support_gc_kwargs = gradient_checkpointing_kwargs is not None and "gradient_checkpointing_kwargs" in list(
                     inspect.signature(prepare_model_for_kbit_training).parameters
                 )
 
-                prepare_model_kwargs = {"use_gradient_checkpointing": args.gradient_checkpointing}
+                prepare_model_kwargs = {"use_gradient_checkpointing": model.gradient_checkpoint}
 
                 if _support_gc_kwargs:
-                    prepare_model_kwargs["gradient_checkpointing_kwargs"] = args.gradient_checkpointing_kwargs
+                    prepare_model_kwargs["gradient_checkpointing_kwargs"] = gradient_checkpointing_kwargs
 
                 model = prepare_model_for_kbit_training(model, **prepare_model_kwargs)
-            elif getattr(args, "gradient_checkpointing", False):
+            elif getattr(model, "gradient_checkpoint", False):
                 # For backward compatibility with older versions of transformers
                 if hasattr(model, "enable_input_require_grads"):
                     model.enable_input_require_grads()
@@ -114,9 +114,9 @@ class DPOModel(BaseModel):
 
             # get peft model with the given config
             model = get_peft_model(model, peft_config)
-            if getattr(args, 'bf16', False) and getattr(model, "is_loaded_in_4bit", False):
+            if bf16 and getattr(model, "is_loaded_in_4bit", False):
                 peft_module_casting_to_bf16(model)
-                # If args.bf16 we need to explicitly call `generate` with torch amp autocast context manager
+                # If bf16 we need to explicitly call `generate` with torch amp autocast context manager
                 self._peft_has_been_casted_to_bf16 = True
 
         # For models that use gradient_checkpointing, we need to attach a hook that enables input
@@ -196,7 +196,6 @@ class DPOTrainer(AutoTrainer):
                 model: Optional[Union[BaseModel, str]], 
                 *trainer_args,
                 ref_model:BaseModel=None,
-                args: Optional[DottableDict] = DottableDict(),
                 model_init_kwargs: Optional[Dict] = None,
                 ref_model_init_kwargs: Optional[Dict] = None,
                 model_adapter_name: Optional[str] = None,
@@ -211,7 +210,6 @@ class DPOTrainer(AutoTrainer):
                 model: Optional[Union[BaseModel, str]], 
                 *trainer_args,
                 ref_model:BaseModel=None,
-                args: Optional[DottableDict] = DottableDict(),
                 model_init_kwargs: Optional[Dict] = None,
                 ref_model_init_kwargs: Optional[Dict] = None,
                 model_adapter_name: Optional[str] = None,
@@ -221,7 +219,7 @@ class DPOTrainer(AutoTrainer):
                 force_use_ref_model: bool = False,
                 **kwargs
         ) -> Trainer:
-        module = DPOModel(model, ref_model, args, model_init_kwargs, ref_model_init_kwargs,
-                          model_adapter_name, ref_adapter_name, peft_config, disable_dropout, force_use_ref_model)
+        module = DPOModel(model, ref_model, model_init_kwargs, ref_model_init_kwargs, model_adapter_name, 
+                          ref_adapter_name, peft_config, disable_dropout, force_use_ref_model, **kwargs)
         module.to(model.device)
         return super().__new__(cls, module, *trainer_args, **kwargs)

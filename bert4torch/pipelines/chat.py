@@ -326,7 +326,7 @@ class ChatWebGradio(ChatBase):
         import gradio as gr
         self.gr = gr
         self.max_length = self.generation_config.get('max_length', 4096)
-        self.max_repetition_penalty = 10
+        self.max_repetition_penalty = 10.0
         self.stream = True  # 一般都是流式，因此未放在页面配置项
         if version.parse(gr.__version__) < version.parse("3.44.4"):
             log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
@@ -403,7 +403,7 @@ class ChatWebGradio(ChatBase):
                     max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="max_length", interactive=True)
                     top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="top_p", interactive=True)
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="temperature", interactive=True)
-                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1, step=0.1, label="repetition_penalty", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1.0, step=0.1, label="repetition_penalty", interactive=True)
                     system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
                     functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
 
@@ -577,7 +577,7 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = None
     max_length: Optional[int] = None
     stream: Optional[bool] = False
-    repetition_penalty: Optional[int] = None
+    repetition_penalty: Optional[float] = None
 
 
 class ChatCompletionResponseChoice(BaseModel):
