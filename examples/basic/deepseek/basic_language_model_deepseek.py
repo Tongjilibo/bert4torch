@@ -2,7 +2,9 @@
 from bert4torch.pipelines import Chat
 import re
 
-model_dir = 'E:\data\pretrain_ckpt\deepseek\deepseek-ai@deepseek-llm-7b-chat'
+# deepseek-ai@deepseek-llm-7b-chat
+# deepseek-ai@deepseek-coder-1.3b-instruct
+model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@deepseek-coder-1.3b-instruct'
 generation_config = {
     'max_length': 512
 }
@@ -14,3 +16,4 @@ demo = Chat(model_dir,
 
 if __name__ == '__main__':
     demo.run()
+
