@@ -9,9 +9,20 @@ from typing import Union, Optional, Tuple
 
 class BertLayer(nn.Module):
     """Transformer层:
-       顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
+        顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
 
-       注意:
+        :param hidden_size: int, 隐含层神经元个数
+        :param num_attention_heads: int, 多头注意力的多头数
+        :param attention_probs_dropout_prob: float，softmax后的dropout rate
+        :param dropout_rate: float, 残差连接中对multiHeadAttention或者mlp添加dropout的rate
+        :param intermediate_size: int, mlp中间隐含层的神经元个数，一般是hidden_size的数倍
+        :param hidden_act: str，激活函数的种类
+        :param is_dropout: bool, mlp中是否使用dropout层，默认为False
+        :param conditional_size: bool/int，LayerNorm时候是否使用条件LayerNorm, 默认为False
+        :param pre_layernorm: bool, layernorm是pre还是post，bert是post，现在大模型基本都是pre, 默认为False表示post_layernorm
+        :param apply_residual_post_layernorm: bool，残差连接时候是使用layernorm前的还是后的hidden_states, 默认为False表示使用layernorm前的
+
+        注意:
         1. 以上都不计dropout层，并不代表没有dropout，每一层的dropout使用略有不同，注意区分
         2. 原始的Transformer的encoder中的Feed Forward层一共有两层linear，
         3. config.intermediate_size的大小不仅是第一层linear的输出尺寸，也是第二层linear的输入尺寸

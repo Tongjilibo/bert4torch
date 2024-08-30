@@ -20,12 +20,12 @@ def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, n
         base = base * ntk_alpha ** (d_hid / (d_hid-2))
     
     position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
+    inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
     embeddings_table = torch.zeros(n_position, d_hid)
     if (scaling_factor is not None) and (scaling_factor != 1):
-        position = position / scaling_factor
-    embeddings_table[:, 0::2] = torch.sin(position * div_term)
-    embeddings_table[:, 1::2] = torch.cos(position * div_term)
+        inv_freq = inv_freq / scaling_factor
+    embeddings_table[:, 0::2] = torch.sin(position * inv_freq)
+    embeddings_table[:, 1::2] = torch.cos(position * inv_freq)
     return embeddings_table
 
     # 第二种实现

@@ -1865,20 +1865,21 @@ class LLaMA3(ChatBase):
 
         history.append({"role": "user", "content": query})
         if self.no_history_states():
-            if functions is None:
-                texts = self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
-            else:
-                # llama3.1支持function call
-                texts = self.tokenizer.apply_chat_template(history, 
-                                                           tools=functions if isinstance(functions, list) else [functions],
-                                                           add_generation_prompt=True, 
-                                                           tokenize=False,
-                                                           tools_in_user_message=False)
-            return texts
+            # llama3.1支持function call
+            tools = functions
+            if (functions is not None) and isinstance(functions, list):
+                tools = [functions]
+            texts = self.tokenizer.apply_chat_template(
+                history, 
+                tools = tools,
+                add_generation_prompt = True, 
+                tokenize = False,
+                tools_in_user_message = False
+                )
         else:
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
-            return texts
+        return texts
     
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         response = super().process_response_history(response, history)
@@ -1888,6 +1889,13 @@ class LLaMA3(ChatBase):
         except json.JSONDecodeError:
             pass
         return response
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class ApplyChatTemplate(LLaMA3):
+    '''直接使用self.tokenizer.apply_chat_template来构建输入
+    如果模型直接沿用这种方式，则无需做特殊的处理
+    '''
+    pass
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -2045,7 +2053,8 @@ MAPPING = {
     'ziya': Ziya,
     'chinese_llama_alpaca': ChineseLlamaAlpaca,
     'belle': Belle,
-    'baichuan': Baichuan
+    'baichuan': Baichuan,
+    'apply_chat_template': ApplyChatTemplate
 }
 
 

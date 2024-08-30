@@ -19,6 +19,7 @@ from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
 from typing import Literal, Optional, Tuple, Union
 import inspect
+import copy
 
 
 if is_xformers_available():
@@ -31,12 +32,41 @@ if is_flash_attn_available():
     _flash_supports_window_size = "window_size" in list(inspect.signature(flash_attn_func).parameters)
 
 
+def is_causal_mask(attention_mask:torch.Tensor):
+    '''判断一个矩阵是不是下三角阵'''
+    return bool(torch.all(torch.tril(attention_mask) == attention_mask))
+
+
 class MultiHeadAttentionLayer(nn.Module):
     '''多头注意力
+    :param hidden_size: int, 隐含层神经元个数
+    :param num_attention_heads: int, 多头注意力的多头数
+    :param attention_probs_dropout_prob: float，softmax后的dropout rate
+    :param dropout_rate: float, pos_dropout对应的dropout rate, 目前仅在deverta中使用，默认为0.1
+    :param attention_scale: bool, 是否对attention_scores进行缩放，默认为True
+    :param output_attentions: bool，是否返回attention_scores，默认为False
+    :param bias: bool, qkvo的weight是否包含bias，默认为True
+    :param p_bias: Literal枚举值，position encoding的类型，默认为None
+    :param rope_scaling: dict, rope的position encoding的参数，默认为None
+    :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
+    :param use_logn_attn: bool，是否使用use_logn_attn, 默认为None
+    :param layer_idx: int，transformer block的层序号
     '''
-    def __init__(self, hidden_size:int, num_attention_heads:int, attention_probs_dropout_prob:float, dropout_rate:float=0.1, attention_scale:bool=True,
-                 output_attentions:bool=False, bias:bool=True, p_bias:Literal[None, 'typical_relative', 'rotary', 't5_relative', 'deberta_v2', 'alibi']=None, 
-                 rope_scaling:dict=None, flash_attention:Literal[None, True, 'sdpa', 'xformers', 'flash_attn_2']=None, use_logn_attn:bool=None, **kwargs):
+    def __init__(self, 
+                 hidden_size:int, 
+                 num_attention_heads:int, 
+                 attention_probs_dropout_prob:float, 
+                 dropout_rate:float=0.1, 
+                 attention_scale:bool=True,
+                 output_attentions:bool=False, 
+                 bias:bool=True, 
+                 p_bias:Literal[None, 'typical_relative', 'rotary', 't5_relative', 'deberta_v2', 'alibi']=None, 
+                 rope_scaling:dict=None, 
+                 _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
+                 use_logn_attn:bool=None, 
+                 layer_idx:int=None,
+                 num_key_value_heads:int=None,
+                 **kwargs):
         super(MultiHeadAttentionLayer, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
@@ -47,25 +77,11 @@ class MultiHeadAttentionLayer(nn.Module):
         self.output_attentions = output_attentions
         self.bias = bias
         self.p_bias = p_bias
-        self.rope_scaling = rope_scaling or dict()
+        self.rope_scaling = copy.deepcopy(rope_scaling or dict())
+        self.layer_idx = layer_idx
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
-        self.layer_idx = kwargs.get('layer_idx')
-        
-        # 获取flash_attention的配置项
-        self.flash_attention_config = kwargs.get('flash_attention_config', dict())
-        self.is_causal = kwargs.get('is_causal', False) or self.flash_attention_config.pop('is_causal', False)
-        if ((flash_attention is True) or (flash_attention == 'sdpa')) and (int(torch.__version__.split('.')[0]) < 2):
-            log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-            flash_attention = None
-        elif (flash_attention == 'xformers') and (not is_xformers_available()):
-            log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-            flash_attention = None
-        elif (flash_attention == 'flash_attn_2') and (not is_flash_attn_available()):
-            log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
-            flash_attention = None
-        self.flash_attention = flash_attention
-        
+        self._attn_implementation = _attn_implementation  # attention的实现
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
@@ -77,8 +93,8 @@ class MultiHeadAttentionLayer(nn.Module):
         v_inner_dim = self.attention_head_size * num_attention_heads
 
         # multi query attention: chatglm中叫num_key_value_heads
-        if kwargs.get('num_key_value_heads') is not None:
-            self.num_key_value_heads = kwargs.get('num_key_value_heads')
+        if num_key_value_heads is not None:
+            self.num_key_value_heads = num_key_value_heads
             k_inner_dim_tmp = self.attention_head_size * self.num_key_value_heads
             v_inner_dim_tmp = k_inner_dim_tmp
 
@@ -160,73 +176,73 @@ class MultiHeadAttentionLayer(nn.Module):
         :param past_key_value: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
         '''
 
-        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
-        query_layer = self.transpose_for_q_scores(self.q(hidden_states))
+        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+        query_states = self.transpose_for_q_scores(self.q(hidden_states))
         if self.p_bias == 'rotary':
             # rotary有cache情况下，需要先rope后再和past_key_value concat
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-            query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
+            key_states = self.transpose_for_k_scores(self.k(hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(hidden_states))
+            query_states, key_states, value_states = self.apply_rotary_pos_emb(query_states, key_states, value_states, position_ids, past_key_value)
         elif (encoder_hidden_states is not None) and (past_key_value is not None):
-            key_layer, value_layer = past_key_value
+            key_states, value_states = past_key_value
             attention_mask = encoder_attention_mask
         elif encoder_hidden_states is not None:
-            key_layer = self.transpose_for_k_scores(self.k(encoder_hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
+            key_states = self.transpose_for_k_scores(self.k(encoder_hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(encoder_hidden_states))
             attention_mask = encoder_attention_mask
         elif past_key_value is not None:
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
+            key_states = self.transpose_for_k_scores(self.k(hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(hidden_states))
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
         else:
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
+            key_states = self.transpose_for_k_scores(self.k(hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(hidden_states))
 
         # 使用logn_attn
         if self.use_logn_attn:
-            query_layer *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_layer.dtype)
+            query_states *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_states.dtype)
 
         # past_key_values
         if self.is_decoder and (not self.training):  # 仅推理是记录
-            past_key_value = (key_layer, value_layer)
+            past_key_value = (key_states, value_states)
 
         # multi_query_attention
         if hasattr(self, 'num_key_value_heads') and self.num_key_value_heads > 1:
-            key_layer = self.repeat_kv(key_layer)
-            value_layer = self.repeat_kv(value_layer)
+            key_states = self.repeat_kv(key_states)
+            value_states = self.repeat_kv(value_states)
 
         # longlora
         if hasattr(self, 'longlora_group_size'):
-            query_layer, key_layer, value_layer, attention_mask = self.longlora_shift(query_layer, key_layer, value_layer, attention_mask)
+            query_states, key_states, value_states, attention_mask = self.longlora_shift(query_states, key_states, value_states, attention_mask)
 
-        # ====================================是否使用flash_attention加速====================================
+        # ====================================attention的多类实现====================================
         # xformers
         attention_scores = None
-        if (self.flash_attention == 'xformers') and self.training:
-            context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
+        if (self._attn_implementation == 'xformers') and self.training:
+            context_layer = xops.memory_efficient_attention(query_states, key_states, value_states, attn_bias=xops.LowerTriangularMask())
         # SDPA
-        elif self.flash_attention in {True, 'sdpa'}:
-            # is_causal=True 适用于qlen=klen, 测试下来is_causal=True训练更快
-            if self.is_causal and (query_layer.shape[2] == key_layer.shape[2]):
-                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
-            elif len(self.flash_attention_config) == 0:
-                # 默认方式
-                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
-                # 下一行代码是Qwen2的，看结果略有差异，但是不影响结果的生成
-                # context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attn_mask=None, dropout_p=0, is_causal=False)
-            else:
-                # 自定义
-                with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
-                    context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+        elif self._attn_implementation in {True, 'sdpa'}:
+            # 适用于qlen=klen, 测试下来is_causal=True训练更快
+            is_causal = (query_states.shape[2] == key_states.shape[2]) and is_causal_mask(attention_mask)
+            context_layer = F.scaled_dot_product_attention(
+                query_states, 
+                key_states, 
+                value_states, 
+                attn_mask=None if is_causal else attention_mask.bool(),
+                dropout_p=self.attention_probs_dropout_prob if self.training else 0.0,
+                is_causal=is_causal
+                )
+
         # flash_attn
-        elif self.flash_attention == 'flash_attn_2':
-            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, past_key_value, attention_mask, hidden_states.shape[1])
+        elif self._attn_implementation == 'flash_attn_2':
+            context_layer = self.flash_attention_forward(query_states, key_states, value_states, past_key_value, attention_mask, hidden_states.shape[1])
+        
         # torch原生实现
         else:
-            context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
+            context_layer, attention_scores = self.torch_attention_forward(query_states, key_states, value_states, attention_mask)
         
         if hasattr(self, 'longlora_group_size'):  # context_layer: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
             bsz, q_len = hidden_states.shape[:2]
@@ -253,9 +269,9 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def longlora_shift(self, query_states, key_states, value_states, attention_mask):
         '''longlora中对qkv和mask进行修改: https://github.com/dvlab-research/LongLoRA'''
-        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
         def shift(qkv, bsz, q_len, group_size, num_heads, head_dim):
             qkv[:, num_heads // 2:] = qkv[:, num_heads // 2:].roll(-group_size // 2, dims=2)
@@ -292,46 +308,46 @@ class MultiHeadAttentionLayer(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def apply_alibi_pos_emb(self, attention_scores, key_layer):
+    def apply_alibi_pos_emb(self, attention_scores, key_states):
         ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
-        key_position_scores_r_t = self.relative_positions_encoding(key_layer)
+        key_position_scores_r_t = self.relative_positions_encoding(key_states)
         attention_scores = attention_scores + key_position_scores_r_t
         attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
         return attention_scores
 
-    def apply_rotary_pos_emb(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
+    def apply_rotary_pos_emb(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                              position_ids:torch.Tensor, past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None):
         ''' 执行rotary相对位置编码 '''
-        kv_seq_len = key_layer.shape[-2]
+        kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
         
         # chatglm独有逻辑
         if self.position_encoding_2d:
-            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
-            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
+            q1, q2 = query_states.chunk(2, dim=(query_states.ndim - 1))
+            k1, k2 = key_states.chunk(2, dim=(key_states.ndim - 1))
             if len(position_ids.shape) == 3:
                 q1, k1 = self.relative_positions_encoding([q1, k1], position_ids[:, 0, :], kv_seq_len)
                 q2, k2 = self.relative_positions_encoding([q2, k2], position_ids[:, 1, :], kv_seq_len)
             else:
                 q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
-            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
-            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
+            query_states = torch.concat([q1, q2], dim=(q1.ndim - 1))
+            key_states = torch.concat([k1, k2], dim=(k1.ndim - 1))
         
         # 原rotary逻辑
         else:
-            query_layer, key_layer = self.relative_positions_encoding([query_layer, key_layer], position_ids, kv_seq_len)
+            query_states, key_states = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
         
         # 过了rope再concat
         if past_key_value is not None:
-            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
-        return query_layer, key_layer, value_layer
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+        return query_states, key_states, value_states
 
-    def apply_deberta_pos_emb(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, relative_pos, rel_embeddings, scale_factor):
-        '''deberta_v2使用，和原版区别是query_layer是4维, 原disentangled_attention_bias'''
-        btz, n_head, q_len, d_head = query_layer.size()
-        k_len = key_layer.size(-2)
+    def apply_deberta_pos_emb(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, relative_pos, rel_embeddings, scale_factor):
+        '''deberta_v2使用，和原版区别是query_states是4维, 原disentangled_attention_bias'''
+        btz, n_head, q_len, d_head = query_states.size()
+        k_len = key_states.size(-2)
         if relative_pos is None:
             relative_pos = self.relative_positions(q_len, k_len)
         if relative_pos.dim() == 2:
@@ -343,12 +359,12 @@ class MultiHeadAttentionLayer(nn.Module):
             raise ValueError(f"Relative position ids must be of dim 2 or 3 or 4. {relative_pos.dim()}")
 
         att_span = self.pos_ebd_size
-        relative_pos = relative_pos.long().to(query_layer.device)
+        relative_pos = relative_pos.long().to(query_states.device)
 
         rel_embeddings = rel_embeddings[0 : att_span * 2, :].unsqueeze(0)
         if self.share_att_key:
-            pos_query_layer = self.transpose_for_q_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
-            pos_key_layer = self.transpose_for_k_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_query_states = self.transpose_for_q_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_key_states = self.transpose_for_k_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
         else:
             # 这里逻辑去掉了
             pass
@@ -357,7 +373,7 @@ class MultiHeadAttentionLayer(nn.Module):
         # content->position
         if "c2p" in self.pos_att_type:
             scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
-            c2p_att = torch.matmul(query_layer, pos_key_layer.transpose(-1, -2))
+            c2p_att = torch.matmul(query_states, pos_key_states.transpose(-1, -2))
             c2p_pos = torch.clamp(relative_pos + att_span, 0, att_span * 2 - 1)
             c2p_att = torch.gather(c2p_att, dim=-1, index=c2p_pos.expand([btz, n_head, q_len, k_len]))
             score += c2p_att / scale.to(dtype=c2p_att.dtype)
@@ -372,28 +388,28 @@ class MultiHeadAttentionLayer(nn.Module):
                 r_pos = relative_pos
 
             p2c_pos = torch.clamp(-r_pos + att_span, 0, att_span * 2 - 1)
-            p2c_att = torch.matmul(key_layer, pos_query_layer.transpose(-1, -2))
+            p2c_att = torch.matmul(key_states, pos_query_states.transpose(-1, -2))
             p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand([btz, n_head, k_len, k_len])).transpose(-1, -2)
             score += p2c_att / scale.to(dtype=p2c_att.dtype)
         return score
     
-    def torch_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, attention_mask:torch.Tensor):
+    def torch_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, attention_mask:torch.Tensor):
         '''qkv attention: torch原生实现'''
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        attention_scores = torch.matmul(query_states, key_states.transpose(-1, -2))
 
         # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
         if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== nezha相对位置编码 ====================
             relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
             # 旧实现，方便读者理解维度转换
-            # query_layer_t = query_layer.permute(2, 0, 1, 3)
-            # query_layer_r = query_layer_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
-            # key_position_scores = torch.matmul(query_layer_r, relations_keys.permute(0, 2, 1))
+            # query_states_t = query_states.permute(2, 0, 1, 3)
+            # query_states_r = query_states_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
+            # key_position_scores = torch.matmul(query_states_r, relations_keys.permute(0, 2, 1))
             # key_position_scores_r = key_position_scores.view(from_seq_length, batch_size, num_attention_heads, from_seq_length)
             # key_position_scores_r_t = key_position_scores_r.permute(1, 2, 0, 3)
             # 新实现
-            key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
+            key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_states, relations_keys)
             attention_scores = attention_scores + key_position_scores_r_t
         elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== t5相对位置编码 ====================
@@ -409,12 +425,12 @@ class MultiHeadAttentionLayer(nn.Module):
                 scale_factor += 1
             if "p2c" in self.pos_att_type:
                 scale_factor += 1
-            scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
-            attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
+            scale = torch.sqrt(torch.tensor(query_states.size(-1), dtype=torch.float) * scale_factor)
+            attention_scores = attention_scores / scale.to(dtype=query_states.dtype)
 
             rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
             relations_keys = self.relative_positions(attention_scores.shape[-2], attention_scores.shape[-1])
-            rel_att = self.apply_deberta_pos_emb(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
+            rel_att = self.apply_deberta_pos_emb(query_states, key_states, relations_keys, rel_embeddings, scale_factor)
             attention_scores = attention_scores + rel_att
 
         if self.attention_scale:
@@ -423,20 +439,20 @@ class MultiHeadAttentionLayer(nn.Module):
         
         # ==================== alibi相对位置编码 ====================
         if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
-            attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
+            attention_scores = self.apply_alibi_pos_emb(attention_scores, key_states)
 
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
         if attention_mask is not None:
             # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
             # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
-            attention_mask = (1.0 - attention_mask) * torch.finfo(query_layer.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
+            attention_mask = (1.0 - attention_mask) * torch.finfo(query_states.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
             attention_scores = attention_scores + attention_mask
 
         # 将attention score 归一化到0-1
-        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_layer.dtype)
+        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_states.dtype)
         attention_probs = self.dropout(attention_probs)
-        context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+        context_layer = torch.matmul(attention_probs, value_states)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
         if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
             # ==================== nezha相对位置编码 ====================
@@ -453,7 +469,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
         return context_layer, attention_scores
     
-    def flash_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
+    def flash_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                                 past_key_value:Union[Tuple[torch.Tensor]], attention_mask:torch.Tensor, 
                                 query_length:int, softmax_scale:float=None):
         """ flash_attn，参考transformers中的调用
@@ -465,34 +481,34 @@ class MultiHeadAttentionLayer(nn.Module):
             cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.torch.int32), (1, 0))
             return indices, cu_seqlens, max_seqlen_in_batch
 
-        def _upad_input(self, query_layer, key_layer, value_layer, attention_mask, query_length):       
+        def _upad_input(self, query_states, key_states, value_states, attention_mask, query_length):       
             indices_k, cu_seqlens_k, max_seqlen_in_batch_k = _get_unpad_data(attention_mask)
-            batch_size, kv_seq_len, num_key_value_heads, head_dim = key_layer.shape
+            batch_size, kv_seq_len, num_key_value_heads, head_dim = key_states.shape
 
-            key_layer = index_first_axis(key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
-            value_layer = index_first_axis(value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
+            key_states = index_first_axis(key_states.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
+            value_states = index_first_axis(value_states.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
             if query_length == kv_seq_len:
-                query_layer = index_first_axis(query_layer.reshape(batch_size * kv_seq_len, self.num_attention_heads, head_dim), indices_k)
+                query_states = index_first_axis(query_states.reshape(batch_size * kv_seq_len, self.num_attention_heads, head_dim), indices_k)
                 cu_seqlens_q = cu_seqlens_k
                 max_seqlen_in_batch_q = max_seqlen_in_batch_k
                 indices_q = indices_k
             elif query_length == 1:
                 max_seqlen_in_batch_q = 1
-                cu_seqlens_q = torch.arange(batch_size + 1, dtype=torch.int32, device=query_layer.device)  # There is a memcpy here, that is very bad.
+                cu_seqlens_q = torch.arange(batch_size + 1, dtype=torch.int32, device=query_states.device)  # There is a memcpy here, that is very bad.
                 indices_q = cu_seqlens_q[:-1]
-                query_layer = query_layer.squeeze(1)
+                query_states = query_states.squeeze(1)
             else:
                 # The -q_len: slice assumes left padding.
                 attention_mask = attention_mask[:, -query_length:]
-                query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
+                query_states, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_states, attention_mask)
 
-            return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
+            return (query_states, key_states, value_states, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
         
         def _use_sliding_windows():
             if (self.max_window_layers is not None) and (self.layer_idx >= self.max_window_layers):
                 return False
 
-            kv_seq_len = key_layer.shape[1]  # [btz, n_heads, seq_len, d_head]
+            kv_seq_len = key_states.shape[1]  # [btz, n_heads, seq_len, d_head]
             use_sliding_windows = (_flash_supports_window_size and self.sliding_window is not None and kv_seq_len > self.sliding_window)
 
             if use_sliding_windows and not _flash_supports_window_size:
@@ -507,7 +523,7 @@ class MultiHeadAttentionLayer(nn.Module):
             return use_sliding_windows
     
 
-        def _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask):
+        def _run_sliding_windows(key_states, value_states, past_key_value, attention_mask):
             '''sliding_window部分'''
             # Activate slicing cache only if the config has a value `sliding_windows` attribute
             slicing_tokens = -self.sliding_window
@@ -525,37 +541,38 @@ class MultiHeadAttentionLayer(nn.Module):
             if attention_mask is not None:
                 attention_mask = attention_mask[:, :, slicing_tokens:, slicing_tokens:]
             
-            key_layer = key_layer[:, slicing_tokens:, :, :].contiguous()
-            value_layer = value_layer[:, slicing_tokens:, :, :].contiguous()
-            return key_layer, value_layer, past_key_value, attention_mask
+            key_states = key_states[:, slicing_tokens:, :, :].contiguous()
+            value_states = value_states[:, slicing_tokens:, :, :].contiguous()
+            return key_states, value_states, past_key_value, attention_mask
 
-        def _transpose(query_layer, key_layer, value_layer):
+        def _transpose(query_states, key_states, value_states):
             # [batch_size, query_len, num_attention_heads, attention_head_size]
-            query_layer = query_layer.transpose(1,2)
-            key_layer = key_layer.transpose(1,2)
-            value_layer = value_layer.transpose(1,2)
-            return query_layer, key_layer, value_layer
+            query_states = query_states.transpose(1,2)
+            key_states = key_states.transpose(1,2)
+            value_states = value_states.transpose(1,2)
+            return query_states, key_states, value_states
         
         dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
         
-        if (not self.is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
-            query_layer, key_layer, value_layer = _transpose(query_layer, key_layer, value_layer)
+        is_causal = is_causal_mask(attention_mask)
+        if (not is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
+            query_states, key_states, value_states = _transpose(query_states, key_states, value_states)
             use_sliding_windows = _use_sliding_windows()
             if use_sliding_windows:
-                key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
+                key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
 
             # flash attention目前仅支持key_padding_mask
             attn_mask = attention_mask[:,0,0,:]  # 将4维的attention_mask降低为2维
-            batch_size = query_layer.shape[0]
-            query_layer, key_layer, value_layer, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
-                self, query_layer, key_layer, value_layer, attn_mask, query_length)
+            batch_size = query_states.shape[0]
+            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
+                self, query_states, key_states, value_states, attn_mask, query_length)
 
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
             attn_output_unpad = flash_attn_varlen_func(
-                query_layer, 
-                key_layer, 
-                value_layer, 
+                query_states, 
+                key_states, 
+                value_states, 
                 cu_seqlens_q=cu_seqlens_q, 
                 cu_seqlens_k=cu_seqlens_k, 
                 max_seqlen_q=max_seqlen_in_batch_q,
@@ -567,21 +584,21 @@ class MultiHeadAttentionLayer(nn.Module):
             )
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
 
-        elif self.is_causal:
-            query_layer, key_layer, value_layer = _transpose(query_layer, key_layer, value_layer)
+        elif is_causal:
+            query_states, key_states, value_states = _transpose(query_states, key_states, value_states)
             # attention_mask满足下三角的causal
             use_sliding_windows = _use_sliding_windows()
             if use_sliding_windows:
-                key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
+                key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
 
-            attn_output = flash_attn_func(query_layer, key_layer, value_layer, dropout, softmax_scale=softmax_scale, causal=True,
+            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True,
                                           window_size=(self.sliding_window, self.sliding_window) if use_sliding_windows else (-1, -1))
         
-        elif not self.is_causal:
+        elif is_causal:
             # 使用torch的attention计算
             log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
-            attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
-            self.flash_attention = None
+            attn_output, _ = self.torch_attention_forward(query_states, key_states, value_states, attention_mask)
+            self._attn_implementation = None
             return attn_output
 
         return attn_output.transpose(1,2)

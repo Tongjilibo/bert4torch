@@ -29,6 +29,7 @@ from typing import Union, Literal
 import json
 import os
 import torch
+from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available, is_torch_sdpa_available
 
 
 def build_transformer_model(
@@ -106,21 +107,14 @@ def build_transformer_model(
         # 没有找到bert4torch_config.json，则从local的checkpoint_path去找
         config_path = get_config_path(checkpoint_path, **kwargs)
 
-    config = DottableDict()
-    if config_path is not None:
-        config.update(json.load(open(config_path)))
-    config.update(kwargs)
-    if 'max_position' not in config:
-        config['max_position'] = config.get('max_position_embeddings', 512)
-    if 'dropout_rate' not in config:
-        config['dropout_rate'] = config.get('hidden_dropout_prob')
-    if 'segment_vocab_size' not in config:
-        config['segment_vocab_size'] = config.get('type_vocab_size', 2)
+    # config的修改
+    config = check_update_config(config_path, **kwargs)
+    config['add_trainer'] = add_trainer
+
     device_map = config.pop('device_map', None)
     skip_init = config.get('skip_init', False) or config.get('low_cpu_mem_usage', False)
     skip_init = True if device_map is not None else skip_init  # 指定了device_map, 就必须skip_init
     torch_dtype = config.pop('torch_dtype', None)
-    config['add_trainer'] = add_trainer
     checkpoint_path = checkpoint_path or config.get('checkpoint_path')
 
     models = {
@@ -244,3 +238,34 @@ def build_transformer_model(
         log_error(f'Meta device not allowed: {meta_names}')
     
     return transformer
+
+
+def check_update_config(config_path:str, **kwargs):
+    '''对config做一些参数检查和更新操作'''
+
+    config = DottableDict()
+    if config_path is not None:
+        config.update(json.load(open(config_path)))
+    config.update(kwargs)
+    if 'max_position' not in config:
+        config['max_position'] = config.get('max_position_embeddings', 512)
+    if 'dropout_rate' not in config:
+        config['dropout_rate'] = config.get('hidden_dropout_prob')
+    if 'segment_vocab_size' not in config:
+        config['segment_vocab_size'] = config.get('type_vocab_size', 2)
+
+    # 获取_attn_implementation的配置项, 自动进行一些设置
+    _attn_implementation = config.get('_attn_implementation', config.get('flash_attention'))  # 兼容老配置文件
+    if _attn_implementation is None:
+        _attn_implementation = 'sdpa' if is_torch_sdpa_available() else 'eager'
+    elif (_attn_implementation == 'sdpa') and (not is_torch_sdpa_available()):
+        log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
+        _attn_implementation = 'eager'
+    elif (_attn_implementation == 'xformers') and (not is_xformers_available()):
+        log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
+        _attn_implementation = 'eager'
+    elif (_attn_implementation == 'flash_attn_2') and (not is_flash_attn_available()):
+        log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
+        _attn_implementation = 'eager'
+
+    return config
