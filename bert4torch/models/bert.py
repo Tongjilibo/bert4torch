@@ -14,6 +14,8 @@ from typing import Union, Literal, List
 class BERT(BERT_BASE):
     """构建BERT模型
     """
+    _no_split_modules = ["BertLayer"]
+
     def __init__(
             self,
             max_position:int,  # 序列最大长度

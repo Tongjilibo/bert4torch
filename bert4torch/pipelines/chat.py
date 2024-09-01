@@ -113,7 +113,7 @@ class ChatBase(PipeLineBase):
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        self.model = self.build_model()
+        self.model = self.build_model(**kwargs)
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
@@ -142,11 +142,11 @@ class ChatBase(PipeLineBase):
             log_warn(f'Please check your transformer version == {transformer_version}, which may not compatible.')
             raise e
 
-    def build_model(self) -> Union[Decoder, Transformer]:
+    def build_model(self, **model_init_config) -> Union[Decoder, Transformer]:
         '''初始化model, 方便外部继承'''
         if (not hasattr(self, 'model')) or (self.model is None):
             # 初始化
-            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
+            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, **model_init_config)
             model.eval()
 
             # 精度
@@ -456,8 +456,8 @@ class ChatWebStreamlit(ChatBase):
         log_warn_once('You should use command `streamlit run app.py --server.address 0.0.0.0 --server.port 8001` to launch')
 
     @st.cache_resource
-    def build_model(_self):
-        return super().build_model()
+    def build_model(_self, **kwarg):
+        return super().build_model(**kwarg)
     
     @st.cache_resource
     def build_tokenizer(_self, **kwarg):
@@ -2054,7 +2054,8 @@ MAPPING = {
     'chinese_llama_alpaca': ChineseLlamaAlpaca,
     'belle': Belle,
     'baichuan': Baichuan,
-    'apply_chat_template': ApplyChatTemplate
+    'apply_chat_template': ApplyChatTemplate,
+    'pretrained_text_continuation': PretrainedTextContinuation
 }
 
 
@@ -2114,6 +2115,7 @@ class Chat:
     def __init__(self, 
                  # 基类使用
                  checkpoint_path:str, 
+                 config_path:str=None,
                  precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, 
                  generation_config:dict=None, 

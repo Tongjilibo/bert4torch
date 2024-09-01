@@ -17,6 +17,7 @@ class GLM(Decoder):
     4) 跳跃连接有权重设计
     5) embedding之后没有layernorm
     '''
+    _no_split_modules = ["GlmLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, layer_type='GlmLayer', **kwargs):
         kwargs.update({'layer_type': layer_type, 'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})
@@ -159,6 +160,7 @@ class GLM2(GLM):
              2) flash_attention
              3) multi_query_attention
     """
+    _no_split_modules = ["Glm2Layer"]
     def __init__(self, *args, **kwargs):
         kwargs.update({'layer_type': "Glm2Layer", 'norm_mode': 'rmsnorm', 'pre_layernorm': True})
         super().__init__(*args, **kwargs)

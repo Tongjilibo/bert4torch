@@ -21,11 +21,11 @@ class PipeLineBase:
             self.tokenizer_type = 'b4t'
         else:
             self.tokenizer_type = 'hf'
-        self.tokenizer = self.build_tokenizer()
-        self.model = self.build_model(kwargs)
+        self.model = self.build_model(**kwargs)
+        self.tokenizer = self.build_tokenizer(**kwargs)
         self.config = self.model.config
     
-    def build_tokenizer(self):
+    def build_tokenizer(self, **kwargs):
         # TODO: 默认优先使用默认的Tokenizer，如果没有vocab文件，则使用AutoTokenizer，后续可能修改
         if self.tokenizer_type == 'b4t':
             tokenizer = Tokenizer(os.path.join(self.checkpoint_path, 'vocab.txt'), do_lower_case=True)
@@ -34,8 +34,8 @@ class PipeLineBase:
             tokenizer = AutoTokenizer.from_pretrained(self.checkpoint_path)
         return tokenizer
 
-    def build_model(self, model_config):
+    def build_model(self, **model_init_config):
         model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, 
-                                        return_dict=True, **model_config).to(self.device)
+                                        return_dict=True, **model_init_config).to(self.device)
         model.eval()
         return model

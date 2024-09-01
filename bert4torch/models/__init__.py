@@ -112,7 +112,7 @@ def build_transformer_model(
     config['add_trainer'] = add_trainer
 
     device_map = config.pop('device_map', None)
-    skip_init = config.get('skip_init', False) or config.get('low_cpu_mem_usage', False)
+    skip_init = config.pop('skip_init', False) or config.pop('low_cpu_mem_usage', False)
     skip_init = True if device_map is not None else skip_init  # 指定了device_map, 就必须skip_init
     torch_dtype = config.pop('torch_dtype', None)
     checkpoint_path = checkpoint_path or config.get('checkpoint_path')
@@ -203,7 +203,7 @@ def build_transformer_model(
                 transformer = MODEL(**config)
         else:
             skip_init = False  # 若accelerate包不存在则先初始化模型参数
-            log_warn('Package `accelerate` not available, use `pip install accelerate`')
+            log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
     if not skip_init:
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
@@ -223,7 +223,7 @@ def build_transformer_model(
     transformer.checkpoint_path = checkpoint_path
     if checkpoint_path is not None:
         transformer.from_pretrained(checkpoint_path, mapping=config.get('mapping'), skip_init=skip_init, 
-                                    device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+                                    device_map=device_map, torch_dtype=torch_dtype, verbose=verbose, **config)
     
     # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
     transformer.tie_weights()

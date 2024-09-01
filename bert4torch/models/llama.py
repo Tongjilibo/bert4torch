@@ -90,6 +90,7 @@ class Baichuan(LLaMA):
 
 
 class MiniCPM(LLaMA):
+    _no_split_modules = ["MiniCPMLayer"]
     def __init__(self, *args, **kwargs):
         kwargs['layer_type'] = 'MiniCPMLayer'
         super().__init__(*args, **kwargs)

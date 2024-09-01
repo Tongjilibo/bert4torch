@@ -6,9 +6,13 @@ from torch import nn
 import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
-from torch4keras.snippets import log_info, log_warn, Timeit
+from torch4keras.snippets import log_info, log_warn, Timeit, is_accelerate_available
 from typing import Union
 import re
+
+
+if is_accelerate_available():
+    from accelerate.utils import set_module_tensor_to_device, offload_weight
 
 
 def insert_arguments(**arguments):
@@ -95,30 +99,42 @@ def set_default_torch_dtype(dtype: Union[str, torch.dtype], model_name:str='mode
     return dtype, dtype_orig
 
 
-def load_state_dict_into_meta_model(model:nn.Module, state_dict:dict, device_map:dict=None, torch_dtype:Union[str, torch.dtype]=None):
+def load_state_dict_into_meta_model(
+        model:nn.Module,
+        state_dict:dict, 
+        device_map:dict=None, 
+        dtype:Union[str, torch.dtype]=None, 
+        offload_folder=None,
+        state_dict_folder=None,
+        state_dict_index=None,
+        is_safetensors:bool=False
+):
     """ 把state_dict导入meta_model
     为了代码简洁，这里device_map需要外部手动指定, 形式如{'embeddings.word_embeddings': 0, 'LayerNormFinal': 0, 'lm_head': 0}
     """
 
-    from accelerate.utils import set_module_tensor_to_device
     for param_name, param in state_dict.items():
+        module_name = param_name
         set_module_kwargs = {"value": param}
         if (device_map is None) or (device_map == 'cpu'):
             param_device = "cpu"
-        elif device_map == 'auto':
-            param_device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        elif device_map in {'gpu', 'cuda'}:
-            param_device = 'cuda'
-        elif isinstance(device_map, torch.device) or isinstance(device_map, int):
-            param_device = device_map
-        elif isinstance(device_map, dict):
-            param_device = device_map[param_name]
         else:
-            param_device = 'cpu'
-            log_warn(f'Args `device_map`={device_map} has not been pre maintained')
+            while len(module_name) > 0 and module_name not in device_map:
+                module_name = ".".join(module_name.split(".")[:-1])
+            if module_name == "" and "" not in device_map:
+                # TODO: group all errors and raise at the end.
+                raise ValueError(f"{param_name} doesn't have any device set.")
+            param_device = device_map[module_name]
 
-        set_module_kwargs["dtype"] = torch_dtype or param.dtype
-        set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+        if param_device == "disk":
+            if not is_safetensors:
+                offload_index = offload_weight(param, param_name, offload_folder, offload_index)
+        elif param_device == "cpu" and state_dict_index is not None:
+            state_dict_index = offload_weight(param, param_name, state_dict_folder, state_dict_index)
+        else:
+            # For backward compatibility with older versions of `accelerate` and for non-quantized params
+            set_module_kwargs["dtype"] = dtype or param.dtype
+            set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
 
 
 def old_checkpoint(function, model_kwargs):

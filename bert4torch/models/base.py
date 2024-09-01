@@ -16,7 +16,9 @@ from bert4torch.snippets import (
     save_checkpoint, 
     copytree, 
     log_info, 
-    log_warn
+    log_warn,
+    log_warn_once,
+    is_accelerate_available
 )
 from torch4keras.model import BaseModel, add_trainer
 import warnings
@@ -26,6 +28,7 @@ import gc
 import copy
 import re
 import os
+import inspect
 
 
 class BERT_BASE(nn.Module):
@@ -260,15 +263,27 @@ class BERT_BASE(nn.Module):
         if not skip_init:
             self.load_state_dict(state_dict_new, strict=False)
         else:
-            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, torch_dtype=torch_dtype)
+            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, dtype=torch_dtype, 
+                                            is_safetensors=checkpoint.endswith(".safetensors"))
             
         del state_dict_new
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
-    def from_pretrained(self, checkpoints:Union[str, os.PathLike, list], mapping:Union[dict, Callable]=None, skip_init:bool=False, 
-                        device_map:dict=None, torch_dtype=None, verbose=1):
+    def from_pretrained(
+            self, 
+            checkpoints:Union[str, os.PathLike, list], 
+            mapping:Union[dict, Callable]=None, 
+            skip_init:bool=False, 
+            device_map:dict=None, 
+            torch_dtype=None, 
+            verbose=1,
+            **kwargs
+    ):
         """加载预训练模型(单个/多个ckpt)"""
+        # 根据模型尺寸和硬件(gpu, cpu)的大小来确定device_map
+        device_map = self._get_device_map(device_map, torch_dtype, **kwargs)
+
         # 单个权重文件
         if isinstance(checkpoints, str):
             self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 
@@ -294,7 +309,116 @@ class BERT_BASE(nn.Module):
 
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
-        
+
+    def _get_device_map(self, device_map, torch_dtype, **kwargs):
+        '''获取合适的device_map'''
+        max_memory = kwargs.pop('max_memory', None)
+        if isinstance(device_map, torch.device):
+            device_map = {"": device_map}
+        elif isinstance(device_map, str) and device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
+            try:
+                device_map = {"": torch.device(device_map)}
+            except RuntimeError:
+                raise ValueError(
+                    "When passing device_map as a string, the value needs to be a device name (e.g. cpu, cuda:0) or "
+                    f"'auto', 'balanced', 'balanced_low_0', 'sequential' but found {device_map}."
+                )
+        elif isinstance(device_map, int):
+            if device_map < 0:
+                raise ValueError(
+                    "You can't pass device_map as a negative int. If you want to put the model on the cpu, pass device_map = 'cpu' "
+                )
+            else:
+                device_map = {"": device_map}
+
+        if not is_accelerate_available():
+            log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
+            return device_map
+
+        from accelerate.utils.modeling import infer_auto_device_map, get_balanced_memory, check_tied_parameters_on_same_device, get_max_memory
+        if isinstance(device_map, str):
+            special_dtypes = {}
+
+            # TODO: keep_in_fp32_modules
+            keep_in_fp32_modules = []
+            special_dtypes.update(
+                {
+                    name: torch.float32
+                    for name, _ in self.named_parameters()
+                    if any(m in name for m in keep_in_fp32_modules)
+                }
+            )
+
+            target_dtype = torch_dtype
+
+
+            no_split_modules = self._get_no_split_modules(device_map)
+            if device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
+                raise ValueError(
+                    "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "
+                    "'sequential'."
+                )
+
+            device_map_kwargs = {"no_split_module_classes": no_split_modules}
+            if "special_dtypes" in inspect.signature(infer_auto_device_map).parameters:
+                device_map_kwargs["special_dtypes"] = special_dtypes
+            elif len(special_dtypes) > 0:
+                log_warn(
+                    "This model has some weights that should be kept in higher precision, you need to upgrade "
+                    "`accelerate` to properly deal with them (`pip install --upgrade accelerate`)."
+                )
+            if device_map != "sequential":
+                max_memory = get_balanced_memory(
+                    self,
+                    dtype=target_dtype,
+                    low_zero=(device_map == "balanced_low_0"),
+                    max_memory=max_memory,
+                    **device_map_kwargs,
+                )
+            else:
+                max_memory = get_max_memory(max_memory)
+            device_map_kwargs["max_memory"] = max_memory
+
+            # Make sure tied weights are tied before creating the device map.
+            self.tie_weights()
+            device_map = infer_auto_device_map(self, dtype=target_dtype, **device_map_kwargs)
+
+        elif device_map is not None:
+            self.tie_weights()
+            tied_params = find_tied_parameters(self)
+            # check if we don't have tied param in different devices
+            check_tied_parameters_on_same_device(tied_params, device_map)
+        return device_map
+
+    def _get_no_split_modules(self, device_map: str):
+        """
+        Get the modules of the model that should not be spit when using device_map. We iterate through the modules to
+        get the underlying `_no_split_modules`.
+
+        Args:
+            device_map (`str`):
+                The device map value. Options are ["auto", "balanced", "balanced_low_0", "sequential"]
+
+        Returns:
+            `List[str]`: List of modules that should not be split
+        """
+        _no_split_modules = set()
+        modules_to_check = [self]
+        while len(modules_to_check) > 0:
+            module = modules_to_check.pop(-1)
+            # if the module does not appear in _no_split_modules, we also check the children
+            if module.__class__.__name__ not in _no_split_modules:
+                if isinstance(module, BERT_BASE):
+                    if module._no_split_modules is None:
+                        raise ValueError(
+                            f"{module.__class__.__name__} does not support `device_map='{device_map}'`. To implement support, the model "
+                            "class needs to implement the `_no_split_modules` attribute."
+                        )
+                    else:
+                        _no_split_modules = _no_split_modules | set(module._no_split_modules)
+                modules_to_check += list(module.children())
+        return list(_no_split_modules)
+    
     @staticmethod
     def _print_mismatch_keys(missing_keys, over_keys, verbose):
         """打印mismatch keys"""
