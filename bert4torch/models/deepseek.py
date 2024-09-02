@@ -71,3 +71,4 @@ class DeepSeek(Decoder):
                     f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
                 })
         return mapping
+

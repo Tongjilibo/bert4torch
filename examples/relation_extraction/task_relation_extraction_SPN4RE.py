@@ -5,7 +5,7 @@ import json
 import numpy as np
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.layers import MultiHeadAttentionLayer, PositionWiseFeedForward
+from bert4torch.layers import MultiHeadAttention, PositionWiseFeedForward
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from tqdm import tqdm
@@ -361,8 +361,8 @@ class SetDecoder(nn.Module):
 # class DecoderLayer(nn.Module):
 #     def __init__(self, config):
 #         super().__init__()
-#         self.attention = MultiHeadAttentionLayer(**config)
-#         self.crossattention = MultiHeadAttentionLayer(**config)
+#         self.attention = MultiHeadAttention(**config)
+#         self.crossattention = MultiHeadAttention(**config)
 #         self.ffc = PositionWiseFeedForward(**config)
 
 #     def forward(self, hidden_states, encoder_hidden_states, encoder_attention_mask):

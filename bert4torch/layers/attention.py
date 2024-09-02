@@ -38,7 +38,7 @@ def is_causal_mask(attention_mask:torch.Tensor):
     return bool(torch.all(torch.tril(attention_mask) == attention_mask))
 
 
-class MultiHeadAttentionLayer(nn.Module):
+class MultiHeadAttention(nn.Module):
     '''多头注意力
     :param hidden_size: int, 隐含层神经元个数
     :param num_attention_heads: int, 多头注意力的多头数
@@ -68,7 +68,7 @@ class MultiHeadAttentionLayer(nn.Module):
                  layer_idx:int=None,
                  num_key_value_heads:int=None,
                  **kwargs):
-        super(MultiHeadAttentionLayer, self).__init__()
+        super(MultiHeadAttention, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
@@ -708,28 +708,135 @@ class GatedAttentionUnit(nn.Module):
             return out.unbind(dim = -2)
 
 
-class DeepseekV2Attention(MultiHeadAttentionLayer):
+class TransformerxlMultiHeadAttn(MultiHeadAttention):
+    '''Transformer_XL式相对位置编码RelPartialLearnableMultiHeadAttn, 这里修改成了MultiHeadAttention的batch_first代码格式'''
+    def __init__(self, *args, r_w_bias=None, r_r_bias=None, r_s_bias=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        segment_vocab_size = kwargs.get('segment_vocab_size')
+        if r_r_bias is None or r_w_bias is None:  # Biases are not shared
+            self.r_r_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
+            self.r_w_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+            if segment_vocab_size > 0:
+                self.r_s_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局segment偏置
+        else:  # 所有层公用一个
+            self.r_r_bias = r_r_bias
+            self.r_w_bias = r_w_bias
+            self.r_s_bias = r_s_bias
+        if segment_vocab_size > 0:
+            # self.seg_embed = nn.Embedding(segment_vocab_size, self.hidden_size)
+            self.seg_embed = nn.Parameter(torch.FloatTensor(segment_vocab_size, self.num_attention_heads, self.attention_head_size))
+
+        self.r = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
+        self.rel_shift_opt = kwargs.get('rel_shift_opt')
+
+    @staticmethod
+    def rel_shift(x, zero_triu=False):
+        '''transformer_xl使用, 向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]'''
+        q_len, k_len = x.size(2), x.size(-1)
+        zero_pad = torch.zeros((*x.size()[:2], q_len, 1), device=x.device, dtype=x.dtype)
+        x_padded = torch.cat([zero_pad, x], dim=-1)
+        x_padded = x_padded.view(*x.size()[:2], k_len + 1, q_len)
+        x = x_padded[:,:,1:,:].view_as(x)
+        if zero_triu:
+            ones = torch.ones((q_len, k_len), device=x.device)
+            x = x * torch.tril(ones, k_len - q_len)[None,None,:,:]
+        return x
+
+    @staticmethod
+    def rel_shift_bnij(x, klen=-1):
+        ''' xlnet使用'''
+        x_size = x.shape
+        x = x.reshape(x_size[0], x_size[1], x_size[3], x_size[2])
+        x = x[:, :, 1:, :]
+        x = x.reshape(x_size[0], x_size[1], x_size[2], x_size[3] - 1)
+        x = torch.index_select(x, 3, torch.arange(klen, device=x.device, dtype=torch.long))
+        # x = x[:, :, :, :klen]
+        return x
+
+    def forward(self, w, cat, r, attention_mask=None, seg_mat=None):
+        # w: 词向量[btz, q_len, hdsz], cat: w和mem_i拼接后向量[btz, k_len, hdsz], r：相对位置向量[r_len, hdsz]
+        qlen, rlen, bsz = w.size(1), r.size(0), w.size(0)
+        
+        mixed_query_layer = self.q(cat)[:, -qlen:, :]  # 仅取用query部分，不适用mem部分
+        mixed_key_layer = self.k(cat)
+        mixed_value_layer = self.v(cat)
+
+        w_head_q = self.transpose_for_q_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
+        w_head_k = self.transpose_for_k_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
+        w_head_v = self.transpose_for_v_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
+
+        r_head_k = self.r(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
+        r_head_k = r_head_k.view(rlen, self.num_attention_heads, self.attention_head_size)  # rlen x n_head x d_head
+
+        #### compute attention score
+        rw_head_q = w_head_q + self.r_w_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
+        AC = torch.einsum('bnid,bnjd->bnij', (rw_head_q, w_head_k))  # [btz, n_head, q_len, k_len]
+
+        rr_head_q = w_head_q + self.r_r_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
+        BD = torch.einsum('bnid,jnd->bnij', (rr_head_q, r_head_k))  # [btz, n_head, q_len, k_len]
+        BD = self.rel_shift_bnij(BD, klen=AC.shape[3]) if self.rel_shift_opt == 'xlnet' else self.rel_shift(BD)
+
+        if hasattr(self, 'seg_embed') and (self.r_r_bias is not None):
+            # # 之前的方式，需要配合Embedding，以及load_variable和variable_mapping，显存容易爆炸
+            # w_head_s = self.seg_embed(seg_mat)  # [btz, q_len, klen, hdsz]
+            # w_head_s = w_head_s.reshape(*w_head_s.shape[:3], self.num_attention_heads, self.attention_head_size)
+            # rs_head_q = w_head_q + self.r_s_bias.unsqueeze(1)
+            # EF = torch.einsum('bnid,bijnd->bnij', (rs_head_q, w_head_s))  # [btz, n_head, q_len, k_len]
+            
+            seg_mat = F.one_hot(seg_mat, 2).float()
+            EF = torch.einsum("bnid,snd->ibns", w_head_q + self.r_s_bias.unsqueeze(1), self.seg_embed)
+            EF = torch.einsum("bijs,ibns->bnij", seg_mat, EF)
+        else:
+            EF = 0
+
+        # # [btz, n_head, q_len, k_len]
+        attention_scores = AC + BD + EF
+        if self.attention_scale:
+            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+
+        #### compute attention probability
+        if attention_mask is not None and attention_mask.any().item():
+            # attention_mask = (1.0 - attention_mask) * -10000.0
+            # attention_scores = attention_scores + attention_mask  # 这里修改了下，原有的-10000不够接近-inf
+            attention_mask = (1.0 - attention_mask)
+            attention_scores = attention_scores.float().masked_fill(attention_mask.bool(), -1e30).type_as(attention_mask)
+
+        # [btz, n_head, q_len, k_len]
+        attention_probs = F.softmax(attention_scores, dim=-1)
+        attention_probs = self.dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, w_head_v)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+
+        # 是否返回attention scores
+        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+        return outputs
+
+
+class DeepseekV2Attention(MultiHeadAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.q_lora_rank = kwargs.get('q_lora_rank')
         self.kv_lora_rank = kwargs.get('kv_lora_rank')
         self.qk_nope_head_dim = kwargs.get('qk_nope_head_dim')
         self.qk_rope_head_dim = kwargs.get('qk_rope_head_dim')
+        self.q_head_dim = self.qk_nope_head_dim + self.qk_rope_head_dim
 
         if self.q_lora_rank is None:
-            pass
+            self.q = nn.Linear(self.hidden_size, self.num_attention_heads * self.q_head_dim, bias=self.bias)
         else:
             del self.q
             self.q_a = nn.Linear(self.hidden_size, self.q_lora_rank, bias=self.bias)
             self.q_a_layernorm = LayerNorm(self.q_lora_rank)
-            self.q_b = nn.Linear(self.q_lora_rank, self.attention_key_size * self.num_attention_heads, bias=self.bias)
+            self.q_b = nn.Linear(self.q_lora_rank, self.attention_key_size * self.q_head_dim, bias=self.bias)
 
         del self.k, self.v
         self.kv_a_proj_with_mqa = nn.Linear(self.hidden_size, self.kv_lora_rank + self.qk_rope_head_dim, bias=self.bias)
         self.kv_a_layernorm = LayerNorm(self.kv_lora_rank)
         self.kv_b = nn.Linear(self.kv_lora_rank, self.num_attention_heads * 
-                              (self.attention_key_size - self.qk_rope_head_dim + self.attention_head_size), bias=False)
-        self.o = nn.Linear(self.attention_key_size * self.attention_head_size, self.hidden_size, bias=self.bias)
+                              (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=False)
+        self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
 
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
         bsz, q_len, _ = hidden_states.size()

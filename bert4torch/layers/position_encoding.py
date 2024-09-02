@@ -223,7 +223,7 @@ class RoPEPositionEncoding(nn.Module):
         self.register_buffer("sin_cache", sin_cache, persistent=False)
 
     def rotate_and_compute(self, x, cos, sin):
-        # MultiHeadAttentionLayer中x是[btz, n_heads, seq_len, head_size]
+        # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中x是[btz, seq_len, head_size]
         if self.rope_rank == 'adjacent':
@@ -355,12 +355,83 @@ class RoPEDynamicNTKScalingQwenPositionEncoding(RoPEPositionEncoding):
         return super()._set_cos_sin_cache(seq_len, device, dtype)
 
 
+class RoPEYarnPositionEncoding(RoPEPositionEncoding):
+    def __init__(
+        self,
+        embedding_size,
+        max_position=2048,
+        rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
+        scaling_factor=1.0,
+        rope_theta=10000,
+        original_max_position_embeddings=4096,
+        beta_fast=32,
+        beta_slow=1,
+        mscale=1,
+        mscale_all_dim=0,
+        **kwargs
+    ):
+        self.scaling_factor = scaling_factor
+        self.original_max_position_embeddings = original_max_position_embeddings
+        self.beta_fast = beta_fast
+        self.beta_slow = beta_slow
+        self.mscale = mscale
+        self.mscale_all_dim = mscale_all_dim
+        super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
+
+    # Inverse dim formula to find dim based on number of rotations
+    @staticmethod
+    def yarn_find_correction_dim(num_rotations, dim, base=10000, max_position_embeddings=2048):
+        return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (2 * math.log(base))
+
+    # Find dim range bounds based on rotations
+    def yarn_find_correction_range(self, low_rot, high_rot, dim, base=10000, max_position_embeddings=2048):
+        low = math.floor(self.yarn_find_correction_dim(low_rot, dim, base, max_position_embeddings))
+        high = math.ceil(self.yarn_find_correction_dim(high_rot, dim, base, max_position_embeddings))
+        return max(low, 0), min(high, dim - 1)  # Clamp values just in case
+
+    @staticmethod
+    def yarn_get_mscale(scale=1, mscale=1):
+        if scale <= 1:
+            return 1.0
+        return 0.1 * mscale * math.log(scale) + 1.0
+
+    @staticmethod
+    def yarn_linear_ramp_mask(min, max, dim):
+        if min == max:
+            max += 0.001  # Prevent singularity
+        linear_func = (torch.arange(dim, dtype=torch.float32) - min) / (max - min)
+        ramp_func = torch.clamp(linear_func, 0, 1)
+        return ramp_func
+
+    def _set_cos_sin_cache(self, seq_len, device='cpu', dtype=torch.float32):
+        self.max_seq_len_cached = seq_len
+        dim = self.embedding_size
+
+        freq_extra = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim))
+        freq_inter = 1.0 / (self.scaling_factor * self.rope_theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim))
+
+        low, high = self.yarn_find_correction_range(self.beta_fast, self.beta_slow, dim, self.rope_theta, self.original_max_position_embeddings)
+        inv_freq_mask = 1.0 - self.yarn_linear_ramp_mask(low, high, dim // 2).to(device=device, dtype=torch.float32)
+        inv_freq = freq_inter * (1 - inv_freq_mask) + freq_extra * inv_freq_mask
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+        t = torch.arange(seq_len, device=device, dtype=torch.float32)
+        freqs = torch.outer(t, inv_freq)
+
+        _mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
+
+        emb = torch.cat((freqs, freqs), dim=-1)
+        self.register_buffer("cos_cached", (emb.cos() * _mscale).to(dtype), persistent=False)
+        self.register_buffer("sin_cached", (emb.sin() * _mscale).to(dtype), persistent=False)
+
+
 ROPE_ENCODGING_MAP = {
     None: RoPEPositionEncoding,
     'linear': RoPELinearScalingPositionEncoding,
     'dynamic': RoPEDynamicNTKScalingPositionEncoding,
     'dynamic_qwen': RoPEDynamicNTKScalingQwenPositionEncoding,
-    'llama3': RoPELlama3PositionEncoding
+    'llama3': RoPELlama3PositionEncoding,
+    'yarn': RoPEYarnPositionEncoding
 }
 
 

@@ -1,6 +1,6 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
-from bert4torch.layers import MultiHeadAttentionLayer, BertLayer, BlockIdentity
+from bert4torch.layers import MultiHeadAttention, BertLayer, BlockIdentity
 import math
 import torch
 from torch import nn
@@ -17,7 +17,7 @@ class Falcon(Decoder):
         kwargs.update({'weight': True, 'pre_layernorm': True, 'norm_mode': 'torch_buildin', 
                       'is_decoder': True, 'final_layernorm': True, 'attention_scale': False})
         if kwargs.get('p_bias') == 'alibi':
-            MultiHeadAttentionLayer.apply_alibi_pos_emb = apply_alibi_pos_emb
+            MultiHeadAttention.apply_alibi_pos_emb = apply_alibi_pos_emb
         super().__init__(*args, **kwargs)
         self.model_type = 'falcon'
         self.multi_query_attention = kwargs.get('num_key_value_heads') is not None
