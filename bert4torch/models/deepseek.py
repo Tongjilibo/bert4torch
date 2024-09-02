@@ -22,7 +22,8 @@ class DeepSeek(Decoder):
         self.first_k_dense_replace = kwargs.get('first_k_dense_replace')
         self.moe_layer_freq = kwargs.get('moe_layer_freq')
         for layer_idx, layer in enumerate(self.decoderLayer):
-            if layer_idx >= self.first_k_dense_replace and layer_idx % self.moe_layer_freq == 0:
+            if self.n_routed_experts is not None and layer_idx >= self.first_k_dense_replace \
+                and layer_idx % self.moe_layer_freq == 0:
                 layer.feedForward = DeepseekMoE(**kwargs)
 
         self.LayerNormFinal.register_parameter('bias', None)

@@ -15,6 +15,7 @@ from bert4torch.layers.position_encoding import (
     ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
+from bert4torch.layers.core import LayerNorm
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
 from typing import Literal, Optional, Tuple, Union
@@ -165,20 +166,8 @@ class MultiHeadAttentionLayer(nn.Module):
         elif self.p_bias == 'alibi':
             self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
 
-    def forward(self, hidden_states:Optional[torch.Tensor]=None, attention_mask:Optional[torch.FloatTensor]=None, 
-                encoder_hidden_states:Optional[torch.FloatTensor]=None, encoder_attention_mask:Optional[torch.FloatTensor]=None, 
-                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, position_ids=None, **model_kwargs):
-        '''
-        :param hidden_states: [batch_size, seq_q, hidden_size]
-        :param attention_mask: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
-        :param encoder_hidden_states: [batch_size, seq_k, hidden_size]
-        :param encoder_attention_mask: [batch_size, 1, 1, seq_k]
-        :param past_key_value: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
-        '''
-
-        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+    def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+        '''获取qkv states，主要是为了下游继承'''
         query_states = self.transpose_for_q_scores(self.q(hidden_states))
         if self.p_bias == 'rotary':
             # rotary有cache情况下，需要先rope后再和past_key_value concat
@@ -200,6 +189,29 @@ class MultiHeadAttentionLayer(nn.Module):
         else:
             key_states = self.transpose_for_k_scores(self.k(hidden_states))
             value_states = self.transpose_for_v_scores(self.v(hidden_states))
+        return query_states, key_states, value_states, attention_mask
+
+    def forward(self, 
+                hidden_states:Optional[torch.Tensor]=None, 
+                attention_mask:Optional[torch.FloatTensor]=None, 
+                encoder_hidden_states:Optional[torch.FloatTensor]=None, 
+                encoder_attention_mask:Optional[torch.FloatTensor]=None, 
+                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
+                position_ids=None, 
+                **model_kwargs
+        ):
+        '''
+        :param hidden_states: [batch_size, seq_q, hidden_size]
+        :param attention_mask: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
+        :param encoder_hidden_states: [batch_size, seq_k, hidden_size]
+        :param encoder_attention_mask: [batch_size, 1, 1, seq_k]
+        :param past_key_value: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
+        '''
+        query_states, key_states, value_states, attention_mask = self._get_qkv_states(
+            hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids)
+        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
         # 使用logn_attn
         if self.use_logn_attn:
@@ -694,3 +706,63 @@ class GatedAttentionUnit(nn.Module):
             if self.bias:
                  out = out + self.beta
             return out.unbind(dim = -2)
+
+
+class DeepseekV2Attention(MultiHeadAttentionLayer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.q_lora_rank = kwargs.get('q_lora_rank')
+        self.kv_lora_rank = kwargs.get('kv_lora_rank')
+        self.qk_nope_head_dim = kwargs.get('qk_nope_head_dim')
+        self.qk_rope_head_dim = kwargs.get('qk_rope_head_dim')
+
+        if self.q_lora_rank is None:
+            pass
+        else:
+            del self.q
+            self.q_a = nn.Linear(self.hidden_size, self.q_lora_rank, bias=self.bias)
+            self.q_a_layernorm = LayerNorm(self.q_lora_rank)
+            self.q_b = nn.Linear(self.q_lora_rank, self.attention_key_size * self.num_attention_heads, bias=self.bias)
+
+        del self.k, self.v
+        self.kv_a_proj_with_mqa = nn.Linear(self.hidden_size, self.kv_lora_rank + self.qk_rope_head_dim, bias=self.bias)
+        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank)
+        self.kv_b = nn.Linear(self.kv_lora_rank, self.num_attention_heads * 
+                              (self.attention_key_size - self.qk_rope_head_dim + self.attention_head_size), bias=False)
+        self.o = nn.Linear(self.attention_key_size * self.attention_head_size, self.hidden_size, bias=self.bias)
+
+    def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+        bsz, q_len, _ = hidden_states.size()
+        if self.q_lora_rank is None:
+            q = self.q(hidden_states)
+        else:
+            q = self.q_b(self.q_a_layernorm(self.q_a(hidden_states)))
+        q = q.view(bsz, q_len, self.num_attention_heads, self.attention_key_size).transpose(1, 2)
+        q_nope, q_pe = torch.split(q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1)
+
+        compressed_kv = self.kv_a_proj_with_mqa(hidden_states)
+        compressed_kv, k_pe = torch.split(compressed_kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
+        k_pe = k_pe.view(bsz, q_len, 1, self.qk_rope_head_dim).transpose(1, 2)
+        kv = (
+            self.kv_b(self.kv_a_layernorm(compressed_kv))
+            .view(bsz, q_len, self.num_attention_heads, self.qk_nope_head_dim + self.attention_head_size)
+            .transpose(1, 2)
+        )
+
+        k_nope, value_states = torch.split(
+            kv, [self.qk_nope_head_dim, self.attention_head_size], dim=-1
+        )
+        kv_seq_len = key_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+        
+        q_pe, k_pe = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
+        k_pe : torch.Tensor
+        query_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.attention_key_size)
+        query_states[:, :, :, : self.qk_nope_head_dim] = q_nope
+        query_states[:, :, :, self.qk_nope_head_dim :] = q_pe
+
+        key_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.attention_key_size)
+        key_states[:, :, :, : self.qk_nope_head_dim] = k_nope
+        key_states[:, :, :, self.qk_nope_head_dim :] = k_pe
+        return query_states, key_states, value_states, attention_mask
