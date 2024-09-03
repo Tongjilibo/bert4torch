@@ -152,7 +152,7 @@ class DeepseekMoE(nn.Module):
             y = y.to(hidden_states.dtype).view(*orig_shape)
             y = AddAuxiliaryLoss.apply(y, aux_loss)
         else:
-            y = self.moe_infer(hidden_states, flat_topk_idx, topk_weight.view(-1, 1)).view(*orig_shape)
+            y = self.moe_infer(hidden_states, topk_idx, topk_weight).view(*orig_shape)
         if self.config.n_shared_experts is not None:
             y = y + self.shared_experts(identity)
         return y

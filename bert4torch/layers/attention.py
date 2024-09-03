@@ -12,6 +12,7 @@ from bert4torch.layers.position_encoding import (
     RoPEDynamicNTKScalingPositionEncoding,
     RoPEDynamicNTKScalingQwenPositionEncoding,
     RoPELlama3PositionEncoding,
+    RoPEYarnPositionEncoding,
     ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
@@ -78,7 +79,7 @@ class MultiHeadAttention(nn.Module):
         self.output_attentions = output_attentions
         self.bias = bias
         self.p_bias = p_bias
-        self.rope_scaling = copy.deepcopy(rope_scaling or dict())
+        self.rope_scaling = rope_scaling or dict()
         self.layer_idx = layer_idx
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
@@ -120,8 +121,9 @@ class MultiHeadAttention(nn.Module):
             # position_encoding_2d 目前仅在chatglm中使用
             self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
             embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
-            scaling_type = self.rope_scaling.pop("rope_type", self.rope_scaling.pop('type', None))
-            scaling_factor = self.rope_scaling.pop("factor", None)
+            rope_scaling = copy.deepcopy(self.rope_scaling)
+            scaling_type = rope_scaling.pop("rope_type", self.rope_scaling.pop('type', None))
+            scaling_factor = rope_scaling.pop("factor", None)
             rope_theta = kwargs.get('rope_theta')
             rope_rank = kwargs.get('rope_rank')
             if scaling_type is None:
@@ -134,7 +136,7 @@ class MultiHeadAttention(nn.Module):
                                                                                 rope_rank=rope_rank, 
                                                                                 scaling_factor=scaling_factor, 
                                                                                 rope_theta=rope_theta,
-                                                                                **self.rope_scaling)
+                                                                                **rope_scaling)
         elif self.p_bias == 't5_relative':  # t5
             self.relative_positions = T5PositionsEncoding(qlen=self.max_position,  
                                                           klen=self.max_position, 
@@ -405,6 +407,10 @@ class MultiHeadAttention(nn.Module):
             score += p2c_att / scale.to(dtype=p2c_att.dtype)
         return score
     
+    def _apply_attention_scale(self, attention_scores):
+        '''方便子类继承'''
+        return attention_scores / math.sqrt(self.attention_head_size)
+    
     def torch_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, attention_mask:torch.Tensor):
         '''qkv attention: torch原生实现'''
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
@@ -447,7 +453,7 @@ class MultiHeadAttention(nn.Module):
 
         if self.attention_scale:
             # 是否进行attention scale
-            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+            attention_scores = self._apply_attention_scale(attention_scores)
         
         # ==================== alibi相对位置编码 ====================
         if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
@@ -838,6 +844,33 @@ class DeepseekV2Attention(MultiHeadAttention):
                               (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
 
+        self.softmax_scale = self.q_head_dim ** (-0.5)
+        if self.rope_scaling is not None:
+            mscale_all_dim = self.rope_scaling.get("mscale_all_dim", 0)
+            scaling_factor = self.rope_scaling["factor"]
+            if mscale_all_dim:
+                mscale = 1.0 if scaling_factor <= 1 else 0.1 * mscale_all_dim * math.log(scaling_factor) + 1.0
+                self.softmax_scale = self.softmax_scale * mscale * mscale
+        
+    def init_position_encoding(self, **kwargs):
+        '''这里dim为qk_rope_head_dim所以重新初始化了'''
+        rope_scaling = copy.deepcopy(self.rope_scaling)
+        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
+        scaling_factor = rope_scaling.pop("factor", None)
+        rope_theta = kwargs.get('rope_theta')
+        rope_rank = kwargs.get('rope_rank')
+        self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
+            embedding_size = kwargs.get('qk_rope_head_dim'), 
+            max_position = self.max_position, 
+            rope_rank = rope_rank, 
+            scaling_factor = scaling_factor, 
+            rope_theta = rope_theta,
+            **rope_scaling
+            )
+
+    def _apply_attention_scale(self, attention_scores):
+        return attention_scores * self.softmax_scale
+    
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
         bsz, q_len, _ = hidden_states.size()
         if self.q_lora_rank is None:

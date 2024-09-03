@@ -356,6 +356,7 @@ class RoPEDynamicNTKScalingQwenPositionEncoding(RoPEPositionEncoding):
 
 
 class RoPEYarnPositionEncoding(RoPEPositionEncoding):
+    '''DeepSeekV2中使用'''
     def __init__(
         self,
         embedding_size,
@@ -413,7 +414,7 @@ class RoPEYarnPositionEncoding(RoPEPositionEncoding):
         low, high = self.yarn_find_correction_range(self.beta_fast, self.beta_slow, dim, self.rope_theta, self.original_max_position_embeddings)
         inv_freq_mask = 1.0 - self.yarn_linear_ramp_mask(low, high, dim // 2).to(device=device, dtype=torch.float32)
         inv_freq = freq_inter * (1 - inv_freq_mask) + freq_extra * inv_freq_mask
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        # self.register_buffer("inv_freq", inv_freq, persistent=False)
 
         t = torch.arange(seq_len, device=device, dtype=torch.float32)
         freqs = torch.outer(t, inv_freq)
@@ -423,6 +424,12 @@ class RoPEYarnPositionEncoding(RoPEPositionEncoding):
         emb = torch.cat((freqs, freqs), dim=-1)
         self.register_buffer("cos_cache", (emb.cos() * _mscale).to(dtype), persistent=False)
         self.register_buffer("sin_cache", (emb.sin() * _mscale).to(dtype), persistent=False)
+
+    def rotate_and_compute(self, x, cos, sin):
+        b, h, s, d = x.shape
+        x = x.view(b, h, s, d // 2, 2).transpose(4, 3).reshape(b, h, s, d)
+        x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)  # rotate_half
+        return x * cos + x2 * sin
 
 
 ROPE_ENCODGING_MAP = {

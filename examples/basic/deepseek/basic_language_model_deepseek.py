@@ -13,6 +13,7 @@ from bert4torch.pipelines import Chat
 # deepseek-ai@deepseek-coder-7b-instruct-v1.5
 
 # deepseek-ai@DeepSeek-V2-Lite-Chat
+# model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@deepseek-coder-1.3b-instruct'
 model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@DeepSeek-V2-Lite-Chat'
 generation_config = {
     'max_length': 512
@@ -20,7 +21,7 @@ generation_config = {
 
 demo = Chat(model_dir, 
             generation_config=generation_config,
-            quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+            # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
             )
 
 if __name__ == '__main__':
