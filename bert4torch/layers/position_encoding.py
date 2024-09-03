@@ -421,8 +421,8 @@ class RoPEYarnPositionEncoding(RoPEPositionEncoding):
         _mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
 
         emb = torch.cat((freqs, freqs), dim=-1)
-        self.register_buffer("cos_cached", (emb.cos() * _mscale).to(dtype), persistent=False)
-        self.register_buffer("sin_cached", (emb.sin() * _mscale).to(dtype), persistent=False)
+        self.register_buffer("cos_cache", (emb.cos() * _mscale).to(dtype), persistent=False)
+        self.register_buffer("sin_cache", (emb.sin() * _mscale).to(dtype), persistent=False)
 
 
 ROPE_ENCODGING_MAP = {

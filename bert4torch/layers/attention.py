@@ -833,9 +833,9 @@ class DeepseekV2Attention(MultiHeadAttention):
 
         del self.k, self.v
         self.kv_a_proj_with_mqa = nn.Linear(self.hidden_size, self.kv_lora_rank + self.qk_rope_head_dim, bias=self.bias)
-        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank)
+        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank, bias=self.bias)
         self.kv_b = nn.Linear(self.kv_lora_rank, self.num_attention_heads * 
-                              (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=False)
+                              (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
 
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
@@ -844,7 +844,7 @@ class DeepseekV2Attention(MultiHeadAttention):
             q = self.q(hidden_states)
         else:
             q = self.q_b(self.q_a_layernorm(self.q_a(hidden_states)))
-        q = q.view(bsz, q_len, self.num_attention_heads, self.attention_key_size).transpose(1, 2)
+        q = q.view(bsz, q_len, self.num_attention_heads, self.q_head_dim).transpose(1, 2)
         q_nope, q_pe = torch.split(q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1)
 
         compressed_kv = self.kv_a_proj_with_mqa(hidden_states)
@@ -856,20 +856,18 @@ class DeepseekV2Attention(MultiHeadAttention):
             .transpose(1, 2)
         )
 
-        k_nope, value_states = torch.split(
-            kv, [self.qk_nope_head_dim, self.attention_head_size], dim=-1
-        )
-        kv_seq_len = key_states.shape[-2]
+        k_nope, value_states = torch.split(kv, [self.qk_nope_head_dim, self.attention_head_size], dim=-1)
+        kv_seq_len = value_states.shape[-2]
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
         
-        q_pe, k_pe = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
+        q_pe, k_pe = self.relative_positions_encoding([q_pe, k_pe], position_ids, kv_seq_len)
         k_pe : torch.Tensor
-        query_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.attention_key_size)
+        query_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.q_head_dim)
         query_states[:, :, :, : self.qk_nope_head_dim] = q_nope
         query_states[:, :, :, self.qk_nope_head_dim :] = q_pe
 
-        key_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.attention_key_size)
+        key_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.q_head_dim)
         key_states[:, :, :, : self.qk_nope_head_dim] = k_nope
         key_states[:, :, :, self.qk_nope_head_dim :] = k_pe
         return query_states, key_states, value_states, attention_mask
