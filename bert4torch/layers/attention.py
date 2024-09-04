@@ -828,18 +828,18 @@ class DeepseekV2Attention(MultiHeadAttention):
         self.qk_nope_head_dim = kwargs.get('qk_nope_head_dim')
         self.qk_rope_head_dim = kwargs.get('qk_rope_head_dim')
         self.q_head_dim = self.qk_nope_head_dim + self.qk_rope_head_dim
-
+        layer_norm_eps = kwargs.get('layer_norm_eps', 1e-6)
         if self.q_lora_rank is None:
             self.q = nn.Linear(self.hidden_size, self.num_attention_heads * self.q_head_dim, bias=self.bias)
         else:
             del self.q
             self.q_a = nn.Linear(self.hidden_size, self.q_lora_rank, bias=self.bias)
-            self.q_a_layernorm = LayerNorm(self.q_lora_rank)
+            self.q_a_layernorm = LayerNorm(self.q_lora_rank, norm_mode='rmsnorm', eps=layer_norm_eps, bias=self.bias)
             self.q_b = nn.Linear(self.q_lora_rank, self.attention_key_size * self.q_head_dim, bias=self.bias)
 
         del self.k, self.v
         self.kv_a_proj_with_mqa = nn.Linear(self.hidden_size, self.kv_lora_rank + self.qk_rope_head_dim, bias=self.bias)
-        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank, bias=self.bias)
+        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank, norm_mode='rmsnorm', eps=layer_norm_eps, bias=self.bias)
         self.kv_b = nn.Linear(self.kv_lora_rank, self.num_attention_heads * 
                               (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
