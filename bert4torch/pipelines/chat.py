@@ -189,7 +189,8 @@ class ChatBase(PipeLineBase):
 
         Returns: 接口直接返回的值（处理后的response, 而不是模型直接输出的结果）
         '''
-        def process_history(res):
+        def process_history(res:str):
+            res = res.strip()
             if history is None:
                 return
             elif len(history) == 0:

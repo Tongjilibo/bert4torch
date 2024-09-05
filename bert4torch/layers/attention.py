@@ -903,4 +903,9 @@ class DeepseekV2Attention(MultiHeadAttention):
         key_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.q_head_dim)
         key_states[:, :, :, : self.qk_nope_head_dim] = k_nope
         key_states[:, :, :, self.qk_nope_head_dim :] = k_pe
+
+        # 过了rope再concat
+        if past_key_value is not None:
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
         return query_states, key_states, value_states, attention_mask
