@@ -146,23 +146,24 @@ class ChatBase(PipeLineBase):
         '''初始化model, 方便外部继承'''
         if (not hasattr(self, 'model')) or (self.model is None):
             # 初始化
-            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, **model_init_config)
-            model.eval()
+            self.model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, **model_init_config)
+            self.model.eval()
 
             # 精度
             if self.precision == 'double':
-                model = model.double()
+                self.model = self.model.double()
             elif self.precision == 'float':
-                model = model.float()
+                self.model = self.model.float()
             elif self.precision in {'half', 'float16'}:
-                model = model.half()
+                self.model = self.model.half()
             elif self.precision == 'bfloat16':
-                model = model.bfloat16()
+                self.model = self.model.bfloat16()
 
             # 量化
             if self.quantization_config is not None:
-                model = model.quantize(**self.quantization_config)
-            self.model = model.to(self.device)
+                self.model = self.model.quantize(**self.quantization_config)
+            if model_init_config.get('device_map') is None:
+                self.model = self.model.to(self.device)
         
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
