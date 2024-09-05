@@ -21,8 +21,7 @@ generation_config = {
 
 demo = Chat(model_dir, 
             generation_config=generation_config,
-            device_map='auto',
-            # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+            quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
             )
 
 if __name__ == '__main__':
