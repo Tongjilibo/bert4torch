@@ -19,11 +19,12 @@ def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, n
     if (ntk_alpha is not None) and (ntk_alpha != 1):
         base = base * ntk_alpha ** (d_hid / (d_hid-2))
     
-    position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
     inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
-    embeddings_table = torch.zeros(n_position, d_hid)
     if (scaling_factor is not None) and (scaling_factor != 1):
         inv_freq = inv_freq / scaling_factor
+    
+    position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
+    embeddings_table = torch.zeros(n_position, d_hid)
     embeddings_table[:, 0::2] = torch.sin(position * inv_freq)
     embeddings_table[:, 1::2] = torch.cos(position * inv_freq)
     return embeddings_table
@@ -192,7 +193,7 @@ class RoPEPositionEncoding(nn.Module):
         self.rope_theta = rope_theta or 10000.0
         self.max_position = max_position  # 原始支持的最大长度
         self.max_seq_len_cache = max_position  # 推理过程中遇到的最大长度max(seq_len, max_position)
-        self._set_cos_sin_cache(max_position)
+        self._set_cos_sin_cache(min(max_position, 2048))  # 这里没有直接设置到max_position，因为容易占显存
     
     def get_sinusoid_encoding_table(self, n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
                                      scaling_factor:float=1.0, padding_idx:Optional[int]=None):
@@ -405,7 +406,7 @@ class RoPEYarnPositionEncoding(RoPEPositionEncoding):
         return ramp_func
 
     def _set_cos_sin_cache(self, seq_len, device='cpu', dtype=torch.float32):
-        self.max_seq_len_cached = seq_len
+        self.max_seq_len_cache = seq_len
         dim = self.embedding_size
 
         freq_extra = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim))

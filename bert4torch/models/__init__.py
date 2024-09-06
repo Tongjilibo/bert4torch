@@ -23,13 +23,23 @@ from bert4torch.models.qwen import Qwen, Qwen2
 from bert4torch.models.internlm import InternLM, InternLM2
 from bert4torch.models.falcon import Falcon
 from bert4torch.models.deepseek import DeepSeek
-from bert4torch.snippets import set_default_torch_dtype, get_checkpoint_path, get_config_path
-from bert4torch.snippets import is_accelerate_available, log_error, log_warn, DottableDict
 from typing import Union, Literal
 import json
 import os
 import torch
-from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available, is_torch_sdpa_available
+from bert4torch.snippets import (
+    log_warn_once, 
+    log_error,
+    is_flash_attn_available, 
+    is_xformers_available, 
+    is_torch_sdpa_available,
+    is_accelerate_available,
+    set_default_torch_dtype, 
+    get_checkpoint_path, 
+    get_config_path,
+    get_device_map,
+    DottableDict
+)
 
 
 def build_transformer_model(
@@ -222,6 +232,8 @@ def build_transformer_model(
     # 权重加载
     transformer.checkpoint_path = checkpoint_path
     if checkpoint_path is not None:
+        # 根据模型尺寸和硬件(gpu, cpu)的大小来确定device_map
+        device_map = get_device_map(transformer, device_map, torch_dtype, **config)
         transformer.from_pretrained(checkpoint_path, mapping=config.get('mapping'), skip_init=skip_init, 
                                     device_map=device_map, torch_dtype=torch_dtype, verbose=verbose, **config)
     
@@ -230,12 +242,13 @@ def build_transformer_model(
     transformer.configs = transformer.config = config
 
     # meta device则报错
-    meta_names = []
-    for name_, para_ in transformer.named_parameters():
-        if str(para_.device) == 'meta':
-            meta_names.append(name_)
-    if len(meta_names) > 0:
-        log_error(f'Meta device not allowed: {meta_names}')
+    if device_map is None:
+        meta_names = []
+        for name_, para_ in transformer.named_parameters():
+            if str(para_.device) == 'meta':
+                meta_names.append(name_)
+        if len(meta_names) > 0:
+            log_error(f'Meta device not allowed: {meta_names}')
     
     return transformer
 
