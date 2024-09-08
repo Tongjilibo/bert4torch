@@ -11,6 +11,7 @@ from bert4torch.models.gau_alpha import GAU_alpha
 from bert4torch.models.glm import GLM, GLM2
 from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
 from bert4torch.models.llama import LLaMA, Baichuan, MiniCPM
+from bert4torch.models.minicpmv import MiniCPMV
 from bert4torch.models.nezha import NEZHA
 from bert4torch.models.roformer import RoFormer, RoFormerV2
 from bert4torch.models.t5 import T5, T5_Encoder, T5_Decoder
@@ -174,7 +175,8 @@ def build_transformer_model(
         'internlm2': InternLM2,
         'falcon': Falcon,
         'deepseek': DeepSeek,
-        'minicpm': MiniCPM
+        'minicpm': MiniCPM,
+        'minicpmv': MiniCPMV
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))
@@ -214,7 +216,7 @@ def build_transformer_model(
         else:
             skip_init = False  # 若accelerate包不存在则先初始化模型参数
             log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
-    if not skip_init:
+    elif not skip_init:
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
 
@@ -270,15 +272,15 @@ def check_update_config(config_path:str, **kwargs):
     # 获取_attn_implementation的配置项, 自动进行一些设置
     _attn_implementation = config.get('_attn_implementation', config.get('flash_attention'))  # 兼容老配置文件
     if _attn_implementation is None:
-        _attn_implementation = 'sdpa' if is_torch_sdpa_available() else 'eager'
+        config['_attn_implementation'] = 'eager'
     elif (_attn_implementation in {True, 'sdpa'}) and (not is_torch_sdpa_available()):
         log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-        _attn_implementation = 'eager'
+        config['_attn_implementation'] = 'eager'
     elif (_attn_implementation == 'xformers') and (not is_xformers_available()):
         log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-        _attn_implementation = 'eager'
+        config['_attn_implementation'] = 'eager'
     elif (_attn_implementation == 'flash_attn_2') and (not is_flash_attn_available()):
         log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
-        _attn_implementation = 'eager'
+        config['_attn_implementation'] = 'eager'
 
     return config

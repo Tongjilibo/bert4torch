@@ -17,7 +17,6 @@ from bert4torch.pipelines import Chat
 model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@DeepSeek-V2-Lite-Chat'
 generation_config = {
     'max_length': 512,
-    'top_k': 1
 }
 
 demo = Chat(model_dir, 

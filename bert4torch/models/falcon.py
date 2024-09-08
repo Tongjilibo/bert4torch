@@ -1,10 +1,9 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments
-from bert4torch.layers import MultiHeadAttention, BertLayer, BlockIdentity
+from bert4torch.layers import AlibiAttention, BertLayer, BlockIdentity
 import math
 import torch
 from torch import nn
-import copy
 
 
 class Falcon(Decoder):
@@ -12,12 +11,13 @@ class Falcon(Decoder):
     falcon-rw-1b：alibi编码，但是其attention_scale是在+attention_mask后执行的，和bloom、baichuan-13b-chat其他不一样
     falcon-7b/falcon-7b-instruct: rotary, 除了layernorm其他都没有bias，其次使用了multi_query_attn
     '''
+    _no_split_modules = ["FalconParallelAttnLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'weight': True, 'pre_layernorm': True, 'norm_mode': 'torch_buildin', 
                       'is_decoder': True, 'final_layernorm': True, 'attention_scale': False})
         if kwargs.get('p_bias') == 'alibi':
-            MultiHeadAttention.apply_alibi_pos_emb = apply_alibi_pos_emb
+            AlibiAttention.apply_alibi_pos_emb = apply_alibi_pos_emb
         super().__init__(*args, **kwargs)
         self.model_type = 'falcon'
         self.multi_query_attention = kwargs.get('num_key_value_heads') is not None

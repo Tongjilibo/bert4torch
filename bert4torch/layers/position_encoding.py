@@ -182,6 +182,7 @@ class RoPEPositionEncoding(nn.Module):
                  rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
                  scaling_factor: float=1.0, 
                  rope_theta: float=10000.0, 
+                 device = None,
                  **kwargs):
         super(RoPEPositionEncoding, self).__init__()
         self.embedding_size = embedding_size
@@ -193,7 +194,7 @@ class RoPEPositionEncoding(nn.Module):
         self.rope_theta = rope_theta or 10000.0
         self.max_position = max_position  # 原始支持的最大长度
         self.max_seq_len_cache = max_position  # 推理过程中遇到的最大长度max(seq_len, max_position)
-        self._set_cos_sin_cache(min(max_position, 2048))  # 这里没有直接设置到max_position，因为容易占显存
+        self._set_cos_sin_cache(max_position, device=device, dtype=torch.get_default_dtype())  # 这里没有直接设置到max_position，因为容易占显存
     
     def get_sinusoid_encoding_table(self, n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
                                      scaling_factor:float=1.0, padding_idx:Optional[int]=None):

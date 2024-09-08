@@ -49,3 +49,7 @@ def is_peft_available() -> bool:
 
 def is_torch_sdpa_available() -> bool:
     return version.parse(torch.__version__) >= version.parse("2.1.1")
+
+
+def is_transformers_available() -> bool:
+    return is_package_available('transformers')

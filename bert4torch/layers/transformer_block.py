@@ -3,7 +3,7 @@ import torch
 import math
 import torch.nn.functional as F
 from bert4torch.layers.core import LayerNorm, PositionWiseFeedForward, LlamaFeedForward, T5PositionWiseFeedForward
-from bert4torch.layers.attention import MultiHeadAttention, GatedAttentionUnit, TransformerxlMultiHeadAttn, DeepseekV2Attention
+from bert4torch.layers.attention import ATTENTION_MAP, GatedAttention, TransformerxlMultiHeadAttn
 from typing import Union, Optional, Tuple
 
 
@@ -47,16 +47,11 @@ class BertLayer(nn.Module):
         self.apply_residual_post_layernorm = apply_residual_post_layernorm
         self.is_decoder = kwargs.get('is_decoder', False)
         self.add_cross_attention = kwargs.get('add_cross_attention', False)
-        self.attn_type = kwargs.get('attn_type', 'MultiHeadAttention')
+        self.attn_type = kwargs.get('attn_type',  kwargs.get('p_bias', 'MultiHeadAttention'))
         self.mlp_type = kwargs.get('mlp_type', 'PositionWiseFeedForward')
         
         # self attention
-        if self.attn_type == 'MultiHeadAttention':
-            self.multiHeadAttention = MultiHeadAttention(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
-        elif self.attn_type == 'DeepseekV2Attention':
-            self.multiHeadAttention = DeepseekV2Attention(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
-        else:
-            raise ValueError(f'attn_type={self.attn_type} not supported')
+        self.multiHeadAttention = ATTENTION_MAP[self.attn_type](hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
         self.attnLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
         # feedforward
@@ -70,7 +65,7 @@ class BertLayer(nn.Module):
 
         # cross attention
         if self.add_cross_attention and self.is_decoder:
-            self.crossAttention = MultiHeadAttention(hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
+            self.crossAttention = ATTENTION_MAP[self.attn_type](hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
             self.crossLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
     def forward(self, 
@@ -308,7 +303,7 @@ class Gpt2MlLayer(BertLayer):
 class GAULayer(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
-        self.gau = GatedAttentionUnit(**kwargs)
+        self.gau = GatedAttention(**kwargs)
         self.dropout_rate = kwargs.get('dropout_rate')
         self.attnLayerNorm = LayerNorm(**kwargs)
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):

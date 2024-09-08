@@ -1,0 +1,1 @@
+from .minicpmv import MiniCPMV

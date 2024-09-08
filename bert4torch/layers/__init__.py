@@ -1,4 +1,15 @@
-from bert4torch.layers.attention import MultiHeadAttention, GatedAttentionUnit, DeepseekV2Attention
+from bert4torch.layers.attention import (
+    MultiHeadAttention, 
+    GatedAttention, 
+    DeepseekV2Attention,
+    DebertaV2Attention,
+    AlibiAttention,
+    NezhaTypicalRelativeAttention,
+    RopeAttention,
+    T5Attention,
+    TransformerxlMultiHeadAttn,
+    ATTENTION_MAP
+)
 from bert4torch.layers.core import LayerNorm, BertEmbeddings, PositionWiseFeedForward, LlamaFeedForward, T5PositionWiseFeedForward
 from bert4torch.layers.crf import CRF
 from bert4torch.layers.global_point import GlobalPointer, EfficientGlobalPointer
