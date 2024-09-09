@@ -56,6 +56,7 @@ functions = [{
     }
 }]
 
+
 if __name__ == '__main__':
     demo.run(
         functions=functions  # llama3.1支持function call

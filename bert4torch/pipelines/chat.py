@@ -31,7 +31,8 @@ from bert4torch.snippets import (
     is_streamlit_available,
     is_package_available,
     has_chinese_char,
-    add_start_docstrings
+    add_start_docstrings,
+    JsonConfig
 )
 from packaging import version
 import gc
@@ -139,7 +140,12 @@ class ChatBase(PipeLineBase):
             return AutoTokenizer.from_pretrained(self.checkpoint_path, trust_remote_code=True, **new_kwargs)
         except Exception as e:
             _, transformer_version = is_package_available('transformers', return_version=True)
-            log_warn(f'Please check your transformer version == {transformer_version}, which may not compatible.')
+            config_tmp = os.path.join(self.checkpoint_path, 'config.json')
+            request_version = JsonConfig(config_tmp).get('transformers_version') if os.path.exists(config_tmp) else None
+            if request_version is not None:
+                log_warn(f'Please check your transformer=={transformer_version}, while transformer=={request_version} requested.')
+            else:
+                log_warn(f'Please check your transformer=={transformer_version}, which may not compatible.')
             raise e
 
     def build_model(self, **model_init_config) -> Union[Decoder, Transformer]:
@@ -1869,7 +1875,7 @@ class LLaMA3(ChatBase):
         if self.no_history_states():
             # llama3.1支持function call
             tools = functions
-            if (functions is not None) and isinstance(functions, list):
+            if (functions is not None) and (not isinstance(functions, list)):
                 tools = [functions]
             texts = self.tokenizer.apply_chat_template(
                 history, 

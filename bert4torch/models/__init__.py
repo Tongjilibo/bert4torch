@@ -236,7 +236,7 @@ def build_transformer_model(
     if checkpoint_path is not None:
         # 根据模型尺寸和硬件(gpu, cpu)的大小来确定device_map
         device_map = get_device_map(transformer, device_map, torch_dtype, **config)
-        transformer.from_pretrained(checkpoint_path, mapping=config.get('mapping'), skip_init=skip_init, 
+        transformer.from_pretrained(checkpoint_path, mapping=config.pop('mapping', None), skip_init=skip_init, 
                                     device_map=device_map, torch_dtype=torch_dtype, verbose=verbose, **config)
     
     # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下

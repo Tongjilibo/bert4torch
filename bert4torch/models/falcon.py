@@ -11,7 +11,7 @@ class Falcon(Decoder):
     falcon-rw-1b：alibi编码，但是其attention_scale是在+attention_mask后执行的，和bloom、baichuan-13b-chat其他不一样
     falcon-7b/falcon-7b-instruct: rotary, 除了layernorm其他都没有bias，其次使用了multi_query_attn
     '''
-    _no_split_modules = ["FalconParallelAttnLayer"]
+    _no_split_modules = ["BertLayer", "FalconParallelAttnLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'weight': True, 'pre_layernorm': True, 'norm_mode': 'torch_buildin', 

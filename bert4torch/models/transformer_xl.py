@@ -20,10 +20,10 @@ class Transformer_XL(BERT):
     @insert_arguments(with_lm=False)
     def __init__(self, *args, mem_len=0, same_length=False, clamp_len=-1, **kwargs):
         # p_bias来控制embedding阶段无pos_embedding
-        kwargs.update({'p_bias': 'other_relative'})
-        super().__init__(*args, **kwargs)
+        kwargs.update({'p_bias': 'MultiHeadAttention'})
+        self.attn_type = kwargs.pop('attn_type', 0)  # pop出来防止影响内部attn_type
         self.mem_len, self.same_length, self.clamp_len = mem_len, same_length, clamp_len
-        self.attn_type = kwargs.get('attn_type', 0)
+        super().__init__(*args, **kwargs)
 
         # embedding
         if kwargs.get('adaptive_embedding'):

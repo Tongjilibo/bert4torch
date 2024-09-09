@@ -48,7 +48,6 @@ class MultiHeadAttention(nn.Module):
     :param attention_scale: bool, 是否对attention_scores进行缩放，默认为True
     :param output_attentions: bool，是否返回attention_scores，默认为False
     :param bias: bool, qkvo的weight是否包含bias，默认为True
-    :param p_bias: Literal枚举值，position encoding的类型，默认为None
     :param rope_scaling: dict, rope的position encoding的参数，默认为None
     :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
     :param use_logn_attn: bool，是否使用use_logn_attn, 默认为None
@@ -62,7 +61,6 @@ class MultiHeadAttention(nn.Module):
                  attention_scale:bool=True,
                  output_attentions:bool=False, 
                  bias:bool=True, 
-                 p_bias:Literal[None, 'typical_relative', 'rotary', 't5_relative', 'deberta_v2', 'alibi']=None, 
                  rope_scaling:dict=None, 
                  _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
                  use_logn_attn:bool=None, 
@@ -78,7 +76,6 @@ class MultiHeadAttention(nn.Module):
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = bias
-        self.p_bias = p_bias
         self.rope_scaling = rope_scaling or dict()
         self.layer_idx = layer_idx
         self.sliding_window = kwargs.get('sliding_window')
@@ -456,6 +453,9 @@ class DebertaV2Attention(MultiHeadAttention):
         self.pos_dropout = nn.Dropout(self.dropout_rate)
 
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        if not hasattr(self, 'relative_positions_encoding'):
+            return attention_scores
+        
         # ==================== deberta_v2相对位置编码 ====================
         self.attention_scale = False  # deberta_v2使用自己的attention_scale
         scale_factor = 1
@@ -551,6 +551,9 @@ class NezhaTypicalRelativeAttention(MultiHeadAttention):
             )
         
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        if not hasattr(self, 'relative_positions_encoding'):
+            return attention_scores
+        
         # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
         # ==================== nezha相对位置编码 ====================
         relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
@@ -609,7 +612,7 @@ class RopeAttention(MultiHeadAttention):
         self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
         embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
         rope_scaling = copy.deepcopy(self.rope_scaling)
-        scaling_type = rope_scaling.pop("rope_type", self.rope_scaling.pop('type', None))
+        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
         scaling_factor = rope_scaling.pop("factor", None)
         rope_theta = kwargs.get('rope_theta')
         rope_rank = kwargs.get('rope_rank')
@@ -618,12 +621,13 @@ class RopeAttention(MultiHeadAttention):
         elif scaling_type in {'linear', 'dynamic'}:
             assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
         
-        self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](embedding_size=embedding_size, 
-                                                                            max_position=self.max_position, 
-                                                                            rope_rank=rope_rank, 
-                                                                            scaling_factor=scaling_factor, 
-                                                                            rope_theta=rope_theta,
-                                                                            **rope_scaling)
+        self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
+            embedding_size=embedding_size, 
+            max_position=self.max_position, 
+            rope_rank=rope_rank, 
+            scaling_factor=scaling_factor, 
+            rope_theta=rope_theta,
+            **rope_scaling)
 
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
         query_states = self.transpose_for_q_scores(self.q(hidden_states))
@@ -962,6 +966,9 @@ class T5Attention(MultiHeadAttention):
         self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        if not hasattr(self, 'relative_positions_encoding'):  # 外部可能会变更
+            return attention_scores
+
         # ==================== t5相对位置编码 ====================
         relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])  # 都是klen, 应对use_state=True
         key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
@@ -976,13 +983,14 @@ ATTENTION_MAP = {
     'TransformerxlMultiHeadAttn': TransformerxlMultiHeadAttn,
     'DeepseekV2Attention': DeepseekV2Attention,
     'DebertaV2Attention': DebertaV2Attention,
-    'deberta_v2': DebertaV2Attention,
     'AlibiAttention': AlibiAttention,
-    'alibi': AlibiAttention,
     'NezhaTypicalRelativeAttention': NezhaTypicalRelativeAttention,
-    'typical_relative': NezhaTypicalRelativeAttention,
     'RopeAttention': RopeAttention,
-    'rotary': RopeAttention,
     'T5Attention': T5Attention,
+    # 下面是以p_bias为key
+    'deberta_v2': DebertaV2Attention,
+    'alibi': AlibiAttention,
+    'typical_relative': NezhaTypicalRelativeAttention,
+    'rotary': RopeAttention,
     't5_relative': T5Attention,
 }
