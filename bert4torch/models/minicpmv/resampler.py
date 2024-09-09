@@ -10,7 +10,11 @@ import torch.nn.functional as F
 from torch.nn.functional import *
 from torch.nn.modules.activation import *
 from torch.nn.init import trunc_normal_, constant_, xavier_normal_, xavier_uniform_
-from transformers.integrations import is_deepspeed_zero3_enabled
+
+try:
+    from transformers.integrations import is_deepspeed_zero3_enabled
+except:
+    pass
 
 
 def get_2d_sincos_pos_embed(embed_dim, image_size):

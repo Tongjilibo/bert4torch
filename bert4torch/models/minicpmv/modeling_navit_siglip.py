@@ -21,30 +21,36 @@ import math
 import warnings
 from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Union
-
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
 from torch.nn.init import _calculate_fan_in_and_fan_out
+from bert4torch.snippets import is_flash_attn_available, add_start_docstrings, add_start_docstrings_to_model_forward
 
-from transformers.activations import ACT2FN
-from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
-from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
-from transformers.modeling_utils import PreTrainedModel
-from transformers.configuration_utils import PretrainedConfig
-from transformers.utils import (
-    ModelOutput,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    is_flash_attn_2_available,
-    logging,
-    replace_return_docstrings,
-)
-from transformers.utils import logging
 
-logger = logging.get_logger(__name__)
+try:
+    from transformers.activations import ACT2FN
+    from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
+    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
+    from transformers.modeling_utils import PreTrainedModel
+    from transformers.configuration_utils import PretrainedConfig
+    from transformers.utils import ModelOutput, logging
+
+    logger = logging.get_logger(__name__)
+except:
+    class BaseModelOutput: pass
+    class BaseModelOutputWithPooling: pass
+    class PreTrainedModel: pass
+    class PretrainedConfig: pass
+    class ModelOutput: pass
+
+
+if is_flash_attn_available():
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
+    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
+
 
 class SiglipVisionConfig(PretrainedConfig):
     r"""
@@ -141,11 +147,6 @@ SIGLIP_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "google/siglip-base-patch16-224",
     # See all SigLIP models at https://huggingface.co/models?filter=siglip
 ]
-
-if is_flash_attn_2_available():
-    from flash_attn import flash_attn_func, flash_attn_varlen_func
-    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
-
 
 # Copied from transformers.models.llama.modeling_llama._get_unpad_data
 def _get_unpad_data(attention_mask):
@@ -869,7 +870,6 @@ class SiglipVisionTransformer(SiglipPreTrainedModel):
         return self.embeddings.patch_embedding
 
     @add_start_docstrings_to_model_forward(SIGLIP_VISION_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=BaseModelOutputWithPooling, config_class=SiglipVisionConfig)
     def forward(
         self,
         pixel_values,
