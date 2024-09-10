@@ -11,8 +11,8 @@ model = model.eval().cuda()
 tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
 processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=True)
 
-image = Image.open('/home/lb/projects/bert4torch/test_local/资料概要.png').convert('RGB')
-question = 'What is in the image?'
+image = Image.open('E:/Github/bert4torch/test_local/资料概要.png').convert('RGB')
+question = '介绍一下这张图片的内容?'
 msgs = [{'role': 'user', 'content': [image, question]}]
 
 res = model.chat(
@@ -30,7 +30,8 @@ res = model.chat(
     msgs=msgs,
     tokenizer=tokenizer,
     sampling=True,
-    stream=True
+    stream=True,
+    processor=processor
 )
 
 generated_text = ""

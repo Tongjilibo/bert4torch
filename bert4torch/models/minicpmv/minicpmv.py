@@ -222,13 +222,14 @@ class MiniCPMV(BERT_BASE):
             return self._decode_text(output, tokenizer)
         return output
 
-    def _decode_stream(self, inputs_embeds, tokenizer, **kwargs):
+    def _decode_stream(self, inputs_embeds, tokenizer, attention_mask, **kwargs):
         terminators = [tokenizer.convert_tokens_to_ids(i) for i in self.terminators]
         streamer = TextIteratorStreamer(tokenizer=tokenizer)
         generation_kwargs = {
-            'inputs_embeds': inputs_embeds,
+            'text': inputs_embeds,
             'pad_token_id': 0,
             'eos_token_id': terminators,
+            'attention_mask': attention_mask,
             'streamer': streamer
         }
         generation_kwargs.update(kwargs)
@@ -285,7 +286,7 @@ class MiniCPMV(BERT_BASE):
             ) = self.get_vllm_embedding(model_inputs)
 
             if stream:
-                result = self._decode_stream(model_inputs["inputs_embeds"], tokenizer, **kwargs)
+                result = self._decode_stream(model_inputs["inputs_embeds"], tokenizer, attention_mask, **kwargs)
             else:
                 result = self._decode(model_inputs["inputs_embeds"], tokenizer, attention_mask, decode_text=decode_text, **kwargs)
 
