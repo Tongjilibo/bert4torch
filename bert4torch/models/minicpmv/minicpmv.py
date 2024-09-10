@@ -7,22 +7,23 @@ from PIL import Image
 from .modeling_navit_siglip import SiglipVisionTransformer
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
-from bert4torch.models.transformer import Decoder
+from bert4torch.models.base import BERT_BASE
 from bert4torch.snippets import is_transformers_available, DottableDict
+from threading import Thread
 
 
 if is_transformers_available():
-    from transformers import AutoProcessor
+    from transformers import AutoProcessor, TextIteratorStreamer
 
 
-class MiniCPMV(Decoder):
+class MiniCPMV(BERT_BASE):
     def __init__(self, **config):
         super().__init__(**config)
         self.llm = Qwen2(**config)
         self.config = DottableDict(config)
         self.vpm = self.init_vision_module()
         self.vision_dim = self.vpm.embed_dim
-        self.embed_dim = self.llm.config.hidden_size
+        self.embed_dim = self.llm.hidden_size
         self.resampler = self.init_resampler(self.embed_dim, self.vision_dim)
         self.processor = None
 
@@ -73,8 +74,8 @@ class MiniCPMV(Decoder):
 
     def get_vllm_embedding(self, data):
         if 'vision_hidden_states' not in data:
-            dtype = self.llm.model.embed_tokens.weight.dtype
-            device = self.llm.model.embed_tokens.weight.device
+            dtype = self.llm.embeddings.word_embeddings.weight.dtype
+            device = self.llm.embeddings.word_embeddings.weight.device
             tgt_sizes = data['tgt_sizes']
             pixel_values_list = data['pixel_values']
             vision_hidden_states = []
@@ -138,10 +139,10 @@ class MiniCPMV(Decoder):
         else:
             vision_hidden_states = data['vision_hidden_states']
 
-        if hasattr(self.llm.config, 'scale_emb'):
-            vllm_embedding = self.llm.model.embed_tokens(data['input_ids']) * self.llm.config.scale_emb
+        if self.llm.embeddings.emb_scale != 1:
+            vllm_embedding = self.llm.embeddings.word_embeddings(data['input_ids']) * self.llm.embeddings.emb_scale
         else:
-            vllm_embedding = self.llm.model.embed_tokens(data['input_ids'])
+            vllm_embedding = self.llm.embeddings.word_embeddings(data['input_ids'])
 
         vision_hidden_states = [i.type(vllm_embedding.dtype) if isinstance(
             i, torch.Tensor) else i for i in vision_hidden_states]
@@ -171,16 +172,47 @@ class MiniCPMV(Decoder):
             position_ids = position_ids.long()
 
         return self.llm(
-            input_ids=None,
+            input_ids=vllm_embedding,
             position_ids=position_ids,
-            inputs_embeds=vllm_embedding,
             **kwargs
         )
+    
+    def load_variable(self, variable, old_key, new_key):
+        if old_key in {'llm.embeddings.word_embeddings.weight', 'llm.lm_head.weight'}:
+            return self.load_embeddings(variable)
+        return variable
+    
+    def variable_mapping(self):
+        # 映射到权重格式
+        mapping = {
+            'llm.embeddings.word_embeddings.weight': 'llm.model.embed_tokens.weight',
+            'llm.lm_head.weight': 'llm.lm_head.weight',
+            'llm.LayerNormFinal.weight': 'llm.model.norm.weight',
+            }
+
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'llm.decoderLayer.{i}.multiHeadAttention.q.weight': f'llm.model.layers.{i}.self_attn.q_proj.weight',
+            f'llm.decoderLayer.{i}.multiHeadAttention.q.bias': f'llm.model.layers.{i}.self_attn.q_proj.bias',
+            f'llm.decoderLayer.{i}.multiHeadAttention.k.weight': f'llm.model.layers.{i}.self_attn.k_proj.weight',
+            f'llm.decoderLayer.{i}.multiHeadAttention.k.bias': f'llm.model.layers.{i}.self_attn.k_proj.bias',
+            f'llm.decoderLayer.{i}.multiHeadAttention.v.weight': f'llm.model.layers.{i}.self_attn.v_proj.weight',
+            f'llm.decoderLayer.{i}.multiHeadAttention.v.bias': f'llm.model.layers.{i}.self_attn.v_proj.bias',
+            f'llm.decoderLayer.{i}.multiHeadAttention.o.weight': f'llm.model.layers.{i}.self_attn.o_proj.weight',
+            f'llm.decoderLayer.{i}.multiHeadAttention.o.bias': f'llm.model.layers.{i}.self_attn.o_proj.bias',
+            f'llm.decoderLayer.{i}.attnLayerNorm.weight': f'llm.model.layers.{i}.input_layernorm.weight',
+            f'llm.decoderLayer.{i}.feedForward.intermediateDense.weight': f'llm.model.layers.{i}.mlp.gate_proj.weight',
+            f'llm.decoderLayer.{i}.feedForward.intermediateDense2.weight': f'llm.model.layers.{i}.mlp.up_proj.weight',
+            f'llm.decoderLayer.{i}.feedForward.outputDense.weight': f'llm.model.layers.{i}.mlp.down_proj.weight',
+            f'llm.decoderLayer.{i}.ffnLayerNorm.weight': f'llm.model.layers.{i}.post_attention_layernorm.weight'
+            })
+        return mapping
     
     def _decode(self, inputs_embeds, tokenizer, attention_mask, decode_text=False, **kwargs):
         terminators = [tokenizer.convert_tokens_to_ids(i) for i in self.terminators]
         output = self.llm.generate(
-            inputs_embeds=inputs_embeds,
+            inputs_embeds,
             pad_token_id=0,
             eos_token_id=terminators,
             attention_mask=attention_mask,

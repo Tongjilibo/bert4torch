@@ -854,6 +854,7 @@ class SiglipVisionTransformer(SiglipPreTrainedModel):
     _supports_flash_attn_2 = True
 
     def __init__(self, config: SiglipVisionConfig):
+        config = SiglipVisionConfig(**config)
         super().__init__(config)
         self.config = config
         embed_dim = config.hidden_size

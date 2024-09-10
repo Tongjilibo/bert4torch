@@ -258,7 +258,7 @@ def build_transformer_model(
 def check_update_config(config_path:str, **kwargs):
     '''对config做一些参数检查和更新操作'''
 
-    config = DottableDict()
+    config = dict()
     if config_path is not None:
         config.update(json.load(open(config_path)))
     config.update(kwargs)
@@ -283,4 +283,4 @@ def check_update_config(config_path:str, **kwargs):
         log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
         config['_attn_implementation'] = 'eager'
 
-    return config
+    return DottableDict(config)

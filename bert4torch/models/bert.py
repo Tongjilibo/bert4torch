@@ -331,7 +331,7 @@ class BERT(BERT_BASE):
     
     def load_variable(self, variable, old_key, new_key, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
-        mapping = self.variable_mapping()
+        # mapping = self.variable_mapping()
 
         if old_key in {
             f'{prefix}.embeddings.word_embeddings.weight',

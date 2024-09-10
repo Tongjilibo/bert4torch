@@ -194,7 +194,7 @@ class BERT_BASE(nn.Module):
         """构建pytorch层与checkpoint的变量名之间的映射表"""
         return {}
 
-    def load_variable(self):
+    def load_variable(self, *args, **kwargs):
         raise NotImplementedError
 
     def load_embeddings(self, embeddings):
