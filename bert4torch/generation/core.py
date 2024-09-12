@@ -926,13 +926,6 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             return output_text
 
-    def _generate(self, inputs:INPUT_TYPE, states=None):
-        if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, states=states)  # 基于随机采样
-        elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs, states=states)  # 基于beam search
-        return output_ids
-
     @model_inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
     def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
@@ -960,7 +953,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         self.set_generation_config(kwargs)
         inputs = self.pre_process(text)
-        output_ids = self._generate(inputs, states=self.get_states(**kwargs))
+
+        if self.mode == 'random_sample':
+            output_ids = self.random_sample(inputs, states=self.get_states(**kwargs))  # 基于随机采样
+        elif self.mode == 'beam_search':
+            output_ids = self.beam_search(inputs, states=self.get_states(**kwargs))  # 基于beam search
+
         return self.post_process(output_ids)
 
     @model_inference_mode()
