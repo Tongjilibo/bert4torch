@@ -8,7 +8,7 @@ from .modeling_navit_siglip import SiglipVisionTransformer
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.base import BERT_BASE
-from bert4torch.snippets import is_transformers_available, DottableDict
+from bert4torch.snippets import is_transformers_available, DottableDict, inference_mode
 
 
 if is_transformers_available():
@@ -206,3 +206,43 @@ class MiniCPMV(BERT_BASE):
             f'llm.decoderLayer.{i}.ffnLayerNorm.weight': f'llm.model.layers.{i}.post_attention_layernorm.weight'
             })
         return mapping
+
+    
+    def _decode_stream(self, inputs_embeds, attention_mask, **kwargs):
+        for output in self.llm.stream_generate(
+            inputs_embeds, attention_mask=attention_mask, **kwargs):
+            yield output
+
+    @inference_mode()
+    def generate(
+        self,
+        input_ids=None,
+        pixel_values=None,
+        tgt_sizes=None,
+        image_bound=None,
+        attention_mask=None,
+        vision_hidden_states=None,
+        return_vision_hidden_states=False,
+        stream=False,
+        **kwargs
+    ):
+        assert input_ids is not None
+        assert len(input_ids) == len(pixel_values)
+
+        model_inputs = {"input_ids": input_ids, "image_bound": image_bound}
+
+        if vision_hidden_states is None:
+            model_inputs["pixel_values"] = pixel_values
+            model_inputs['tgt_sizes'] = tgt_sizes
+        else:
+            model_inputs["vision_hidden_states"] = vision_hidden_states
+
+        (model_inputs["inputs_embeds"], vision_hidden_states) = self.get_vllm_embedding(model_inputs)
+        if stream:
+            result = self._decode_stream(model_inputs["inputs_embeds"], attention_mask, **kwargs)
+        else:
+            result = self.llm.generate(model_inputs["inputs_embeds"], attention_mask=attention_mask, **kwargs)
+
+        if return_vision_hidden_states:
+            return result, vision_hidden_states
+        return result

@@ -9,6 +9,7 @@ from torch.utils.checkpoint import CheckpointFunction
 from torch4keras.snippets import log_info, log_warn, Timeit, is_accelerate_available, find_tied_parameters, log_warn_once
 from typing import Union
 import re
+from packaging import version
 
 
 if is_accelerate_available():
@@ -353,3 +354,9 @@ def has_chinese_char(text:str) -> bool:
     elif text.strip() == '':
         return False
     return re.search(r'[\u4e00-\u9fff]', text)
+
+
+if version.parse(torch.__version__) >= version.parse("1.10.0"):
+    inference_mode = torch.inference_mode
+else:
+    inference_mode = torch.no_grad

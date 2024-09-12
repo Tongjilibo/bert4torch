@@ -30,7 +30,8 @@ from bert4torch.snippets import (
     has_chinese_char,
     add_start_docstrings,
     JsonConfig,
-    is_transformers_available
+    is_transformers_available,
+    inference_mode
 )
 from packaging import version
 import gc
@@ -76,86 +77,16 @@ __all__ = [
 
 
 class ChatV(ChatBase):
-    def __init__(self, *arg, **kwargs):
-        super().__init__(*arg, **kwargs)
-        self.terminators = ['<|im_end|>', '<|endoftext|>']
-    
-    def _decode(self, inputs_embeds, attention_mask, **kwargs):
-        terminators = [self.tokenizer.convert_tokens_to_ids(i) for i in self.terminators]
-        output = self.model.llm.generate(
-            inputs_embeds,
-            pad_token_id=0,
-            eos_token_id=terminators,
-            attention_mask=attention_mask,
-            tokenizer=self.tokenizer,
-            **kwargs
-        )
-        return output
+    def generate(self, *args, **kwargs):
+        '''base模型使用'''
+        return self.model.generate(*args, **kwargs)
 
-    def _decode_stream(self, inputs_embeds, attention_mask, **kwargs):
-        terminators = [self.tokenizer.convert_tokens_to_ids(i) for i in self.terminators]
-        generation_kwargs = {
-            'text': inputs_embeds,
-            'pad_token_id': 0,
-            'eos_token_id': terminators,
-            'attention_mask': attention_mask,
-        }
-        generation_kwargs.update(kwargs)
-
-        for output in self.model.llm.stream_generate(inputs_embeds,  pad_token_id=0, eos_token_id=terminators,
-                                                     attention_mask=attention_mask, tokenizer=self.tokenizer, **kwargs):
-            yield output
-
-    def generate(
-        self,
-        input_ids=None,
-        pixel_values=None,
-        tgt_sizes=None,
-        image_bound=None,
-        attention_mask=None,
-        vision_hidden_states=None,
-        return_vision_hidden_states=False,
-        stream=False,
-        **kwargs
-    ):
-        assert input_ids is not None
-        assert len(input_ids) == len(pixel_values)
-
-        model_inputs = {
-            "input_ids": input_ids,
-            "image_bound": image_bound,
-        }
-
-        if vision_hidden_states is None:
-            model_inputs["pixel_values"] = pixel_values
-            model_inputs['tgt_sizes'] = tgt_sizes
-        else:
-            model_inputs["vision_hidden_states"] = vision_hidden_states
-
-        with torch.inference_mode():
-            (
-                model_inputs["inputs_embeds"],
-                vision_hidden_states,
-            ) = self.model.get_vllm_embedding(model_inputs)
-
-            if stream:
-                result = self._decode_stream(model_inputs["inputs_embeds"], attention_mask, **kwargs)
-            else:
-                result = self._decode(model_inputs["inputs_embeds"], attention_mask, **kwargs)
-
-        if return_vision_hidden_states:
-            return result, vision_hidden_states
-        
-        return result
-
+    @inference_mode()
     def chat(
         self,
         image,
         msgs,
         vision_hidden_states=None,
-        max_new_tokens=2048,
-        min_new_tokens=0,
-        sampling=True,
         max_inp_length=8192,
         system_prompt='',
         stream=False,
@@ -177,10 +108,9 @@ class ChatV(ChatBase):
             images_list = [None] * len(msgs_list)
         assert len(images_list) == len(msgs_list), "The batch dim of images_list and msgs_list should be the same."
 
-        if processor is None:
-            if not hasattr(self, 'processor'):
-                self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
-            processor = self.processor
+        if not hasattr(self, 'processor'):
+            self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
+        processor = self.processor
         
         assert self.model.config.query_num == processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         assert self.model.config.patch_size == processor.image_processor.patch_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
@@ -196,7 +126,6 @@ class ChatV(ChatBase):
             copy_msgs = deepcopy(msgs)
 
             assert len(msgs) > 0, "msgs is empty"
-            assert sampling or not stream, "if use stream mode, make sure sampling=True"
 
             if image is not None and isinstance(copy_msgs[0]["content"], str):
                 copy_msgs[0]["content"] = [image, copy_msgs[0]["content"]]
@@ -235,36 +164,14 @@ class ChatV(ChatBase):
             max_length=max_inp_length
         ).to(self.device)
 
-        if sampling:
-            generation_config = {
-                "top_p": 0.8,
-                "top_k": 100,
-                "temperature": 0.7,
-                "do_sample": True,
-                "repetition_penalty": 1.05
-            }
-        else:
-            generation_config = {
-                "num_beams": 3,
-                "repetition_penalty": 1.2,
-            }
-            
-        if min_new_tokens > 0:
-            generation_config['min_new_tokens'] = min_new_tokens
-
-        generation_config.update(
-            (k, kwargs[k]) for k in generation_config.keys() & kwargs.keys()
-        )
-
         inputs.pop("image_sizes")
-        with torch.inference_mode():
-            res = self.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                vision_hidden_states=vision_hidden_states,
-                stream=stream,
-                **generation_config
-            )
+        res = self.generate(
+            **inputs,
+            vision_hidden_states=vision_hidden_states,
+            stream=stream,
+            **self.generation_config,
+            **kwargs
+        )
         
         if stream:
             def stream_gen():

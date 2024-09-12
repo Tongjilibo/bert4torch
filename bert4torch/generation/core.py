@@ -7,22 +7,16 @@ import torch.nn as nn
 import numpy as np
 from bert4torch.generation.logits_process import *
 from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, \
-    log_info, log_warn, log_warn_once
+    log_info, log_warn, log_warn_once, inference_mode
 from bert4torch.tokenizers import TokenizerBase
 from torch4keras.model import BaseModel
 from torch4keras.trainer import Trainer
-from packaging import version
 from contextlib import contextmanager
 import gc
 
 
 INPUT_TYPE = Union[torch.Tensor, List[Union[int, list, tuple, torch.Tensor, np.ndarray]], Tuple[Union[int, list, tuple, torch.Tensor, np.ndarray]], np.ndarray]
 TUPLE_LIST_TENSOR_TYPE = Union[Tuple[torch.Tensor], List[torch.Tensor]]
-
-if version.parse(torch.__version__) >= version.parse("1.10.0"):
-    model_inference_mode = torch.inference_mode
-else:
-    model_inference_mode = torch.no_grad
 
 
 def get_max_input_seqlen(input_seqlen:torch.Tensor):
@@ -67,7 +61,7 @@ class AutoRegressiveDecoder(object):
     :param return_states: bool, 是否返回缓存的states, 主要是有history模式下, 返回past_key_values有利于加速
 
     """
-    @model_inference_mode()
+    @inference_mode()
     def __init__(self, 
                  bos_token_id:int=None, 
                  eos_token_id:int=-1, 
@@ -926,7 +920,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         else:
             return output_text
 
-    @model_inference_mode()
+    @inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
     def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch生成'''
@@ -961,7 +955,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         return self.post_process(output_ids)
 
-    @model_inference_mode()
+    @inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
     def stream_generate(self, text:Union[str, torch.Tensor], **kwargs):
         '''单条样本stream输出预测的结果'''
