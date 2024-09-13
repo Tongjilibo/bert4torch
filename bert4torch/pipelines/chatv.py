@@ -72,115 +72,109 @@ if is_transformers_available():
     from transformers import AutoProcessor, TextIteratorStreamer
 
 __all__ = [
-    'ChatV',
+    'ChatVBase',
+    'MiniCPMV'
     ]
 
 
-class ChatV(ChatBase):
+class ChatVBase(ChatBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
+
     def generate(self, *args, **kwargs):
         '''base模型使用'''
         return self.model.generate(*args, **kwargs)
 
+    def build_prompt(self, *args, **kwargs) -> str:
+        raise NotImplementedError
+
     @inference_mode()
     def chat(
         self,
-        image,
-        msgs,
+        query,
+        images,
+        history:List[dict]=None,
         vision_hidden_states=None,
         max_inp_length=8192,
         system_prompt='',
-        stream=False,
         max_slice_nums=None,
         use_image_id=None,
         **kwargs
     ):
-        if isinstance(msgs[0], list):
-            batched = True
-        else:
-            batched = False
-        msgs_list = msgs
-        images_list = image
-        
-        if batched is False:
-            images_list, msgs_list = [images_list], [msgs_list]
-        else:
-            assert images_list is None, "Please integrate image to msgs when using batch inference."
-            images_list = [None] * len(msgs_list)
-        assert len(images_list) == len(msgs_list), "The batch dim of images_list and msgs_list should be the same."
-
-        if not hasattr(self, 'processor'):
-            self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
-        processor = self.processor
-        
-        assert self.model.config.query_num == processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-        assert self.model.config.patch_size == processor.image_processor.patch_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-        assert self.model.config.use_image_id == processor.image_processor.use_image_id, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-        assert self.model.config.slice_config.max_slice_nums == processor.image_processor.max_slice_nums, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-        assert self.model.config.slice_mode == processor.image_processor.slice_mode, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-
-        prompts_lists = []
-        input_images_lists = []
-        for image, msgs in zip(images_list, msgs_list):
-            if isinstance(msgs, str):
-                msgs = json.loads(msgs)
-            copy_msgs = deepcopy(msgs)
-
-            assert len(msgs) > 0, "msgs is empty"
-
-            if image is not None and isinstance(copy_msgs[0]["content"], str):
-                copy_msgs[0]["content"] = [image, copy_msgs[0]["content"]]
-
-            images = []
-            for i, msg in enumerate(copy_msgs):
-                role = msg["role"]
-                content = msg["content"]
-                assert role in ["user", "assistant"]
-                if i == 0:
-                    assert role == "user", "The role of first msg should be user"
-                if isinstance(content, str):
-                    content = [content]
-                cur_msgs = []
-                for c in content:
-                    if isinstance(c, Image.Image):
-                        images.append(c)
-                        cur_msgs.append("(<image>./</image>)")
-                    elif isinstance(c, str):
-                        cur_msgs.append(c)
-                msg["content"] = "\n".join(cur_msgs)
-
-            if system_prompt:
-                sys_msg = {'role': 'system', 'content': system_prompt}
-                copy_msgs = [sys_msg] + copy_msgs        
-
-            prompts_lists.append(processor.tokenizer.apply_chat_template(copy_msgs, tokenize=False, add_generation_prompt=True))
-            input_images_lists.append(images)
-
-        inputs = processor(
-            prompts_lists, 
-            input_images_lists, 
-            max_slice_nums=max_slice_nums,
-            use_image_id=use_image_id,
-            return_tensors="pt", 
-            max_length=max_inp_length
-        ).to(self.device)
-
-        inputs.pop("image_sizes")
-        res = self.generate(
+        inputs = self.build_prompt(query, images, history, max_inp_length=max_inp_length, max_slice_nums=max_slice_nums,
+                                   system_prompt=system_prompt, use_image_id=use_image_id)
+        answer = self.generate(
             **inputs,
             vision_hidden_states=vision_hidden_states,
-            stream=stream,
             **self.generation_config,
             **kwargs
         )
-        
-        if stream:
-            def stream_gen():
-                for text in res:
-                    text = text if batched else text[0]
-                    for term in self.terminators:
-                        text = text.replace(term, '')
-                    yield text
-            return stream_gen()
+        return answer
 
-        else:
-            return res
+
+class MiniCPMV(ChatVBase):
+    def build_prompt(self, query: Union[str, List[str]], 
+                     images: Union[Image.Image, List[Image.Image]], 
+                     history: List[Dict], 
+                     **kwargs
+        ) -> str:
+        '''
+        history: [
+                    {'role': 'user', 'content': '图片中描述的是什么', 'images': [PIL.Image.Image]},
+                    {'role': 'assistant', 'content': '该图片中描述了一个小男孩在踢足球'},
+                 ]
+        '''
+        if isinstance(query, str):
+            query = [query]
+        if isinstance(images, Image.Image):
+            images = [images]
+        elif isinstance(images, list) and isinstance(images[0], Image.Image) and len(query) == 1:
+            images = [images]
+        
+        assert len(query) == len(images), "The batch dim of query and images should be the same."        
+        assert self.model.config.query_num == self.processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+        assert self.model.config.patch_size == self.processor.image_processor.patch_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+        assert self.model.config.use_image_id == self.processor.image_processor.use_image_id, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+        assert self.model.config.slice_config.max_slice_nums == self.processor.image_processor.max_slice_nums, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+        assert self.model.config.slice_mode == self.processor.image_processor.slice_mode, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+
+        # 处理history
+        history_images = []
+        for i, hist in enumerate(history or []):
+            role = hist["role"]
+            content = hist["content"]
+            images = hist['images']
+            assert role in ["user", "assistant"]
+            if i == 0:
+                assert role == "user", "The role of first msg should be user"
+            if isinstance(images, (str, Image.Image)):
+                images = [images]
+            cur_msgs = ["(<image>./</image>)\n" + content for _ in images]
+            hist["content"] = "\n".join(cur_msgs)
+            history_images.append(images)
+
+        prompts_lists = []
+        input_images_lists = []
+        for image, q in zip(images, query):
+            copy_msgs = copy.deepcopy(history) or []
+            copy_msgs.append({'role': 'user', 'content': "(<image>./</image>)\n"+q})
+
+            if kwargs.get('system_prompt'):
+                sys_msg = {'role': 'system', 'content': kwargs.get('system_prompt')}
+                copy_msgs = [sys_msg] + copy_msgs        
+
+            prompts_lists.append(self.processor.tokenizer.apply_chat_template(copy_msgs, tokenize=False, add_generation_prompt=True))
+            input_images_lists.append(history_images + [image])
+
+        inputs = self.processor(
+            prompts_lists, 
+            input_images_lists, 
+            max_slice_nums=kwargs.get('max_slice_nums'),
+            use_image_id=kwargs.get('use_image_id'),
+            return_tensors="pt", 
+            max_length=kwargs.get('max_inp_length'),
+        ).to(self.device)
+
+        inputs.pop("image_sizes")
+        return inputs

@@ -72,6 +72,22 @@ __all__ = [
     'Chat',
     'ChatOpenaiClient',
     'ChatOpenaiClientSseclient',
+    'Glm',
+    'Glm2',
+    'Glm3',
+    'Glm4',
+    'InternLM',
+    'InternLM2',
+    'Qwen',
+    'Qwen2',
+    'LLaMA2',
+    'LLaMA3',
+    'ApplyChatTemplate',
+    'Ziya',
+    'ChineseLlamaAlpaca',
+    'Belle',
+    'Baichuan',
+    'PretrainedTextContinuation'
     ]
 
 
@@ -239,7 +255,7 @@ class ChatBase(PipeLineBase):
             history_copy = [copy.deepcopy(history) for _ in query]
             prompt = [self.build_prompt(q, hist, functions) for q, hist in zip(query, history_copy)]
             response = self.model.generate(prompt, **self.generation_config)
-            return [self.process_response_history(response, history=hist) for r, hist in zip(response, history_copy)]
+            return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
 
@@ -2094,7 +2110,7 @@ class Chat:
     :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
 
     ### 模式
-    :param mode: 命令行, web, api服务模式, Literal['cli', 'gradio', 'streamlit', 'openai']
+    :param mode: 命令行, web, api服务模式, Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']
     :param template: 使用的模板, 一般在bert4torch_config.json中无需单独设置, 可自行指定
 
     ### openai api参数
@@ -2139,13 +2155,13 @@ class Chat:
                  offload_when_nocall:Literal['cpu', 'disk']=None, 
                  api_keys:List[str]=None,
                  # 模式
-                 mode:Literal['cli', 'gradio', 'streamlit', 'openai']='cli',
+                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli',
                  template: str=None,
                  **kwargs
                  ) -> None:
         pass
 
-    def __new__(cls, *args, mode:Literal['cli', 'gradio', 'streamlit', 'openai']='cli', **kwargs):
+    def __new__(cls, *args, mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli', **kwargs):
         # template指定使用的模板
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
@@ -2174,6 +2190,8 @@ class Chat:
         elif mode == 'openai':
             @add_start_docstrings(OPENAI_START_DOCSTRING)
             class ChatDemo(ChatTemplate, ChatOpenaiApi): pass
+        elif mode == 'raw':
+            ChatDemo = ChatTemplate
         else:
             raise ValueError(f'Unsupported mode={mode}')
         return ChatDemo(*args, **kwargs)
