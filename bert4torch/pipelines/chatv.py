@@ -114,25 +114,53 @@ class ChatVBase(ChatBase):
 
 
 class MiniCPMV(ChatVBase):
-    def build_prompt(self, query: Union[str, List[str]], 
-                     images: Union[Image.Image, List[Image.Image]], 
-                     history: List[Dict], 
-                     **kwargs
+    def build_prompt(
+            self,
+            queries: Union[str, List[str]], 
+            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]], 
+            history: List[Dict], 
+            **kwargs
         ) -> str:
         '''
         history: [
                     {'role': 'user', 'content': '图片中描述的是什么', 'images': [PIL.Image.Image]},
                     {'role': 'assistant', 'content': '该图片中描述了一个小男孩在踢足球'},
                  ]
+
+        |    query    |        images      |     comment      |
+        |   -------   |      --------      |    ---------     |
+        |     str     |        Image       |    提问单张图片   |
+        |     str     |     List[Image]    |  同时提问多张图片  |
+        |  List[str]  |        Image       |  多次提问单张图片  |
+        |  List[str]  |     List[Image]    |  各自提问单张图片  |
+        |  List[str]  |  List[List[Image]] |各自同时提问多张图片|
         '''
-        if isinstance(query, str):
-            query = [query]
-        if isinstance(images, Image.Image):
-            images = [images]
-        elif isinstance(images, list) and isinstance(images[0], Image.Image) and len(query) == 1:
-            images = [images]
-        
-        assert len(query) == len(images), "The batch dim of query and images should be the same."        
+
+        if isinstance(queries, str):
+            if isinstance(images, Image.Image):
+                # 提问单张图片
+                queries, images = [queries], [images]
+            elif isinstance(images, List) and isinstance(images[0], Image.Image):
+                # 同时提问多张图片
+                queries, images = [queries], [images]
+            else:
+                raise TypeError(f'type(query)={type(queries)}, and type(images)={type(images)}')
+        elif isinstance(queries, List) and isinstance(queries[0], str):
+            if isinstance(images, Image.Image):
+                # 多次提问单张图片
+                images = [images] * len(queries)
+            elif isinstance(images, List) and isinstance(images[0], Image.Image):
+                # 各自提问单张图片
+                pass
+            elif isinstance(images, List) and isinstance(images[0], List) and isinstance(images[0][0], Image.Image):
+                # 各自同时提问多张图片
+                pass
+            else:
+                raise TypeError(f'type(query)={type(queries)}, and type(images)={type(images)}')
+        else:
+            raise TypeError(f'type(query)={type(queries)}, and type(images)={type(images)}')
+
+        assert len(queries) == len(images), "The batch dim of query and images should be the same."        
         assert self.model.config.query_num == self.processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         assert self.model.config.patch_size == self.processor.image_processor.patch_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         assert self.model.config.use_image_id == self.processor.image_processor.use_image_id, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
@@ -156,16 +184,17 @@ class MiniCPMV(ChatVBase):
 
         prompts_lists = []
         input_images_lists = []
-        for image, q in zip(images, query):
+        for query, image in zip(queries, images):
             copy_msgs = copy.deepcopy(history) or []
-            copy_msgs.append({'role': 'user', 'content': "(<image>./</image>)\n"+q})
+            content = "(<image>./</image>)\n"+query if isinstance(image, Image.Image) else "(<image>./</image>)\n"*len(image) + query
+            copy_msgs.append({'role': 'user', 'content': content})
 
             if kwargs.get('system_prompt'):
                 sys_msg = {'role': 'system', 'content': kwargs.get('system_prompt')}
                 copy_msgs = [sys_msg] + copy_msgs        
 
             prompts_lists.append(self.processor.tokenizer.apply_chat_template(copy_msgs, tokenize=False, add_generation_prompt=True))
-            input_images_lists.append(history_images + [image])
+            input_images_lists.append(history_images + [image] if isinstance(image, Image.Image) else image)
 
         inputs = self.processor(
             prompts_lists, 
