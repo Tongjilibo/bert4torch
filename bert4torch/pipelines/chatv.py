@@ -137,14 +137,15 @@ class MiniCPMV(ChatVBase):
         '''
 
         if isinstance(queries, str):
+            queries = [queries]
             if isinstance(images, Image.Image):
                 # 提问单张图片
-                queries, images = [queries], [images]
+                images = [images]
             elif isinstance(images, List) and isinstance(images[0], Image.Image):
                 # 同时提问多张图片
-                queries, images = [queries], [images]
-            else:
-                raise TypeError(f'type(query)={type(queries)}, and type(images)={type(images)}')
+                images = [images]
+            elif images is None:
+                images = [images]
         elif isinstance(queries, List) and isinstance(queries[0], str):
             if isinstance(images, Image.Image):
                 # 多次提问单张图片
@@ -155,10 +156,6 @@ class MiniCPMV(ChatVBase):
             elif isinstance(images, List) and isinstance(images[0], List) and isinstance(images[0][0], Image.Image):
                 # 各自同时提问多张图片
                 pass
-            else:
-                raise TypeError(f'type(query)={type(queries)}, and type(images)={type(images)}')
-        else:
-            raise TypeError(f'type(query)={type(queries)}, and type(images)={type(images)}')
 
         assert len(queries) == len(images), "The batch dim of query and images should be the same."        
         assert self.model.config.query_num == self.processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
@@ -172,21 +169,26 @@ class MiniCPMV(ChatVBase):
         for i, hist in enumerate(history or []):
             role = hist["role"]
             content = hist["content"]
-            images = hist['images']
             assert role in ["user", "assistant"]
             if i == 0:
                 assert role == "user", "The role of first msg should be user"
-            if isinstance(images, (str, Image.Image)):
-                images = [images]
-            cur_msgs = ["(<image>./</image>)\n" + content for _ in images]
-            hist["content"] = "\n".join(cur_msgs)
-            history_images.append(images)
+            
+            if 'images' not in hist:
+                continue
+            if isinstance(hist["images"], Image.Image):
+                hist["images"] = [hist["images"]]
+            hist["content"] = "(<image>./</image>)\n"*len(hist["images"]) + content
+            history_images.extend(hist["images"])
 
         prompts_lists = []
         input_images_lists = []
         for query, image in zip(queries, images):
             copy_msgs = copy.deepcopy(history) or []
-            content = "(<image>./</image>)\n"+query if isinstance(image, Image.Image) else "(<image>./</image>)\n"*len(image) + query
+            if image is None:
+                image = []
+            elif isinstance(image, Image.Image):
+                image = [image]
+            content = "(<image>./</image>)\n"*len(image) + query
             copy_msgs.append({'role': 'user', 'content': content})
 
             if kwargs.get('system_prompt'):
@@ -194,7 +196,7 @@ class MiniCPMV(ChatVBase):
                 copy_msgs = [sys_msg] + copy_msgs        
 
             prompts_lists.append(self.processor.tokenizer.apply_chat_template(copy_msgs, tokenize=False, add_generation_prompt=True))
-            input_images_lists.append(history_images + [image] if isinstance(image, Image.Image) else image)
+            input_images_lists.append(history_images + image)
 
         inputs = self.processor(
             prompts_lists, 

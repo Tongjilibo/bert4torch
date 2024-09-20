@@ -924,7 +924,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     @EmptyCacheDecorators.empty_cuda_cache()
     def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch生成'''
-        if isinstance(text, (str, torch.Tensor)):
+        if isinstance(text, str):
             # 单条样本
             self.use_batch = False
         elif isinstance(text, list):
@@ -942,6 +942,8 @@ class SeqGeneration(AutoRegressiveDecoder):
             if self.use_states and (self.pad_mode in {'post', 'right'}):
                 self.pad_mode = 'pre'
                 log_info("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
+        elif isinstance(text, torch.Tensor):
+            self.use_batch = False if text.shape[0] == 1 else True
         else:
             raise TypeError('Args `text` only support `str/list(str)` format')
         

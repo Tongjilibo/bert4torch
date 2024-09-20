@@ -14,6 +14,14 @@ log_info('# 提问单张图片')
 answer = demo.chat(query1, image1)
 print(answer)
 
+log_info('# 带history')
+history = [
+    {'role': 'user', 'content': query1, 'images': [image1]},
+    {'role': 'assistant', 'content': answer},
+]
+answer = demo.chat(query2, images=None, history=history)
+print(answer)
+
 log_info('# 同时提问多张图片')
 answer = demo.chat(query1, [image1, image2])
 print(answer)
