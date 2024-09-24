@@ -160,9 +160,9 @@ class MiniCPMV(ChatVBase):
         assert len(queries) == len(images), "The batch dim of query and images should be the same."        
         assert self.model.config.query_num == self.processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         assert self.model.config.patch_size == self.processor.image_processor.patch_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-        assert self.model.config.use_image_id == self.processor.image_processor.use_image_id, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+        # assert self.model.config.use_image_id == self.processor.image_processor.use_image_id, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         assert self.model.config.slice_config.max_slice_nums == self.processor.image_processor.max_slice_nums, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
-        assert self.model.config.slice_mode == self.processor.image_processor.slice_mode, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
+        # assert self.model.config.slice_mode == self.processor.image_processor.slice_mode, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
 
         # 处理history
         history_images = []

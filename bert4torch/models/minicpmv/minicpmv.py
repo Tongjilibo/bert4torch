@@ -7,6 +7,7 @@ from PIL import Image
 from .modeling_navit_siglip import SiglipVisionTransformer
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
+from bert4torch.models.llama import LLaMA
 from bert4torch.models.base import BERT_BASE
 from bert4torch.snippets import is_transformers_available, DottableDict, inference_mode
 
@@ -24,8 +25,6 @@ class MiniCPMV(BERT_BASE):
         self.vision_dim = self.vpm.embed_dim
         self.embed_dim = self.llm.hidden_size
         self.resampler = self.init_resampler(self.embed_dim, self.vision_dim)
-        # self.processor = None
-        # self.terminators = ['<|im_end|>', '<|endoftext|>']
 
     def init_vision_module(self):
         # same as HuggingFaceM4/siglip-so400m-14-980-flash-attn2-navit add tgt_sizes
@@ -246,3 +245,30 @@ class MiniCPMV(BERT_BASE):
         if return_vision_hidden_states:
             return result, vision_hidden_states
         return result
+
+
+class MiniCPMLlama3V(MiniCPMV):
+    def __init__(self, **config):
+        super().__init__(**config)
+        self.llm = LLaMA(**config)
+        self.config = DottableDict(config)
+        self.vpm = self.init_vision_module()
+        self.vision_dim = self.vpm.embed_dim
+        self.embed_dim = self.llm.hidden_size
+        self.resampler = self.init_resampler(self.embed_dim, self.vision_dim)
+
+    def init_vision_module(self):
+        from transformers.models.idefics2.modeling_idefics2 import Idefics2VisionTransformer
+        model = Idefics2VisionTransformer(self.config.vision_config)
+        if self.config.drop_vision_last_layer:
+            model.encoder.layers = model.encoder.layers[:-1]
+
+        setattr(model, 'embed_dim', model.embeddings.embed_dim)
+        setattr(model, 'patch_size', model.embeddings.patch_size)
+
+        return model
+    
+    def variable_mapping(self):
+        mapping = super().variable_mapping()
+        mapping = {k:v for k,v in mapping.items() if '.bias' not in k}
+        return mapping

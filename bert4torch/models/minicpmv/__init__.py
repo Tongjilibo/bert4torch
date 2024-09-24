@@ -1,1 +1,1 @@
-from .minicpmv import MiniCPMV
+from .minicpmv import MiniCPMV, MiniCPMLlama3V
