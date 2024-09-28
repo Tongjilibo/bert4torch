@@ -45,6 +45,7 @@ import copy
 from argparse import REMAINDER, ArgumentParser
 from copy import deepcopy
 from PIL import Image
+import inspect
 
 
 if is_fastapi_available():
@@ -197,15 +198,28 @@ class MiniCPMV(ChatVBase):
 
             prompts_lists.append(self.processor.tokenizer.apply_chat_template(copy_msgs, tokenize=False, add_generation_prompt=True))
             input_images_lists.append(history_images + image)
-
-        inputs = self.processor(
-            prompts_lists, 
-            input_images_lists, 
-            max_slice_nums=kwargs.get('max_slice_nums'),
-            use_image_id=kwargs.get('use_image_id'),
-            return_tensors="pt", 
-            max_length=kwargs.get('max_inp_length'),
-        ).to(self.device)
+        
+        if 'max_slice_nums' in inspect.signature(self.processor).parameters:
+            # MiniCPM-V-2_6
+            inputs = self.processor(
+                prompts_lists, 
+                input_images_lists, 
+                max_slice_nums=kwargs.get('max_slice_nums'),
+                use_image_id=kwargs.get('use_image_id'),
+                return_tensors="pt", 
+                max_length=kwargs.get('max_inp_length'),
+            ).to(self.device)
+        else:
+            # MiniCPM-Llama3-V-2_5, 仅接受单张照片预测
+            if len(prompts_lists) > 1:
+                raise ValueError('`MiniCPM-Llama3-V-2_5` not support batch inference.')
+            inputs = self.processor(
+                prompts_lists[0], 
+                input_images_lists[0], 
+                return_tensors="pt", 
+                max_length=kwargs.get('max_inp_length'),
+            ).to(self.device)
+            inputs['attention_mask'] = torch.ones_like(inputs['input_ids'], dtype=bool)
 
         inputs.pop("image_sizes")
         return inputs

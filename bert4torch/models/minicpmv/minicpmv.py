@@ -10,6 +10,7 @@ from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
 from bert4torch.models.base import BERT_BASE
 from bert4torch.snippets import is_transformers_available, DottableDict, inference_mode
+import inspect
 
 
 if is_transformers_available():
@@ -40,6 +41,7 @@ class MiniCPMV(BERT_BASE):
         setattr(model, 'embed_dim', model.embeddings.embed_dim)
         setattr(model, 'patch_size', model.embeddings.patch_size)
 
+        self.vlm_tgt_sizes = True if 'tgt_sizes' in inspect.signature(model).parameters else False
         return model
 
     def init_resampler(self, embed_dim, vision_dim):
@@ -105,11 +107,17 @@ class MiniCPMV(BERT_BASE):
                     for i in range(0, B, vision_batch_size):
                         start_idx = i
                         end_idx = i + vision_batch_size
-                        tmp_hs = self.vpm(all_pixel_values[start_idx:end_idx], patch_attention_mask=patch_attn_mask[start_idx:end_idx], tgt_sizes=tgt_sizes[start_idx:end_idx]).last_hidden_state
+                        inputs_ = {'patch_attention_mask': patch_attn_mask[start_idx:end_idx]}
+                        if self.vlm_tgt_sizes:
+                            inputs_['tgt_sizes'] = tgt_sizes[start_idx:end_idx]
+                        tmp_hs = self.vpm(all_pixel_values[start_idx:end_idx], **inputs_).last_hidden_state
                         hs.append(tmp_hs)
                     vision_embedding = torch.cat(hs, dim=0)
                 else:
-                    vision_embedding = self.vpm(all_pixel_values, patch_attention_mask=patch_attn_mask, tgt_sizes=tgt_sizes).last_hidden_state
+                    inputs_ = {'patch_attention_mask': patch_attn_mask}
+                    if self.vlm_tgt_sizes:
+                        inputs_['tgt_sizes'] = tgt_sizes
+                    vision_embedding = self.vpm(all_pixel_values, **inputs_).last_hidden_state
                 vision_embedding = self.resampler(vision_embedding, tgt_sizes)
 
                 start = 0
@@ -265,6 +273,7 @@ class MiniCPMLlama3V(MiniCPMV):
 
         setattr(model, 'embed_dim', model.embeddings.embed_dim)
         setattr(model, 'patch_size', model.embeddings.patch_size)
+        self.vlm_tgt_sizes = True if 'tgt_sizes' in inspect.signature(model).parameters else False
 
         return model
     
