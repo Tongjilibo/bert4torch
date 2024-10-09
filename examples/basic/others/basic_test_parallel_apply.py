@@ -5,7 +5,7 @@ from tqdm import tqdm
 from bert4torch.tokenizers import Tokenizer
 import torch
 import numpy as np
-from bert4torch.snippets import parallel_apply
+from bert4torch.snippets import parallel_apply, parallel_apply_concurrent, Timeit
 import time
 
 dict_path = 'E:/data/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
@@ -111,16 +111,33 @@ def func(inputs):
     
     return tokens_ids, _pieces2word, _dist_inputs, _grid_labels, _grid_mask2d, _entity_text
 
-corpus = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+def funcs(inputs):
+    return [func(i) for i in inputs]
 
-start = time.time()
-train_samples = parallel_apply(
-            func=func,
-            iterable=corpus,
-            workers=8,
-            max_queue_size=2000,
-            dummy=False,  # windows设置为True
-            callback=None,
-            unordered=False
-        )
-print(time.time()-start)
+
+if __name__ == '__main__':
+    corpus = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
+
+    with Timeit() as ti:
+        train_samples = parallel_apply(
+                    func=func,
+                    iterable=corpus,
+                    workers=8,
+                    max_queue_size=2000,
+                    dummy=False,  # windows设置为True
+                    callback=None,
+                    unordered=False
+                )
+    print(len(train_samples))
+
+    with Timeit() as ti:
+        train_samples = parallel_apply_concurrent(
+                    func=funcs,
+                    iterable=corpus,
+                    workers=8,
+                    max_queue_size=2000,
+                    dummy=False,  # windows设置为True
+                    callback=None,
+                    unordered=False
+                )
+    print(len(train_samples))

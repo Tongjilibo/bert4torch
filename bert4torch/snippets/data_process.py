@@ -7,7 +7,8 @@ from torch.nn.utils.rnn import pad_sequence
 from typing import Optional, Union, List, Tuple, Callable, Iterable, Set, Literal
 from torch4keras.snippets import log_warn
 import random
-
+import os
+from tqdm import tqdm
 
 is_py2 = six.PY2
 
@@ -320,6 +321,10 @@ def parallel_apply_generator(func:Callable, iterable:Iterable, workers:int, max_
     注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。结果将作为一个
     generator返回，其中每个item是输入的序号以及该输入对应的处理结果。
     
+    :param func: 对iterable进行处理的回调函数；
+    :param iterable: 供func处理的输入项，为一个可迭代对象；
+    :param workers: 并行处理的workers数量；
+    :param max_queue_size: quene的最大数量；
     :param dummy: False是多进程/线性，True则是多线程/线性；
     :param random_seeds: 每个进程的随机种子。
     """
@@ -371,27 +376,86 @@ def parallel_apply_generator(func:Callable, iterable:Iterable, workers:int, max_
     pool.terminate()
 
 
-def parallel_apply(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, callback:Callable=None, dummy:bool=False, 
-                   random_seeds:bool=True, unordered:bool=True):
+def parallel_apply(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, callback:Callable=None, 
+                   dummy:bool=False, random_seeds:bool=True, unordered:bool=True):
     """多进程或多线程地将func应用到iterable的每个元素中（直接从bert4keras中移植过来）。
     注意这个apply是异步且无序的，也就是说依次输入a,b,c，但是输出可能是func(c), func(a), func(b)。
 
+    :param func: 对iterable进行处理的回调函数；
+    :param iterable: 供func处理的输入项，为一个可迭代对象；
+    :param workers: 并行处理的workers数量；
+    :param max_queue_size: quene的最大数量；
     :param callback: 处理单个输出的回调函数；
     :param dummy: False是多进程/线性，True则是多线程/线性；windows需设置dummy=True
     :param random_seeds: 每个进程的随机种子；
     :param unordered: 若为False，则按照输入顺序返回，仅当callback为None时生效。
     """
+    if (os.name == 'nt') and (dummy is False):
+        log_warn('Args `dummay` shold be True when in window os')
+
     generator = parallel_apply_generator(func, iterable, workers, max_queue_size, dummy, random_seeds)
 
-    if callback is None:
-        if unordered:
-            return [d for i, d in generator]
-        else:
-            results = sorted(generator, key=lambda d: d[0])
-            return [d for i, d in results]
+    results = []
+    for i, d in tqdm(generator, desc='ParallelApply'):
+        results.append((i, d))
+    
+    if unordered:
+        results = [d for i, d in results]
     else:
-        for i, d in generator:
-            callback(d)
+        results = sorted(results, key=lambda d: d[0])
+        results = [d for i, d in results]
+    
+    if callback is not None:
+        results = [callback(d) for d in results]
+    return results
+
+
+def parallel_apply_concurrent(func:Callable, iterable:Iterable, workers:int, max_queue_size:int, 
+                              callback:Callable=None, dummy:bool=False, unordered:bool=True, **kwargs):
+    '''使用concurrent来并发执行
+    :param func: 对iterable进行处理的回调函数；
+    :param iterable: 供func处理的输入项，为一个可迭代对象；
+    :param workers: 并行处理的workers数量；
+    :param batchsize: batchsize大小；
+    :param callback: 处理单个输出的回调函数；
+    :param dummy: False是多进程/线性，True则是多线程/线性；windows需设置dummy=True
+    :param random_seeds: 每个进程的随机种子；
+    :param unordered: 若为False，则按照输入顺序返回，仅当callback为None时生效。
+    '''
+    import concurrent.futures
+    results = []
+
+    if dummy:
+        Executor = concurrent.futures.ThreadPoolExecutor
+    else:
+        Executor = concurrent.futures.ProcessPoolExecutor
+
+    # 如果没有长度则变成列表
+    if not hasattr(iterable, '__len__'):
+        iterable = [i for i in iterable]
+
+    with Executor(max_workers=workers) as executor:
+        futures = []
+        for i in range(0, len(iterable), max_queue_size):
+            batch = iterable[i:i + max_queue_size]
+            future = executor.submit(func, batch)
+            futures.append((i, future))
+        
+        for i, future in tqdm(futures, desc='ParallelApplyConcurrent'):
+            result = future.result()
+            results += [(i+j, res) for j, res in enumerate(result)]
+    
+    if unordered:
+        results = [d for i, d in results]
+    else:
+        results = sorted(results, key=lambda d: d[0])
+        results = [d for i, d in results]
+
+
+    if callback is not None:
+        return [callback(d) for d in results]
+    
+    return results
 
 
 def get_pool_emb(hidden_state:Union[list, tuple, torch.Tensor]=None, pooled_output:torch.Tensor=None, attention_mask:torch.Tensor=None, 
