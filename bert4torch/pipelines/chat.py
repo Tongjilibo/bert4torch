@@ -44,6 +44,7 @@ import threading
 import re
 import copy
 from argparse import REMAINDER, ArgumentParser
+import asyncio
 
 
 if is_fastapi_available():
@@ -71,6 +72,7 @@ else:
 __all__ = [
     'Chat',
     'ChatOpenaiClient',
+    'ChatOpenaiClientAsync',
     'ChatOpenaiClientSseclient',
     'Glm',
     'Glm2',
@@ -867,14 +869,14 @@ class ChatOpenaiClient:
         from openai import OpenAI
         self.client = OpenAI(base_url=base_url, api_key=api_key, **kwargs)
     
-    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
+    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''流式返回'''
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
             functions=functions,
             stream=True,
-            max_tokens=max_length,
+            max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
             **kwargs
@@ -885,14 +887,14 @@ class ChatOpenaiClient:
             if content is not None:
                 yield content
 
-    def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
+    def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''一次性返回'''
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
             functions=functions,
             stream=False,
-            max_tokens=max_length,
+            max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
             **kwargs
@@ -903,6 +905,153 @@ class ChatOpenaiClient:
     def stream_chat_cli(self, *args, **kwargs):
         for token in self.stream_chat(*args, **kwargs):
             print(token, end='', flush=True)
+
+
+class ChatOpenaiClientAsync:
+    '''使用openai来调用
+    
+    Examples:
+    ```python
+    >>> messages = [
+    ...         {"content": "你好", "role": "user"},
+    ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+    ...         {"content": "你可以做什么？", "role": "user"}
+    ...         ]
+    >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
+
+    >>> # 流式
+    >>> for token in client.stream_chat(messages):
+    ...     print(token, end='', flush=True)
+
+    >>> # 非流式
+    >>> print(client.chat(messages))
+    ```
+    '''
+    def __init__(self, base_url:str, api_key:str=None, **kwargs) -> None:
+        from openai import AsyncOpenAI
+        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key, **kwargs)
+    
+    async def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
+        '''流式返回'''
+        response = await self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            functions=functions,
+            stream=True,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs
+            )
+
+        async for chunk in response:
+            content = chunk.choices[0].delta.content
+            if content is not None:
+                yield content
+
+    async def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
+        '''一次性返回'''
+        response = await self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            functions=functions,
+            stream=False,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs
+            )
+        content = response.choices[0].message.content
+        return content
+    
+    async def stream_chat_cli(self, *args, **kwargs):
+        async for token in self.stream_chat(*args, **kwargs):
+            print(token, end='', flush=True)
+
+    async def batch_chat(
+            self,
+            messages_list:list, 
+            model:str='default', 
+            functions:list=None,
+            max_tokens:int=1024, 
+            temperature:float=None, 
+            top_p:float=None, 
+            batch_size:int=5, 
+            verbose:bool=False,
+            **kwargs
+        ):
+        """并发调用"""
+        async def generate_text(messages_batch, client):
+            responses = await asyncio.gather(*[client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                functions=functions,
+                **kwargs
+            ) for messages in messages_batch])
+            if functions is None:
+                return [response.choices[0].message.content for response in responses]
+            else:
+                return [response.choices[0].message.function_call for response in responses]
+
+        assert isinstance(messages_list, list), f'Args `messages_list` must be a list, not {type(messages_list)}'
+        assert isinstance(messages_list[0], list), f'Args `messages_list` must be a List[List], not List[{type(messages_list[0])}]'
+
+        async with self.client as client:
+            results = []
+            for i in range(0, len(messages_list), batch_size):
+                batch = messages_list[i:i+batch_size]
+                batch_results = await generate_text(batch, client)
+                results.extend(batch_results)
+
+        if verbose: 
+            for messages, result in zip(messages_list, results):
+                print(f"Prompt: {messages}\nResponse: {result}\n")
+        return results
+
+    async def concurrent_chat(
+        self,
+        messages_list:list, 
+        model:str='default', 
+        functions:list=None,
+        max_tokens:int=1024, 
+        temperature:float=None, 
+        top_p:float=None, 
+        workers:int=5, 
+        verbose:bool=False,
+        **kwargs
+    ):
+        """并发调用"""
+        async def generate_text(messages, client, semaphore):
+            async with semaphore:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
+                    functions=functions,
+                    **kwargs
+                )
+                if functions is None:
+                    return response.choices[0].message.content
+                else:
+                    return response.choices[0].message.function_call
+
+        assert isinstance(messages_list, list), f'Args `messages_list` must be a list, not {type(messages_list)}'
+        assert isinstance(messages_list[0], list), f'Args `messages_list` must be a List[List], not List[{type(messages_list[0])}]'
+
+        semaphore = asyncio.Semaphore(workers)
+        async with self.client as client:
+            tasks = [generate_text(messages, client, semaphore) for messages in messages_list]
+            results = await asyncio.gather(*tasks)
+        
+        if verbose: 
+            for messages, result in zip(messages_list, results):
+                print(f"Prompt: {messages}\nResponse: {result}\n")
+        return results
 
 
 class ChatOpenaiClientSseclient:
@@ -933,8 +1082,8 @@ class ChatOpenaiClientSseclient:
     ...     print(token, end='', flush=True)
     ```
     '''
-    def __init__(self, url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
-        self.url = url
+    def __init__(self, base_url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
+        self.base_url = base_url
         self.api_key = api_key
         self.header = header
         self.params = params
@@ -946,7 +1095,7 @@ class ChatOpenaiClientSseclient:
         
         self.sseclient = sseclient
    
-    def stream_chat(self, body, **kwargs):
+    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''接口调用'''
         reqHeaders = {'Accept': 'text/event-stream'}
         if self.api_key is not None:
@@ -955,7 +1104,8 @@ class ChatOpenaiClientSseclient:
         if self.header is not None:
             reqHeaders.update(self.header)
         
-        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body, params=self.params, **kwargs)
+        body = {'messages': messages, 'model': model, 'stream': True}
+        request = requests.post(self.base_url, stream=True, headers=reqHeaders, json=body, params=self.params, **kwargs)
         client = self.sseclient.SSEClient(request)
         for event in client.events():
             if event.data != '[DONE]':
@@ -963,9 +1113,9 @@ class ChatOpenaiClientSseclient:
                 if 'content' in data:
                     yield data['content']
 
-    def stream_chat_cli(self, body, **kwargs):
+    def stream_chat_cli(self, messages:List[Dict], **kwargs):
         '''简单测试在命令行打印'''
-        for token in self.stream_chat(body, **kwargs):
+        for token in self.stream_chat(messages, **kwargs):
             print(token, end='', flush=True)
 
 

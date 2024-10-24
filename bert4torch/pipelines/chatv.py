@@ -103,6 +103,7 @@ class ChatVBase(ChatBase):
         use_image_id=None,
         **kwargs
     ):
+        # 处理query和images输入
         inputs = self.build_prompt(query, images, history, max_inp_length=max_inp_length, max_slice_nums=max_slice_nums,
                                    system_prompt=system_prompt, use_image_id=use_image_id)
         answer = self.generate(

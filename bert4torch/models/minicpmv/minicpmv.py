@@ -13,10 +13,6 @@ from bert4torch.snippets import is_transformers_available, DottableDict, inferen
 import inspect
 
 
-if is_transformers_available():
-    from transformers import AutoProcessor, TextIteratorStreamer
-
-
 class MiniCPMV(BERT_BASE):
     def __init__(self, **config):
         super().__init__(**config)

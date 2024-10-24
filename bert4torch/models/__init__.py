@@ -21,6 +21,7 @@ from bert4torch.models.xlnet import XLNET
 from bert4torch.models.uie import UIE
 from bert4torch.models.bloom import Bloom
 from bert4torch.models.qwen import Qwen, Qwen2
+from bert4torch.models.qwen2_vl import Qwen2VL
 from bert4torch.models.internlm import InternLM, InternLM2
 from bert4torch.models.falcon import Falcon
 from bert4torch.models.deepseek import DeepSeek
@@ -177,7 +178,8 @@ def build_transformer_model(
         'deepseek': DeepSeek,
         'minicpm': MiniCPM,
         'minicpmv': MiniCPMV,
-        'minicpm_llama3_v': MiniCPMLlama3V
+        'minicpm_llama3_v': MiniCPMLlama3V,
+        'qwen2_vl': Qwen2VL
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))
@@ -217,7 +219,7 @@ def build_transformer_model(
         else:
             skip_init = False  # 若accelerate包不存在则先初始化模型参数
             log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
-    elif not skip_init:
+    if not skip_init:
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
 

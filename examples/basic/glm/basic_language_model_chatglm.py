@@ -20,7 +20,7 @@ import re
 # chatglm2-6b, chatglm2-6b-int4, chatglm2-6b-32k
 # chatglm3-6b, chatglm3-6b-32k
 # glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
-model_dir = f"E:/data/pretrain_ckpt/glm/glm-4-9b-chat"
+model_dir = f"E:/data/pretrain_ckpt/glm/chatglm3-6b"
 
 generation_config = {
     'top_p': 0.8, 

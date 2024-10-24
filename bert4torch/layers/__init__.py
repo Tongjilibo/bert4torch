@@ -31,7 +31,7 @@ from bert4torch.layers.position_encoding import (
     NezhaPositionsEncoding, 
     T5PositionsEncoding, 
     SinusoidalPositionEncoding, 
-    RoPEPositionEncoding, 
+    RopePositionEncoding, 
     XlnetPositionsEncoding, 
     ALiBiPositionsEncoding
 )

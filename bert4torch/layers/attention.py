@@ -7,12 +7,12 @@ from bert4torch.layers.position_encoding import (
     DebertaV2PositionsEncoding, 
     NezhaPositionsEncoding, 
     T5PositionsEncoding, 
-    RoPEPositionEncoding, 
-    RoPELinearScalingPositionEncoding,
-    RoPEDynamicNTKScalingPositionEncoding,
-    RoPEDynamicNTKScalingQwenPositionEncoding,
-    RoPELlama3PositionEncoding,
-    RoPEYarnPositionEncoding,
+    RopePositionEncoding, 
+    RopeLinearScalingPositionEncoding,
+    RopeDynamicNTKScalingPositionEncoding,
+    RopeDynamicNTKScalingQwenPositionEncoding,
+    RopeLlama3PositionEncoding,
+    RopeYarnPositionEncoding,
     ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
@@ -608,9 +608,6 @@ class NezhaTypicalRelativeAttention(MultiHeadAttention):
 
 class RopeAttention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
-        # position_encoding_2d 目前仅在chatglm中使用
-        self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
-        embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
         rope_scaling = copy.deepcopy(self.rope_scaling)
         scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
         scaling_factor = rope_scaling.pop("factor", None)
@@ -622,7 +619,7 @@ class RopeAttention(MultiHeadAttention):
             assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
         
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
-            embedding_size=embedding_size, 
+            embedding_size=self.attention_head_size, 
             max_position=self.max_position, 
             rope_rank=rope_rank, 
             scaling_factor=scaling_factor, 
@@ -644,21 +641,8 @@ class RopeAttention(MultiHeadAttention):
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
         
-        # chatglm独有逻辑
-        if self.position_encoding_2d:
-            q1, q2 = query_states.chunk(2, dim=(query_states.ndim - 1))
-            k1, k2 = key_states.chunk(2, dim=(key_states.ndim - 1))
-            if len(position_ids.shape) == 3:
-                q1, k1 = self.relative_positions_encoding([q1, k1], position_ids[:, 0, :], kv_seq_len)
-                q2, k2 = self.relative_positions_encoding([q2, k2], position_ids[:, 1, :], kv_seq_len)
-            else:
-                q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
-            query_states = torch.concat([q1, q2], dim=(q1.ndim - 1))
-            key_states = torch.concat([k1, k2], dim=(k1.ndim - 1))
-        
-        # 原rotary逻辑
-        else:
-            query_states, key_states = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
+        # 执行相对位置编码
+        query_states, key_states = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
         
         # 过了rope再concat
         if past_key_value is not None:
@@ -691,7 +675,7 @@ class GatedAttention(nn.Module):
         
         self.p_bias = kwargs.get('p_bias')
         if self.p_bias == 'rotary':  # RoPE
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size, **kwargs)
+            self.relative_positions_encoding = RopePositionEncoding(embedding_size=self.attention_head_size, **kwargs)
 
     def forward(self, hidden_states, attention_mask):
         # 投影变换
