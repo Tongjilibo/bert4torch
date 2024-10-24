@@ -18,29 +18,15 @@ class Qwen2VL(BERT_BASE):
     def tie_weights(self):
         self.model.tie_weights()
 
-    def forward(
-            self,         
+    def get_vllm_embedding(
+            self, 
             input_ids: torch.LongTensor = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.LongTensor] = None,
-            past_key_values: Optional[List[torch.FloatTensor]] = None,
             inputs_embeds: Optional[torch.FloatTensor] = None,
-            use_cache: Optional[bool] = None,
-            output_attentions: Optional[bool] = None,
-            output_hidden_states: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
             pixel_values: Optional[torch.Tensor] = None,
             pixel_values_videos: Optional[torch.FloatTensor] = None,
             image_grid_thw: Optional[torch.LongTensor] = None,
             video_grid_thw: Optional[torch.LongTensor] = None,
-            rope_deltas: Optional[torch.LongTensor] = None,
-    ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
+        ):
         if inputs_embeds is None:
             inputs_embeds = self.model.embeddings(input_ids)
             if pixel_values is not None:
@@ -59,16 +45,32 @@ class Qwen2VL(BERT_BASE):
 
             if attention_mask is not None:
                 attention_mask = attention_mask.to(inputs_embeds.device)
+            return inputs_embeds, attention_mask
+
+    def forward(
+            self,         
+            input_ids: torch.LongTensor = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            past_key_values: Optional[List[torch.FloatTensor]] = None,
+            inputs_embeds: Optional[torch.FloatTensor] = None,
+            use_cache: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+            pixel_values: Optional[torch.Tensor] = None,
+            pixel_values_videos: Optional[torch.FloatTensor] = None,
+            image_grid_thw: Optional[torch.LongTensor] = None,
+            video_grid_thw: Optional[torch.LongTensor] = None,
+            rope_deltas: Optional[torch.LongTensor] = None,
+    ):
+
+        inputs_embeds, attention_mask = self.get_vllm_embedding(
+            input_ids, inputs_embeds, pixel_values, pixel_values_videos, image_grid_thw, video_grid_thw)
 
         return self.model(
             input_ids=None,
-            position_ids=position_ids,
             attention_mask=attention_mask,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
             use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
@@ -112,37 +114,16 @@ class Qwen2VL(BERT_BASE):
     @inference_mode()
     def generate(
         self,
-        input_ids=None,
-        pixel_values=None,
-        tgt_sizes=None,
-        image_bound=None,
-        attention_mask=None,
-        vision_hidden_states=None,
-        return_vision_hidden_states=False,
-        stream=False,
-        **kwargs
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        pixel_values: Optional[torch.Tensor] = None,
+        pixel_values_videos: Optional[torch.FloatTensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+        video_grid_thw: Optional[torch.LongTensor] = None,
+        rope_deltas: Optional[torch.LongTensor] = None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        inputs_embeds, attention_mask = self.get_vllm_embedding(
+            input_ids, inputs_embeds, pixel_values, pixel_values_videos, image_grid_thw, video_grid_thw)
 
-        if inputs_embeds is None:
-            inputs_embeds = self.model.embed_tokens(input_ids)
-            if pixel_values is not None:
-                pixel_values = pixel_values.type(self.visual.get_dtype())
-                image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
-                image_mask = (input_ids == self.config.image_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                image_embeds = image_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-                inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
-
-            if pixel_values_videos is not None:
-                pixel_values_videos = pixel_values_videos.type(self.visual.get_dtype())
-                video_embeds = self.visual(pixel_values_videos, grid_thw=video_grid_thw)
-                video_mask = (input_ids == self.config.video_token_id).unsqueeze(-1).expand_as(inputs_embeds)
-                video_embeds = video_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-                inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)
-
-            if attention_mask is not None:
-                attention_mask = attention_mask.to(inputs_embeds.device)
+        return self.model.generate(inputs_embeds, attention_mask=attention_mask)
