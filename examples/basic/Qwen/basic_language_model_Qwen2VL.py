@@ -11,7 +11,8 @@ from transformers import AutoProcessor
 import re
 
 model_dir = '/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
+device = 'cuda'
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)
 
 
 processor = AutoProcessor.from_pretrained(model_dir)
@@ -28,6 +29,7 @@ messages = [
             {
                 "type": "image",
                 "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
+                "max_pixels": 512 * 512,
             },
             {"type": "text", "text": "Describe this image."},
         ],
@@ -45,8 +47,7 @@ inputs = processor(
     videos=video_inputs,
     padding=True,
     return_tensors="pt",
-)
-inputs = inputs.to("cuda")
+).to(device)
 
 # Inference: Generation of the output
 generated_ids = model.generate(**inputs, max_new_tokens=128)

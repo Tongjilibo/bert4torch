@@ -503,8 +503,8 @@ class RopeMropePositionEncoding(RopePositionEncoding):
             sin = sin.unsqueeze(seq_dim-1)
 
         mrope_section = self.mrope_section * 2
-        cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(seq_dim)
-        sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(seq_dim)
+        cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
+        sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
 
         if isinstance(qk, list):
             return [self.rotate_and_compute(x, cos, sin) for x in qk]

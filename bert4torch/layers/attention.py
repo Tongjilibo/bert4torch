@@ -631,12 +631,7 @@ class RopeAttention(MultiHeadAttention):
         # rotary有cache情况下，需要先rope后再和past_key_value concat
         key_states = self.transpose_for_k_scores(self.k(hidden_states))
         value_states = self.transpose_for_v_scores(self.v(hidden_states))
-        query_states, key_states, value_states = self.apply_rotary_pos_emb(query_states, key_states, value_states, position_ids, past_key_value)
-        return query_states, key_states, value_states, attention_mask
 
-    def apply_rotary_pos_emb(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
-                             position_ids:torch.Tensor, past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None):
-        ''' 执行rotary相对位置编码 '''
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
@@ -648,7 +643,8 @@ class RopeAttention(MultiHeadAttention):
         if past_key_value is not None:
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
-        return query_states, key_states, value_states
+
+        return query_states, key_states, value_states, attention_mask
 
 
 class GatedAttention(nn.Module):
