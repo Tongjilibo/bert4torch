@@ -1,11 +1,10 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
-from bert4torch.models.base import BERT_BASE
 from bert4torch.snippets import DottableDict, inference_mode
 import torch
 
 
-class Qwen2VL(BERT_BASE):
+class Qwen2VL(Qwen2):
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DottableDict(config)
@@ -13,10 +12,6 @@ class Qwen2VL(BERT_BASE):
         from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig
         vision_config = Qwen2VLVisionConfig.from_dict(self.config.vision_config)
         self.visual = Qwen2VisionTransformerPretrainedModel._from_config(vision_config, attn_implementation=self.config._attn_implementation)
-        self.model = Qwen2(**config)
-
-    def tie_weights(self):
-        self.model.tie_weights()
 
     def get_vllm_embedding(
             self, 
@@ -30,7 +25,7 @@ class Qwen2VL(BERT_BASE):
             **kwargs
         ):
         if inputs_embeds is None:
-            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds = self.embeddings(input_ids)
             if pixel_values is not None:
                 pixel_values = pixel_values.type(self.visual.get_dtype())
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
@@ -49,61 +44,45 @@ class Qwen2VL(BERT_BASE):
                 attention_mask = attention_mask.to(inputs_embeds.device)
             return inputs_embeds, attention_mask
 
-    def forward(
-            self,         
-            input_ids: torch.LongTensor = None,
-            attention_mask: Optional[torch.Tensor] = None,
-            past_key_values: Optional[List[torch.FloatTensor]] = None,
-            inputs_embeds: Optional[torch.FloatTensor] = None,
-            use_cache: Optional[bool] = None,
-            return_dict: Optional[bool] = None,
-            pixel_values: Optional[torch.Tensor] = None,
-            pixel_values_videos: Optional[torch.FloatTensor] = None,
-            image_grid_thw: Optional[torch.LongTensor] = None,
-            video_grid_thw: Optional[torch.LongTensor] = None,
-            rope_deltas: Optional[torch.LongTensor] = None,
-    ):
+    def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
+        # 准备进embedding层的一些输入
+        _, _, _, _, _, attention_mask, model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
+        model_kwargs['attention_mask'] = attention_mask
+        inputs_embeds, attention_mask = self.get_vllm_embedding(**model_kwargs)
 
-        inputs_embeds, attention_mask = self.get_vllm_embedding(
-            input_ids, inputs_embeds, attention_mask, pixel_values, pixel_values_videos, image_grid_thw, video_grid_thw)
-
-        return self.model(
-            input_ids=None,
-            attention_mask=attention_mask,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            use_cache=use_cache,
-            return_dict=return_dict,
-        )
+        # 进入embedding层
+        model_kwargs.update({'hidden_states': inputs_embeds, 'inputs_embeds': inputs_embeds, 'attention_mask':attention_mask})
+        
+        return model_kwargs
 
     def load_variable(self, variable, old_key, new_key):
-        if old_key in {'model.embeddings.word_embeddings.weight', 'model.lm_head.weight'}:
+        if old_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         return variable
     
     def variable_mapping(self):
         # 映射到权重格式
         mapping = {
-            'model.embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'model.lm_head.weight': 'lm_head.weight',
-            'model.LayerNormFinal.weight': 'model.norm.weight',
+            'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
+            'lm_head.weight': 'lm_head.weight',
+            'LayerNormFinal.weight': 'model.norm.weight',
             }
 
         for i in range(self.num_hidden_layers):
             mapping.update( 
             {
-            f'model.decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
-            f'model.decoderLayer.{i}.multiHeadAttention.q.bias': f'model.layers.{i}.self_attn.q_proj.bias',
-            f'model.decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
-            f'model.decoderLayer.{i}.multiHeadAttention.k.bias': f'model.layers.{i}.self_attn.k_proj.bias',
-            f'model.decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
-            f'model.decoderLayer.{i}.multiHeadAttention.v.bias': f'model.layers.{i}.self_attn.v_proj.bias',
-            f'model.decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
-            f'model.decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
-            f'model.decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
-            f'model.decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
-            f'model.decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
-            f'model.decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
+            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.q.bias': f'model.layers.{i}.self_attn.q_proj.bias',
+            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.k.bias': f'model.layers.{i}.self_attn.k_proj.bias',
+            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.v.bias': f'model.layers.{i}.self_attn.v_proj.bias',
+            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
+            f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
             })
         return mapping
 
@@ -279,6 +258,9 @@ class Qwen2VL(BERT_BASE):
         # If we have cache: let's slice `input_ids` through `cache_position`, to keep only the unprocessed tokens
         # Exception 1: when passing input_embeds, input_ids may be missing entries
         # Exception 2: some generation methods do special slicing of input_ids, so we don't need to do it here
+        if cache_position is None:
+            cache_position = self._get_initial_cache_position(input_ids, inputs_embeds=inputs_embeds, past_key_values=past_key_values)
+
         if past_key_values is not None:
             if inputs_embeds is not None:  # Exception 1
                 input_ids = input_ids[:, -cache_position.shape[0] :]
@@ -307,11 +289,11 @@ class Qwen2VL(BERT_BASE):
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
         if inputs_embeds is not None and cache_position[0] == 0:
-            model_inputs = {"inputs_embeds": inputs_embeds, "input_ids": None}
+            kwargs.update({"inputs_embeds": inputs_embeds, "input_ids": None})
         else:
-            model_inputs = {"input_ids": input_ids, "inputs_embeds": None}
+            kwargs.update({"input_ids": input_ids, "inputs_embeds": None})
 
-        model_inputs.update(
+        kwargs.update(
             {
                 "position_ids": position_ids,
                 "past_key_values": past_key_values,
@@ -324,7 +306,7 @@ class Qwen2VL(BERT_BASE):
                 "rope_deltas": rope_deltas,
             }
         )
-        return model_inputs
+        return kwargs
 
     def _get_initial_cache_position(self, input_ids, **model_kwargs):
         """Calculates `cache_position` for the pre-fill stage based on `input_ids` and optionally past length"""
@@ -343,35 +325,35 @@ class Qwen2VL(BERT_BASE):
 
         return cache_position
     
-    @inference_mode()
-    def generate(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        pixel_values: Optional[torch.Tensor] = None,
-        pixel_values_videos: Optional[torch.FloatTensor] = None,
-        image_grid_thw: Optional[torch.LongTensor] = None,
-        video_grid_thw: Optional[torch.LongTensor] = None,
-        rope_deltas: Optional[torch.LongTensor] = None,
-        **kwargs
-    ):
-        cache_position = self._get_initial_cache_position(input_ids, inputs_embeds=inputs_embeds, past_key_values=past_key_values)
-        model_inputs = self.prepare_inputs_for_generation(input_ids,
-                past_key_values=past_key_values,
-                attention_mask=attention_mask,
-                inputs_embeds=inputs_embeds,
-                cache_position=cache_position,
-                position_ids=position_ids,
-                use_cache=True,
-                pixel_values=pixel_values,
-                pixel_values_videos=pixel_values_videos,
-                image_grid_thw=image_grid_thw,
-                video_grid_thw=video_grid_thw,
-        )
-        inputs_embeds, attention_mask = self.get_vllm_embedding(**model_inputs)
-        position_ids = model_inputs['position_ids']
-        rope_deltas = model_inputs['rope_deltas']
-        return self.model.generate(inputs_embeds, attention_mask=attention_mask, position_ids=position_ids, **kwargs)
+    # @inference_mode()
+    # def generate(
+    #     self,
+    #     input_ids: torch.LongTensor = None,
+    #     attention_mask: Optional[torch.Tensor] = None,
+    #     position_ids: Optional[torch.LongTensor] = None,
+    #     past_key_values: Optional[List[torch.FloatTensor]] = None,
+    #     inputs_embeds: Optional[torch.FloatTensor] = None,
+    #     pixel_values: Optional[torch.Tensor] = None,
+    #     pixel_values_videos: Optional[torch.FloatTensor] = None,
+    #     image_grid_thw: Optional[torch.LongTensor] = None,
+    #     video_grid_thw: Optional[torch.LongTensor] = None,
+    #     rope_deltas: Optional[torch.LongTensor] = None,
+    #     **kwargs
+    # ):
+    #     cache_position = self._get_initial_cache_position(input_ids, inputs_embeds=inputs_embeds, past_key_values=past_key_values)
+    #     model_inputs = self.prepare_inputs_for_generation(input_ids,
+    #             past_key_values=past_key_values,
+    #             attention_mask=attention_mask,
+    #             inputs_embeds=inputs_embeds,
+    #             cache_position=cache_position,
+    #             position_ids=position_ids,
+    #             use_cache=True,
+    #             pixel_values=pixel_values,
+    #             pixel_values_videos=pixel_values_videos,
+    #             image_grid_thw=image_grid_thw,
+    #             video_grid_thw=video_grid_thw,
+    #     )
+    #     inputs_embeds, attention_mask = self.get_vllm_embedding(**model_inputs)
+    #     position_ids = model_inputs['position_ids']
+    #     rope_deltas = model_inputs['rope_deltas']
+    #     return super().generate(inputs_embeds, attention_mask=attention_mask, position_ids=position_ids, **kwargs)

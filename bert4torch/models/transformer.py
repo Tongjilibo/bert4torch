@@ -136,17 +136,19 @@ class Decoder(LM_Mask, BERT):
         if not hasattr(self, 'generation'):
             self.generation = SeqGeneration(self, **kwargs)
 
-    def generate(self, text:Union[str, list], **kwargs):
+    def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre'
         '''
         self._prepare_generation(**kwargs)
-        return self.generation.generate(text, **kwargs)
+        return self.generation.generate(input_ids, **kwargs)
 
-    def stream_generate(self, text:str, **kwargs):
+    def stream_generate(self, input_ids:Union[str, torch.Tensor], **kwargs):
         '''单条样本stream输出预测的结果'''
         self._prepare_generation(**kwargs)
-        yield from self.generation.stream_generate(text, **kwargs)
+        yield from self.generation.stream_generate(input_ids, **kwargs)
 
+    def prepare_inputs_for_generation(self, input_ids, **states):
+        return states
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构
@@ -192,16 +194,16 @@ class Transformer(BERT_BASE):
         # with_lm=True时候，decoder_outputs为logits, False时候为decoder_hidden_state
         return [encoder_hidden_states] + [decoder_outputs]
 
-    def _prepare_generation(self, **generation_config):
+    def _prepare_generation(self, **kwargs):
         if not hasattr(self, 'generation'):
-            self.generation = Seq2SeqGeneration(self, **generation_config)
+            self.generation = Seq2SeqGeneration(self, **kwargs)
 
-    def generate(self, text:Union[str,list], **generation_config):
+    def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre' '''
-        self._prepare_generation(**generation_config)
-        return self.generation.generate(text, **generation_config)
+        self._prepare_generation(**kwargs)
+        return self.generation.generate(input_ids, **kwargs)
 
-    def stream_generate(self, text:str, **generation_config):
+    def stream_generate(self, input_ids:Union[str, torch.Tensor], **kwargs):
         '''单条样本stream输出预测的结果'''
-        self._prepare_generation(**generation_config)
-        yield from self.generation.stream_generate(text, **generation_config)
+        self._prepare_generation(**kwargs)
+        yield from self.generation.stream_generate(input_ids, **kwargs)

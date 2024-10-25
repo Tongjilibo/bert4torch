@@ -216,9 +216,9 @@ class AutoRegressiveDecoder(object):
         if isinstance(inputs_raw, torch.Tensor):
             # 传入的Tensor直接[]后返回
             self.input_seqlen = torch.ones(inputs_raw.shape[0], dtype=torch.long).to(self.device) * inputs_raw.shape[1]
-            input_seqlen = get_max_input_seqlen(self.input_seqlen)  # 超长警告
-            if input_seqlen >= self.max_length:
-                log_warn(f'prompt_len={input_seqlen} >= max_length={self.max_length}')
+            # input_seqlen = get_max_input_seqlen(self.input_seqlen)  # 超长警告
+            # if input_seqlen >= self.max_length:
+            #     log_warn(f'prompt_len={input_seqlen} >= max_length={self.max_length}')
             return [inputs_raw.to(self.device)]
         elif isinstance(inputs_raw, (tuple,list)) and all([isinstance(i, int) for i in inputs_raw]):
             # list(int)
@@ -713,7 +713,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         return kwargs
 
-    def _prepare_next_inputs(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, include_past:bool=True):
+    def _prepare_next_inputs(self, inputs:TUPLE_LIST_TENSOR_TYPE, output_ids:torch.Tensor, include_past:bool=True, **states):
         '''decode时候准备下一次输入, 使用cache则仅输入last_token_ids, 不适用需要输入past_token_ids'''
         def concat_token_ids(token_ids, output_ids):
             '''把非padding部分concat在一起
@@ -724,14 +724,15 @@ class SeqGeneration(AutoRegressiveDecoder):
             if not self.use_batch:
                 return torch.cat([token_ids, output_ids], 1)
             
-            # 部分序列已经完成, 需要更新input_seqlen
-            if len(self.input_seqlen) != len(output_ids):
-                self.input_seqlen = self.input_seqlen[self.flag]
             inputs = []
             for seq_l, token_ids_i, output_ids_i in zip(self.input_seqlen, token_ids, output_ids):
                 inputs.append(torch.cat([token_ids_i[:seq_l], output_ids_i, token_ids_i[seq_l:]]))
             return torch.stack(inputs)
 
+        # 部分序列已经完成, 需要更新input_seqlen
+        if len(self.input_seqlen) != len(output_ids):
+            self.input_seqlen = self.input_seqlen[self.flag]
+        
         if include_past is False:
             # 使用cache且step>=1, 即用last_token做下一步预测
             if len(inputs) == 1:
@@ -750,7 +751,10 @@ class SeqGeneration(AutoRegressiveDecoder):
                 log_warn_once('Use 0 for follwing segment_ids')
                 segment_ids = concat_token_ids(segment_ids, torch.zeros_like(output_ids))
                 next_inputs = [token_ids, segment_ids]
-        return next_inputs
+        
+        # 方便每个模型自定义
+        states = self.decoder.prepare_inputs_for_generation(*inputs, output_ids=output_ids, input_seqlen=self.input_seqlen, **states)
+        return next_inputs, states
 
     def __get_last_token_logits(self, logits, output_ids):
         '''获取最后一个token的logits'''
@@ -780,22 +784,18 @@ class SeqGeneration(AutoRegressiveDecoder):
 
             if self.step == 0:
                 # next_inputs：step=0时候输入全部
-                next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=True)
+                next_inputs, states = self._prepare_next_inputs(inputs, output_ids, include_past=True, **states)
 
                 # position_ids: 在第0步如果padding在左侧, 则需要自定义position_ids
-                if self.use_batch and (self.pad_mode in {'pre', 'left'}):
+                if 'position_ids' not in states and self.use_batch and (self.pad_mode in {'pre', 'left'}):
                     # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                     #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
                     states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
 
             elif self.step >= 1:
                 # next_inputs：>=1时候输入last_token
-                next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=False)
-
-                # past_token_ids: inputs+output_ids
-                if self.decoder.model_type == 'glm':
-                    states['past_token_ids'] = self._prepare_next_inputs(inputs, output_ids)[0]
-
+                next_inputs, states = self._prepare_next_inputs(inputs, output_ids, include_past=False, **states)
+                
                 # position_ids: >=1步则取last_token
                 if states.get('position_ids') is not None:
                     states['position_ids'] = states['position_ids'][:, -1:] + 1
@@ -839,13 +839,12 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # 不使用cache
         elif not self.use_states:
-            next_inputs = self._prepare_next_inputs(inputs, output_ids, include_past=True)
+            next_inputs, model_kwargs = self._prepare_next_inputs(inputs, output_ids, include_past=True)
 
             # 如果use_states=False且pad_mode='pre', 则需要自定义position_ids, 否则position_ids不正确, 但这么使用很少
-            position_ids = None
-            if self.pad_mode in {'pre', 'left'}:
-                position_ids = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
-            logits = self.decoder.predict(next_inputs, position_ids=position_ids)
+            if 'position_ids' not in model_kwargs and self.pad_mode in {'pre', 'left'}:
+                model_kwargs['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
+            logits = self.decoder.predict(next_inputs, **model_kwargs)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)
 
@@ -922,12 +921,12 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def generate(self, text:Union[str, list, torch.Tensor], **kwargs):
+    def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
         '''单条样本生成 / batch生成'''
-        if isinstance(text, str):
+        if isinstance(input_ids, str):
             # 单条样本
             self.use_batch = False
-        elif isinstance(text, list):
+        elif isinstance(input_ids, list):
             # batch生成
             self.use_batch = True
             # 为多个query同时生成时候，仅允许为每条query生成1条response，即n=1
@@ -942,13 +941,13 @@ class SeqGeneration(AutoRegressiveDecoder):
             if self.use_states and (self.pad_mode in {'post', 'right'}):
                 self.pad_mode = 'pre'
                 log_info("When arg `use_states`=True, you may set `pad_mode`='pre' to avoid error output, reset `pad_mode`='pre' instead")
-        elif isinstance(text, torch.Tensor):
-            self.use_batch = False if text.shape[0] == 1 else True
+        elif isinstance(input_ids, torch.Tensor):
+            self.use_batch = False if input_ids.shape[0] == 1 else True
         else:
             raise TypeError('Args `text` only support `str/list(str)` format')
         
         self.set_generation_config(kwargs)
-        inputs = self.pre_process(text)
+        inputs = self.pre_process(input_ids)
 
         if self.mode == 'random_sample':
             output_ids = self.random_sample(inputs, states=self.get_states(**kwargs))  # 基于随机采样
@@ -959,11 +958,11 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     @inference_mode()
     @EmptyCacheDecorators.empty_cuda_cache()
-    def stream_generate(self, text:Union[str, torch.Tensor], **kwargs):
+    def stream_generate(self, input_ids:Union[str, torch.Tensor], **kwargs):
         '''单条样本stream输出预测的结果'''
         self.set_generation_config(kwargs)
         self.use_batch = False
-        inputs = self.pre_process(text)
+        inputs = self.pre_process(input_ids)
         if self.mode == 'random_sample':
             for output_ids in self.stream_random_sample(inputs, states=self.get_states(**kwargs)):  # stream随机采样
                 yield self.post_process(output_ids)

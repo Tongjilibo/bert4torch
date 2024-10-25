@@ -152,8 +152,28 @@ class GLM(Decoder):
         model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
-       
+    
+    def prepare_inputs_for_generation(self, inputs, **states):
+        '''为下次generate做准备'''
+        output_ids = states.pop('output_ids')
+        input_seqlen = states.pop('input_seqlen')
+        token_ids = inputs[0]
+
+        if output_ids.numel() == 0:
+            past_token_ids = token_ids
+        elif len(token_ids) == 1:  # TODO 并非使用batch
+            past_token_ids = torch.cat([token_ids, output_ids], 1)
+        else:
+            inputs = []
+            for seq_l, token_ids_i, output_ids_i in zip(input_seqlen, token_ids, output_ids):
+                inputs.append(torch.cat([token_ids_i[:seq_l], output_ids_i, token_ids_i[seq_l:]]))
+            past_token_ids = torch.stack(inputs)
         
+        # past_token_ids: inputs+output_ids
+        states['past_token_ids'] = past_token_ids
+        return states
+    
+
 class GLM2(GLM):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
     主要修改：1) 不使用Unilm式的mask
