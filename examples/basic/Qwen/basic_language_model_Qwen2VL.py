@@ -8,12 +8,10 @@ bert4torch_config.json见readme
 from bert4torch.models import build_transformer_model
 from bert4torch.models.qwen2_vl import process_vision_info
 from transformers import AutoProcessor
-import re
 
 model_dir = '/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
 device = 'cuda'
 model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)
-
 
 processor = AutoProcessor.from_pretrained(model_dir)
 

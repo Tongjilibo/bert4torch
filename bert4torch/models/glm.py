@@ -153,7 +153,7 @@ class GLM(Decoder):
         model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
     
-    def prepare_inputs_for_generation(self, inputs, **states):
+    def prepare_inputs_for_generation(self, *inputs, **states):
         '''为下次generate做准备'''
         output_ids = states.pop('output_ids')
         input_seqlen = states.pop('input_seqlen')

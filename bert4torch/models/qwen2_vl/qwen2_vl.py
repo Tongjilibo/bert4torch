@@ -46,9 +46,9 @@ class Qwen2VL(Qwen2):
 
     def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
         # 准备进embedding层的一些输入
-        _, _, _, _, _, attention_mask, model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
+        input_ids, _, _, _, _, attention_mask, model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
         model_kwargs['attention_mask'] = attention_mask
-        inputs_embeds, attention_mask = self.get_vllm_embedding(**model_kwargs)
+        inputs_embeds, attention_mask = self.get_vllm_embedding(input_ids=input_ids, **model_kwargs)
 
         # 进入embedding层
         model_kwargs.update({'hidden_states': inputs_embeds, 'inputs_embeds': inputs_embeds, 'attention_mask':attention_mask})
@@ -85,12 +85,6 @@ class Qwen2VL(Qwen2):
             f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
             })
         return mapping
-
-    
-    def _decode_stream(self, inputs_embeds, attention_mask, **kwargs):
-        for output in self.model.stream_generate(
-            inputs_embeds, attention_mask=attention_mask, **kwargs):
-            yield output
 
     def get_rope_index(
             self,
@@ -245,10 +239,9 @@ class Qwen2VL(Qwen2):
         input_ids,
         past_key_values=None,
         attention_mask=None,
-        inputs_embeds=None,
-        cache_position=None,
+        step=None,
+        input_seqlen=None,
         position_ids=None,
-        use_cache=True,
         pixel_values=None,
         pixel_values_videos=None,
         image_grid_thw=None,
@@ -258,46 +251,27 @@ class Qwen2VL(Qwen2):
         # If we have cache: let's slice `input_ids` through `cache_position`, to keep only the unprocessed tokens
         # Exception 1: when passing input_embeds, input_ids may be missing entries
         # Exception 2: some generation methods do special slicing of input_ids, so we don't need to do it here
-        if cache_position is None:
-            cache_position = self._get_initial_cache_position(input_ids, inputs_embeds=inputs_embeds, past_key_values=past_key_values)
-
-        if past_key_values is not None:
-            if inputs_embeds is not None:  # Exception 1
-                input_ids = input_ids[:, -cache_position.shape[0] :]
-            elif input_ids.shape[1] != cache_position.shape[0]:  # Default case (the "else", a no op, is Exception 2)
-                input_ids = input_ids[:, cache_position]
 
         rope_deltas = kwargs.get("rope_deltas", None)
-        if attention_mask is not None and position_ids is None:
-            if cache_position is None or (cache_position is not None and cache_position[0] == 0):
-                position_ids, rope_deltas = self.get_rope_index(
-                    input_ids, image_grid_thw, video_grid_thw, attention_mask
-                )
-            else:
-                batch_size, seq_length = input_ids.shape
-                delta = (
-                    cache_position[0] + rope_deltas if cache_position is not None and rope_deltas is not None else 0
-                )
-                position_ids = torch.arange(seq_length, device=input_ids.device)
-                position_ids = position_ids.view(1, -1).expand(batch_size, -1)
-                position_ids = position_ids.add(delta)
-                position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
+        if step == 0:
+            position_ids, rope_deltas = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
+        else:
+            batch_size = input_ids.shape[0]
+            delta = (input_seqlen[0] + rope_deltas if input_seqlen is not None and rope_deltas is not None else 0)
+            position_ids = torch.arange(1, device=input_ids.device)
+            position_ids = position_ids.view(1, -1).expand(batch_size, -1)
+            position_ids = position_ids.add(delta)
+            position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
-        if cache_position[0] != 0:
+        if step > 0:
             pixel_values = None
             pixel_values_videos = None
 
-        # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
-        if inputs_embeds is not None and cache_position[0] == 0:
-            kwargs.update({"inputs_embeds": inputs_embeds, "input_ids": None})
-        else:
-            kwargs.update({"input_ids": input_ids, "inputs_embeds": None})
-
+        kwargs.pop('output_ids')
         kwargs.update(
             {
                 "position_ids": position_ids,
                 "past_key_values": past_key_values,
-                "use_cache": use_cache,
                 "attention_mask": attention_mask,
                 "pixel_values": pixel_values,
                 "pixel_values_videos": pixel_values_videos,
@@ -308,52 +282,5 @@ class Qwen2VL(Qwen2):
         )
         return kwargs
 
-    def _get_initial_cache_position(self, input_ids, **model_kwargs):
-        """Calculates `cache_position` for the pre-fill stage based on `input_ids` and optionally past length"""
-        # `torch.compile`-friendly `torch.arange` from a shape -- the lines below are equivalent to `torch.arange`
-        if model_kwargs.get("inputs_embeds") is not None:
-            cache_position = torch.ones_like(model_kwargs["inputs_embeds"][0, :, 0], dtype=torch.int64).cumsum(0) - 1
-        else:
-            cache_position = torch.ones_like(input_ids[0, :], dtype=torch.int64).cumsum(0) - 1
-
-        past_length = 0
-        if model_kwargs.get("past_key_values") is not None:
-            cache = model_kwargs["past_key_values"]
-            past_length = cache[0][0].shape[2]
-
-            cache_position = cache_position[past_length:]
-
-        return cache_position
-    
-    # @inference_mode()
-    # def generate(
-    #     self,
-    #     input_ids: torch.LongTensor = None,
-    #     attention_mask: Optional[torch.Tensor] = None,
-    #     position_ids: Optional[torch.LongTensor] = None,
-    #     past_key_values: Optional[List[torch.FloatTensor]] = None,
-    #     inputs_embeds: Optional[torch.FloatTensor] = None,
-    #     pixel_values: Optional[torch.Tensor] = None,
-    #     pixel_values_videos: Optional[torch.FloatTensor] = None,
-    #     image_grid_thw: Optional[torch.LongTensor] = None,
-    #     video_grid_thw: Optional[torch.LongTensor] = None,
-    #     rope_deltas: Optional[torch.LongTensor] = None,
-    #     **kwargs
-    # ):
-    #     cache_position = self._get_initial_cache_position(input_ids, inputs_embeds=inputs_embeds, past_key_values=past_key_values)
-    #     model_inputs = self.prepare_inputs_for_generation(input_ids,
-    #             past_key_values=past_key_values,
-    #             attention_mask=attention_mask,
-    #             inputs_embeds=inputs_embeds,
-    #             cache_position=cache_position,
-    #             position_ids=position_ids,
-    #             use_cache=True,
-    #             pixel_values=pixel_values,
-    #             pixel_values_videos=pixel_values_videos,
-    #             image_grid_thw=image_grid_thw,
-    #             video_grid_thw=video_grid_thw,
-    #     )
-    #     inputs_embeds, attention_mask = self.get_vllm_embedding(**model_inputs)
-    #     position_ids = model_inputs['position_ids']
-    #     rope_deltas = model_inputs['rope_deltas']
-    #     return super().generate(inputs_embeds, attention_mask=attention_mask, position_ids=position_ids, **kwargs)
+    def _update_return_model_kwargs(self, model_kwargs:dict):
+        return super()._update_return_model_kwargs(model_kwargs)

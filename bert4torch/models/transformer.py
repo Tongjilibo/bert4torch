@@ -147,8 +147,9 @@ class Decoder(LM_Mask, BERT):
         self._prepare_generation(**kwargs)
         yield from self.generation.stream_generate(input_ids, **kwargs)
 
-    def prepare_inputs_for_generation(self, input_ids, **states):
+    def prepare_inputs_for_generation(self, *inputs, **states):
         return states
+
 
 class Transformer(BERT_BASE):
     '''encoder-decoder结构

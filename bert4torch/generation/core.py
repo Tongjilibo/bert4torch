@@ -753,7 +753,8 @@ class SeqGeneration(AutoRegressiveDecoder):
                 next_inputs = [token_ids, segment_ids]
         
         # 方便每个模型自定义
-        states = self.decoder.prepare_inputs_for_generation(*inputs, output_ids=output_ids, input_seqlen=self.input_seqlen, **states)
+        states.update({'output_ids': output_ids, 'input_seqlen': self.input_seqlen, 'step': self.step})
+        states = self.decoder.prepare_inputs_for_generation(*inputs, **states)
         return next_inputs, states
 
     def __get_last_token_logits(self, logits, output_ids):
@@ -950,9 +951,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         inputs = self.pre_process(input_ids)
 
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, states=self.get_states(**kwargs))  # 基于随机采样
+            output_ids = self.random_sample(inputs, states=self.get_states(kwargs))  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs, states=self.get_states(**kwargs))  # 基于beam search
+            output_ids = self.beam_search(inputs, states=self.get_states(kwargs))  # 基于beam search
 
         return self.post_process(output_ids)
 
@@ -964,20 +965,15 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(input_ids)
         if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(inputs, states=self.get_states(**kwargs)):  # stream随机采样
+            for output_ids in self.stream_random_sample(inputs, states=self.get_states(kwargs)):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(inputs, states=self.get_states(**kwargs)):  # stream beam采样
+            for output_ids in self.stream_beam_search(inputs, states=self.get_states(kwargs)):  # stream beam采样
                 yield self.post_process(output_ids)
     
     @staticmethod
-    def get_states(**kwargs):
-        if 'states' in kwargs:
-            return kwargs['states']
-        states_keys = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
-                       'attention_mask', 'past_key_values', 'cross_past_key_values'}
-        states = {k:v for k,v in kwargs.items() if k in states_keys}
-        return states if states else None
+    def get_states(kwargs):
+        return kwargs['states'] if 'states' in kwargs else kwargs
 
 
 class Seq2SeqGeneration(SeqGeneration):
