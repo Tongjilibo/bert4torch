@@ -162,5 +162,7 @@ class TemperatureLogitsWarper(LogitsProcessor):
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
+        if self.temperature == 1:
+            return scores
         scores_processed = scores / self.temperature
         return scores_processed

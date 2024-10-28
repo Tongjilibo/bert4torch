@@ -8,6 +8,7 @@ bert4torch_config.json见readme
 from bert4torch.models import build_transformer_model
 from bert4torch.models.qwen2_vl import process_vision_info
 from transformers import AutoProcessor
+import torch
 
 model_dir = '/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
 device = 'cuda'
@@ -20,39 +21,38 @@ processor = AutoProcessor.from_pretrained(model_dir)
 # max_pixels = 1280*28*28
 # processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
 
-messages = [
-    {
-        "role": "user",
-        "content": [
-            {
-                "type": "image",
-                "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
-                "max_pixels": 512 * 512,
-            },
-            {"type": "text", "text": "Describe this image."},
-        ],
-    }
-]
-
-# Preparation for inference
-text = processor.apply_chat_template(
-    messages, tokenize=False, add_generation_prompt=True
-)
-image_inputs, video_inputs = process_vision_info(messages)
-inputs = processor(
-    text=[text],
-    images=image_inputs,
-    videos=video_inputs,
-    padding=True,
-    return_tensors="pt",
-).to(device)
 
 # Inference: Generation of the output
-generated_ids = model.generate(**inputs, max_new_tokens=128)
-generated_ids_trimmed = [
-    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-]
-output_text = processor.batch_decode(
-    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-)
-print(output_text)
+while True:
+    query = input('User: ')
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
+                    "max_pixels": 512 * 512,
+                },
+                {"type": "text", "text": "Describe this image."},
+            ],
+        }
+    ]
+
+    # Preparation for inference
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    image_inputs, video_inputs = process_vision_info(messages)
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    ).to(device)
+    model.eval()
+    with torch.no_grad():
+        generated_ids = model.generate(**inputs, max_new_tokens=128, top_k=1, pad_token_id=151643, eos_token_id=[151645, 151643])
+        output_text = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        print(output_text)

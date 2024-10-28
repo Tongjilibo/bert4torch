@@ -8,8 +8,8 @@ from bert4torch.snippets import log_info
 demo = MiniCPMV('E:/data/pretrain_ckpt/MiniCPM/MiniCPM-V-2_6')
 query1 = '介绍一下这张图片的内容？'
 query2 = '图片内容和基金产品相关吗？'
-image1 = Image.open('./test_local/资料概要.png').convert('RGB')
-image2 = Image.open('./test_local/bert4torch.png').convert('RGB')
+image1 = Image.open('./test_local/images/资料概要.png').convert('RGB')
+image2 = Image.open('./test_local/images/bert4torch.png').convert('RGB')
 
 
 log_info('# 提问单张图片')

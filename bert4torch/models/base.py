@@ -139,9 +139,6 @@ class BERT_BASE(nn.Module):
             return inputs[0]
         return inputs
 
-    def _update_return_model_kwargs(self, model_kwargs:dict):
-        return model_kwargs
-
     def forward(self, *inputs, **model_kwargs):
         """定义模型的训练流程
         
@@ -156,8 +153,6 @@ class BERT_BASE(nn.Module):
         model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
         outputs = self.apply_final_layers(**model_kwargs)
-        if model_kwargs.get('use_states', False):
-            return outputs, self._update_return_model_kwargs(model_kwargs)
         return outputs
 
     @torch.no_grad()

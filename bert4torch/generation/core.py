@@ -798,7 +798,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 next_inputs, states = self._prepare_next_inputs(inputs, output_ids, include_past=False, **states)
                 
                 # position_ids: >=1步则取last_token
-                if states.get('position_ids') is not None:
+                if states.get('position_ids') is not None and states['position_ids'].dim() == 2:
                     states['position_ids'] = states['position_ids'][:, -1:] + 1
 
                 # attention_mask: 根据token_ids生成的, 因此这里重置下
@@ -951,9 +951,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         inputs = self.pre_process(input_ids)
 
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, states=self.get_states(kwargs))  # 基于随机采样
+            output_ids = self.random_sample(inputs, states=self.decoder.get_states(kwargs))  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs, states=self.get_states(kwargs))  # 基于beam search
+            output_ids = self.beam_search(inputs, states=self.decoder.get_states(kwargs))  # 基于beam search
 
         return self.post_process(output_ids)
 
@@ -965,15 +965,11 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(input_ids)
         if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(inputs, states=self.get_states(kwargs)):  # stream随机采样
+            for output_ids in self.stream_random_sample(inputs, states=self.decoder.get_states(kwargs)):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(inputs, states=self.get_states(kwargs)):  # stream beam采样
+            for output_ids in self.stream_beam_search(inputs, states=self.decoder.get_states(kwargs)):  # stream beam采样
                 yield self.post_process(output_ids)
-    
-    @staticmethod
-    def get_states(kwargs):
-        return kwargs['states'] if 'states' in kwargs else kwargs
 
 
 class Seq2SeqGeneration(SeqGeneration):

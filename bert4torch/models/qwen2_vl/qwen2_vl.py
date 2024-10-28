@@ -42,10 +42,13 @@ class Qwen2VL(Qwen2):
 
             if attention_mask is not None:
                 attention_mask = attention_mask.to(inputs_embeds.device)
-            return inputs_embeds, attention_mask
+        return inputs_embeds, attention_mask
+        # return inputs_embeds, attention_mask
 
     def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
-        # 准备进embedding层的一些输入
+        '''准备进embedding层的一些输入
+        position_ids在之前已经准备好
+        '''
         input_ids, _, _, _, _, attention_mask, model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
         model_kwargs['attention_mask'] = attention_mask
         inputs_embeds, attention_mask = self.get_vllm_embedding(input_ids=input_ids, **model_kwargs)
@@ -234,6 +237,13 @@ class Qwen2VL(Qwen2):
 
                 return position_ids, mrope_position_deltas
 
+    def get_states(self, kwargs):
+        new_kwargs = super().get_states(kwargs)
+        for key in ['pixel_values', 'pixel_values_videos', 'image_grid_thw', 'video_grid_thw']:
+            if key in kwargs:
+                new_kwargs[key] = kwargs[key]
+        return new_kwargs
+    
     def prepare_inputs_for_generation(
         self,
         input_ids,
@@ -241,6 +251,7 @@ class Qwen2VL(Qwen2):
         attention_mask=None,
         step=None,
         input_seqlen=None,
+        output_ids=None,
         position_ids=None,
         pixel_values=None,
         pixel_values_videos=None,
@@ -248,26 +259,23 @@ class Qwen2VL(Qwen2):
         video_grid_thw=None,
         **kwargs,
     ):
-        # If we have cache: let's slice `input_ids` through `cache_position`, to keep only the unprocessed tokens
-        # Exception 1: when passing input_embeds, input_ids may be missing entries
-        # Exception 2: some generation methods do special slicing of input_ids, so we don't need to do it here
+        # 这里主要是需要处理下position_ids和rope_deltas
 
         rope_deltas = kwargs.get("rope_deltas", None)
         if step == 0:
             position_ids, rope_deltas = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
         else:
             batch_size = input_ids.shape[0]
-            delta = (input_seqlen[0] + rope_deltas if input_seqlen is not None and rope_deltas is not None else 0)
+            cache_len = input_seqlen[0] + step - 1
+            delta = (cache_len + rope_deltas if input_seqlen is not None and rope_deltas is not None else 0)
             position_ids = torch.arange(1, device=input_ids.device)
             position_ids = position_ids.view(1, -1).expand(batch_size, -1)
             position_ids = position_ids.add(delta)
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
-        if step > 0:
             pixel_values = None
             pixel_values_videos = None
 
-        kwargs.pop('output_ids')
         kwargs.update(
             {
                 "position_ids": position_ids,
@@ -282,5 +290,7 @@ class Qwen2VL(Qwen2):
         )
         return kwargs
 
-    def _update_return_model_kwargs(self, model_kwargs:dict):
-        return super()._update_return_model_kwargs(model_kwargs)
+    def _update_model_kwargs_for_generation(self, model_kwargs:dict):
+        new_model_kwargs = super()._update_model_kwargs_for_generation(model_kwargs)
+        new_model_kwargs['rope_deltas'] = model_kwargs['rope_deltas']
+        return new_model_kwargs
