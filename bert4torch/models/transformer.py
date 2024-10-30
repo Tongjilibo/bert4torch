@@ -26,7 +26,60 @@ class Encoder(BERT):
         return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
 
-class Decoder(LM_Mask, BERT):
+class DecoderBase(BERT_BASE):
+    passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
+                     'attention_mask', 'past_key_values', 'cross_past_key_values'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+            
+    def prepare_inputs_for_generation(self, *inputs, **states):
+        '''为后续forward定义所需参数，方便继承'''
+        return states
+
+    def _update_model_kwargs_for_generation(self, model_kwargs:dict):
+        '''需要返回给下一次generate使用到的要素，方便继承'''
+        if 'states' in model_kwargs:
+            return model_kwargs['states']
+        return {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+
+    def forward(self, *inputs, **model_kwargs):
+        """定义模型的训练流程
+        
+        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
+        :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
+        """
+        # 允许model([token_ids, segment_ids]), model(token_ids, segment_ids)调用方式
+        inputs = self.args_segmentate(inputs, **model_kwargs)
+        # Embedding
+        model_kwargs = self.apply_embeddings(*inputs, **model_kwargs)
+        # Main
+        model_kwargs = self.apply_main_layers(**model_kwargs)
+        # Final
+        outputs = self.apply_final_layers(**model_kwargs)
+
+        if model_kwargs.get('use_states', False):
+            return outputs, self._update_model_kwargs_for_generation(model_kwargs)
+        else:
+            return outputs
+
+    def _prepare_generation(self, **kwargs):
+        if not hasattr(self, 'generation'):
+            self.generation = SeqGeneration(self, **kwargs)
+
+    def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
+        '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre'
+        '''
+        self._prepare_generation(**kwargs)
+        return self.generation.generate(input_ids, **kwargs)
+
+    def stream_generate(self, input_ids:Union[str, torch.Tensor], **kwargs):
+        '''单条样本stream输出预测的结果'''
+        self._prepare_generation(**kwargs)
+        yield from self.generation.stream_generate(input_ids, **kwargs)
+
+
+class Decoder(LM_Mask, BERT, DecoderBase):
     '''所有decoder模型的基类(含大模型)
 
     :param logit_scale: bool, 是否对lm_logits进行缩放
@@ -107,44 +160,6 @@ class Decoder(LM_Mask, BERT):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def get_states(self, kwargs):
-        '''准备初generate的初始的参数'''
-        if 'states' in kwargs:
-            return kwargs['states']
-        keys = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
-                'attention_mask', 'past_key_values', 'cross_past_key_values'}
-        return {k:v for k,v in kwargs.items() if k in keys}
-        
-    def prepare_inputs_for_generation(self, *inputs, **states):
-        '''为后续forward定义所需参数，方便继承'''
-        return states
-
-    def _update_model_kwargs_for_generation(self, model_kwargs:dict):
-        '''需要返回给下一次generate使用到的要素，方便继承'''
-        keys = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
-                'attention_mask', 'past_key_values', 'cross_past_key_values'}
-        return {k:v for k,v in model_kwargs.items() if k in keys}
-
-    def forward(self, *inputs, **model_kwargs):
-        """定义模型的训练流程
-        
-        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有)]
-        :return: List[torch.Tensor] or torch.Tensor, 模型输出，默认顺序为[last_hidden_state/all_encoded_layers, pooled_output(若有), mlm_scores(若有), nsp_scores(若有)]
-        """
-        # 允许model([token_ids, segment_ids]), model(token_ids, segment_ids)调用方式
-        inputs = self.args_segmentate(inputs, **model_kwargs)
-        # Embedding
-        model_kwargs = self.apply_embeddings(*inputs, **model_kwargs)
-        # Main
-        model_kwargs = self.apply_main_layers(**model_kwargs)
-        # Final
-        outputs = self.apply_final_layers(**model_kwargs)
-
-        if model_kwargs.get('use_states', False):
-            return outputs, self._update_model_kwargs_for_generation(model_kwargs)
-        else:
-            return outputs
-
     def load_variable(self, variable, old_key, new_key, prefix='decoder'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         mapping = self.variable_mapping()
@@ -170,23 +185,8 @@ class Decoder(LM_Mask, BERT):
             mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
 
-    def _prepare_generation(self, **kwargs):
-        if not hasattr(self, 'generation'):
-            self.generation = SeqGeneration(self, **kwargs)
 
-    def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
-        '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre'
-        '''
-        self._prepare_generation(**kwargs)
-        return self.generation.generate(input_ids, **kwargs)
-
-    def stream_generate(self, input_ids:Union[str, torch.Tensor], **kwargs):
-        '''单条样本stream输出预测的结果'''
-        self._prepare_generation(**kwargs)
-        yield from self.generation.stream_generate(input_ids, **kwargs)
-
-
-class Transformer(BERT_BASE):
+class Transformer(DecoderBase):
     '''encoder-decoder结构
     :param tie_word_embeddings: bool, decoder的word_embeddings和lm_head的权重共享
     :param tie_word_embeddings_encoder_decoder: bool, encoder和decoder之间的word_embedding权重共享
@@ -233,13 +233,3 @@ class Transformer(BERT_BASE):
     def _prepare_generation(self, **kwargs):
         if not hasattr(self, 'generation'):
             self.generation = Seq2SeqGeneration(self, **kwargs)
-
-    def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
-        '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre' '''
-        self._prepare_generation(**kwargs)
-        return self.generation.generate(input_ids, **kwargs)
-
-    def stream_generate(self, input_ids:Union[str, torch.Tensor], **kwargs):
-        '''单条样本stream输出预测的结果'''
-        self._prepare_generation(**kwargs)
-        yield from self.generation.stream_generate(input_ids, **kwargs)

@@ -1,10 +1,12 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
+from bert4torch.models.transformer import DecoderBase
 from bert4torch.snippets import DottableDict, inference_mode
 import torch
 
 
-class Qwen2VL(Qwen2):
+class Qwen2VL(DecoderBase):
+    passed_kwargs = DecoderBase.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DottableDict(config)
@@ -12,6 +14,8 @@ class Qwen2VL(Qwen2):
         from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig
         vision_config = Qwen2VLVisionConfig.from_dict(self.config.vision_config)
         self.visual = Qwen2VisionTransformerPretrainedModel._from_config(vision_config, attn_implementation=self.config._attn_implementation)
+        self.model = Qwen2(**config)
+        self.model.passed_kwargs = Qwen2VL.passed_kwargs
 
     def get_vllm_embedding(
             self, 
@@ -33,7 +37,7 @@ class Qwen2VL(Qwen2):
             use_states=False: 和train阶段一致
         '''
         if inputs_embeds is None:
-            inputs_embeds = self.embeddings(input_ids)
+            inputs_embeds = self.model.embeddings(input_ids)
             if pixel_values is not None:
                 pixel_values = pixel_values.type(self.visual.get_dtype())
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
@@ -52,46 +56,48 @@ class Qwen2VL(Qwen2):
             attention_mask = attention_mask.to(inputs_embeds.device)
         return inputs_embeds, attention_mask
 
-    def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
+    def tie_weights(self):
+        self.model.tie_weights()
+
+    def forward(self, *inputs:Union[tuple, list], **model_kwargs):
         '''准备进embedding层的一些输入
         position_ids在之前已经准备好
         '''
-        input_ids, _, _, _, _, model_kwargs['attention_mask'], model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
-        inputs_embeds, attention_mask = self.get_vllm_embedding(input_ids=input_ids, **model_kwargs)
-
-        # 进入embedding层
-        model_kwargs.update({'hidden_states': inputs_embeds, 'inputs_embeds': inputs_embeds, 'attention_mask':attention_mask})
+        inputs = self.args_segmentate(inputs, **model_kwargs)
+        input_ids, _, _, _, _, model_kwargs['attention_mask'], model_kwargs = self.model.preprare_embeddings_inputs(*inputs, **model_kwargs)
+        inputs_embeds, model_kwargs['attention_mask'] = self.get_vllm_embedding(input_ids=input_ids, **model_kwargs)
         
-        return model_kwargs
+        return self.model(input_ids=inputs_embeds, **model_kwargs)
+
 
     def load_variable(self, variable, old_key, new_key):
-        if old_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
+        if old_key in {'model.embeddings.word_embeddings.weight', 'model.lm_head.weight'}:
             return self.load_embeddings(variable)
         return variable
     
     def variable_mapping(self):
         # 映射到权重格式
         mapping = {
-            'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
-            'LayerNormFinal.weight': 'model.norm.weight',
+            'model.embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
+            'model.lm_head.weight': 'lm_head.weight',
+            'model.LayerNormFinal.weight': 'model.norm.weight',
             }
 
         for i in range(self.num_hidden_layers):
             mapping.update( 
             {
-            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.q.bias': f'model.layers.{i}.self_attn.q_proj.bias',
-            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.k.bias': f'model.layers.{i}.self_attn.k_proj.bias',
-            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
-            f'decoderLayer.{i}.multiHeadAttention.v.bias': f'model.layers.{i}.self_attn.v_proj.bias',
-            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
-            f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
-            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
-            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
-            f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
-            f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
+            f'model.decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
+            f'model.decoderLayer.{i}.multiHeadAttention.q.bias': f'model.layers.{i}.self_attn.q_proj.bias',
+            f'model.decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
+            f'model.decoderLayer.{i}.multiHeadAttention.k.bias': f'model.layers.{i}.self_attn.k_proj.bias',
+            f'model.decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
+            f'model.decoderLayer.{i}.multiHeadAttention.v.bias': f'model.layers.{i}.self_attn.v_proj.bias',
+            f'model.decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
+            f'model.decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
+            f'model.decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
+            f'model.decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
+            f'model.decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
+            f'model.decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
             })
         return mapping
 
@@ -243,12 +249,12 @@ class Qwen2VL(Qwen2):
 
                 return position_ids, mrope_position_deltas
 
-    def get_states(self, kwargs):
-        new_kwargs = super().get_states(kwargs)
-        for key in ['pixel_values', 'pixel_values_videos', 'image_grid_thw', 'video_grid_thw']:
-            if key in kwargs:
-                new_kwargs[key] = kwargs[key]
-        return new_kwargs
+    # def get_states(self, kwargs):
+    #     new_kwargs = super().get_states(kwargs)
+    #     for key in ['pixel_values', 'pixel_values_videos', 'image_grid_thw', 'video_grid_thw']:
+    #         if key in kwargs:
+    #             new_kwargs[key] = kwargs[key]
+    #     return new_kwargs
     
     def prepare_inputs_for_generation(
         self,
@@ -285,7 +291,8 @@ class Qwen2VL(Qwen2):
             pixel_values_videos = None
 
         kwargs.update(
-            {
+            {   
+                "use_states": use_states,
                 "position_ids": position_ids,
                 "past_key_values": past_key_values,
                 "attention_mask": attention_mask,
@@ -297,8 +304,3 @@ class Qwen2VL(Qwen2):
             }
         )
         return kwargs
-
-    def _update_model_kwargs_for_generation(self, model_kwargs:dict):
-        new_model_kwargs = super()._update_model_kwargs_for_generation(model_kwargs)
-        new_model_kwargs['rope_deltas'] = model_kwargs['rope_deltas']
-        return new_model_kwargs

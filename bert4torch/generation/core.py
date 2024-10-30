@@ -940,9 +940,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         inputs = self.pre_process(input_ids)
 
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, states=self.decoder.get_states(kwargs))  # 基于随机采样
+            output_ids = self.random_sample(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs))  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs, states=self.decoder.get_states(kwargs))  # 基于beam search
+            output_ids = self.beam_search(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs))  # 基于beam search
 
         return self.post_process(output_ids)
 
@@ -954,10 +954,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(input_ids)
         if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(inputs, states=self.decoder.get_states(kwargs)):  # stream随机采样
+            for output_ids in self.stream_random_sample(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs)):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(inputs, states=self.decoder.get_states(kwargs)):  # stream beam采样
+            for output_ids in self.stream_beam_search(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs)):  # stream beam采样
                 yield self.post_process(output_ids)
 
 
