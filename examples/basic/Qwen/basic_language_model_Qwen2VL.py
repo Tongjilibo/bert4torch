@@ -34,7 +34,7 @@ while True:
                     "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
                     "max_pixels": 512 * 512,
                 },
-                {"type": "text", "text": "Describe this image."},
+                {"type": "text", "text": query},
             ],
         }
     ]
@@ -51,8 +51,7 @@ while True:
         padding=True,
         return_tensors="pt",
     ).to(device)
-    model.eval()
-    with torch.no_grad():
-        generated_ids = model.generate(**inputs, max_new_tokens=128, top_k=1, pad_token_id=151643, eos_token_id=[151645, 151643])
-        output_text = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-        print(output_text)
+    
+    generated_ids = model.generate(**inputs, max_new_tokens=128, top_k=1, pad_token_id=151643, eos_token_id=[151645, 151643])
+    output_text = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+    print(f'Bot: {output_text}\n')

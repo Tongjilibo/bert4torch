@@ -24,6 +24,14 @@ class Qwen2VL(Qwen2):
             video_grid_thw: Optional[torch.LongTensor] = None,
             **kwargs
         ):
+        '''获取vlm的embedding
+        1. train阶段：input_ids为query的token_ids, pixel_values或pixel_values_videos有一个不为空
+        2. infer阶段：
+            use_states=True:
+                step=0: 和train阶段一致
+                step=1: input_ids为新生成的last_token_id, pixel_values和pixel_values_videos为空
+            use_states=False: 和train阶段一致
+        '''
         if inputs_embeds is None:
             inputs_embeds = self.embeddings(input_ids)
             if pixel_values is not None:
@@ -40,17 +48,15 @@ class Qwen2VL(Qwen2):
                 video_embeds = video_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
                 inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)
 
-            if attention_mask is not None:
-                attention_mask = attention_mask.to(inputs_embeds.device)
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(inputs_embeds.device)
         return inputs_embeds, attention_mask
-        # return inputs_embeds, attention_mask
 
     def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
         '''准备进embedding层的一些输入
         position_ids在之前已经准备好
         '''
-        input_ids, _, _, _, _, attention_mask, model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
-        model_kwargs['attention_mask'] = attention_mask
+        input_ids, _, _, _, _, model_kwargs['attention_mask'], model_kwargs = self.preprare_embeddings_inputs(*inputs, **model_kwargs)
         inputs_embeds, attention_mask = self.get_vllm_embedding(input_ids=input_ids, **model_kwargs)
 
         # 进入embedding层
@@ -257,14 +263,15 @@ class Qwen2VL(Qwen2):
         pixel_values_videos=None,
         image_grid_thw=None,
         video_grid_thw=None,
+        use_states=False,
         **kwargs,
     ):
         # 这里主要是需要处理下position_ids和rope_deltas
-
         rope_deltas = kwargs.get("rope_deltas", None)
-        if step == 0:
+        if step == 0 or (use_states is False):
             position_ids, rope_deltas = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
         else:
+            # use_states且step>=1
             batch_size = input_ids.shape[0]
             cache_len = input_seqlen[0] + step - 1
             delta = (cache_len + rope_deltas if input_seqlen is not None and rope_deltas is not None else 0)
@@ -273,6 +280,7 @@ class Qwen2VL(Qwen2):
             position_ids = position_ids.add(delta)
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
+            # 无需重新生成vlm embedding
             pixel_values = None
             pixel_values_videos = None
 

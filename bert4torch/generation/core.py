@@ -46,12 +46,12 @@ class AutoRegressiveDecoder(object):
     :param max_new_tokens: int, 最大解码长度
     :param min_new_tokens: int, 最小解码长度, 默认为1
     :param max_length: int, 最大文本长度
-    :param pad_token_id: int, pad_id, 在batch解码时候使用
+    :param pad_token_id: int, pad_token_id, 在batch解码时候使用
     :param pad_mode: str, padding在前面还是后面, pre或者post
     :param device: str, 默认为'cpu'
     :param n: int, random_sample时候表示生成的个数; beam_search时表示束宽
-    :param top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)
-    :param top_p: float, 这里的topp是token的概率阈值设置(仅在头部top_p上进行概率采样)
+    :param top_k: int, 这里的top_k是指仅保留topk的值 (仅在top_k上进行概率采样)
+    :param top_p: float, 这里的top_p是token的概率阈值设置(仅在头部top_p上进行概率采样)
     :param temperature: float, 温度参数, 默认为1, 越小结果越确定, 越大结果越多样
     :param repetition_penalty: float, 重复的惩罚系数, 越大结果越不重复
     :param min_ends: int, 最小的end_id的个数
@@ -100,14 +100,11 @@ class AutoRegressiveDecoder(object):
         self.min_ends = min_ends
         self.return_last_token = False
         self.return_states = False
-        # 参数别名：兼容bert4torch旧示例
-        self.alias = {'start_id': 'bos_token_id',
-                      'end_id': 'eos_token_id',
-                      'topk': 'top_k',
-                      'topp': 'top_p',
-                      'maxlen': 'max_length',  # 从0.4.7开始, 之前maxlen表示max_new_tokens
-                      'pad_id': 'pad_token_id'
-                     }
+        
+        for old_key, new_key in {'start_id': 'bos_token_id', 'end_id': 'eos_token_id', 'topk': 'top_k', 
+                                 'topp': 'top_p', 'maxlen': 'max_length', 'pad_id': 'pad_token_id'}.items():
+            if old_key in generation_config:
+                raise DeprecationWarning(f'Args `{old_key}` not supported since 0.2.8, use {new_key} instead')
         self.set_generation_config(generation_config)
                 
         self.use_batch = False
@@ -122,9 +119,7 @@ class AutoRegressiveDecoder(object):
             kwargs.update(**generation_config)
     
         for key, value in kwargs.items():
-            if key in self.alias:  # 兼容transformers的参数设置
-                setattr(self, self.alias[key], value)
-            elif hasattr(self, key):
+            if hasattr(self, key):
                 setattr(self, key, value)  # 在generate()时候动态设置属性
             # else:
             #     log_warn_once(f'Generation_config `{key}` has not been pre maintained')
@@ -370,7 +365,7 @@ class AutoRegressiveDecoder(object):
         if output_ids.shape[1] >= self.min_new_tokens:  # 最短长度判断
             inputs_new, output_ids_new, output_scores_new, flag_new = [], [], [], []
             topks_new = self.top_k.copy()
-            for smp_i, top_k in enumerate(self.top_k): # 这里的topk是一个list
+            for smp_i, top_k in enumerate(self.top_k): # 这里的top_k是一个list
                 if top_k == 0:
                     continue
                 start, end = sum(self.top_k[:smp_i]), sum(self.top_k[:smp_i+1])
@@ -414,7 +409,7 @@ class AutoRegressiveDecoder(object):
         """beam search解码
         
         :param inputs: 编码器的输入, 包含encoder_hidden_states, encoder_attention_mask
-        :param top_k: int, 这里的topk即beam size
+        :param top_k: int, 这里的top_k即beam size
         :param states: None/dict, 缓存参数
         :param temperature: 温度参数, 默认为1
         :param min_ends:
@@ -543,8 +538,8 @@ class AutoRegressiveDecoder(object):
         说明: 非None的topk表示每一步只从概率最高的topk个中采样; 而非None的topp表示每一步只从概率最高的且概率之和刚好达到topp的若干个token中采样。
         
         :param inputs_raw: tensor、array、list、tuple, 解码的输入, 一般为last_hidden_state, shape=[btz, seq_len, hdsz]
-        :param top_k: int, 这里的topk是指仅保留topk的值
-        :param top_p: float, 这里的topp是token的概率阈值设置
+        :param top_k: int, 这里的top_k是指仅保留topk的值
+        :param top_p: float, 这里的top_p是token的概率阈值设置
         :param states: None/dict, 缓存参数
         :param temperature: 温度参数, 默认为1
         :param min_ends: 最小的end_id的个数
@@ -627,11 +622,11 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param eos_token_id: int/tuple/list, 解码使用的结束token_id, 不同预训练模型设置可能不一样, 默认给的-1(真实场景中不存在, 表示输出到max_length)
     :param max_new_tokens: int, 最大解码长度
     :param min_new_tokens: int, 最小解码长度, 默认为1
-    :param pad_token_id: int, pad_id, 在batch解码时候使用
+    :param pad_token_id: int, pad_token_id, 在batch解码时候使用
     :param pad_mode: str, padding在前面还是后面, pre或者post
     :param n: int, random_sample时候表示生成的个数; beam_search时表示束宽
-    :param top_k: int, 这里的topk是指仅保留topk的值
-    :param top_p: float, 这里的topp是token的概率阈值设置
+    :param top_k: int, 这里的top_k是指仅保留topk的值
+    :param top_p: float, 这里的top_p是token的概率阈值设置
     :param temperature: 温度参数, 默认为1
     :param repetition_penalty: 重复的惩罚系数
     :param min_ends: int, 最小的end_id的个数
@@ -689,8 +684,6 @@ class SeqGeneration(AutoRegressiveDecoder):
         ''' genration的默认参数设置 '''
         if kwargs.get('pad_token_id') is not None:  # 用户自行设置
             pass
-        elif kwargs.get('pad_id') is not None:  # 用户自行设置(别名)
-            pass
         elif (tokenizer is not None) and (tokenizer.pad_token_id is not None):
             kwargs['pad_token_id'] = tokenizer.pad_token_id
         else:
@@ -699,16 +692,12 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         if kwargs.get('eos_token_id') is not None:  # 用户自行设置
             pass
-        elif kwargs.get('end_id') is not None:  # 用户自行设置(别名)
-            pass
         elif (tokenizer is not None) and hasattr(tokenizer, 'eos_token_id') and (tokenizer.eos_token_id is not None):
             kwargs['eos_token_id'] = tokenizer.eos_token_id
             log_info(f'Arg `eos_token_id` has been set to tokenizer.eos_token_id:{tokenizer.eos_token_id}')
         else:
             kwargs['eos_token_id'] = kwargs['pad_token_id']
             log_info(f'Arg `eos_token_id` has been set to `pad_token_id`:{kwargs["pad_token_id"]}')
-        if ('eos_token_id' in kwargs) and ('end_id' in kwargs):
-            kwargs.pop('end_id')
         kwargs['device'] = kwargs.get('device') or next(model.parameters()).device
 
         return kwargs
