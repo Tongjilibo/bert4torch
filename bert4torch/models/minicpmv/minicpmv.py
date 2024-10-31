@@ -1,19 +1,17 @@
 import math
-from typing import List, Optional
-import json
+from typing import List, Optional, Union
 import torch
-from copy import deepcopy
-from PIL import Image
 from .modeling_navit_siglip import SiglipVisionTransformer
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
-from bert4torch.models.base import BERT_BASE
-from bert4torch.snippets import is_transformers_available, DottableDict, inference_mode
+from bert4torch.models.transformer import DecoderBase
+from bert4torch.snippets import DottableDict
 import inspect
 
 
-class MiniCPMV(BERT_BASE):
+class MiniCPMV(DecoderBase):
+    passed_kwargs = DecoderBase.passed_kwargs | {"pixel_values", "tgt_sizes", "image_bound"}
     def __init__(self, **config):
         super().__init__(**config)
         self.llm = Qwen2(**config)
@@ -21,7 +19,14 @@ class MiniCPMV(BERT_BASE):
         self.vpm = self.init_vision_module()
         self.vision_dim = self.vpm.embed_dim
         self.embed_dim = self.llm.hidden_size
-        self.resampler = self.init_resampler(self.embed_dim, self.vision_dim)
+        self.resampler = Resampler(
+            num_queries=self.config.query_num,
+            embed_dim=self.embed_dim,
+            num_heads=self.embed_dim // 128,
+            kv_dim=self.vision_dim,
+            adaptive=True
+        )
+        self.llm.passed_kwargs = MiniCPMV.passed_kwargs
 
     def init_vision_module(self):
         # same as HuggingFaceM4/siglip-so400m-14-980-flash-attn2-navit add tgt_sizes
@@ -37,42 +42,21 @@ class MiniCPMV(BERT_BASE):
         setattr(model, 'embed_dim', model.embeddings.embed_dim)
         setattr(model, 'patch_size', model.embeddings.patch_size)
 
-        self.vlm_tgt_sizes = True if 'tgt_sizes' in inspect.signature(model).parameters else False
+        self.vlm_tgt_sizes = True if 'tgt_sizes' in inspect.signature(SiglipVisionTransformer.forward).parameters else False
         return model
 
-    def init_resampler(self, embed_dim, vision_dim):
-        return Resampler(
-            num_queries=self.config.query_num,
-            embed_dim=embed_dim,
-            num_heads=embed_dim // 128,
-            kv_dim=vision_dim,
-            adaptive=True
-        )
+    def get_vllm_embedding(self, input_ids, **model_kwargs):
 
-    def get_input_embeddings(self):
-        return self.llm.get_input_embeddings()
+        if self.llm.embeddings.emb_scale != 1:
+            vllm_embedding = self.llm.embeddings.word_embeddings(input_ids) * self.llm.embeddings.emb_scale
+        else:
+            vllm_embedding = self.llm.embeddings.word_embeddings(input_ids)
 
-    def set_input_embeddings(self, value):
-        self.llm.embed_tokens = value
-
-    def get_output_embeddings(self):
-        return self.llm.lm_head
-
-    def set_output_embeddings(self, new_embeddings):
-        self.llm.lm_head = new_embeddings
-
-    def set_decoder(self, decoder):
-        self.llm = decoder
-
-    def get_decoder(self):
-        return self.llm
-
-    def get_vllm_embedding(self, data):
-        if 'vision_hidden_states' not in data:
+        if model_kwargs.get('pixel_values') is not None:
             dtype = self.llm.embeddings.word_embeddings.weight.dtype
             device = self.llm.embeddings.word_embeddings.weight.device
-            tgt_sizes = data['tgt_sizes']
-            pixel_values_list = data['pixel_values']
+            tgt_sizes = model_kwargs['tgt_sizes']
+            pixel_values_list = model_kwargs['pixel_values']
             vision_hidden_states = []
             all_pixel_values = []
             img_cnt = []
@@ -137,45 +121,31 @@ class MiniCPMV(BERT_BASE):
                 for _ in range(len(pixel_values_list)):
                     vision_hidden_states.append(dummy_feature)
 
-        else:
-            vision_hidden_states = data['vision_hidden_states']
+            vision_hidden_states = [i.type(vllm_embedding.dtype) if isinstance(i, torch.Tensor) else i for i in vision_hidden_states]
 
-        if self.llm.embeddings.emb_scale != 1:
-            vllm_embedding = self.llm.embeddings.word_embeddings(data['input_ids']) * self.llm.embeddings.emb_scale
-        else:
-            vllm_embedding = self.llm.embeddings.word_embeddings(data['input_ids'])
+            # 参考vision_hidden_states对vllm_embedding进行了修改
+            bs = len(input_ids)
+            for i in range(bs):
+                cur_vs_hs = vision_hidden_states[i]
+                if len(cur_vs_hs) > 0:
+                    cur_vllm_emb = vllm_embedding[i]
+                    cur_image_bound = model_kwargs['image_bound'][i]
+                    if len(cur_image_bound) > 0:
+                        image_indices = torch.stack(
+                            [torch.arange(r[0], r[1], dtype=torch.long) for r in cur_image_bound]
+                        ).to(vllm_embedding.device)
 
-        vision_hidden_states = [i.type(vllm_embedding.dtype) if isinstance(i, torch.Tensor) else i for i in vision_hidden_states]
+                        cur_vllm_emb.scatter_(0, image_indices.view(-1, 1).repeat(1, cur_vllm_emb.shape[-1]),
+                                            cur_vs_hs.view(-1, cur_vs_hs.shape[-1]))
+                    elif self.training:
+                        cur_vllm_emb += cur_vs_hs[0].mean() * 0
 
-        bs = len(data['input_ids'])
-        for i in range(bs):
-            cur_vs_hs = vision_hidden_states[i]
-            if len(cur_vs_hs) > 0:
-                cur_vllm_emb = vllm_embedding[i]
-                cur_image_bound = data['image_bound'][i]
-                if len(cur_image_bound) > 0:
-                    image_indices = torch.stack(
-                        [torch.arange(r[0], r[1], dtype=torch.long) for r in cur_image_bound]
-                    ).to(vllm_embedding.device)
+        return vllm_embedding
 
-                    cur_vllm_emb.scatter_(0, image_indices.view(-1, 1).repeat(1, cur_vllm_emb.shape[-1]),
-                                          cur_vs_hs.view(-1, cur_vs_hs.shape[-1]))
-                elif self.training:
-                    cur_vllm_emb += cur_vs_hs[0].mean() * 0
-
-        return vllm_embedding, vision_hidden_states
-
-    def forward(self, data, **kwargs):
-        vllm_embedding, vision_hidden_states = self.get_vllm_embedding(data)
-        position_ids = data["position_ids"]
-        if position_ids.dtype != torch.int64:
-            position_ids = position_ids.long()
-
-        return self.llm(
-            input_ids=vllm_embedding,
-            position_ids=position_ids,
-            **kwargs
-        )
+    def forward(self, *inputs:Union[tuple, list], **model_kwargs):
+        inputs = self.args_segmentate(inputs, **model_kwargs)
+        vllm_embedding = self.get_vllm_embedding(inputs[0], **model_kwargs)
+        return self.llm(input_ids=vllm_embedding, **model_kwargs)
     
     def load_variable(self, variable, old_key, new_key):
         if old_key in {'llm.embeddings.word_embeddings.weight', 'llm.lm_head.weight'}:
@@ -209,45 +179,12 @@ class MiniCPMV(BERT_BASE):
             })
         return mapping
 
-    
-    def _decode_stream(self, inputs_embeds, attention_mask, **kwargs):
-        for output in self.llm.stream_generate(
-            inputs_embeds, attention_mask=attention_mask, **kwargs):
-            yield output
-
-    @inference_mode()
-    def generate(
-        self,
-        input_ids=None,
-        pixel_values=None,
-        tgt_sizes=None,
-        image_bound=None,
-        attention_mask=None,
-        vision_hidden_states=None,
-        return_vision_hidden_states=False,
-        stream=False,
-        **kwargs
-    ):
-        assert input_ids is not None
-        assert len(input_ids) == len(pixel_values)
-
-        model_inputs = {"input_ids": input_ids, "image_bound": image_bound}
-
-        if vision_hidden_states is None:
-            model_inputs["pixel_values"] = pixel_values
-            model_inputs['tgt_sizes'] = tgt_sizes
-        else:
-            model_inputs["vision_hidden_states"] = vision_hidden_states
-
-        (model_inputs["inputs_embeds"], vision_hidden_states) = self.get_vllm_embedding(model_inputs)
-        if stream:
-            result = self._decode_stream(model_inputs["inputs_embeds"], attention_mask, **kwargs)
-        else:
-            result = self.llm.generate(model_inputs["inputs_embeds"], attention_mask=attention_mask, **kwargs)
-
-        if return_vision_hidden_states:
-            return result, vision_hidden_states
-        return result
+    def prepare_inputs_for_generation(self, *inputs, step=None, **states):
+        if step > 0 and states.get('use_states', False) is True:
+            states['pixel_values'] = None
+            states["tgt_sizes"] = None
+            states["image_bound"] = None
+        return states
 
 
 class MiniCPMLlama3V(MiniCPMV):

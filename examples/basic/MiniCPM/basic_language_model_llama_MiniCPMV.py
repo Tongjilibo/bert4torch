@@ -1,16 +1,16 @@
 from PIL import Image
 from bert4torch.pipelines import MiniCPMV
 from bert4torch.snippets import log_info
+import requests
 
+query1 = '介绍一下这张图片的内容？'
+query2 = '图片中的主体对象是什么？'
+image1 = Image.open(requests.get("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg", stream=True).raw).convert('RGB')
+image2 = Image.open(requests.get("https://picx.zhimg.com/v2-87a5a6d5a1536368eb6b2412d1c0a985_b.jpg", stream=True).raw).convert('RGB')
 
 # E:/data/pretrain_ckpt/MiniCPM/MiniCPM-Llama3-V-2_5
 # E:/data/pretrain_ckpt/MiniCPM/MiniCPM-V-2_6
 demo = MiniCPMV('E:/data/pretrain_ckpt/MiniCPM/MiniCPM-V-2_6')
-query1 = '介绍一下这张图片的内容？'
-query2 = '图片内容和基金产品相关吗？'
-image1 = Image.open('./test_local/images/资料概要.png').convert('RGB')
-image2 = Image.open('./test_local/images/bert4torch.png').convert('RGB')
-
 
 log_info('# 提问单张图片')
 answer = demo.chat(query1, image1)
