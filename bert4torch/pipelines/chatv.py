@@ -70,7 +70,7 @@ else:
     st.cache_resource = st.delete_arguments
 
 if is_transformers_available():
-    from transformers import AutoProcessor, TextIteratorStreamer
+    from transformers import AutoProcessor
 
 __all__ = [
     'ChatVBase',

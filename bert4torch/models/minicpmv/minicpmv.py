@@ -195,11 +195,12 @@ class MiniCPMLlama3V(MiniCPMV):
         self.vpm = self.init_vision_module()
         self.vision_dim = self.vpm.embed_dim
         self.embed_dim = self.llm.hidden_size
-        self.resampler = self.init_resampler(self.embed_dim, self.vision_dim)
 
     def init_vision_module(self):
         from transformers.models.idefics2.modeling_idefics2 import Idefics2VisionTransformer
-        model = Idefics2VisionTransformer(self.config.vision_config)
+        from transformers.models.idefics2.configuration_idefics2 import Idefics2VisionConfig
+        vision_config = Idefics2VisionConfig(**self.config.vision_config)
+        model = Idefics2VisionTransformer(vision_config)
         if self.config.drop_vision_last_layer:
             model.encoder.layers = model.encoder.layers[:-1]
 

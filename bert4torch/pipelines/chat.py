@@ -12,7 +12,6 @@
 '''
 
 import os
-import subprocess
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
 from bert4torch.pipelines.base import PipeLineBase
@@ -24,6 +23,7 @@ from bert4torch.snippets import (
     log_info_once,
     log_warn, 
     log_error,
+    colorful,
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
@@ -295,13 +295,13 @@ class ChatCli(ChatBase):
         for query_or_response in history:
             # 现在的dict格式，形如{'role': 'user', 'content': '你好啊'}
             if query_or_response['role'] == "user":
-                prompt += f"\n\nUser：{query_or_response['content']}"
+                prompt += f"\n\n{colorful('User：', color='green')}{query_or_response['content']}"
             elif query_or_response['role'] == "assistant":
                 response = query_or_response.get('raw_content', query_or_response['content'])
-                prompt += f"\n\nAssistant：{response}"
+                prompt += f"\n\n{colorful('Assistant：', color='red')}{response}"
                 # function_call主要用于content的结构化展示
                 if query_or_response.get('function_call'):
-                    prompt += f"\n\nFunction：{query_or_response['function_call']}"
+                    prompt += f"\n\n{colorful('Function：', color='yellow')}{query_or_response['function_call']}"
         return prompt
 
     def run(self, functions:List[dict]=None, stream:bool=True):
@@ -311,7 +311,7 @@ class ChatCli(ChatBase):
         clear_command = 'cls' if os_name == 'Windows' else 'clear'
         print(self.init_str)
         while True:
-            query = input("\nUser: ")
+            query = input(f"\n{colorful('User：', color='green')}")
             if query.strip() == "stop":
                 break
             if query.strip() == "clear":
