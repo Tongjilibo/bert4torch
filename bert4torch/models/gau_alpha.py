@@ -1,7 +1,7 @@
 from bert4torch.models.roformer import RoFormerV2
 from torch import nn
 import copy
-from bert4torch.layers import BlockIdentity, GAU_Layer
+from bert4torch.layers import BlockIdentity, GAULayer
 
 
 class GAU_alpha(RoFormerV2):
@@ -9,7 +9,7 @@ class GAU_alpha(RoFormerV2):
         kwargs.update({'p_bias': 'rotary', 'weight': False, 'bias': False, 'norm_mode': 'rmsnorm', 'normalization': 'softmax_plus'})
         super().__init__(*args, **kwargs)
 
-        layer = GAU_Layer(**kwargs)
+        layer = GAULayer(**kwargs)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         self.model_type = 'gau_alpha'
 

@@ -1,6 +1,6 @@
 from torch import nn
 import torch
-from bert4torch.layers.position_encoding import RoPEPositionEncoding
+from bert4torch.layers.position_encoding import RopePositionEncoding
 
 
 class GlobalPointer(nn.Module):
@@ -21,7 +21,7 @@ class GlobalPointer(nn.Module):
 
         self.dense = nn.Linear(hidden_size, heads * head_size * 2, bias=use_bias)
         if self.RoPE:
-            self.position_embedding = RoPEPositionEncoding(head_size)
+            self.position_embedding = RopePositionEncoding(head_size)
 
     def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None):
         ''' 
@@ -71,7 +71,7 @@ class EfficientGlobalPointer(nn.Module):
         self.p_dense = nn.Linear(hidden_size, head_size * 2, bias=use_bias)
         self.q_dense = nn.Linear(head_size * 2, heads * 2, bias=use_bias)
         if self.RoPE:
-            self.position_embedding = RoPEPositionEncoding(head_size)
+            self.position_embedding = RopePositionEncoding(head_size)
 
     def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None):
         ''' 

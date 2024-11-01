@@ -11,6 +11,7 @@ from bert4torch.models.gau_alpha import GAU_alpha
 from bert4torch.models.glm import GLM, GLM2
 from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
 from bert4torch.models.llama import LLaMA, Baichuan, MiniCPM
+from bert4torch.models.minicpmv import MiniCPMV, MiniCPMLlama3V
 from bert4torch.models.nezha import NEZHA
 from bert4torch.models.roformer import RoFormer, RoFormerV2
 from bert4torch.models.t5 import T5, T5_Encoder, T5_Decoder
@@ -20,15 +21,27 @@ from bert4torch.models.xlnet import XLNET
 from bert4torch.models.uie import UIE
 from bert4torch.models.bloom import Bloom
 from bert4torch.models.qwen import Qwen, Qwen2
+from bert4torch.models.qwen2_vl import Qwen2VL
 from bert4torch.models.internlm import InternLM, InternLM2
 from bert4torch.models.falcon import Falcon
 from bert4torch.models.deepseek import DeepSeek
-from bert4torch.snippets import set_default_torch_dtype, get_checkpoint_path, get_config_path
-from bert4torch.snippets import is_accelerate_available, log_error, log_warn, DottableDict
 from typing import Union, Literal
 import json
 import os
 import torch
+from bert4torch.snippets import (
+    log_warn_once, 
+    log_error,
+    is_flash_attn_available, 
+    is_xformers_available, 
+    is_torch_sdpa_available,
+    is_accelerate_available,
+    set_default_torch_dtype, 
+    get_checkpoint_path, 
+    get_config_path,
+    get_device_map,
+    DottableDict
+)
 
 
 def build_transformer_model(
@@ -106,21 +119,14 @@ def build_transformer_model(
         # 没有找到bert4torch_config.json，则从local的checkpoint_path去找
         config_path = get_config_path(checkpoint_path, **kwargs)
 
-    config = DottableDict()
-    if config_path is not None:
-        config.update(json.load(open(config_path)))
-    config.update(kwargs)
-    if 'max_position' not in config:
-        config['max_position'] = config.get('max_position_embeddings', 512)
-    if 'dropout_rate' not in config:
-        config['dropout_rate'] = config.get('hidden_dropout_prob')
-    if 'segment_vocab_size' not in config:
-        config['segment_vocab_size'] = config.get('type_vocab_size', 2)
+    # config的修改
+    config = check_update_config(config_path, **kwargs)
+    config['add_trainer'] = add_trainer
+
     device_map = config.pop('device_map', None)
-    skip_init = config.get('skip_init', False) or config.get('low_cpu_mem_usage', False)
+    skip_init = config.pop('skip_init', False) or config.pop('low_cpu_mem_usage', False)
     skip_init = True if device_map is not None else skip_init  # 指定了device_map, 就必须skip_init
     torch_dtype = config.pop('torch_dtype', None)
-    config['add_trainer'] = add_trainer
     checkpoint_path = checkpoint_path or config.get('checkpoint_path')
 
     models = {
@@ -170,7 +176,10 @@ def build_transformer_model(
         'internlm2': InternLM2,
         'falcon': Falcon,
         'deepseek': DeepSeek,
-        'minicpm': MiniCPM
+        'minicpm': MiniCPM,
+        'minicpmv': MiniCPMV,
+        'minicpm_llama3_v': MiniCPMLlama3V,
+        'qwen2_vl': Qwen2VL
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))
@@ -209,7 +218,7 @@ def build_transformer_model(
                 transformer = MODEL(**config)
         else:
             skip_init = False  # 若accelerate包不存在则先初始化模型参数
-            log_warn('Package `accelerate` not available, use `pip install accelerate`')
+            log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
     if not skip_init:
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
@@ -228,19 +237,53 @@ def build_transformer_model(
     # 权重加载
     transformer.checkpoint_path = checkpoint_path
     if checkpoint_path is not None:
-        transformer.from_pretrained(checkpoint_path, mapping=config.get('mapping'), skip_init=skip_init, 
-                                    device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+        # 根据模型尺寸和硬件(gpu, cpu)的大小来确定device_map
+        device_map = get_device_map(transformer, device_map, torch_dtype, **config)
+        transformer.from_pretrained(checkpoint_path, mapping=config.pop('mapping', None), skip_init=skip_init, 
+                                    device_map=device_map, torch_dtype=torch_dtype, verbose=verbose, **config)
     
     # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
     transformer.tie_weights()
     transformer.configs = transformer.config = config
 
     # meta device则报错
-    meta_names = []
-    for name_, para_ in transformer.named_parameters():
-        if str(para_.device) == 'meta':
-            meta_names.append(name_)
-    if len(meta_names) > 0:
-        log_error(f'Meta device not allowed: {meta_names}')
+    if device_map is None:
+        meta_names = []
+        for name_, para_ in transformer.named_parameters():
+            if str(para_.device) == 'meta':
+                meta_names.append(name_)
+        if len(meta_names) > 0:
+            log_error(f'Meta device not allowed: {meta_names}')
     
     return transformer
+
+
+def check_update_config(config_path:str, **kwargs):
+    '''对config做一些参数检查和更新操作'''
+
+    config = dict()
+    if config_path is not None:
+        config.update(json.load(open(config_path)))
+    config.update(kwargs)
+    if 'max_position' not in config:
+        config['max_position'] = config.get('max_position_embeddings', 512)
+    if 'dropout_rate' not in config:
+        config['dropout_rate'] = config.get('hidden_dropout_prob')
+    if 'segment_vocab_size' not in config:
+        config['segment_vocab_size'] = config.get('type_vocab_size', 2)
+
+    # 获取_attn_implementation的配置项, 自动进行一些设置
+    _attn_implementation = config.get('_attn_implementation', config.get('flash_attention'))  # 兼容老配置文件
+    if _attn_implementation is None:
+        config['_attn_implementation'] = 'eager'
+    elif (_attn_implementation in {True, 'sdpa'}) and (not is_torch_sdpa_available()):
+        log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
+        config['_attn_implementation'] = 'eager'
+    elif (_attn_implementation == 'xformers') and (not is_xformers_available()):
+        log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
+        config['_attn_implementation'] = 'eager'
+    elif (_attn_implementation == 'flash_attn_2') and (not is_flash_attn_available()):
+        log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
+        config['_attn_implementation'] = 'eager'
+
+    return DottableDict(config)

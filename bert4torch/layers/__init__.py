@@ -1,5 +1,16 @@
-from bert4torch.layers.attention import MultiHeadAttentionLayer, GatedAttentionUnit
-from bert4torch.layers.core import LayerNorm, BertEmbeddings, PositionWiseFeedForward, LlamaFeedForward
+from bert4torch.layers.attention import (
+    MultiHeadAttention, 
+    GatedAttention, 
+    DeepseekV2Attention,
+    DebertaV2Attention,
+    AlibiAttention,
+    NezhaTypicalRelativeAttention,
+    RopeAttention,
+    T5Attention,
+    TransformerxlMultiHeadAttn,
+    ATTENTION_MAP
+)
+from bert4torch.layers.core import LayerNorm, BertEmbeddings, PositionWiseFeedForward, LlamaFeedForward, T5PositionWiseFeedForward
 from bert4torch.layers.crf import CRF
 from bert4torch.layers.global_point import GlobalPointer, EfficientGlobalPointer
 from bert4torch.layers.misc import (
@@ -20,7 +31,7 @@ from bert4torch.layers.position_encoding import (
     NezhaPositionsEncoding, 
     T5PositionsEncoding, 
     SinusoidalPositionEncoding, 
-    RoPEPositionEncoding, 
+    RopePositionEncoding, 
     XlnetPositionsEncoding, 
     ALiBiPositionsEncoding
 )
@@ -34,6 +45,6 @@ from bert4torch.layers.transformer_block import (
     GlmLayer,
     Glm2Layer,
     Gpt2MlLayer,
-    GAU_Layer
+    GAULayer
 )
 from bert4torch.layers.moe import DeepseekMoE, MoEGate, AddAuxiliaryLoss

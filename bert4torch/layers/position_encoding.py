@@ -19,13 +19,14 @@ def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, n
     if (ntk_alpha is not None) and (ntk_alpha != 1):
         base = base * ntk_alpha ** (d_hid / (d_hid-2))
     
-    position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
-    embeddings_table = torch.zeros(n_position, d_hid)
+    inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
     if (scaling_factor is not None) and (scaling_factor != 1):
-        position = position / scaling_factor
-    embeddings_table[:, 0::2] = torch.sin(position * div_term)
-    embeddings_table[:, 1::2] = torch.cos(position * div_term)
+        inv_freq = inv_freq / scaling_factor
+    
+    position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
+    embeddings_table = torch.zeros(n_position, d_hid)
+    embeddings_table[:, 0::2] = torch.sin(position * inv_freq)
+    embeddings_table[:, 1::2] = torch.cos(position * inv_freq)
     return embeddings_table
 
     # 第二种实现
@@ -166,7 +167,7 @@ class SinusoidalPositionEncoding(nn.Module):
         return self.position_embeddings(position_ids)
 
 
-class RoPEPositionEncoding(nn.Module):
+class RopePositionEncoding(nn.Module):
     """旋转式位置编码: https://kexue.fm/archives/8265
 
     :param embedding_size: embedding的大小
@@ -181,8 +182,9 @@ class RoPEPositionEncoding(nn.Module):
                  rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
                  scaling_factor: float=1.0, 
                  rope_theta: float=10000.0, 
+                 device = None,
                  **kwargs):
-        super(RoPEPositionEncoding, self).__init__()
+        super(RopePositionEncoding, self).__init__()
         self.embedding_size = embedding_size
         # 支持两种方式，一种是奇偶相邻排列，一种是上下排列, 目前只在chatglm中看到updown排列
         self.rope_rank = rope_rank or 'adjacent'
@@ -192,7 +194,7 @@ class RoPEPositionEncoding(nn.Module):
         self.rope_theta = rope_theta or 10000.0
         self.max_position = max_position  # 原始支持的最大长度
         self.max_seq_len_cache = max_position  # 推理过程中遇到的最大长度max(seq_len, max_position)
-        self._set_cos_sin_cache(max_position)
+        self._set_cos_sin_cache(max_position, device=device, dtype=torch.get_default_dtype())  # 这里没有直接设置到max_position，因为容易占显存
     
     def get_sinusoid_encoding_table(self, n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
                                      scaling_factor:float=1.0, padding_idx:Optional[int]=None):
@@ -223,7 +225,7 @@ class RoPEPositionEncoding(nn.Module):
         self.register_buffer("sin_cache", sin_cache, persistent=False)
 
     def rotate_and_compute(self, x, cos, sin):
-        # MultiHeadAttentionLayer中x是[btz, n_heads, seq_len, head_size]
+        # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中x是[btz, seq_len, head_size]
         if self.rope_rank == 'adjacent':
@@ -275,12 +277,40 @@ class RoPEPositionEncoding(nn.Module):
             return self.rotate_and_compute(qk, cos, sin)
 
 
-class RoPELinearScalingPositionEncoding(RoPEPositionEncoding):
+class RopeLinearScalingPositionEncoding(RopePositionEncoding):
     '''使用linear scaling的rope, scaling_factor != 1的时候生效'''
     pass
 
+class RopeGlmPositionEncoding(RopePositionEncoding):
+    '''GLM对应的rope编码'''
+    def __init__(self, 
+                 embedding_size: int, 
+                 max_position: int = 2048, 
+                 rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent', 
+                 scaling_factor: float = 1, 
+                 rope_theta: float = 10000, 
+                 device=None, 
+                 **kwargs):
+        # glm的embedding_size不同
+        super().__init__(embedding_size // 2, max_position, rope_rank, scaling_factor, rope_theta, device, **kwargs)
+    
+    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
+        query_states, key_states = qk
+        
+        q1, q2 = query_states.chunk(2, dim=(query_states.ndim - 1))
+        k1, k2 = key_states.chunk(2, dim=(key_states.ndim - 1))
+        if len(position_ids.shape) == 3:
+            q1, k1 = super().forward([q1, k1], position_ids[:, 0, :], seq_len)
+            q2, k2 = super().forward([q2, k2], position_ids[:, 1, :], seq_len)
+        else:
+            q1, k1 = super().forward([q1, k1], position_ids, seq_len)
+        query_states = torch.concat([q1, q2], dim=(q1.ndim - 1))
+        key_states = torch.concat([k1, k2], dim=(k1.ndim - 1))
+    
+        return query_states, key_states
 
-class RoPEDynamicNTKScalingPositionEncoding(RoPEPositionEncoding):
+
+class RopeDynamicNTKScalingPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope'''
     def __init__(self, 
                  embedding_size: int, 
@@ -299,7 +329,7 @@ class RoPEDynamicNTKScalingPositionEncoding(RoPEPositionEncoding):
         return super()._set_cos_sin_cache(seq_len, device, dtype)
 
 
-class RoPELlama3PositionEncoding(RoPEPositionEncoding):
+class RopeLlama3PositionEncoding(RopePositionEncoding):
     '''使用llama3的rope'''
     def __init__(self, 
                  embedding_size: int, 
@@ -345,7 +375,7 @@ class RoPELlama3PositionEncoding(RoPEPositionEncoding):
         return embeddings_table    
 
 
-class RoPEDynamicNTKScalingQwenPositionEncoding(RoPEPositionEncoding):
+class RopeDynamicNTKScalingQwenPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope (Qwen版)'''
     def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
         context_value = math.log(seq_len / self.max_position, 2) + 1
@@ -355,12 +385,142 @@ class RoPEDynamicNTKScalingQwenPositionEncoding(RoPEPositionEncoding):
         return super()._set_cos_sin_cache(seq_len, device, dtype)
 
 
+class RopeYarnPositionEncoding(RopePositionEncoding):
+    '''DeepSeekV2中使用'''
+    def __init__(
+        self,
+        embedding_size,
+        max_position=2048,
+        rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
+        scaling_factor=1.0,
+        rope_theta=10000,
+        original_max_position_embeddings=4096,
+        beta_fast=32,
+        beta_slow=1,
+        mscale=1,
+        mscale_all_dim=0,
+        **kwargs
+    ):
+        self.scaling_factor = scaling_factor
+        self.original_max_position_embeddings = original_max_position_embeddings
+        self.beta_fast = beta_fast
+        self.beta_slow = beta_slow
+        self.mscale = mscale
+        self.mscale_all_dim = mscale_all_dim
+        super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
+
+    # Inverse dim formula to find dim based on number of rotations
+    @staticmethod
+    def yarn_find_correction_dim(num_rotations, dim, base=10000, max_position_embeddings=2048):
+        return (dim * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (2 * math.log(base))
+
+    # Find dim range bounds based on rotations
+    def yarn_find_correction_range(self, low_rot, high_rot, dim, base=10000, max_position_embeddings=2048):
+        low = math.floor(self.yarn_find_correction_dim(low_rot, dim, base, max_position_embeddings))
+        high = math.ceil(self.yarn_find_correction_dim(high_rot, dim, base, max_position_embeddings))
+        return max(low, 0), min(high, dim - 1)  # Clamp values just in case
+
+    @staticmethod
+    def yarn_get_mscale(scale=1, mscale=1):
+        if scale <= 1:
+            return 1.0
+        return 0.1 * mscale * math.log(scale) + 1.0
+
+    @staticmethod
+    def yarn_linear_ramp_mask(min, max, dim):
+        if min == max:
+            max += 0.001  # Prevent singularity
+        linear_func = (torch.arange(dim, dtype=torch.float32) - min) / (max - min)
+        ramp_func = torch.clamp(linear_func, 0, 1)
+        return ramp_func
+
+    def _set_cos_sin_cache(self, seq_len, device='cpu', dtype=torch.float32):
+        self.max_seq_len_cache = seq_len
+        dim = self.embedding_size
+
+        freq_extra = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim))
+        freq_inter = 1.0 / (self.scaling_factor * self.rope_theta ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim))
+
+        low, high = self.yarn_find_correction_range(self.beta_fast, self.beta_slow, dim, self.rope_theta, self.original_max_position_embeddings)
+        inv_freq_mask = 1.0 - self.yarn_linear_ramp_mask(low, high, dim // 2).to(device=device, dtype=torch.float32)
+        inv_freq = freq_inter * (1 - inv_freq_mask) + freq_extra * inv_freq_mask
+        # self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+        t = torch.arange(seq_len, device=device, dtype=torch.float32)
+        freqs = torch.outer(t, inv_freq)
+
+        _mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
+
+        emb = torch.cat((freqs, freqs), dim=-1)
+        self.register_buffer("cos_cache", (emb.cos() * _mscale).to(dtype), persistent=False)
+        self.register_buffer("sin_cache", (emb.sin() * _mscale).to(dtype), persistent=False)
+
+    def rotate_and_compute(self, x, cos, sin):
+        b, h, s, d = x.shape
+        x = x.view(b, h, s, d // 2, 2).transpose(4, 3).reshape(b, h, s, d)
+        x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)  # rotate_half
+        return x * cos + x2 * sin
+
+class RopeMropePositionEncoding(RopePositionEncoding):
+    '''qwen2vl中使用'''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mrope_section = kwargs.get('mrope_section')
+
+    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
+        if isinstance(qk, list):
+            device, dtype = qk[0].device, qk[0].dtype
+        else:
+            device, dtype = qk.device, qk.dtype
+
+        # 超过缓存长度
+        if seq_len is None:
+            if position_ids is not None:
+                seq_len = position_ids.max() + 1
+            elif isinstance(qk, list):
+                seq_len = qk[0].shape[seq_dim]
+            elif isinstance(qk, torch.Tensor):
+                seq_len = qk.shape[seq_dim]
+        
+        # 超长了则重新设置cache
+        if seq_len > self.max_seq_len_cache:
+            self.max_seq_len_cache = seq_len
+            self._set_cos_sin_cache(seq_len, device, dtype)
+        if (self.cos_cache.dtype != dtype) or (self.cos_cache.device != device):
+            self._register_buffer(self.cos_cache, self.sin_cache, device, dtype)
+        
+        # 传入position_ids来获取cos和sin, 主要是在use_states时候能直接取到对应位置的编码
+        if position_ids is not None:
+            # position_ids: [btz, seq_len]
+            cos = F.embedding(position_ids, self.cos_cache)  # [btz, seq_len, hdsz]
+            sin = F.embedding(position_ids, self.sin_cache)
+        else:
+            cos = self.cos_cache[:seq_len]  # [seq_len, hdsz]
+            sin = self.sin_cache[:seq_len]
+
+        if cos.dim() < qk[0].dim() if isinstance(qk, list) else qk.dim():
+            cos = cos.unsqueeze(seq_dim-1)
+            sin = sin.unsqueeze(seq_dim-1)
+
+        mrope_section = self.mrope_section * 2
+        cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
+        sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
+
+        if isinstance(qk, list):
+            return [self.rotate_and_compute(x, cos, sin) for x in qk]
+        else:
+            return self.rotate_and_compute(qk, cos, sin)
+
+        
 ROPE_ENCODGING_MAP = {
-    None: RoPEPositionEncoding,
-    'linear': RoPELinearScalingPositionEncoding,
-    'dynamic': RoPEDynamicNTKScalingPositionEncoding,
-    'dynamic_qwen': RoPEDynamicNTKScalingQwenPositionEncoding,
-    'llama3': RoPELlama3PositionEncoding
+    None: RopePositionEncoding,
+    'linear': RopeLinearScalingPositionEncoding,
+    'dynamic': RopeDynamicNTKScalingPositionEncoding,
+    'dynamic_qwen': RopeDynamicNTKScalingQwenPositionEncoding,
+    'llama3': RopeLlama3PositionEncoding,
+    'yarn': RopeYarnPositionEncoding,
+    'mrope': RopeMropePositionEncoding,
+    'glm': RopeGlmPositionEncoding
 }
 
 

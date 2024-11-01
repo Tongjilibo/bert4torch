@@ -274,7 +274,7 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
             config_path = snapshot_download(pretrained_model_name_or_path, filename='bert4torch_config.json', **kwargs)
         else:
             # 单独下载bert4torch_config.json文件
-            filename = pretrained_model_name_or_path.split('/')[-1] + '/bert4torch_config.json'
+            filename = '/'.join(pretrained_model_name_or_path.split('/')[-2:]) + '/bert4torch_config.json'
             config_path = snapshot_download('Tongjilibo/bert4torch_config', filename=filename, **kwargs)
 
     return config_path

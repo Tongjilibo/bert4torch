@@ -12,7 +12,6 @@
 '''
 
 import os
-import subprocess
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
 from bert4torch.pipelines.base import PipeLineBase
@@ -24,6 +23,7 @@ from bert4torch.snippets import (
     log_info_once,
     log_warn, 
     log_error,
+    colorful,
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
@@ -31,7 +31,8 @@ from bert4torch.snippets import (
     is_streamlit_available,
     is_package_available,
     has_chinese_char,
-    add_start_docstrings
+    add_start_docstrings,
+    JsonConfig
 )
 from packaging import version
 import gc
@@ -43,6 +44,7 @@ import threading
 import re
 import copy
 from argparse import REMAINDER, ArgumentParser
+import asyncio
 
 
 if is_fastapi_available():
@@ -70,7 +72,24 @@ else:
 __all__ = [
     'Chat',
     'ChatOpenaiClient',
+    'ChatOpenaiClientAsync',
     'ChatOpenaiClientSseclient',
+    'Glm',
+    'Glm2',
+    'Glm3',
+    'Glm4',
+    'InternLM',
+    'InternLM2',
+    'Qwen',
+    'Qwen2',
+    'LLaMA2',
+    'LLaMA3',
+    'ApplyChatTemplate',
+    'Ziya',
+    'ChineseLlamaAlpaca',
+    'Belle',
+    'Baichuan',
+    'PretrainedTextContinuation'
     ]
 
 
@@ -113,7 +132,7 @@ class ChatBase(PipeLineBase):
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        self.model = self.build_model()
+        self.model = self.build_model(**kwargs)
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
@@ -139,30 +158,36 @@ class ChatBase(PipeLineBase):
             return AutoTokenizer.from_pretrained(self.checkpoint_path, trust_remote_code=True, **new_kwargs)
         except Exception as e:
             _, transformer_version = is_package_available('transformers', return_version=True)
-            log_warn(f'Please check your transformer version == {transformer_version}, which may not compatible.')
+            config_tmp = os.path.join(self.checkpoint_path, 'config.json')
+            request_version = JsonConfig(config_tmp).get('transformers_version') if os.path.exists(config_tmp) else None
+            if request_version is not None:
+                log_warn(f'Please check your transformer=={transformer_version}, while transformer=={request_version} requested.')
+            else:
+                log_warn(f'Please check your transformer=={transformer_version}, which may not compatible.')
             raise e
 
-    def build_model(self) -> Union[Decoder, Transformer]:
+    def build_model(self, **model_init_config) -> Union[Decoder, Transformer]:
         '''初始化model, 方便外部继承'''
         if (not hasattr(self, 'model')) or (self.model is None):
             # 初始化
-            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path)
-            model.eval()
+            self.model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, **model_init_config)
+            self.model.eval()
 
             # 精度
             if self.precision == 'double':
-                model = model.double()
+                self.model = self.model.double()
             elif self.precision == 'float':
-                model = model.float()
+                self.model = self.model.float()
             elif self.precision in {'half', 'float16'}:
-                model = model.half()
+                self.model = self.model.half()
             elif self.precision == 'bfloat16':
-                model = model.bfloat16()
+                self.model = self.model.bfloat16()
 
             # 量化
             if self.quantization_config is not None:
-                model = model.quantize(**self.quantization_config)
-            self.model = model.to(self.device)
+                self.model = self.model.quantize(**self.quantization_config)
+            if model_init_config.get('device_map') is None:
+                self.model = self.model.to(self.device)
         
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
@@ -188,7 +213,8 @@ class ChatBase(PipeLineBase):
 
         Returns: 接口直接返回的值（处理后的response, 而不是模型直接输出的结果）
         '''
-        def process_history(res):
+        def process_history(res:str):
+            res = res.strip()
             if history is None:
                 return
             elif len(history) == 0:
@@ -231,7 +257,7 @@ class ChatBase(PipeLineBase):
             history_copy = [copy.deepcopy(history) for _ in query]
             prompt = [self.build_prompt(q, hist, functions) for q, hist in zip(query, history_copy)]
             response = self.model.generate(prompt, **self.generation_config)
-            return [self.process_response_history(response, history=hist) for r, hist in zip(response, history_copy)]
+            return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
 
@@ -269,13 +295,13 @@ class ChatCli(ChatBase):
         for query_or_response in history:
             # 现在的dict格式，形如{'role': 'user', 'content': '你好啊'}
             if query_or_response['role'] == "user":
-                prompt += f"\n\nUser：{query_or_response['content']}"
+                prompt += f"\n\n{colorful('User：', color='green')}{query_or_response['content']}"
             elif query_or_response['role'] == "assistant":
                 response = query_or_response.get('raw_content', query_or_response['content'])
-                prompt += f"\n\nAssistant：{response}"
+                prompt += f"\n\n{colorful('Assistant：', color='red')}{response}"
                 # function_call主要用于content的结构化展示
                 if query_or_response.get('function_call'):
-                    prompt += f"\n\nFunction：{query_or_response['function_call']}"
+                    prompt += f"\n\n{colorful('Function：', color='yellow')}{query_or_response['function_call']}"
         return prompt
 
     def run(self, functions:List[dict]=None, stream:bool=True):
@@ -285,7 +311,7 @@ class ChatCli(ChatBase):
         clear_command = 'cls' if os_name == 'Windows' else 'clear'
         print(self.init_str)
         while True:
-            query = input("\nUser: ")
+            query = input(f"\n{colorful('User：', color='green')}")
             if query.strip() == "stop":
                 break
             if query.strip() == "clear":
@@ -326,7 +352,7 @@ class ChatWebGradio(ChatBase):
         import gradio as gr
         self.gr = gr
         self.max_length = self.generation_config.get('max_length', 4096)
-        self.max_repetition_penalty = 10
+        self.max_repetition_penalty = 10.0
         self.stream = True  # 一般都是流式，因此未放在页面配置项
         if version.parse(gr.__version__) < version.parse("3.44.4"):
             log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
@@ -403,7 +429,7 @@ class ChatWebGradio(ChatBase):
                     max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="max_length", interactive=True)
                     top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="top_p", interactive=True)
                     temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="temperature", interactive=True)
-                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1, step=0.1, label="repetition_penalty", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1.0, step=0.1, label="repetition_penalty", interactive=True)
                     system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
                     functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
 
@@ -456,8 +482,8 @@ class ChatWebStreamlit(ChatBase):
         log_warn_once('You should use command `streamlit run app.py --server.address 0.0.0.0 --server.port 8001` to launch')
 
     @st.cache_resource
-    def build_model(_self):
-        return super().build_model()
+    def build_model(_self, **kwarg):
+        return super().build_model(**kwarg)
     
     @st.cache_resource
     def build_tokenizer(_self, **kwarg):
@@ -577,7 +603,7 @@ class ChatCompletionRequest(BaseModel):
     top_p: Optional[float] = None
     max_length: Optional[int] = None
     stream: Optional[bool] = False
-    repetition_penalty: Optional[int] = None
+    repetition_penalty: Optional[float] = None
 
 
 class ChatCompletionResponseChoice(BaseModel):
@@ -843,14 +869,14 @@ class ChatOpenaiClient:
         from openai import OpenAI
         self.client = OpenAI(base_url=base_url, api_key=api_key, **kwargs)
     
-    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
+    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''流式返回'''
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
             functions=functions,
             stream=True,
-            max_tokens=max_length,
+            max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
             **kwargs
@@ -861,14 +887,14 @@ class ChatOpenaiClient:
             if content is not None:
                 yield content
 
-    def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_length:int=None, temperature:float=None, top_p:float=None, **kwargs):
+    def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''一次性返回'''
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
             functions=functions,
             stream=False,
-            max_tokens=max_length,
+            max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
             **kwargs
@@ -879,6 +905,153 @@ class ChatOpenaiClient:
     def stream_chat_cli(self, *args, **kwargs):
         for token in self.stream_chat(*args, **kwargs):
             print(token, end='', flush=True)
+
+
+class ChatOpenaiClientAsync:
+    '''使用openai来调用
+    
+    Examples:
+    ```python
+    >>> messages = [
+    ...         {"content": "你好", "role": "user"},
+    ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+    ...         {"content": "你可以做什么？", "role": "user"}
+    ...         ]
+    >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
+
+    >>> # 流式
+    >>> for token in client.stream_chat(messages):
+    ...     print(token, end='', flush=True)
+
+    >>> # 非流式
+    >>> print(client.chat(messages))
+    ```
+    '''
+    def __init__(self, base_url:str, api_key:str=None, **kwargs) -> None:
+        from openai import AsyncOpenAI
+        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key, **kwargs)
+    
+    async def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
+        '''流式返回'''
+        response = await self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            functions=functions,
+            stream=True,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs
+            )
+
+        async for chunk in response:
+            content = chunk.choices[0].delta.content
+            if content is not None:
+                yield content
+
+    async def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
+        '''一次性返回'''
+        response = await self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            functions=functions,
+            stream=False,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            **kwargs
+            )
+        content = response.choices[0].message.content
+        return content
+    
+    async def stream_chat_cli(self, *args, **kwargs):
+        async for token in self.stream_chat(*args, **kwargs):
+            print(token, end='', flush=True)
+
+    async def batch_chat(
+            self,
+            messages_list:list, 
+            model:str='default', 
+            functions:list=None,
+            max_tokens:int=1024, 
+            temperature:float=None, 
+            top_p:float=None, 
+            batch_size:int=5, 
+            verbose:bool=False,
+            **kwargs
+        ):
+        """并发调用"""
+        async def generate_text(messages_batch, client):
+            responses = await asyncio.gather(*[client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                functions=functions,
+                **kwargs
+            ) for messages in messages_batch])
+            if functions is None:
+                return [response.choices[0].message.content for response in responses]
+            else:
+                return [response.choices[0].message.function_call for response in responses]
+
+        assert isinstance(messages_list, list), f'Args `messages_list` must be a list, not {type(messages_list)}'
+        assert isinstance(messages_list[0], list), f'Args `messages_list` must be a List[List], not List[{type(messages_list[0])}]'
+
+        async with self.client as client:
+            results = []
+            for i in range(0, len(messages_list), batch_size):
+                batch = messages_list[i:i+batch_size]
+                batch_results = await generate_text(batch, client)
+                results.extend(batch_results)
+
+        if verbose: 
+            for messages, result in zip(messages_list, results):
+                print(f"Prompt: {messages}\nResponse: {result}\n")
+        return results
+
+    async def concurrent_chat(
+        self,
+        messages_list:list, 
+        model:str='default', 
+        functions:list=None,
+        max_tokens:int=1024, 
+        temperature:float=None, 
+        top_p:float=None, 
+        workers:int=5, 
+        verbose:bool=False,
+        **kwargs
+    ):
+        """并发调用"""
+        async def generate_text(messages, client, semaphore):
+            async with semaphore:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
+                    functions=functions,
+                    **kwargs
+                )
+                if functions is None:
+                    return response.choices[0].message.content
+                else:
+                    return response.choices[0].message.function_call
+
+        assert isinstance(messages_list, list), f'Args `messages_list` must be a list, not {type(messages_list)}'
+        assert isinstance(messages_list[0], list), f'Args `messages_list` must be a List[List], not List[{type(messages_list[0])}]'
+
+        semaphore = asyncio.Semaphore(workers)
+        async with self.client as client:
+            tasks = [generate_text(messages, client, semaphore) for messages in messages_list]
+            results = await asyncio.gather(*tasks)
+        
+        if verbose: 
+            for messages, result in zip(messages_list, results):
+                print(f"Prompt: {messages}\nResponse: {result}\n")
+        return results
 
 
 class ChatOpenaiClientSseclient:
@@ -909,8 +1082,8 @@ class ChatOpenaiClientSseclient:
     ...     print(token, end='', flush=True)
     ```
     '''
-    def __init__(self, url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
-        self.url = url
+    def __init__(self, base_url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
+        self.base_url = base_url
         self.api_key = api_key
         self.header = header
         self.params = params
@@ -922,7 +1095,7 @@ class ChatOpenaiClientSseclient:
         
         self.sseclient = sseclient
    
-    def stream_chat(self, body, **kwargs):
+    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
         '''接口调用'''
         reqHeaders = {'Accept': 'text/event-stream'}
         if self.api_key is not None:
@@ -931,7 +1104,8 @@ class ChatOpenaiClientSseclient:
         if self.header is not None:
             reqHeaders.update(self.header)
         
-        request = requests.post(self.url, stream=True, headers=reqHeaders, json=body, params=self.params, **kwargs)
+        body = {'messages': messages, 'model': model, 'stream': True}
+        request = requests.post(self.base_url, stream=True, headers=reqHeaders, json=body, params=self.params, **kwargs)
         client = self.sseclient.SSEClient(request)
         for event in client.events():
             if event.data != '[DONE]':
@@ -939,9 +1113,9 @@ class ChatOpenaiClientSseclient:
                 if 'content' in data:
                     yield data['content']
 
-    def stream_chat_cli(self, body, **kwargs):
+    def stream_chat_cli(self, messages:List[Dict], **kwargs):
         '''简单测试在命令行打印'''
-        for token in self.stream_chat(body, **kwargs):
+        for token in self.stream_chat(messages, **kwargs):
             print(token, end='', flush=True)
 
 
@@ -1865,20 +2039,21 @@ class LLaMA3(ChatBase):
 
         history.append({"role": "user", "content": query})
         if self.no_history_states():
-            if functions is None:
-                texts = self.tokenizer.apply_chat_template(history, tokenize=False, add_generation_prompt=True)
-            else:
-                # llama3.1支持function call
-                texts = self.tokenizer.apply_chat_template(history, 
-                                                           tools=functions if isinstance(functions, list) else [functions],
-                                                           add_generation_prompt=True, 
-                                                           tokenize=False,
-                                                           tools_in_user_message=False)
-            return texts
+            # llama3.1支持function call
+            tools = functions
+            if (functions is not None) and (not isinstance(functions, list)):
+                tools = [functions]
+            texts = self.tokenizer.apply_chat_template(
+                history, 
+                tools = tools,
+                add_generation_prompt = True, 
+                tokenize = False,
+                tools_in_user_message = False
+                )
         else:
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
-            return texts
+        return texts
     
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         response = super().process_response_history(response, history)
@@ -1888,6 +2063,13 @@ class LLaMA3(ChatBase):
         except json.JSONDecodeError:
             pass
         return response
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class ApplyChatTemplate(LLaMA3):
+    '''直接使用self.tokenizer.apply_chat_template来构建输入
+    如果模型直接沿用这种方式，则无需做特殊的处理
+    '''
+    pass
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -2045,7 +2227,9 @@ MAPPING = {
     'ziya': Ziya,
     'chinese_llama_alpaca': ChineseLlamaAlpaca,
     'belle': Belle,
-    'baichuan': Baichuan
+    'baichuan': Baichuan,
+    'apply_chat_template': ApplyChatTemplate,
+    'pretrained_text_continuation': PretrainedTextContinuation
 }
 
 
@@ -2076,7 +2260,7 @@ class Chat:
     :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
 
     ### 模式
-    :param mode: 命令行, web, api服务模式, Literal['cli', 'gradio', 'streamlit', 'openai']
+    :param mode: 命令行, web, api服务模式, Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']
     :param template: 使用的模板, 一般在bert4torch_config.json中无需单独设置, 可自行指定
 
     ### openai api参数
@@ -2105,6 +2289,7 @@ class Chat:
     def __init__(self, 
                  # 基类使用
                  checkpoint_path:str, 
+                 config_path:str=None,
                  precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, 
                  generation_config:dict=None, 
@@ -2120,13 +2305,13 @@ class Chat:
                  offload_when_nocall:Literal['cpu', 'disk']=None, 
                  api_keys:List[str]=None,
                  # 模式
-                 mode:Literal['cli', 'gradio', 'streamlit', 'openai']='cli',
+                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli',
                  template: str=None,
                  **kwargs
                  ) -> None:
         pass
 
-    def __new__(cls, *args, mode:Literal['cli', 'gradio', 'streamlit', 'openai']='cli', **kwargs):
+    def __new__(cls, *args, mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli', **kwargs):
         # template指定使用的模板
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
@@ -2155,6 +2340,8 @@ class Chat:
         elif mode == 'openai':
             @add_start_docstrings(OPENAI_START_DOCSTRING)
             class ChatDemo(ChatTemplate, ChatOpenaiApi): pass
+        elif mode == 'raw':
+            ChatDemo = ChatTemplate
         else:
             raise ValueError(f'Unsupported mode={mode}')
         return ChatDemo(*args, **kwargs)

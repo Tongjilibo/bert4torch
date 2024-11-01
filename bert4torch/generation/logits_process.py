@@ -64,7 +64,7 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
     """重复性惩罚
     """
     def __init__(self, penalty: float):
-        if not isinstance(penalty, float) or not (penalty > 0):
+        if not isinstance(penalty, (int, float)) or not (penalty > 0):
             raise ValueError(f"`penalty` has to be a strictly positive float, but is {penalty}")
         self.penalty = penalty
 
@@ -162,5 +162,7 @@ class TemperatureLogitsWarper(LogitsProcessor):
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
+        if self.temperature == 1:
+            return scores
         scores_processed = scores / self.temperature
         return scores_processed

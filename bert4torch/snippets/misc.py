@@ -6,9 +6,21 @@ from torch import nn
 import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
-from torch4keras.snippets import log_info, log_warn, Timeit
+from torch4keras.snippets import log_info, log_warn, Timeit, is_accelerate_available, find_tied_parameters, log_warn_once
 from typing import Union
 import re
+from packaging import version
+
+
+if is_accelerate_available():
+    from accelerate.utils.modeling import (
+        infer_auto_device_map, 
+        get_balanced_memory, 
+        check_tied_parameters_on_same_device, 
+        get_max_memory,
+        set_module_tensor_to_device, 
+        offload_weight
+    )
 
 
 def insert_arguments(**arguments):
@@ -95,30 +107,121 @@ def set_default_torch_dtype(dtype: Union[str, torch.dtype], model_name:str='mode
     return dtype, dtype_orig
 
 
-def load_state_dict_into_meta_model(model:nn.Module, state_dict:dict, device_map:dict=None, torch_dtype:Union[str, torch.dtype]=None):
+def load_state_dict_into_meta_model(
+        model:nn.Module,
+        state_dict:dict, 
+        device_map:dict=None, 
+        dtype:Union[str, torch.dtype]=None, 
+        offload_folder=None,
+        state_dict_folder=None,
+        state_dict_index=None,
+        is_safetensors:bool=False
+):
     """ 把state_dict导入meta_model
     为了代码简洁，这里device_map需要外部手动指定, 形式如{'embeddings.word_embeddings': 0, 'LayerNormFinal': 0, 'lm_head': 0}
     """
 
-    from accelerate.utils import set_module_tensor_to_device
     for param_name, param in state_dict.items():
+        module_name = param_name
         set_module_kwargs = {"value": param}
         if (device_map is None) or (device_map == 'cpu'):
             param_device = "cpu"
-        elif device_map == 'auto':
-            param_device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        elif device_map in {'gpu', 'cuda'}:
-            param_device = 'cuda'
-        elif isinstance(device_map, torch.device) or isinstance(device_map, int):
-            param_device = device_map
-        elif isinstance(device_map, dict):
-            param_device = device_map[param_name]
         else:
-            param_device = 'cpu'
-            log_warn(f'Args `device_map`={device_map} has not been pre maintained')
+            while len(module_name) > 0 and module_name not in device_map:
+                module_name = ".".join(module_name.split(".")[:-1])
+            if module_name == "" and "" not in device_map:
+                # TODO: group all errors and raise at the end.
+                raise ValueError(f"{param_name} doesn't have any device set.")
+            param_device = device_map[module_name]
 
-        set_module_kwargs["dtype"] = torch_dtype or param.dtype
-        set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+        if param_device == "disk":
+            if not is_safetensors:
+                offload_index = offload_weight(param, param_name, offload_folder, offload_index)
+        elif param_device == "cpu" and state_dict_index is not None:
+            state_dict_index = offload_weight(param, param_name, state_dict_folder, state_dict_index)
+        else:
+            # For backward compatibility with older versions of `accelerate` and for non-quantized params
+            set_module_kwargs["dtype"] = dtype or param.dtype
+            set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+
+
+def get_device_map(pretrained_model, device_map, torch_dtype, **kwargs):
+    '''获取合适的device_map'''
+    max_memory = kwargs.pop('max_memory', None)
+    if isinstance(device_map, torch.device):
+        device_map = {"": device_map}
+    elif isinstance(device_map, str) and device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
+        try:
+            device_map = {"": torch.device(device_map)}
+        except RuntimeError:
+            raise ValueError(
+                "When passing device_map as a string, the value needs to be a device name (e.g. cpu, cuda:0) or "
+                f"'auto', 'balanced', 'balanced_low_0', 'sequential' but found {device_map}."
+            )
+    elif isinstance(device_map, int):
+        if device_map < 0:
+            raise ValueError(
+                "You can't pass device_map as a negative int. If you want to put the model on the cpu, pass device_map = 'cpu' "
+            )
+        else:
+            device_map = {"": device_map}
+
+    if not is_accelerate_available():
+        log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
+        return device_map
+
+    if isinstance(device_map, str):
+        special_dtypes = {}
+
+        # TODO: keep_in_fp32_modules
+        keep_in_fp32_modules = []
+        special_dtypes.update(
+            {
+                name: torch.float32
+                for name, _ in pretrained_model.named_parameters()
+                if any(m in name for m in keep_in_fp32_modules)
+            }
+        )
+
+        target_dtype = torch_dtype
+
+        no_split_modules = pretrained_model._get_no_split_modules(device_map)
+        if device_map not in ["auto", "balanced", "balanced_low_0", "sequential"]:
+            raise ValueError(
+                "If passing a string for `device_map`, please choose 'auto', 'balanced', 'balanced_low_0' or "
+                "'sequential'."
+            )
+
+        device_map_kwargs = {"no_split_module_classes": no_split_modules}
+        if "special_dtypes" in inspect.signature(infer_auto_device_map).parameters:
+            device_map_kwargs["special_dtypes"] = special_dtypes
+        elif len(special_dtypes) > 0:
+            log_warn(
+                "This model has some weights that should be kept in higher precision, you need to upgrade "
+                "`accelerate` to properly deal with them (`pip install --upgrade accelerate`)."
+            )
+        if device_map != "sequential":
+            max_memory = get_balanced_memory(
+                pretrained_model,
+                dtype=target_dtype,
+                low_zero=(device_map == "balanced_low_0"),
+                max_memory=max_memory,
+                **device_map_kwargs,
+            )
+        else:
+            max_memory = get_max_memory(max_memory)
+        device_map_kwargs["max_memory"] = max_memory
+
+        # Make sure tied weights are tied before creating the device map.
+        pretrained_model.tie_weights()
+        device_map = infer_auto_device_map(pretrained_model, dtype=target_dtype, **device_map_kwargs)
+
+    elif device_map is not None:
+        pretrained_model.tie_weights()
+        tied_params = find_tied_parameters(pretrained_model)
+        # check if we don't have tied param in different devices
+        check_tied_parameters_on_same_device(tied_params, device_map)
+    return device_map
 
 
 def old_checkpoint(function, model_kwargs):
@@ -251,3 +354,9 @@ def has_chinese_char(text:str) -> bool:
     elif text.strip() == '':
         return False
     return re.search(r'[\u4e00-\u9fff]', text)
+
+
+if version.parse(torch.__version__) >= version.parse("1.10.0"):
+    inference_mode = torch.inference_mode
+else:
+    inference_mode = torch.no_grad

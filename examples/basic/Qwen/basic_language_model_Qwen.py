@@ -7,16 +7,17 @@ bert4torch_config.json见readme
 """
 from bert4torch.pipelines import Chat
 from bert4torch.pipelines import ChatOpenaiClient, ChatOpenaiClientSseclient
-import re
 
+
+messages = [
+        {"content": "你好", "role": "user"},
+        {"content": "你好，我是法律大模型", "role": "assistant"},
+        {"content": "基金从业可以购买股票吗", "role": "user"}
+        ]
 
 def call_openai(stream=True):
     url = 'http://127.0.0.1:8000'
-    messages = [
-            {"content": "你好", "role": "user"},
-            {"content": "你好，我是法律大模型", "role": "assistant"},
-            {"content": "基金从业可以购买股票吗", "role": "user"}
-            ]
+
     client = ChatOpenaiClient(url)
     if stream:
         for token in client.stream_chat(messages):
@@ -27,24 +28,15 @@ def call_openai(stream=True):
 
 def call_sseclient():
     url = 'http://127.0.0.1:8000/chat/completions'
-    body = {
-                "messages": [
-                    {"content": "你好", "role": "user"},
-                    {"content": "你好，我是法律大模型", "role": "assistant"},
-                    {"content": "基金从业可以购买股票吗", "role": "user"}],
-                "model": "default",
-                "stream": True
-            }
-
 
     client = ChatOpenaiClientSseclient(url)
 
     # 测试打印
-    client.stream_chat_cli(body)
+    client.stream_chat_cli(messages)
 
     # 测试返回
     print('\n-------------------------------------------')
-    for token in client.stream_chat(body):
+    for token in client.stream_chat(messages):
         print(token, end='', flush=True)
 
 
@@ -52,7 +44,8 @@ def main():
     # Qwen-1_8B  Qwen-1_8B-Chat  Qwen-7B  Qwen-7B-Chat  Qwen-14B  Qwen-14B-Chat
     # Qwen1.5-0.5B  Qwen1.5-0.5B-Chat  Qwen1.5-1.8B  Qwen1.5-1.8B-Chat  Qwen1.5-7B  Qwen1.5-7B-Chat  Qwen1.5-14B  Qwen1.5-14B-Chat
     # Qwen2-0.5B  Qwen2-0.5B-Instruct  Qwen2-1.5B  Qwen2-1.5B-Instruct  Qwen2-7B  Qwen2-7B-Instruct
-    model_dir = f'E:/data/pretrain_ckpt/Qwen/Qwen-1_8B-Chat'
+    # Qwen2.5-0.5B  Qwen2.5-0.5B-Instruct  Qwen2.5-1.5B  Qwen2.5-1.5B-Instruct  Qwen2.5-3B  Qwen2.5-3B-Instruct Qwen2.5-7B  Qwen2.5-7B-Instruct Qwen2.5-14B  Qwen2.5-14B-Instruct
+    model_dir = f'E:/data/pretrain_ckpt/Qwen/Qwen2.5-0.5B-Instruct'
 
     # batch: 同时infer多条query
     # gen_1toN: 为一条query同时生成N条response

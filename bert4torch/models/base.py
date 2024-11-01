@@ -16,7 +16,9 @@ from bert4torch.snippets import (
     save_checkpoint, 
     copytree, 
     log_info, 
-    log_warn
+    log_warn,
+    log_warn_once,
+    is_accelerate_available
 )
 from torch4keras.model import BaseModel, add_trainer
 import warnings
@@ -26,6 +28,17 @@ import gc
 import copy
 import re
 import os
+import inspect
+
+
+if is_accelerate_available():
+    from accelerate import dispatch_model
+    from accelerate.utils.modeling import (
+        infer_auto_device_map, 
+        get_balanced_memory, 
+        check_tied_parameters_on_same_device, 
+        get_max_memory
+    )
 
 
 class BERT_BASE(nn.Module):
@@ -140,8 +153,6 @@ class BERT_BASE(nn.Module):
         model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
         outputs = self.apply_final_layers(**model_kwargs)
-        if model_kwargs.get('use_states', False):
-            return outputs, model_kwargs
         return outputs
 
     @torch.no_grad()
@@ -181,7 +192,7 @@ class BERT_BASE(nn.Module):
         """构建pytorch层与checkpoint的变量名之间的映射表"""
         return {}
 
-    def load_variable(self):
+    def load_variable(self, *args, **kwargs):
         raise NotImplementedError
 
     def load_embeddings(self, embeddings):
@@ -260,15 +271,25 @@ class BERT_BASE(nn.Module):
         if not skip_init:
             self.load_state_dict(state_dict_new, strict=False)
         else:
-            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, torch_dtype=torch_dtype)
+            load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, dtype=torch_dtype, 
+                                            is_safetensors=checkpoint.endswith(".safetensors"))
             
         del state_dict_new
         gc.collect()
         return missing_keys, over_keys, needed_keys
 
-    def from_pretrained(self, checkpoints:Union[str, os.PathLike, list], mapping:Union[dict, Callable]=None, skip_init:bool=False, 
-                        device_map:dict=None, torch_dtype=None, verbose=1):
+    def from_pretrained(
+            self, 
+            checkpoints:Union[str, os.PathLike, list], 
+            mapping:Union[dict, Callable]=None, 
+            skip_init:bool=False, 
+            device_map:dict=None, 
+            torch_dtype=None, 
+            verbose=1,
+            **kwargs
+    ):
         """加载预训练模型(单个/多个ckpt)"""
+
         # 单个权重文件
         if isinstance(checkpoints, str):
             self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 
@@ -294,7 +315,47 @@ class BERT_BASE(nn.Module):
 
         else:
             raise ValueError('Args `checkpoint_path` only support `str` or `list(str)` format')
-        
+
+        # Dispatch model with hooks on all devices if necessary
+        if (device_map is not None) and is_accelerate_available():
+            device_map_kwargs = {
+                "device_map": device_map,
+                "offload_dir": kwargs.get('offload_folder'),
+                "offload_index": kwargs.get('offload_index'),
+                "offload_buffers": kwargs.get('offload_buffers', False),
+                'skip_keys': 'past_key_values'
+            }
+            dispatch_model(self, **device_map_kwargs)
+
+    def _get_no_split_modules(self, device_map: str):
+        """
+        Get the modules of the model that should not be spit when using device_map. We iterate through the modules to
+        get the underlying `_no_split_modules`.
+
+        Args:
+            device_map (`str`):
+                The device map value. Options are ["auto", "balanced", "balanced_low_0", "sequential"]
+
+        Returns:
+            `List[str]`: List of modules that should not be split
+        """
+        _no_split_modules = set()
+        modules_to_check = [self]
+        while len(modules_to_check) > 0:
+            module = modules_to_check.pop(-1)
+            # if the module does not appear in _no_split_modules, we also check the children
+            if module.__class__.__name__ not in _no_split_modules:
+                if isinstance(module, BERT_BASE):
+                    if module._no_split_modules is None:
+                        raise ValueError(
+                            f"{module.__class__.__name__} does not support `device_map='{device_map}'`. To implement support, the model "
+                            "class needs to implement the `_no_split_modules` attribute."
+                        )
+                    else:
+                        _no_split_modules = _no_split_modules | set(module._no_split_modules)
+                modules_to_check += list(module.children())
+        return list(_no_split_modules)
+    
     @staticmethod
     def _print_mismatch_keys(missing_keys, over_keys, verbose):
         """打印mismatch keys"""

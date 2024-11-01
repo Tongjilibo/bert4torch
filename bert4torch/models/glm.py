@@ -11,18 +11,19 @@ class GLM(Decoder):
     '''GLM: https://github.com/THUDM/GLM, ChatGLM-6B: https://github.com/THUDM/ChatGLM-6B
     Unilm设计, 可定义为GLM(UniLM_MASK, BERT)但是要求传入segement_ids比较麻烦, 这里继承LM_MASK并使用get_masks()重新构造attention_mask
     模型结构特点：
-    1) rotary使用的updown+position_encoding_2d
+    1) rotary使用的updown
     2) qkv合并成一个权重convert时不是concat在一起的
     3) attention_mask类似于Unilm, 最后一个token仅能访问之前的, 之前的tokens可以互相访问
     4) 跳跃连接有权重设计
     5) embedding之后没有layernorm
     '''
+    _no_split_modules = ["GlmLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, layer_type='GlmLayer', **kwargs):
         kwargs.update({'layer_type': layer_type, 'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
         self.bos_token_id, self.mask_token_id, self.gmask_token_id = kwargs.get('bos_token_id'), kwargs.get('mask_token_id'), kwargs.get('gmask_token_id')
-        self.position_encoding_2d = kwargs.get('position_encoding_2d', True)
+        self.rope_scaling_type = kwargs.get('rope_scaling', {}).get('type')
         del self.embeddings.layerNorm
         self.LayerNormFinal = torch.nn.LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12))
         self.model_type = 'glm'
@@ -105,7 +106,7 @@ class GLM(Decoder):
         '''不使用cache时候的postion_ids'''
         if position_ids.shape[0] == 1:
             position_ids = position_ids.repeat(len(context_lens), 1)
-        if self.position_encoding_2d:
+        if self.rope_scaling_type == 'glm':
             # 初始版本中这里也有not gmask
             for i, context_length in enumerate(context_lens):
                 position_ids[i, context_length:] = mask_positions[i] - prepad_lens[i]
@@ -134,7 +135,7 @@ class GLM(Decoder):
         # 1) generation阶段use_states=True且step>0的时候(用cache)
         # 这里用inputs[0].shape[1] == 1来判断是不是last_token, chatglm过tokenize出来最后会以[mask_token_id, bos_token_id]结尾, 长度>1
         if model_kwargs.get('use_states', False) and (inputs[0].shape[1] == 1) and (model_kwargs.get('past_key_values') is not None):
-            if self.position_encoding_2d:  # [btz, 2, 1]
+            if self.rope_scaling_type == 'glm':  # [btz, 2, 1]
                 position_ids = torch.tensor([[mask_position, seq_len - context_len] for mask_position, context_len in
                                             zip(mask_positions, context_lens)], dtype=torch.long, device=device).unsqueeze(-1)
             else:  # [btz, 1]
@@ -151,14 +152,35 @@ class GLM(Decoder):
         model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         model_kwargs = self.prepare_inputs(*inputs, **model_kwargs)
         return model_kwargs
-       
+    
+    def prepare_inputs_for_generation(self, *inputs, **states):
+        '''为下次generate做准备'''
+        output_ids = states.pop('output_ids')
+        input_seqlen = states.pop('input_seqlen')
+        token_ids = inputs[0]
+
+        if output_ids.numel() == 0:
+            past_token_ids = token_ids
+        elif len(token_ids) == 1:  # TODO 并非使用batch
+            past_token_ids = torch.cat([token_ids, output_ids], 1)
+        else:
+            inputs = []
+            for seq_l, token_ids_i, output_ids_i in zip(input_seqlen, token_ids, output_ids):
+                inputs.append(torch.cat([token_ids_i[:seq_l], output_ids_i, token_ids_i[seq_l:]]))
+            past_token_ids = torch.stack(inputs)
         
+        # past_token_ids: inputs+output_ids
+        states['past_token_ids'] = past_token_ids
+        return states
+    
+
 class GLM2(GLM):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
     主要修改：1) 不使用Unilm式的mask
              2) flash_attention
              3) multi_query_attention
     """
+    _no_split_modules = ["Glm2Layer"]
     def __init__(self, *args, **kwargs):
         kwargs.update({'layer_type': "Glm2Layer", 'norm_mode': 'rmsnorm', 'pre_layernorm': True})
         super().__init__(*args, **kwargs)

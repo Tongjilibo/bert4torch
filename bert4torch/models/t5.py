@@ -5,6 +5,7 @@ from torch import nn
 
 
 class T5_Encoder(Encoder):
+    _no_split_modules = ["T5Layer"]
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, layer_type='T5Layer', **kwargs):
         # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm
@@ -62,6 +63,7 @@ class T5_Encoder(Encoder):
     
 
 class T5_Decoder(Decoder):
+    _no_split_modules = ["T5Layer"]
     @insert_arguments(version='t5.1.0')
     def __init__(self, *args, **kwargs):
         # p_bias来控制embedding阶段无pos_embedding，t5不使用bias，并且使用rmsnorm

@@ -87,7 +87,7 @@ class BertEmbeddings(nn.Module):
         # 位置编码
         if kwargs.get('p_bias') == 'sinusoid':
             self.position_embeddings = SinusoidalPositionEncoding(max_position, embedding_size)
-        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'other_relative', 'deberta_v2', 'alibi'}:
+        elif kwargs.get('p_bias') in {'rotary', 'typical_relative', 't5_relative', 'MultiHeadAttention', 'deberta_v2', 'alibi'}:
             # 如果使用相对位置编码，则不声明PositionEmbeddings
             pass
         elif max_position > 0:
@@ -228,3 +228,26 @@ class LlamaFeedForward(nn.Module):
 
     def forward(self, x):
         return self.outputDense(self.intermediate_act_fn(self.intermediateDense(x)) * self.intermediateDense2(x))
+
+
+class T5PositionWiseFeedForward(PositionWiseFeedForward):
+    '''参考transformer包: https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py'''
+    def __init__(self, hidden_size, intermediate_size, **kwargs):
+        super().__init__(hidden_size, intermediate_size, **kwargs)
+        self.intermediateDense = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.intermediateDense1 = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.outputDense = nn.Linear(intermediate_size, hidden_size, bias=False)
+
+    def forward(self, x):
+        # x shape: (batch size, seq len, hidden_size)
+        x_gelu = self.intermediate_act_fn(self.intermediateDense(x))
+        x_linear = self.intermediateDense1(x)
+        x = x_gelu * x_linear
+        if self.is_dropout:
+            x = self.dropout(x)
+
+        # x shape: (batch size, seq len, intermediate_size)
+        x = self.outputDense(x)
+
+        # x shape: (batch size, seq len, hidden_size)
+        return x

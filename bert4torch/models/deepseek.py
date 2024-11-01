@@ -14,6 +14,7 @@ class DeepSeek(Decoder):
                        'mlp_type': 'LlamaFeedForward'})
         super().__init__(*args, **kwargs)
         self.model_type = 'deepseek'
+        self.attn_type = kwargs.get('attn_type')
         del self.embeddings.layerNorm
 
         # 修改网络结构
@@ -22,7 +23,8 @@ class DeepSeek(Decoder):
         self.first_k_dense_replace = kwargs.get('first_k_dense_replace')
         self.moe_layer_freq = kwargs.get('moe_layer_freq')
         for layer_idx, layer in enumerate(self.decoderLayer):
-            if layer_idx >= self.first_k_dense_replace and layer_idx % self.moe_layer_freq == 0:
+            if self.n_routed_experts is not None and layer_idx >= self.first_k_dense_replace \
+                and layer_idx % self.moe_layer_freq == 0:
                 layer.feedForward = DeepseekMoE(**kwargs)
 
         self.LayerNormFinal.register_parameter('bias', None)
@@ -45,7 +47,15 @@ class DeepSeek(Decoder):
                 f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
                 f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
             })
-
+            # attn_type为DeepseekV2Attention时候，网络结构会不同
+            if self.attn_type is not None and self.attn_type == 'DeepseekV2Attention':
+                mapping.update( 
+                {
+                    f'decoderLayer.{i}.multiHeadAttention.kv_a_proj_with_mqa.weight': f'model.layers.{i}.self_attn.kv_a_proj_with_mqa.weight',
+                    f'decoderLayer.{i}.multiHeadAttention.kv_a_layernorm.weight': f'model.layers.{i}.self_attn.kv_a_layernorm.weight',
+                    f'decoderLayer.{i}.multiHeadAttention.kv_b.weight': f'model.layers.{i}.self_attn.kv_b_proj.weight'
+                })
+                
             if i >= self.first_k_dense_replace and i % self.moe_layer_freq == 0:
                 mapping.update(
                     {
@@ -70,3 +80,4 @@ class DeepSeek(Decoder):
                     f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
                 })
         return mapping
+

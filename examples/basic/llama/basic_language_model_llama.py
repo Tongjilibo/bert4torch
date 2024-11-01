@@ -12,6 +12,8 @@
 # llama3: https://huggingface.co/collections/meta-llama/meta-llama-3-66214712577ca38149ebb2b6
 
 # llama3.1: https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f
+
+# llama3.2: https://huggingface.co/collections/meta-llama/llama-32-66f448ffc8c32f949b04c8cf
 """
 
 from bert4torch.pipelines import Chat
@@ -21,6 +23,7 @@ import re
 # llama-2-7b  llama-2-7b-chat  llama-2-13b  llama-2-13b-chat
 # Meta-Llama-3-8B  Meta-Llama-3-8B-Instruct
 # Meta-Llama-3.1-8B  Meta-Llama-3.1-8B-Instruct
+# Llama-3.2-1B  Llama-3.2-1B-Instruct  Llama-3.2-3B  Llama-3.2-3B-Instruct
 model_dir = 'E:/data/pretrain_ckpt/llama/Meta-Llama-3.1-8B-Instruct'
 generation_config = {
     'max_length': 512, 
@@ -56,7 +59,8 @@ functions = [{
     }
 }]
 
+
 if __name__ == '__main__':
     demo.run(
-        functions=functions  # llama3.1支持function call
+        # functions=functions  # llama3.1支持function call
         )

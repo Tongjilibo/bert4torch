@@ -7,18 +7,21 @@ from bert4torch.layers.position_encoding import (
     DebertaV2PositionsEncoding, 
     NezhaPositionsEncoding, 
     T5PositionsEncoding, 
-    RoPEPositionEncoding, 
-    RoPELinearScalingPositionEncoding,
-    RoPEDynamicNTKScalingPositionEncoding,
-    RoPEDynamicNTKScalingQwenPositionEncoding,
-    RoPELlama3PositionEncoding,
+    RopePositionEncoding, 
+    RopeLinearScalingPositionEncoding,
+    RopeDynamicNTKScalingPositionEncoding,
+    RopeDynamicNTKScalingQwenPositionEncoding,
+    RopeLlama3PositionEncoding,
+    RopeYarnPositionEncoding,
     ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
+from bert4torch.layers.core import LayerNorm
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
 from typing import Literal, Optional, Tuple, Union
 import inspect
+import copy
 
 
 if is_xformers_available():
@@ -31,13 +34,40 @@ if is_flash_attn_available():
     _flash_supports_window_size = "window_size" in list(inspect.signature(flash_attn_func).parameters)
 
 
-class MultiHeadAttentionLayer(nn.Module):
+def is_causal_mask(attention_mask:torch.Tensor):
+    '''判断一个矩阵是不是下三角阵'''
+    return bool(torch.all(torch.tril(attention_mask) == attention_mask))
+
+
+class MultiHeadAttention(nn.Module):
     '''多头注意力
+    :param hidden_size: int, 隐含层神经元个数
+    :param num_attention_heads: int, 多头注意力的多头数
+    :param attention_probs_dropout_prob: float，softmax后的dropout rate
+    :param dropout_rate: float, pos_dropout对应的dropout rate, 目前仅在deverta中使用，默认为0.1
+    :param attention_scale: bool, 是否对attention_scores进行缩放，默认为True
+    :param output_attentions: bool，是否返回attention_scores，默认为False
+    :param bias: bool, qkvo的weight是否包含bias，默认为True
+    :param rope_scaling: dict, rope的position encoding的参数，默认为None
+    :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
+    :param use_logn_attn: bool，是否使用use_logn_attn, 默认为None
+    :param layer_idx: int，transformer block的层序号
     '''
-    def __init__(self, hidden_size:int, num_attention_heads:int, attention_probs_dropout_prob:float, dropout_rate:float=0.1, attention_scale:bool=True,
-                 output_attentions:bool=False, bias:bool=True, p_bias:Literal[None, 'typical_relative', 'rotary', 't5_relative', 'deberta_v2', 'alibi']=None, 
-                 rope_scaling:dict=None, flash_attention:Literal[None, True, 'sdpa', 'xformers', 'flash_attn_2']=None, use_logn_attn:bool=None, **kwargs):
-        super(MultiHeadAttentionLayer, self).__init__()
+    def __init__(self, 
+                 hidden_size:int, 
+                 num_attention_heads:int, 
+                 attention_probs_dropout_prob:float, 
+                 dropout_rate:float=0.1, 
+                 attention_scale:bool=True,
+                 output_attentions:bool=False, 
+                 bias:bool=True, 
+                 rope_scaling:dict=None, 
+                 _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
+                 use_logn_attn:bool=None, 
+                 layer_idx:int=None,
+                 num_key_value_heads:int=None,
+                 **kwargs):
+        super(MultiHeadAttention, self).__init__()
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
@@ -46,26 +76,11 @@ class MultiHeadAttentionLayer(nn.Module):
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = bias
-        self.p_bias = p_bias
         self.rope_scaling = rope_scaling or dict()
+        self.layer_idx = layer_idx
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
-        self.layer_idx = kwargs.get('layer_idx')
-        
-        # 获取flash_attention的配置项
-        self.flash_attention_config = kwargs.get('flash_attention_config', dict())
-        self.is_causal = kwargs.get('is_causal', False) or self.flash_attention_config.pop('is_causal', False)
-        if ((flash_attention is True) or (flash_attention == 'sdpa')) and (int(torch.__version__.split('.')[0]) < 2):
-            log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-            flash_attention = None
-        elif (flash_attention == 'xformers') and (not is_xformers_available()):
-            log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-            flash_attention = None
-        elif (flash_attention == 'flash_attn_2') and (not is_flash_attn_available()):
-            log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
-            flash_attention = None
-        self.flash_attention = flash_attention
-        
+        self._attn_implementation = _attn_implementation  # attention的实现
         self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
@@ -77,8 +92,8 @@ class MultiHeadAttentionLayer(nn.Module):
         v_inner_dim = self.attention_head_size * num_attention_heads
 
         # multi query attention: chatglm中叫num_key_value_heads
-        if kwargs.get('num_key_value_heads') is not None:
-            self.num_key_value_heads = kwargs.get('num_key_value_heads')
+        if num_key_value_heads is not None:
+            self.num_key_value_heads = num_key_value_heads
             k_inner_dim_tmp = self.attention_head_size * self.num_key_value_heads
             v_inner_dim_tmp = k_inner_dim_tmp
 
@@ -95,63 +110,37 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def init_position_encoding(self, **kwargs):
         '''初始化相对位置编码'''
-        if self.p_bias == 'typical_relative':  # nezha
-            self.relative_positions_encoding = NezhaPositionsEncoding(qlen=self.max_position, klen=self.max_position,
-                                                                         embedding_size=self.attention_head_size,
-                                                                         max_relative_position=kwargs.get('max_relative_position'))
-        elif self.p_bias == 'rotary':  # roformer, llama, chatglm
-            # position_encoding_2d 目前仅在chatglm中使用
-            self.position_encoding_2d = kwargs.get('position_encoding_2d', False)
-            embedding_size = self.attention_head_size//2 if self.position_encoding_2d else self.attention_head_size
-            scaling_type = self.rope_scaling.pop("rope_type", self.rope_scaling.pop('type', None))
-            scaling_factor = self.rope_scaling.pop("factor", None)
-            rope_theta = kwargs.get('rope_theta')
-            rope_rank = kwargs.get('rope_rank')
-            if scaling_type is None:
-                assert scaling_factor is None , f'Args `rope_scaling.factor` not supported in standard rope'
-            elif scaling_type in {'linear', 'dynamic'}:
-                assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
-            
-            self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](embedding_size=embedding_size, 
-                                                                                max_position=self.max_position, 
-                                                                                rope_rank=rope_rank, 
-                                                                                scaling_factor=scaling_factor, 
-                                                                                rope_theta=rope_theta,
-                                                                                **self.rope_scaling)
-        elif self.p_bias == 't5_relative':  # t5
-            self.relative_positions = T5PositionsEncoding(qlen=self.max_position,  
-                                                          klen=self.max_position, 
-                                                          relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
-                                                          is_decoder=kwargs.get('is_decoder'))
-            self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
-        elif self.p_bias == 'deberta_v2':  # deberta_v2
-            # 配置文件
-            self.share_att_key = kwargs.get("share_att_key", False)
-            self.position_buckets = kwargs.get("position_buckets", -1)
-            self.max_relative_positions = kwargs.get("max_relative_positions", -1)
-            if self.max_relative_positions < 1:
-                self.max_relative_positions = kwargs.get('max_position_embeddings')
-            self.pos_ebd_size = self.max_relative_positions
-            if self.position_buckets > 0:
-                self.pos_ebd_size = self.position_buckets
+        pass
 
-            # position_embedding
-            self.pos_att_type = kwargs.get('pos_att_type', [])
-            self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position, 
-                                                                 klen=self.max_position, 
-                                                                 position_buckets=kwargs.get('position_buckets'),
-                                                                 max_position=self.max_position)
-            self.relative_positions_encoding = nn.Embedding(self.max_position, self.hidden_size)
-            self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
-            if "layer_norm" in self.norm_rel_ebd:
-                self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
-            self.pos_dropout = nn.Dropout(self.dropout_rate)
-        elif self.p_bias == 'alibi':
-            self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
+    def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+        '''获取qkv states，主要是为了下游继承'''
+        query_states = self.transpose_for_q_scores(self.q(hidden_states))
+        if (encoder_hidden_states is not None) and (past_key_value is not None):
+            key_states, value_states = past_key_value
+            attention_mask = encoder_attention_mask
+        elif encoder_hidden_states is not None:
+            key_states = self.transpose_for_k_scores(self.k(encoder_hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(encoder_hidden_states))
+            attention_mask = encoder_attention_mask
+        elif past_key_value is not None:
+            key_states = self.transpose_for_k_scores(self.k(hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(hidden_states))
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+        else:
+            key_states = self.transpose_for_k_scores(self.k(hidden_states))
+            value_states = self.transpose_for_v_scores(self.v(hidden_states))
+        return query_states, key_states, value_states, attention_mask
 
-    def forward(self, hidden_states:Optional[torch.Tensor]=None, attention_mask:Optional[torch.FloatTensor]=None, 
-                encoder_hidden_states:Optional[torch.FloatTensor]=None, encoder_attention_mask:Optional[torch.FloatTensor]=None, 
-                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, position_ids=None, **model_kwargs):
+    def forward(self, 
+                hidden_states:Optional[torch.Tensor]=None, 
+                attention_mask:Optional[torch.FloatTensor]=None, 
+                encoder_hidden_states:Optional[torch.FloatTensor]=None, 
+                encoder_attention_mask:Optional[torch.FloatTensor]=None, 
+                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
+                position_ids=None, 
+                **model_kwargs
+        ):
         '''
         :param hidden_states: [batch_size, seq_q, hidden_size]
         :param attention_mask: [batch_size, 1, 1, seq_q] 或者 [batch_size, 1, seq_q, seq_q]
@@ -159,74 +148,53 @@ class MultiHeadAttentionLayer(nn.Module):
         :param encoder_attention_mask: [batch_size, 1, 1, seq_k]
         :param past_key_value: ([batch_size, num_attention_heads, key_len_cache, attention_head_size], ...)
         '''
-
-        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
-        query_layer = self.transpose_for_q_scores(self.q(hidden_states))
-        if self.p_bias == 'rotary':
-            # rotary有cache情况下，需要先rope后再和past_key_value concat
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-            query_layer, key_layer, value_layer = self.apply_rotary_pos_emb(query_layer, key_layer, value_layer, position_ids, past_key_value)
-        elif (encoder_hidden_states is not None) and (past_key_value is not None):
-            key_layer, value_layer = past_key_value
-            attention_mask = encoder_attention_mask
-        elif encoder_hidden_states is not None:
-            key_layer = self.transpose_for_k_scores(self.k(encoder_hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(encoder_hidden_states))
-            attention_mask = encoder_attention_mask
-        elif past_key_value is not None:
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
-            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
-        else:
-            key_layer = self.transpose_for_k_scores(self.k(hidden_states))
-            value_layer = self.transpose_for_v_scores(self.v(hidden_states))
+        query_states, key_states, value_states, attention_mask = self._get_qkv_states(
+            hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids)
+        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
         # 使用logn_attn
         if self.use_logn_attn:
-            query_layer *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_layer.dtype)
+            query_states *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_states.dtype)
 
         # past_key_values
         if self.is_decoder and (not self.training):  # 仅推理是记录
-            past_key_value = (key_layer, value_layer)
+            past_key_value = (key_states, value_states)
 
         # multi_query_attention
         if hasattr(self, 'num_key_value_heads') and self.num_key_value_heads > 1:
-            key_layer = self.repeat_kv(key_layer)
-            value_layer = self.repeat_kv(value_layer)
+            key_states = self.repeat_kv(key_states)
+            value_states = self.repeat_kv(value_states)
 
         # longlora
         if hasattr(self, 'longlora_group_size'):
-            query_layer, key_layer, value_layer, attention_mask = self.longlora_shift(query_layer, key_layer, value_layer, attention_mask)
+            query_states, key_states, value_states, attention_mask = self.longlora_shift(query_states, key_states, value_states, attention_mask)
 
-        # ====================================是否使用flash_attention加速====================================
+
+        # ====================================attention的多类实现====================================
         # xformers
         attention_scores = None
-        if (self.flash_attention == 'xformers') and self.training:
-            context_layer = xops.memory_efficient_attention(query_layer, key_layer, value_layer, attn_bias=xops.LowerTriangularMask())
+        if (self._attn_implementation == 'xformers') and self.training:
+            context_layer = xops.memory_efficient_attention(query_states, key_states, value_states, attn_bias=xops.LowerTriangularMask())
         # SDPA
-        elif self.flash_attention in {True, 'sdpa'}:
-            # is_causal=True 适用于qlen=klen, 测试下来is_causal=True训练更快
-            if self.is_causal and (query_layer.shape[2] == key_layer.shape[2]):
-                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, is_causal=True)
-            elif len(self.flash_attention_config) == 0:
-                # 默认方式
-                context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
-                # 下一行代码是Qwen2的，看结果略有差异，但是不影响结果的生成
-                # context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attn_mask=None, dropout_p=0, is_causal=False)
-            else:
-                # 自定义
-                with torch.backends.cuda.sdp_kernel(**self.flash_attention_config):
-                    context_layer = F.scaled_dot_product_attention(query_layer, key_layer, value_layer, attention_mask.bool())
+        elif self._attn_implementation in {True, 'sdpa'}:
+            # 适用于qlen=klen, 测试下来is_causal=True训练更快
+            is_causal = (query_states.shape[2] == key_states.shape[2]) and is_causal_mask(attention_mask)
+            context_layer = F.scaled_dot_product_attention(
+                query_states, 
+                key_states, 
+                value_states, 
+                attn_mask=None if is_causal else attention_mask.bool(),
+                dropout_p=self.attention_probs_dropout_prob if self.training else 0.0,
+                is_causal=is_causal
+                )
         # flash_attn
-        elif self.flash_attention == 'flash_attn_2':
-            context_layer = self.flash_attention_forward(query_layer, key_layer, value_layer, past_key_value, attention_mask, hidden_states.shape[1])
+        elif self._attn_implementation == 'flash_attn_2':
+            context_layer = self.flash_attention_forward(query_states, key_states, value_states, past_key_value, attention_mask, hidden_states.shape[1])
         # torch原生实现
         else:
-            context_layer, attention_scores = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
+            context_layer, attention_scores = self.torch_attention_forward(query_states, key_states, value_states, attention_mask)
         
         if hasattr(self, 'longlora_group_size'):  # context_layer: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
             bsz, q_len = hidden_states.shape[:2]
@@ -253,9 +221,9 @@ class MultiHeadAttentionLayer(nn.Module):
 
     def longlora_shift(self, query_states, key_states, value_states, attention_mask):
         '''longlora中对qkv和mask进行修改: https://github.com/dvlab-research/LongLoRA'''
-        # query_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_layer shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_layer shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
         def shift(qkv, bsz, q_len, group_size, num_heads, head_dim):
             qkv[:, num_heads // 2:] = qkv[:, num_heads // 2:].roll(-group_size // 2, dims=2)
@@ -291,169 +259,42 @@ class MultiHeadAttentionLayer(nn.Module):
             new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
-
-    def apply_alibi_pos_emb(self, attention_scores, key_layer):
-        ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
-        key_position_scores_r_t = self.relative_positions_encoding(key_layer)
-        attention_scores = attention_scores + key_position_scores_r_t
-        attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
-        return attention_scores
-
-    def apply_rotary_pos_emb(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
-                             position_ids:torch.Tensor, past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None):
-        ''' 执行rotary相对位置编码 '''
-        kv_seq_len = key_layer.shape[-2]
-        if past_key_value is not None:
-            kv_seq_len += past_key_value[0].shape[-2]
-        
-        # chatglm独有逻辑
-        if self.position_encoding_2d:
-            q1, q2 = query_layer.chunk(2, dim=(query_layer.ndim - 1))
-            k1, k2 = key_layer.chunk(2, dim=(key_layer.ndim - 1))
-            if len(position_ids.shape) == 3:
-                q1, k1 = self.relative_positions_encoding([q1, k1], position_ids[:, 0, :], kv_seq_len)
-                q2, k2 = self.relative_positions_encoding([q2, k2], position_ids[:, 1, :], kv_seq_len)
-            else:
-                q1, k1 = self.relative_positions_encoding([q1, k1], position_ids, kv_seq_len)
-            query_layer = torch.concat([q1, q2], dim=(q1.ndim - 1))
-            key_layer = torch.concat([k1, k2], dim=(k1.ndim - 1))
-        
-        # 原rotary逻辑
-        else:
-            query_layer, key_layer = self.relative_positions_encoding([query_layer, key_layer], position_ids, kv_seq_len)
-        
-        # 过了rope再concat
-        if past_key_value is not None:
-            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
-            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
-        return query_layer, key_layer, value_layer
-
-    def apply_deberta_pos_emb(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, relative_pos, rel_embeddings, scale_factor):
-        '''deberta_v2使用，和原版区别是query_layer是4维, 原disentangled_attention_bias'''
-        btz, n_head, q_len, d_head = query_layer.size()
-        k_len = key_layer.size(-2)
-        if relative_pos is None:
-            relative_pos = self.relative_positions(q_len, k_len)
-        if relative_pos.dim() == 2:
-            relative_pos = relative_pos.unsqueeze(0).unsqueeze(0)
-        elif relative_pos.dim() == 3:
-            relative_pos = relative_pos.unsqueeze(1)
-        # bsz x height x query x key
-        elif relative_pos.dim() != 4:
-            raise ValueError(f"Relative position ids must be of dim 2 or 3 or 4. {relative_pos.dim()}")
-
-        att_span = self.pos_ebd_size
-        relative_pos = relative_pos.long().to(query_layer.device)
-
-        rel_embeddings = rel_embeddings[0 : att_span * 2, :].unsqueeze(0)
-        if self.share_att_key:
-            pos_query_layer = self.transpose_for_q_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
-            pos_key_layer = self.transpose_for_k_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
-        else:
-            # 这里逻辑去掉了
-            pass
-
-        score = 0
-        # content->position
-        if "c2p" in self.pos_att_type:
-            scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
-            c2p_att = torch.matmul(query_layer, pos_key_layer.transpose(-1, -2))
-            c2p_pos = torch.clamp(relative_pos + att_span, 0, att_span * 2 - 1)
-            c2p_att = torch.gather(c2p_att, dim=-1, index=c2p_pos.expand([btz, n_head, q_len, k_len]))
-            score += c2p_att / scale.to(dtype=c2p_att.dtype)
-
-        # position->content
-        if "p2c" in self.pos_att_type:
-            scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
-            if k_len != q_len:
-                r_pos = self.relative_positions(k_len, k_len)
-                r_pos = r_pos.unsqueeze(0)
-            else:
-                r_pos = relative_pos
-
-            p2c_pos = torch.clamp(-r_pos + att_span, 0, att_span * 2 - 1)
-            p2c_att = torch.matmul(key_layer, pos_query_layer.transpose(-1, -2))
-            p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand([btz, n_head, k_len, k_len])).transpose(-1, -2)
-            score += p2c_att / scale.to(dtype=p2c_att.dtype)
-        return score
+   
+    def apply_attention_scale(self, attention_scores):
+        '''方便子类继承'''
+        return attention_scores / math.sqrt(self.attention_head_size)
     
-    def torch_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, attention_mask:torch.Tensor):
+    def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        return attention_scores
+    
+    def torch_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, attention_mask:torch.Tensor):
         '''qkv attention: torch原生实现'''
         # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
-        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        attention_scores = torch.matmul(query_states, key_states.transpose(-1, -2))
 
-        # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
-        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== nezha相对位置编码 ====================
-            relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
-            # 旧实现，方便读者理解维度转换
-            # query_layer_t = query_layer.permute(2, 0, 1, 3)
-            # query_layer_r = query_layer_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
-            # key_position_scores = torch.matmul(query_layer_r, relations_keys.permute(0, 2, 1))
-            # key_position_scores_r = key_position_scores.view(from_seq_length, batch_size, num_attention_heads, from_seq_length)
-            # key_position_scores_r_t = key_position_scores_r.permute(1, 2, 0, 3)
-            # 新实现
-            key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_layer, relations_keys)
-            attention_scores = attention_scores + key_position_scores_r_t
-        elif (self.p_bias == 't5_relative') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== t5相对位置编码 ====================
-            relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])  # 都是klen, 应对use_state=True
-            key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
-            key_position_scores_r_t = key_position_scores_r_t[:, :, -attention_scores.shape[-2] :, :]  # 这里是qlen
-            attention_scores = attention_scores + key_position_scores_r_t
-        elif (self.p_bias == 'deberta_v2') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== deberta_v2相对位置编码 ====================
-            self.attention_scale = False  # deberta_v2使用自己的attention_scale
-            scale_factor = 1
-            if "c2p" in self.pos_att_type:
-                scale_factor += 1
-            if "p2c" in self.pos_att_type:
-                scale_factor += 1
-            scale = torch.sqrt(torch.tensor(query_layer.size(-1), dtype=torch.float) * scale_factor)
-            attention_scores = attention_scores / scale.to(dtype=query_layer.dtype)
-
-            rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
-            relations_keys = self.relative_positions(attention_scores.shape[-2], attention_scores.shape[-1])
-            rel_att = self.apply_deberta_pos_emb(query_layer, key_layer, relations_keys, rel_embeddings, scale_factor)
-            attention_scores = attention_scores + rel_att
+        # 相对位置编码
+        attention_scores = self.apply_relative_pos_emb(query_states, key_states, attention_scores)
 
         if self.attention_scale:
             # 是否进行attention scale
-            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+            attention_scores = self.apply_attention_scale(attention_scores)
         
-        # ==================== alibi相对位置编码 ====================
-        if (self.p_bias == 'alibi') and hasattr(self, 'relative_positions_encoding'):
-            attention_scores = self.apply_alibi_pos_emb(attention_scores, key_layer)
-
         # 执行attention mask，对于mask为0部分的attention mask，
         # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
         if attention_mask is not None:
             # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
             # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
-            attention_mask = (1.0 - attention_mask) * torch.finfo(query_layer.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
+            attention_mask = (1.0 - attention_mask) * torch.finfo(query_states.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
             attention_scores = attention_scores + attention_mask
 
         # 将attention score 归一化到0-1
-        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_layer.dtype)
+        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_states.dtype)
         attention_probs = self.dropout(attention_probs)
-        context_layer = torch.matmul(attention_probs, value_layer)  # [batch_size, num_attention_heads, query_len, attention_head_size]
-
-        if (self.p_bias == 'typical_relative') and hasattr(self, 'relative_positions_encoding'):
-            # ==================== nezha相对位置编码 ====================
-            relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
-            # 旧实现，方便读者理解维度转换
-            # attention_probs_t = attention_probs.permute(2, 0, 1, 3)
-            # attentions_probs_r = attention_probs_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, to_seq_length)
-            # value_position_scores = torch.matmul(attentions_probs_r, relations_values)
-            # value_position_scores_r = value_position_scores.view(from_seq_length, batch_size, num_attention_heads, self.attention_head_size)
-            # value_position_scores_r_t = value_position_scores_r.permute(1, 2, 0, 3)
-            # 新实现
-            value_position_scores_r_t = torch.einsum('bnij,ijh->bnih', attention_probs, relations_values)
-            context_layer = context_layer + value_position_scores_r_t
+        context_layer = torch.matmul(attention_probs, value_states)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
         return context_layer, attention_scores
     
-    def flash_attention_forward(self, query_layer:torch.FloatTensor, key_layer:torch.FloatTensor, value_layer:torch.FloatTensor, 
+    def flash_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                                 past_key_value:Union[Tuple[torch.Tensor]], attention_mask:torch.Tensor, 
                                 query_length:int, softmax_scale:float=None):
         """ flash_attn，参考transformers中的调用
@@ -465,34 +306,34 @@ class MultiHeadAttentionLayer(nn.Module):
             cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.torch.int32), (1, 0))
             return indices, cu_seqlens, max_seqlen_in_batch
 
-        def _upad_input(self, query_layer, key_layer, value_layer, attention_mask, query_length):       
+        def _upad_input(self, query_states, key_states, value_states, attention_mask, query_length):       
             indices_k, cu_seqlens_k, max_seqlen_in_batch_k = _get_unpad_data(attention_mask)
-            batch_size, kv_seq_len, num_key_value_heads, head_dim = key_layer.shape
+            batch_size, kv_seq_len, num_key_value_heads, head_dim = key_states.shape
 
-            key_layer = index_first_axis(key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
-            value_layer = index_first_axis(value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
+            key_states = index_first_axis(key_states.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
+            value_states = index_first_axis(value_states.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k)
             if query_length == kv_seq_len:
-                query_layer = index_first_axis(query_layer.reshape(batch_size * kv_seq_len, self.num_attention_heads, head_dim), indices_k)
+                query_states = index_first_axis(query_states.reshape(batch_size * kv_seq_len, self.num_attention_heads, head_dim), indices_k)
                 cu_seqlens_q = cu_seqlens_k
                 max_seqlen_in_batch_q = max_seqlen_in_batch_k
                 indices_q = indices_k
             elif query_length == 1:
                 max_seqlen_in_batch_q = 1
-                cu_seqlens_q = torch.arange(batch_size + 1, dtype=torch.int32, device=query_layer.device)  # There is a memcpy here, that is very bad.
+                cu_seqlens_q = torch.arange(batch_size + 1, dtype=torch.int32, device=query_states.device)  # There is a memcpy here, that is very bad.
                 indices_q = cu_seqlens_q[:-1]
-                query_layer = query_layer.squeeze(1)
+                query_states = query_states.squeeze(1)
             else:
                 # The -q_len: slice assumes left padding.
                 attention_mask = attention_mask[:, -query_length:]
-                query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
+                query_states, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_states, attention_mask)
 
-            return (query_layer, key_layer, value_layer, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
+            return (query_states, key_states, value_states, indices_q, (cu_seqlens_q, cu_seqlens_k), (max_seqlen_in_batch_q, max_seqlen_in_batch_k),)
         
         def _use_sliding_windows():
             if (self.max_window_layers is not None) and (self.layer_idx >= self.max_window_layers):
                 return False
 
-            kv_seq_len = key_layer.shape[1]  # [btz, n_heads, seq_len, d_head]
+            kv_seq_len = key_states.shape[1]  # [btz, n_heads, seq_len, d_head]
             use_sliding_windows = (_flash_supports_window_size and self.sliding_window is not None and kv_seq_len > self.sliding_window)
 
             if use_sliding_windows and not _flash_supports_window_size:
@@ -507,7 +348,7 @@ class MultiHeadAttentionLayer(nn.Module):
             return use_sliding_windows
     
 
-        def _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask):
+        def _run_sliding_windows(key_states, value_states, past_key_value, attention_mask):
             '''sliding_window部分'''
             # Activate slicing cache only if the config has a value `sliding_windows` attribute
             slicing_tokens = -self.sliding_window
@@ -525,37 +366,38 @@ class MultiHeadAttentionLayer(nn.Module):
             if attention_mask is not None:
                 attention_mask = attention_mask[:, :, slicing_tokens:, slicing_tokens:]
             
-            key_layer = key_layer[:, slicing_tokens:, :, :].contiguous()
-            value_layer = value_layer[:, slicing_tokens:, :, :].contiguous()
-            return key_layer, value_layer, past_key_value, attention_mask
+            key_states = key_states[:, slicing_tokens:, :, :].contiguous()
+            value_states = value_states[:, slicing_tokens:, :, :].contiguous()
+            return key_states, value_states, past_key_value, attention_mask
 
-        def _transpose(query_layer, key_layer, value_layer):
+        def _transpose(query_states, key_states, value_states):
             # [batch_size, query_len, num_attention_heads, attention_head_size]
-            query_layer = query_layer.transpose(1,2)
-            key_layer = key_layer.transpose(1,2)
-            value_layer = value_layer.transpose(1,2)
-            return query_layer, key_layer, value_layer
+            query_states = query_states.transpose(1,2)
+            key_states = key_states.transpose(1,2)
+            value_states = value_states.transpose(1,2)
+            return query_states, key_states, value_states
         
         dropout = 0.0 if not self.training else self.attention_probs_dropout_prob
         
-        if (not self.is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
-            query_layer, key_layer, value_layer = _transpose(query_layer, key_layer, value_layer)
+        is_causal = is_causal_mask(attention_mask)
+        if (not is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
+            query_states, key_states, value_states = _transpose(query_states, key_states, value_states)
             use_sliding_windows = _use_sliding_windows()
             if use_sliding_windows:
-                key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
+                key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
 
             # flash attention目前仅支持key_padding_mask
             attn_mask = attention_mask[:,0,0,:]  # 将4维的attention_mask降低为2维
-            batch_size = query_layer.shape[0]
-            query_layer, key_layer, value_layer, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
-                self, query_layer, key_layer, value_layer, attn_mask, query_length)
+            batch_size = query_states.shape[0]
+            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
+                self, query_states, key_states, value_states, attn_mask, query_length)
 
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
             attn_output_unpad = flash_attn_varlen_func(
-                query_layer, 
-                key_layer, 
-                value_layer, 
+                query_states, 
+                key_states, 
+                value_states, 
                 cu_seqlens_q=cu_seqlens_q, 
                 cu_seqlens_k=cu_seqlens_k, 
                 max_seqlen_q=max_seqlen_in_batch_q,
@@ -567,27 +409,245 @@ class MultiHeadAttentionLayer(nn.Module):
             )
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
 
-        elif self.is_causal:
-            query_layer, key_layer, value_layer = _transpose(query_layer, key_layer, value_layer)
+        elif is_causal:
+            query_states, key_states, value_states = _transpose(query_states, key_states, value_states)
             # attention_mask满足下三角的causal
             use_sliding_windows = _use_sliding_windows()
             if use_sliding_windows:
-                key_layer, value_layer, past_key_value, attention_mask = _run_sliding_windows(key_layer, value_layer, past_key_value, attention_mask)
+                key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
 
-            attn_output = flash_attn_func(query_layer, key_layer, value_layer, dropout, softmax_scale=softmax_scale, causal=True,
+            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True,
                                           window_size=(self.sliding_window, self.sliding_window) if use_sliding_windows else (-1, -1))
         
-        elif not self.is_causal:
+        elif is_causal:
             # 使用torch的attention计算
             log_warn_once( 'Flash Attention only support key_padding_mask, use torch_attention_forward instead.')
-            attn_output, _ = self.torch_attention_forward(query_layer, key_layer, value_layer, attention_mask)
-            self.flash_attention = None
+            attn_output, _ = self.torch_attention_forward(query_states, key_states, value_states, attention_mask)
+            self._attn_implementation = None
             return attn_output
 
         return attn_output.transpose(1,2)
 
 
-class GatedAttentionUnit(nn.Module):
+class DebertaV2Attention(MultiHeadAttention):
+    def init_position_encoding(self, **kwargs):
+        self.share_att_key = kwargs.get("share_att_key", False)
+        self.position_buckets = kwargs.get("position_buckets", -1)
+        self.max_relative_positions = kwargs.get("max_relative_positions", -1)
+        if self.max_relative_positions < 1:
+            self.max_relative_positions = kwargs.get('max_position_embeddings')
+        self.pos_ebd_size = self.max_relative_positions
+        if self.position_buckets > 0:
+            self.pos_ebd_size = self.position_buckets
+
+        # position_embedding
+        self.pos_att_type = kwargs.get('pos_att_type', [])
+        self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position, 
+                                                                klen=self.max_position, 
+                                                                position_buckets=kwargs.get('position_buckets'),
+                                                                max_position=self.max_position)
+        self.relative_positions_encoding = nn.Embedding(self.max_position, self.hidden_size)
+        self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
+        if "layer_norm" in self.norm_rel_ebd:
+            self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
+        self.pos_dropout = nn.Dropout(self.dropout_rate)
+
+    def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        if not hasattr(self, 'relative_positions_encoding'):
+            return attention_scores
+        
+        # ==================== deberta_v2相对位置编码 ====================
+        self.attention_scale = False  # deberta_v2使用自己的attention_scale
+        scale_factor = 1
+        if "c2p" in self.pos_att_type:
+            scale_factor += 1
+        if "p2c" in self.pos_att_type:
+            scale_factor += 1
+        scale = torch.sqrt(torch.tensor(query_states.size(-1), dtype=torch.float) * scale_factor)
+        attention_scores = attention_scores / scale.to(dtype=query_states.dtype)
+
+        rel_embeddings = self.pos_dropout(self.layernorm(self.relative_positions_encoding.weight))
+        relations_keys = self.relative_positions(attention_scores.shape[-2], attention_scores.shape[-1])
+        rel_att = self.apply_deberta_pos_emb(query_states, key_states, relations_keys, rel_embeddings, scale_factor)
+        attention_scores = attention_scores + rel_att
+        return attention_scores
+
+    def apply_deberta_pos_emb(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, relative_pos, rel_embeddings, scale_factor):
+        '''deberta_v2使用，和原版区别是query_states是4维, 原disentangled_attention_bias'''
+        btz, n_head, q_len, d_head = query_states.size()
+        k_len = key_states.size(-2)
+        if relative_pos is None:
+            relative_pos = self.relative_positions(q_len, k_len)
+        if relative_pos.dim() == 2:
+            relative_pos = relative_pos.unsqueeze(0).unsqueeze(0)
+        elif relative_pos.dim() == 3:
+            relative_pos = relative_pos.unsqueeze(1)
+        # bsz x height x query x key
+        elif relative_pos.dim() != 4:
+            raise ValueError(f"Relative position ids must be of dim 2 or 3 or 4. {relative_pos.dim()}")
+
+        att_span = self.pos_ebd_size
+        relative_pos = relative_pos.long().to(query_states.device)
+
+        rel_embeddings = rel_embeddings[0 : att_span * 2, :].unsqueeze(0)
+        if self.share_att_key:
+            pos_query_states = self.transpose_for_q_scores(self.q(rel_embeddings)).repeat(btz, 1, 1, 1)
+            pos_key_states = self.transpose_for_k_scores(self.k(rel_embeddings)).repeat(btz, 1, 1, 1)
+        else:
+            # 这里逻辑去掉了
+            pass
+
+        score = 0
+        # content->position
+        if "c2p" in self.pos_att_type:
+            scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
+            c2p_att = torch.matmul(query_states, pos_key_states.transpose(-1, -2))
+            c2p_pos = torch.clamp(relative_pos + att_span, 0, att_span * 2 - 1)
+            c2p_att = torch.gather(c2p_att, dim=-1, index=c2p_pos.expand([btz, n_head, q_len, k_len]))
+            score += c2p_att / scale.to(dtype=c2p_att.dtype)
+
+        # position->content
+        if "p2c" in self.pos_att_type:
+            scale = torch.sqrt(torch.tensor(d_head, dtype=torch.float) * scale_factor)
+            if k_len != q_len:
+                r_pos = self.relative_positions(k_len, k_len)
+                r_pos = r_pos.unsqueeze(0)
+            else:
+                r_pos = relative_pos
+
+            p2c_pos = torch.clamp(-r_pos + att_span, 0, att_span * 2 - 1)
+            p2c_att = torch.matmul(key_states, pos_query_states.transpose(-1, -2))
+            p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand([btz, n_head, k_len, k_len])).transpose(-1, -2)
+            score += p2c_att / scale.to(dtype=p2c_att.dtype)
+        return score
+
+
+class AlibiAttention(MultiHeadAttention):
+    '''alibi相对位置编码'''
+    def init_position_encoding(self, **kwargs):
+        self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
+    
+    def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        attention_scores = self.apply_alibi_pos_emb(attention_scores, key_states)
+        return attention_scores
+    
+    def apply_alibi_pos_emb(self, attention_scores, key_states):
+        ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
+        attention_scores = self.apply_attention_scale(attention_scores)
+        key_position_scores_r_t = self.relative_positions_encoding(key_states)
+        attention_scores = attention_scores + key_position_scores_r_t
+        attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
+        self.attention_scale = False
+        return attention_scores
+
+
+class NezhaTypicalRelativeAttention(MultiHeadAttention):
+    def init_position_encoding(self, **kwargs):
+        self.relative_positions_encoding = NezhaPositionsEncoding(
+            qlen=self.max_position, 
+            klen=self.max_position,
+            embedding_size=self.attention_head_size,
+            max_relative_position=kwargs.get('max_relative_position')
+            )
+        
+    def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        if not hasattr(self, 'relative_positions_encoding'):
+            return attention_scores
+        
+        # attention_scores shape: [batch_size, num_attention_heads, query_len, key_len]
+        # ==================== nezha相对位置编码 ====================
+        relations_keys = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])  # [to_seq_len, to_seq_len, d_hid]
+        # 旧实现，方便读者理解维度转换
+        # query_states_t = query_states.permute(2, 0, 1, 3)
+        # query_states_r = query_states_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, self.attention_head_size)
+        # key_position_scores = torch.matmul(query_states_r, relations_keys.permute(0, 2, 1))
+        # key_position_scores_r = key_position_scores.view(from_seq_length, batch_size, num_attention_heads, from_seq_length)
+        # key_position_scores_r_t = key_position_scores_r.permute(1, 2, 0, 3)
+        # 新实现
+        key_position_scores_r_t = torch.einsum('bnih,ijh->bnij', query_states, relations_keys)
+        attention_scores = attention_scores + key_position_scores_r_t
+        return attention_scores
+
+    def torch_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, attention_mask:torch.Tensor):
+        '''qkv attention: torch原生实现'''
+        # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
+        attention_scores = torch.matmul(query_states, key_states.transpose(-1, -2))
+
+        # 相对位置编码
+        attention_scores = self.apply_relative_pos_emb(query_states, key_states, attention_scores)
+
+        if self.attention_scale:
+            # 是否进行attention scale
+            attention_scores = self.apply_attention_scale(attention_scores)
+        
+        # 执行attention mask，对于mask为0部分的attention mask，
+        # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
+        if attention_mask is not None:
+            attention_mask = (1.0 - attention_mask) * torch.finfo(query_states.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
+            attention_scores = attention_scores + attention_mask
+
+        # 将attention score 归一化到0-1
+        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_states.dtype)
+        attention_probs = self.dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, value_states)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+
+        # ==================== nezha相对位置编码 ====================
+        relations_values = self.relative_positions_encoding(attention_scores.shape[-1], attention_scores.shape[-1])
+        # 旧实现，方便读者理解维度转换
+        # attention_probs_t = attention_probs.permute(2, 0, 1, 3)
+        # attentions_probs_r = attention_probs_t.contiguous().view(from_seq_length, batch_size * num_attention_heads, to_seq_length)
+        # value_position_scores = torch.matmul(attentions_probs_r, relations_values)
+        # value_position_scores_r = value_position_scores.view(from_seq_length, batch_size, num_attention_heads, self.attention_head_size)
+        # value_position_scores_r_t = value_position_scores_r.permute(1, 2, 0, 3)
+        # 新实现
+        value_position_scores_r_t = torch.einsum('bnij,ijh->bnih', attention_probs, relations_values)
+        context_layer = context_layer + value_position_scores_r_t
+
+        return context_layer, attention_scores
+
+
+class RopeAttention(MultiHeadAttention):
+    def init_position_encoding(self, **kwargs):
+        rope_scaling = copy.deepcopy(self.rope_scaling)
+        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
+        scaling_factor = rope_scaling.pop("factor", None)
+        rope_theta = kwargs.get('rope_theta')
+        rope_rank = kwargs.get('rope_rank')
+        if scaling_type is None:
+            assert scaling_factor is None , f'Args `rope_scaling.factor` not supported in standard rope'
+        elif scaling_type in {'linear', 'dynamic'}:
+            assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
+        
+        self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
+            embedding_size=self.attention_head_size, 
+            max_position=self.max_position, 
+            rope_rank=rope_rank, 
+            scaling_factor=scaling_factor, 
+            rope_theta=rope_theta,
+            **rope_scaling)
+
+    def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+        query_states = self.transpose_for_q_scores(self.q(hidden_states))
+        # rotary有cache情况下，需要先rope后再和past_key_value concat
+        key_states = self.transpose_for_k_scores(self.k(hidden_states))
+        value_states = self.transpose_for_v_scores(self.v(hidden_states))
+
+        kv_seq_len = key_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+        
+        # 执行相对位置编码
+        query_states, key_states = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
+        
+        # 过了rope再concat
+        if past_key_value is not None:
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+
+        return query_states, key_states, value_states, attention_mask
+
+
+class GatedAttention(nn.Module):
     '''门控注意力单元
     链接：https://arxiv.org/abs/2202.10447
     介绍：https://kexue.fm/archives/8934
@@ -611,7 +671,7 @@ class GatedAttentionUnit(nn.Module):
         
         self.p_bias = kwargs.get('p_bias')
         if self.p_bias == 'rotary':  # RoPE
-            self.relative_positions_encoding = RoPEPositionEncoding(embedding_size=self.attention_head_size, **kwargs)
+            self.relative_positions_encoding = RopePositionEncoding(embedding_size=self.attention_head_size, **kwargs)
 
     def forward(self, hidden_states, attention_mask):
         # 投影变换
@@ -677,3 +737,240 @@ class GatedAttentionUnit(nn.Module):
             if self.bias:
                  out = out + self.beta
             return out.unbind(dim = -2)
+
+
+class TransformerxlMultiHeadAttn(MultiHeadAttention):
+    '''Transformer_XL式相对位置编码RelPartialLearnableMultiHeadAttn, 这里修改成了MultiHeadAttention的batch_first代码格式'''
+    def __init__(self, *args, r_w_bias=None, r_r_bias=None, r_s_bias=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        segment_vocab_size = kwargs.get('segment_vocab_size')
+        if r_r_bias is None or r_w_bias is None:  # Biases are not shared
+            self.r_r_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局内容偏置
+            self.r_w_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局位置偏置
+            if segment_vocab_size > 0:
+                self.r_s_bias = nn.Parameter(torch.FloatTensor(self.num_attention_heads, self.attention_head_size))  # 全局segment偏置
+        else:  # 所有层公用一个
+            self.r_r_bias = r_r_bias
+            self.r_w_bias = r_w_bias
+            self.r_s_bias = r_s_bias
+        if segment_vocab_size > 0:
+            # self.seg_embed = nn.Embedding(segment_vocab_size, self.hidden_size)
+            self.seg_embed = nn.Parameter(torch.FloatTensor(segment_vocab_size, self.num_attention_heads, self.attention_head_size))
+
+        self.r = nn.Linear(self.hidden_size, self.hidden_size, bias=self.bias)
+        self.rel_shift_opt = kwargs.get('rel_shift_opt')
+
+    @staticmethod
+    def rel_shift(x, zero_triu=False):
+        '''transformer_xl使用, 向左shift让右上角都是0, 对角线是同一个值, x: [btz, n_head, q_len, k_len]'''
+        q_len, k_len = x.size(2), x.size(-1)
+        zero_pad = torch.zeros((*x.size()[:2], q_len, 1), device=x.device, dtype=x.dtype)
+        x_padded = torch.cat([zero_pad, x], dim=-1)
+        x_padded = x_padded.view(*x.size()[:2], k_len + 1, q_len)
+        x = x_padded[:,:,1:,:].view_as(x)
+        if zero_triu:
+            ones = torch.ones((q_len, k_len), device=x.device)
+            x = x * torch.tril(ones, k_len - q_len)[None,None,:,:]
+        return x
+
+    @staticmethod
+    def rel_shift_bnij(x, klen=-1):
+        ''' xlnet使用'''
+        x_size = x.shape
+        x = x.reshape(x_size[0], x_size[1], x_size[3], x_size[2])
+        x = x[:, :, 1:, :]
+        x = x.reshape(x_size[0], x_size[1], x_size[2], x_size[3] - 1)
+        x = torch.index_select(x, 3, torch.arange(klen, device=x.device, dtype=torch.long))
+        # x = x[:, :, :, :klen]
+        return x
+
+    def forward(self, w, cat, r, attention_mask=None, seg_mat=None):
+        # w: 词向量[btz, q_len, hdsz], cat: w和mem_i拼接后向量[btz, k_len, hdsz], r：相对位置向量[r_len, hdsz]
+        qlen, rlen, bsz = w.size(1), r.size(0), w.size(0)
+        
+        mixed_query_layer = self.q(cat)[:, -qlen:, :]  # 仅取用query部分，不适用mem部分
+        mixed_key_layer = self.k(cat)
+        mixed_value_layer = self.v(cat)
+
+        w_head_q = self.transpose_for_q_scores(mixed_query_layer)  # [btz, n_head, q_len, d_head]
+        w_head_k = self.transpose_for_k_scores(mixed_key_layer)  # [btz, n_head, k_len, d_head]
+        w_head_v = self.transpose_for_v_scores(mixed_value_layer)  # [btz, n_head, k_len, d_head]
+
+        r_head_k = self.r(r)  # [hdsz, nhead*headsize] = [r_len, 1, nhead*headsize]
+        r_head_k = r_head_k.view(rlen, self.num_attention_heads, self.attention_head_size)  # rlen x n_head x d_head
+
+        #### compute attention score
+        rw_head_q = w_head_q + self.r_w_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
+        AC = torch.einsum('bnid,bnjd->bnij', (rw_head_q, w_head_k))  # [btz, n_head, q_len, k_len]
+
+        rr_head_q = w_head_q + self.r_r_bias.unsqueeze(1)  # [btz, n_head, q_len, d_head]
+        BD = torch.einsum('bnid,jnd->bnij', (rr_head_q, r_head_k))  # [btz, n_head, q_len, k_len]
+        BD = self.rel_shift_bnij(BD, klen=AC.shape[3]) if self.rel_shift_opt == 'xlnet' else self.rel_shift(BD)
+
+        if hasattr(self, 'seg_embed') and (self.r_r_bias is not None):
+            # # 之前的方式，需要配合Embedding，以及load_variable和variable_mapping，显存容易爆炸
+            # w_head_s = self.seg_embed(seg_mat)  # [btz, q_len, klen, hdsz]
+            # w_head_s = w_head_s.reshape(*w_head_s.shape[:3], self.num_attention_heads, self.attention_head_size)
+            # rs_head_q = w_head_q + self.r_s_bias.unsqueeze(1)
+            # EF = torch.einsum('bnid,bijnd->bnij', (rs_head_q, w_head_s))  # [btz, n_head, q_len, k_len]
+            
+            seg_mat = F.one_hot(seg_mat, 2).float()
+            EF = torch.einsum("bnid,snd->ibns", w_head_q + self.r_s_bias.unsqueeze(1), self.seg_embed)
+            EF = torch.einsum("bijs,ibns->bnij", seg_mat, EF)
+        else:
+            EF = 0
+
+        # # [btz, n_head, q_len, k_len]
+        attention_scores = AC + BD + EF
+        if self.attention_scale:
+            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+
+        #### compute attention probability
+        if attention_mask is not None and attention_mask.any().item():
+            # attention_mask = (1.0 - attention_mask) * -10000.0
+            # attention_scores = attention_scores + attention_mask  # 这里修改了下，原有的-10000不够接近-inf
+            attention_mask = (1.0 - attention_mask)
+            attention_scores = attention_scores.float().masked_fill(attention_mask.bool(), -1e30).type_as(attention_mask)
+
+        # [btz, n_head, q_len, k_len]
+        attention_probs = F.softmax(attention_scores, dim=-1)
+        attention_probs = self.dropout(attention_probs)
+        context_layer = torch.matmul(attention_probs, w_head_v)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+
+        # 是否返回attention scores
+        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+        return outputs
+
+
+class DeepseekV2Attention(MultiHeadAttention):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.q_lora_rank = kwargs.get('q_lora_rank')
+        self.kv_lora_rank = kwargs.get('kv_lora_rank')
+        self.qk_nope_head_dim = kwargs.get('qk_nope_head_dim')
+        self.qk_rope_head_dim = kwargs.get('qk_rope_head_dim')
+        self.q_head_dim = self.qk_nope_head_dim + self.qk_rope_head_dim
+        layer_norm_eps = kwargs.get('layer_norm_eps', 1e-6)
+        if self.q_lora_rank is None:
+            self.q = nn.Linear(self.hidden_size, self.num_attention_heads * self.q_head_dim, bias=self.bias)
+        else:
+            del self.q
+            self.q_a = nn.Linear(self.hidden_size, self.q_lora_rank, bias=self.bias)
+            self.q_a_layernorm = LayerNorm(self.q_lora_rank, norm_mode='rmsnorm', eps=layer_norm_eps, bias=self.bias)
+            self.q_b = nn.Linear(self.q_lora_rank, self.attention_key_size * self.q_head_dim, bias=self.bias)
+
+        del self.k, self.v
+        self.kv_a_proj_with_mqa = nn.Linear(self.hidden_size, self.kv_lora_rank + self.qk_rope_head_dim, bias=self.bias)
+        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank, norm_mode='rmsnorm', eps=layer_norm_eps, bias=self.bias)
+        self.kv_b = nn.Linear(self.kv_lora_rank, self.num_attention_heads * 
+                              (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
+        self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
+
+        self.softmax_scale = self.q_head_dim ** (-0.5)
+        if self.rope_scaling is not None:
+            mscale_all_dim = self.rope_scaling.get("mscale_all_dim", 0)
+            scaling_factor = self.rope_scaling["factor"]
+            if mscale_all_dim:
+                mscale = 1.0 if scaling_factor <= 1 else 0.1 * mscale_all_dim * math.log(scaling_factor) + 1.0
+                self.softmax_scale = self.softmax_scale * mscale * mscale
+        
+    def init_position_encoding(self, **kwargs):
+        '''这里dim为qk_rope_head_dim所以重新初始化了'''
+        rope_scaling = copy.deepcopy(self.rope_scaling)
+        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
+        scaling_factor = rope_scaling.pop("factor", None)
+        rope_theta = kwargs.get('rope_theta')
+        rope_rank = kwargs.get('rope_rank')
+        self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
+            embedding_size = kwargs.get('qk_rope_head_dim'), 
+            max_position = self.max_position, 
+            rope_rank = rope_rank, 
+            scaling_factor = scaling_factor, 
+            rope_theta = rope_theta,
+            **rope_scaling
+            )
+
+    def apply_attention_scale(self, attention_scores):
+        return attention_scores * self.softmax_scale
+    
+    def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+        bsz, q_len, _ = hidden_states.size()
+        if self.q_lora_rank is None:
+            q = self.q(hidden_states)
+        else:
+            q = self.q_b(self.q_a_layernorm(self.q_a(hidden_states)))
+        q = q.view(bsz, q_len, self.num_attention_heads, self.q_head_dim).transpose(1, 2)
+        q_nope, q_pe = torch.split(q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1)
+
+        compressed_kv = self.kv_a_proj_with_mqa(hidden_states)
+        compressed_kv, k_pe = torch.split(compressed_kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
+        k_pe = k_pe.view(bsz, q_len, 1, self.qk_rope_head_dim).transpose(1, 2)
+        kv = (
+            self.kv_b(self.kv_a_layernorm(compressed_kv))
+            .view(bsz, q_len, self.num_attention_heads, self.qk_nope_head_dim + self.attention_head_size)
+            .transpose(1, 2)
+        )
+
+        k_nope, value_states = torch.split(kv, [self.qk_nope_head_dim, self.attention_head_size], dim=-1)
+        kv_seq_len = value_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+        
+        q_pe, k_pe = self.relative_positions_encoding([q_pe, k_pe], position_ids, kv_seq_len)
+        k_pe : torch.Tensor
+        query_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.q_head_dim)
+        query_states[:, :, :, : self.qk_nope_head_dim] = q_nope
+        query_states[:, :, :, self.qk_nope_head_dim :] = q_pe
+
+        key_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.q_head_dim)
+        key_states[:, :, :, : self.qk_nope_head_dim] = k_nope
+        key_states[:, :, :, self.qk_nope_head_dim :] = k_pe
+
+        # 过了rope再concat
+        if past_key_value is not None:
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+        return query_states, key_states, value_states, attention_mask
+    
+
+class T5Attention(MultiHeadAttention):
+    def init_position_encoding(self, **kwargs):
+        self.relative_positions = T5PositionsEncoding(
+            qlen=self.max_position,  
+            klen=self.max_position, 
+            relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
+            is_decoder=kwargs.get('is_decoder'))
+        self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
+    
+    def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
+        if not hasattr(self, 'relative_positions_encoding'):  # 外部可能会变更
+            return attention_scores
+
+        # ==================== t5相对位置编码 ====================
+        relations_keys = self.relative_positions(attention_scores.shape[-1], attention_scores.shape[-1])  # 都是klen, 应对use_state=True
+        key_position_scores_r_t = self.relative_positions_encoding(relations_keys).permute([2, 0, 1]).unsqueeze(0)
+        key_position_scores_r_t = key_position_scores_r_t[:, :, -attention_scores.shape[-2] :, :]  # 这里是qlen
+        attention_scores = attention_scores + key_position_scores_r_t
+        return attention_scores
+
+
+ATTENTION_MAP = {
+    'MultiHeadAttention': MultiHeadAttention,
+    'GatedAttention': GatedAttention,
+    'TransformerxlMultiHeadAttn': TransformerxlMultiHeadAttn,
+    'DeepseekV2Attention': DeepseekV2Attention,
+    'DebertaV2Attention': DebertaV2Attention,
+    'AlibiAttention': AlibiAttention,
+    'NezhaTypicalRelativeAttention': NezhaTypicalRelativeAttention,
+    'RopeAttention': RopeAttention,
+    'T5Attention': T5Attention,
+    # 下面是以p_bias为key
+    'deberta_v2': DebertaV2Attention,
+    'alibi': AlibiAttention,
+    'typical_relative': NezhaTypicalRelativeAttention,
+    'rotary': RopeAttention,
+    't5_relative': T5Attention,
+}

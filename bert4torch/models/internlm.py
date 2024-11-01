@@ -11,7 +11,8 @@ class InternLM(Decoder):
     '''
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'norm_mode': 'rmsnorm', 
-                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True,
+                       'mlp_type': 'LlamaFeedForward'})
         super().__init__(*args, **kwargs)
         self.model_type = 'internlm'
         del self.embeddings.layerNorm
@@ -55,7 +56,8 @@ class InternLM(Decoder):
 class InternLM2(Decoder):
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
-                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True})
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True,
+                       'mlp_type': 'LlamaFeedForward'})
         super().__init__(*args, **kwargs)
         self.model_type = 'internlm2'
         del self.embeddings.layerNorm
