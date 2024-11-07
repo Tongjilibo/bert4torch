@@ -1,15 +1,14 @@
 #! -*- coding: utf-8 -*-
 """通义千问Qwen2VL的测试
-阿里云的通义千问: https://github.com/QwenLM/Qwen
-bert4torch_config.json见readme
-- [Qwen-7B](https://huggingface.co/Qwen/Qwen-7B)
-- [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
+阿里云的通义千问: https://github.com/QwenLM/Qwen2-VL
 """
+
 from bert4torch.models import build_transformer_model
 from bert4torch.models.qwen2_vl import process_vision_info
 from transformers import AutoProcessor
-import torch
 
+# Qwen2-VL-2B-Instruct
+# Qwen2-VL-7B-Instruct
 model_dir = '/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
 device = 'cuda'
 model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)

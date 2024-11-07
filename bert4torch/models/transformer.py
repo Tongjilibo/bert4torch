@@ -99,6 +99,7 @@ class Decoder(LM_Mask, BERT, DecoderBase):
         self.final_layernorm = final_layernorm
         mapping = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32, 'float64': torch.float64}
         self.convert_lm_logits_dtype = mapping[convert_lm_logits_dtype] if convert_lm_logits_dtype is not None else None
+        self.num_logits_to_keep = kwargs.get('num_logits_to_keep', 0)
 
         # 从hidden_states映射到logit
         if self.with_lm:
@@ -149,7 +150,7 @@ class Decoder(LM_Mask, BERT, DecoderBase):
             last_hidden_state = self.LayerNormFinal(last_hidden_state)
         
         if self.with_lm:
-            lm_logits = self.lm_head(last_hidden_state)  # [btz, seq_len, vocab_size]
+            lm_logits = self.lm_head(last_hidden_state[:, -self.num_logits_to_keep:, :])  # [btz, seq_len, vocab_size]
             lm_logits = lm_logits * self.logit_scale if hasattr(self, 'logit_scale') else lm_logits
             lm_logits = self.final_activation(lm_logits)
             if self.convert_lm_logits_dtype is not None:
