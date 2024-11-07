@@ -127,14 +127,14 @@ class ChatVWebGradio(ChatWebGradio):
             return any(filename.lower().endswith(ext) for ext in video_extensions)
         
         input_image, input_vedio = None, None
-        if chatbot and os.path.isfile(chatbot[-1][0]):
-            if _is_video_file(chatbot[-1][0]):
+        if chatbot and isinstance(chatbot[-1][0], tuple) and os.path.isfile(chatbot[-1][0][0]):
+            if _is_video_file(chatbot[-1][0][0]):
                 # 视频
-                input_vedio = chatbot[-1][0]
+                input_vedio = chatbot[-1][0][0]
             else:
                 # 图片
-                input_image = chatbot[-1][0]
-        return input_image, input_image
+                input_image = chatbot[-1][0][0]
+        return input_image, input_vedio
             
 
     def __stream_predict(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
@@ -202,6 +202,7 @@ class ChatVWebStreamlit(ChatWebGradio):
 class ChatVOpenaiApi(ChatOpenaiApi):
     pass
 
+
 ImageType = Union[str, Image.Image, np.ndarray]
 def trans_images(images:Union[ImageType, List[ImageType], List[List[ImageType]]]):
     '''把各种类型的images转化为Image.Image格式'''
@@ -214,6 +215,7 @@ def trans_images(images:Union[ImageType, List[ImageType], List[List[ImageType]]]
     elif isinstance(images, List) and all([isinstance(image, List) for image in images]):
         images = [trans_images(image) for image in images]
     return images
+
 
 class MiniCPMV(ChatVBase):
     def build_prompt(
