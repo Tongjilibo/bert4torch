@@ -14,6 +14,7 @@
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
 from bert4torch.pipelines.chat import ChatBase, ChatWebGradio, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -31,7 +32,8 @@ from bert4torch.snippets import (
     add_start_docstrings,
     JsonConfig,
     is_transformers_available,
-    inference_mode
+    inference_mode,
+    sequence_padding
 )
 from packaging import version
 import gc
@@ -80,10 +82,49 @@ __all__ = [
     "ChatV"
     ]
 
+ImageType = Union[str, Image.Image, np.ndarray]
+VedioType = Union[str, Image.Image, np.ndarray]
+
+
+def trans_images_to_Image(images:Union[ImageType, List[ImageType], List[List[ImageType]]]):
+    '''把各种类型的images转化为Image.Image格式'''
+    if isinstance(images, str):
+        images = Image.open(images).convert('RGB')
+    elif isinstance(images, np.ndarray):
+        images = Image.fromarray(images)
+    elif isinstance(images, List) and all([isinstance(image, (str, Image.Image, np.ndarray)) for image in images]):
+        images = [trans_images_to_Image(image) for image in images]
+    elif isinstance(images, List) and all([isinstance(image, List) for image in images]):
+        images = [trans_images_to_Image(image) for image in images]
+    return images
+
+def trans_images_format(query, images):
+    if isinstance(query, str):
+        if isinstance(images, Image.Image):
+            # 提问单张图片
+            images = [images]
+        elif isinstance(images, List) and all([isinstance(image, Image.Image) for image in images]):
+            # 同时提问多张图片
+            images = [images]
+        elif images is None:
+            images = [images]
+    elif isinstance(query, List) and all([isinstance(query, str) for query in query]):
+        if isinstance(images, Image.Image):
+            # 多次提问单张图片
+            images = [images] * len(query)
+        elif isinstance(images, List) and all([isinstance(image, Image.Image) for image in images]):
+            # 各自提问单张图片
+            pass
+        elif isinstance(images, List) and all([isinstance(image, List) for image in images]) and \
+            all([isinstance(i, Image.Image) for image in images for i in image]):
+            # 各自同时提问多张图片
+            pass
+    return images
 
 class ChatVBase(ChatBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.return_tensor_from_build_prompt = True
         self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
 
     def generate(self, *args, **kwargs):
@@ -94,28 +135,34 @@ class ChatVBase(ChatBase):
         raise NotImplementedError
 
     @inference_mode()
-    def chat(
-        self,
-        query,
-        images,
-        history:List[dict]=None,
-        vision_hidden_states=None,
-        max_inp_length=8192,
-        system_prompt='',
-        max_slice_nums=None,
-        use_image_id=None,
-        **kwargs
-    ):
-        # 处理query和images输入
-        inputs = self.build_prompt(query, images, history, max_inp_length=max_inp_length, max_slice_nums=max_slice_nums,
-                                   system_prompt=system_prompt, use_image_id=use_image_id)
-        answer = self.generate(
-            **inputs,
-            vision_hidden_states=vision_hidden_states,
-            **self.generation_config,
-            **kwargs
-        )
-        return answer
+    def chat(self, query:Union[str, List[str]], images:Union[ImageType, List[ImageType]]=None, 
+             vedios=None, history:List[dict]=None, **kwargs) -> Union[str, List[str]]:
+        '''chat模型使用, 配合对话模板使用'''
+        history = history or []
+
+        if isinstance(query, str) or self.return_tensor_from_build_prompt:
+            # 单条输入，或在build_prompt阶段即组建了batch的tensor
+            inputs:Dict[torch.Tensor] = self.build_prompt(query, images, vedios, history, **kwargs)
+            response = self.model.generate(**inputs, **self.generation_config)
+            if isinstance(response, str):
+                # 生成单条输出
+                return self.process_response_history(response, history=history)
+            elif isinstance(response, list):
+                # 为单条query生成多条response
+                return [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
+            else:
+                raise TypeError(f'`response` type={type(response)} which is not supported')
+            
+        elif isinstance(query, list):
+            # 多条输入
+            history_copy = [copy.deepcopy(history) for _ in query]
+            images = [images] * len(query) if images is None or isinstance(images, (str, Image.Image, np.ndarray)) else images
+            vedios = [vedios] * len(query) if vedios is None or isinstance(vedios, (str, Image.Image, np.ndarray)) else vedios
+            inputs:List[Dict[torch.Tensor]] = [self.build_prompt(q, img, ved, hist, **kwargs) for q, img, ved, hist in zip(query, images, vedios, history_copy)]
+            response = self.model.generate(inputs, **self.generation_config)
+            return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
+        else:
+            raise TypeError(f'Args `query` type={type(query)} which is not supported')
 
 
 class ChatVWebGradio(ChatWebGradio):
@@ -154,6 +201,15 @@ class ChatVWebGradio(ChatWebGradio):
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
+    def regenerate(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
+        if chatbot and history and history[-1]['role'] == 'assistant':
+            query, _ = chatbot.pop()
+            history.pop()
+            history.pop()
+            yield from self.__stream_predict(query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions)
+        else:
+            return chatbot, history
+
     def run(self, host:str=None, port:int=None, **launch_configs):
 
         def add_file(chatbot, file):
@@ -187,7 +243,7 @@ class ChatVWebGradio(ChatWebGradio):
             addfile_btn.upload(add_file, [chatbot, addfile_btn], [chatbot], show_progress=True)
             submitBtn.click(self.__stream_predict, _input_tuple, [chatbot, history], show_progress=True)
             submitBtn.click(self.reset_user_input, [], [query])
-            # regen_btn.click(regenerate, [chatbot], [chatbot], show_progress=True)
+            regen_btn.click(self.regenerate, _input_tuple, [chatbot, history], show_progress=True)
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
 
         demo.queue().launch(server_name = launch_configs.pop('server_name', host), 
@@ -203,37 +259,15 @@ class ChatVOpenaiApi(ChatOpenaiApi):
     pass
 
 
-ImageType = Union[str, Image.Image, np.ndarray]
-def trans_images(images:Union[ImageType, List[ImageType], List[List[ImageType]]]):
-    '''把各种类型的images转化为Image.Image格式'''
-    if isinstance(images, str):
-        images = Image.open(images).convert('RGB')
-    elif isinstance(images, np.ndarray):
-        images = Image.fromarray(images)
-    elif isinstance(images, List) and all([isinstance(image, (str, Image.Image, np.ndarray)) for image in images]):
-        images = [trans_images(image) for image in images]
-    elif isinstance(images, List) and all([isinstance(image, List) for image in images]):
-        images = [trans_images(image) for image in images]
-    return images
-
-
 class MiniCPMV(ChatVBase):
-    def build_prompt(
-            self,
-            queries: Union[str, List[str]], 
-            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]], 
-            vedios=None,
-            history: List[Dict]=None, 
-            functions=None,
-            **kwargs
-        ) -> str:
+    def build_prompt(self, queries: str, images: Union[Image.Image, List[Image.Image]], vedios=None, history: List[Dict]=None, **kwargs):
         '''
         history: [
                     {'role': 'user', 'content': '图片中描述的是什么', 'images': [PIL.Image.Image]},
                     {'role': 'assistant', 'content': '该图片中描述了一个小男孩在踢足球'},
                  ]
 
-        |    query    |        images      |     comment      |
+        |   queries   |        images      |     comment      |
         |   -------   |      --------      |    ---------     |
         |     str     |        Image       |    提问单张图片   |
         |     str     |     List[Image]    |  同时提问多张图片  |
@@ -241,25 +275,27 @@ class MiniCPMV(ChatVBase):
         |  List[str]  |     List[Image]    |  各自提问单张图片  |
         |  List[str]  |  List[List[Image]] |各自同时提问多张图片|
         '''
-        images = trans_images(images)
+        images = trans_images_to_Image(images)
+
         if isinstance(queries, str):
             queries = [queries]
             if isinstance(images, Image.Image):
                 # 提问单张图片
                 images = [images]
-            elif isinstance(images, List) and isinstance(images[0], Image.Image):
+            elif isinstance(images, List) and all([isinstance(image, Image.Image) for image in images]):
                 # 同时提问多张图片
                 images = [images]
             elif images is None:
                 images = [images]
-        elif isinstance(queries, List) and isinstance(queries[0], str):
+        elif isinstance(queries, List) and all([isinstance(query, str) for query in queries]):
             if isinstance(images, Image.Image):
                 # 多次提问单张图片
                 images = [images] * len(queries)
-            elif isinstance(images, List) and isinstance(images[0], Image.Image):
+            elif isinstance(images, List) and all([isinstance(image, Image.Image) for image in images]):
                 # 各自提问单张图片
                 pass
-            elif isinstance(images, List) and isinstance(images[0], List) and isinstance(images[0][0], Image.Image):
+            elif isinstance(images, List) and all([isinstance(image, List) for image in images]) and \
+                all([isinstance(i, Image.Image) for image in images for i in image]):
                 # 各自同时提问多张图片
                 pass
 
@@ -289,13 +325,13 @@ class MiniCPMV(ChatVBase):
 
         prompts_lists = []
         input_images_lists = []
-        for query, image in zip(queries, images):
+        for q, image in zip(queries, images):
             copy_msgs = copy.deepcopy(history_copy) or []
             if image is None:
                 image = []
             elif isinstance(image, Image.Image):
                 image = [image]
-            content = "(<image>./</image>)\n"*len(image) + query
+            content = "(<image>./</image>)\n"*len(image) + q
             copy_msgs.append({'role': 'user', 'content': content})
 
             if kwargs.get('system_prompt'):
@@ -328,7 +364,51 @@ class MiniCPMV(ChatVBase):
             inputs['attention_mask'] = torch.ones_like(inputs['input_ids'], dtype=bool)
 
         inputs.pop("image_sizes")
-        history.append({'role': 'user', 'content': query, 'images': images})
+        history.append({'role': 'user', 'content': queries[0]})
+        if all([i is not None for i in images]):
+            history[-1]['images'] = images
+        return inputs
+
+
+class Qwen2VL(ChatVBase):
+    def build_prompt(
+            self,
+            queries: Union[str, List[str]], 
+            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]], 
+            vedios=None,
+            history: List[Dict]=None, 
+            functions=None,
+            max_pixels:int=None,
+            **kwargs
+        ) -> str:
+        queries = [queries] if isinstance(queries, str) else queries
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
+                        "max_pixels": 512 * 512,
+                    },
+                    {"type": "text", "text": query},
+                ],
+            }
+            for query in queries
+        ]
+
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        history.append({'role': 'user', 'content': queries[0]})
+        if all([i is not None for i in images]):
+            history[-1]['images'] = images
         return inputs
 
 

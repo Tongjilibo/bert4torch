@@ -32,7 +32,8 @@ from bert4torch.snippets import (
     is_package_available,
     has_chinese_char,
     add_start_docstrings,
-    JsonConfig
+    JsonConfig,
+    inference_mode
 )
 from packaging import version
 import gc
@@ -236,6 +237,7 @@ class ChatBase(PipeLineBase):
         else:
             raise TypeError(f'`response` type={type(response)} which is not supported')
 
+    @inference_mode()
     def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
