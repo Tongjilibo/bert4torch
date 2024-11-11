@@ -53,7 +53,7 @@ def main():
     # openai: 启动一个openai的server服务
     # gradio: web demo
     # streamlit: web demo  [启动命令]: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
-    choice = 'cli'
+    choice = 'streamlit'
 
     generation_config = {'repetition_penalty': 1.1, 
                          'temperature':0.8,

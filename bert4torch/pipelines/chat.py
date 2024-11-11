@@ -375,7 +375,7 @@ class ChatWebGradio(ChatBase):
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
 
-    def __stream_predict(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
+    def _stream_predict(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
         '''流式生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         chatbot.append((query, ""))
@@ -406,33 +406,42 @@ class ChatWebGradio(ChatBase):
             self.system = system
         return functions
 
+    def regenerate(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
+        if chatbot and history and history[-1]['role'] == 'assistant':
+            query, _ = chatbot.pop()
+            history.pop()
+            history.pop()
+            yield from self._stream_predict(query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions)
+        else:
+            return chatbot, history
+    
     def run(self, host:str=None, port:int=None, **launch_configs):
         with self.gr.Blocks() as demo:
             self.gr.HTML("""<h1 align="center">Chabot Gradio Demo</h1>""")
 
             with self.gr.Row():
-                with self.gr.Column(scale=1):
-                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length, step=1.0, label="max_length", interactive=True)
-                    top_p = self.gr.Slider(0, 1, value=1.0, step=0.01, label="top_p", interactive=True)
-                    temperature = self.gr.Slider(0, self.max_temperature, value=1.0, step=0.1, label="temperature", interactive=True)
-                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1.0, step=0.1, label="repetition_penalty", interactive=True)
-                    system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
-                    functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
-
                 with self.gr.Column(scale=4):
                     chatbot = self.gr.Chatbot()
                     with self.gr.Column(scale=12):
                         query = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10, max_lines=10) # .style(container=False)
                     with self.gr.Row():
-                        with self.gr.Column(min_width=32, scale=1):
-                            emptyBtn = self.gr.Button("Clear History")
-                        with self.gr.Column(min_width=32, scale=1):
-                            submitBtn = self.gr.Button("Submit", variant="primary")
+                        submitBtn = self.gr.Button("🚀 Submit", variant="primary")
+                        regen_btn = self.gr.Button('🤔️ Regenerate')
+                        emptyBtn = self.gr.Button("🧹 Clear History")
+
+                with self.gr.Column(scale=1):
+                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length, step=1.0, label="max_length", interactive=True)
+                    top_p = self.gr.Slider(0, 1, value=self.generation_config.get('top_p', 1.0), step=0.01, label="top_p", interactive=True)
+                    temperature = self.gr.Slider(0, self.max_temperature, value=self.generation_config.get('temperature', 1.0), step=0.1, label="temperature", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=self.generation_config.get('repetition_penalty', 1.0), step=0.1, label="repetition_penalty", interactive=True)
+                    system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
+                    functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
 
             history = self.gr.State([])
             _input_tuple = [query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions]
-            submitBtn.click(self.__stream_predict, _input_tuple, [chatbot, history], show_progress=True)
+            submitBtn.click(self._stream_predict, _input_tuple, [chatbot, history], show_progress=True)
             submitBtn.click(self.reset_user_input, [], [query])
+            regen_btn.click(self.regenerate, _input_tuple, [chatbot, history], show_progress=True)
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
 
         demo.queue().launch(server_name = launch_configs.pop('server_name', host), 
@@ -460,8 +469,10 @@ class ChatWebStreamlit(ChatBase):
             layout="wide"
         )
         super().__init__(*args, **kwargs)
-        self.max_length = self.generation_config.get('max_length', 4096)
         log_warn_once('You should use command `streamlit run app.py --server.address 0.0.0.0 --server.port 8001` to launch')
+        self.max_length = self.generation_config.get('max_length', 4096)
+        self.max_repetition_penalty = kwargs.get('max_repetition_penalty', 10.0)
+        self.max_temperature = kwargs.get('max_temperature', 10.0)
 
     @st.cache_resource
     def build_model(_self, **kwarg):
@@ -478,8 +489,16 @@ class ChatWebStreamlit(ChatBase):
             st.session_state.states = None
 
         max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
-        top_p = st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
-        temperature = st.sidebar.slider("temperature", 0.0, 1.0, 0.6, step=0.01)
+        top_p = st.sidebar.slider("top_p", 0.0, 1.0, self.generation_config.get('top_p', 1.0), step=0.01)
+        temperature = st.sidebar.slider("temperature", 0.0, self.max_temperature, self.generation_config.get('temperature', 1.0), step=0.01)
+        repetition_penalty = st.sidebar.slider("repetition_penalty", 0.0, self.max_repetition_penalty, self.generation_config.get('repetition_penalty', 1.0), step=0.1)
+        buttonClean = st.sidebar.button("Clear history", key="clean")
+        if buttonClean:
+            st.session_state.history = []
+            st.session_state.states = None
+            cuda_empty_cache()
+            st.rerun()
+        
         system = st.sidebar.text_area(
             label="System Prompt (If exists)",
             height=200,
@@ -503,13 +522,6 @@ class ChatWebStreamlit(ChatBase):
         if system is not None and system.strip() != '':
             self.system = system
 
-        buttonClean = st.sidebar.button("清理会话历史", key="clean")
-        if buttonClean:
-            st.session_state.history = []
-            st.session_state.states = None
-            cuda_empty_cache()
-            st.rerun()
-
         for i, message in enumerate(st.session_state.history):
             role = message['role']
             if role not in {'user', 'assistant'}:
@@ -524,20 +536,24 @@ class ChatWebStreamlit(ChatBase):
 
         query = st.chat_input("请输入您的问题")
         if query:
-            input_placeholder.markdown(query)
-            history = st.session_state.history
-            states = st.session_state.states
-            self.generation_config['max_length'] = max_length
-            self.generation_config['top_p'] = top_p
-            self.generation_config['temperature'] = temperature
-            self.generation_config['states'] = states
+            if query.strip() is "":
+                st.warning('Input message could not be empty!', icon="⚠️")
+            else:
+                input_placeholder.markdown(query)
+                history = st.session_state.history
+                states = st.session_state.states
+                self.generation_config['max_length'] = max_length
+                self.generation_config['top_p'] = top_p
+                self.generation_config['temperature'] = temperature
+                self.generation_config['repetition_penalty'] = repetition_penalty
+                self.generation_config['states'] = states
 
-            input_text = self.build_prompt(query, history, functions)
-            for response in self.model.stream_generate(input_text, **self.generation_config):
-                response = self.process_response_history(response, history)
-                message_placeholder.markdown(history[-1].get('raw_content', response))
-            st.session_state.history = history
-            st.session_state.states = self.generation_config.get('states')
+                input_text = self.build_prompt(query, history, functions)
+                for response in self.model.stream_generate(input_text, **self.generation_config):
+                    response = self.process_response_history(response, history)
+                    message_placeholder.markdown(history[-1].get('raw_content', response))
+                st.session_state.history = history
+                st.session_state.states = self.generation_config.get('states')
 
 
 # ==========================================================================================

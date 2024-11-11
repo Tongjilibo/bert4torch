@@ -13,8 +13,9 @@
 
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
-from bert4torch.pipelines.chat import ChatBase, ChatWebGradio, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from bert4torch.pipelines.chat import ChatBase, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
 from bert4torch.models.qwen2_vl import process_vision_info
+from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -85,21 +86,24 @@ __all__ = [
 ImageType = Union[str, Image.Image, np.ndarray]
 VedioType = Union[str, Image.Image, np.ndarray]
 
+def trans_query_images_tolist(query, images):
+    '''把query，images转为list'''
+    def trans_images_to_Image(images:Union[ImageType, List[ImageType], List[List[ImageType]]]):
+        '''把各种类型的images转化为Image.Image格式'''
+        if isinstance(images, str):
+            images = Image.open(images).convert('RGB')
+        elif isinstance(images, np.ndarray):
+            images = Image.fromarray(images)
+        elif isinstance(images, List) and all([isinstance(image, (str, Image.Image, np.ndarray)) for image in images]):
+            images = [trans_images_to_Image(image) for image in images]
+        elif isinstance(images, List) and all([isinstance(image, List) for image in images]):
+            images = [trans_images_to_Image(image) for image in images]
+        return images
 
-def trans_images_to_Image(images:Union[ImageType, List[ImageType], List[List[ImageType]]]):
-    '''把各种类型的images转化为Image.Image格式'''
-    if isinstance(images, str):
-        images = Image.open(images).convert('RGB')
-    elif isinstance(images, np.ndarray):
-        images = Image.fromarray(images)
-    elif isinstance(images, List) and all([isinstance(image, (str, Image.Image, np.ndarray)) for image in images]):
-        images = [trans_images_to_Image(image) for image in images]
-    elif isinstance(images, List) and all([isinstance(image, List) for image in images]):
-        images = [trans_images_to_Image(image) for image in images]
-    return images
+    images = trans_images_to_Image(images)
 
-def trans_images_format(query, images):
     if isinstance(query, str):
+        query = [query]
         if isinstance(images, Image.Image):
             # 提问单张图片
             images = [images]
@@ -119,7 +123,7 @@ def trans_images_format(query, images):
             all([isinstance(i, Image.Image) for image in images for i in image]):
             # 各自同时提问多张图片
             pass
-    return images
+    return query, images
 
 class ChatVBase(ChatBase):
     def __init__(self, *args, **kwargs):
@@ -176,21 +180,19 @@ class ChatVWebGradio(ChatWebGradio):
         input_image, input_vedio = None, None
         if chatbot and isinstance(chatbot[-1][0], tuple) and os.path.isfile(chatbot[-1][0][0]):
             if _is_video_file(chatbot[-1][0][0]):
-                # 视频
-                input_vedio = chatbot[-1][0][0]
+                input_vedio = chatbot[-1][0][0]  # 视频
             else:
-                # 图片
-                input_image = chatbot[-1][0][0]
+                input_image = chatbot[-1][0][0]  # 图片
         return input_image, input_vedio
             
 
-    def __stream_predict(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
+    def _stream_predict(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
         '''流式生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         input_image, input_vedio = self.get_image_vedio(chatbot)
         chatbot.append((query, ""))
-        functions = self._set_system_functions(system, functions)
-        input_kwargs = self.build_prompt(query, input_image, input_vedio, history, functions)
+        self._set_system_functions(system, None)
+        input_kwargs = self.build_prompt(query, input_image, input_vedio, history)
         for response in self.model.stream_generate(**input_kwargs, **self.generation_config):
             response = self.process_response_history(response, history)
             if history[-1].get('raw_content'):
@@ -200,15 +202,6 @@ class ChatVWebGradio(ChatWebGradio):
             chatbot[-1] = (query, response)
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
-
-    def regenerate(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
-        if chatbot and history and history[-1]['role'] == 'assistant':
-            query, _ = chatbot.pop()
-            history.pop()
-            history.pop()
-            yield from self.__stream_predict(query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions)
-        else:
-            return chatbot, history
 
     def run(self, host:str=None, port:int=None, **launch_configs):
 
@@ -221,7 +214,7 @@ class ChatVWebGradio(ChatWebGradio):
             self.gr.HTML("""<h1 align="center">Chabot Gradio Demo</h1>""")
             with self.gr.Row():
                 with self.gr.Column(scale=4):
-                    chatbot = self.gr.Chatbot(height=600)
+                    chatbot = self.gr.Chatbot(height=500)
                     with self.gr.Column(scale=12):
                         query = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10, max_lines=10) # .style(container=False)
                     with self.gr.Row():
@@ -232,16 +225,16 @@ class ChatVWebGradio(ChatWebGradio):
 
                 with self.gr.Column(scale=1):
                     max_length = self.gr.Slider(0, self.max_length, value=self.max_length, step=1.0, label="max_length", interactive=True)
-                    top_p = self.gr.Slider(0, 1, value=1.0, step=0.01, label="top_p", interactive=True)
-                    temperature = self.gr.Slider(0, self.max_temperature, value=1.0, step=0.1, label="temperature", interactive=True)
-                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1.0, step=0.1, label="repetition_penalty", interactive=True)
+                    top_p = self.gr.Slider(0, 1, value=self.generation_config.get('top_p', 1.0), step=0.01, label="top_p", interactive=True)
+                    temperature = self.gr.Slider(0, self.max_temperature, value=self.generation_config.get('temperature', 1.0), step=0.1, label="temperature", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=self.generation_config.get('repetition_penalty', 1.0), step=0.1, label="repetition_penalty", interactive=True)
                     system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
                     functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
                 
             history = self.gr.State([])
             _input_tuple = [query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions]
             addfile_btn.upload(add_file, [chatbot, addfile_btn], [chatbot], show_progress=True)
-            submitBtn.click(self.__stream_predict, _input_tuple, [chatbot, history], show_progress=True)
+            submitBtn.click(self._stream_predict, _input_tuple, [chatbot, history], show_progress=True)
             submitBtn.click(self.reset_user_input, [], [query])
             regen_btn.click(self.regenerate, _input_tuple, [chatbot, history], show_progress=True)
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
@@ -251,8 +244,123 @@ class ChatVWebGradio(ChatWebGradio):
                             **launch_configs)
 
 
-class ChatVWebStreamlit(ChatWebGradio):
-    pass
+class ChatVWebStreamlit(ChatWebStreamlit):
+    def run(self):
+        if "history" not in st.session_state:
+            st.session_state.history = []
+        if "states" not in st.session_state:
+            st.session_state.states = None
+
+        max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
+        top_p = st.sidebar.slider("top_p", 0.0, 1.0, self.generation_config.get('top_p', 1.0), step=0.01)
+        temperature = st.sidebar.slider("temperature", 0.0, self.max_temperature, self.generation_config.get('temperature', 1.0), step=0.01)
+        repetition_penalty = st.sidebar.slider("repetition_penalty", 0.0, self.max_repetition_penalty, self.generation_config.get('repetition_penalty', 1.0), step=0.1)
+        buttonClean = st.sidebar.button("Clear history", key="clean")
+        if buttonClean:
+            st.session_state.history = []
+            st.session_state.states = None
+            cuda_empty_cache()
+            st.rerun()
+        
+        # Select mode
+        selected_mode = st.sidebar.selectbox("Select Mode", ["Text", "Single Image", "Multiple Images", "Video"])
+
+        # Supported image file extensions
+        image_type = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
+
+        if selected_mode == "Images":
+            # Multiple Images Mode
+            uploaded_image_list = st.sidebar.file_uploader("Upload Images", key=2, type=image_type, accept_multiple_files=True)
+            uploaded_image_num = len(uploaded_image_list)
+
+            if uploaded_image_list is not None and uploaded_image_num > 0:
+                for img in uploaded_image_list:
+                    st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
+                    # Add the uploaded images to the chat history
+                    st.session_state.history.append({"role": "user", "content": None, "image": img, "video": None})
+                # Update the uploaded image list and count in st.session_state
+                st.session_state.uploaded_image_list = uploaded_image_list
+                st.session_state.uploaded_image_num = uploaded_image_num
+
+        # Supported video format suffixes
+        video_type = ['.mp4', '.mkv', '.mov', '.avi', '.flv', '.wmv', '.webm', '.m4v']
+
+        # Tip: You can use the command `streamlit run ./web_demo_streamlit-minicpmv2_6.py --server.maxUploadSize 1024`
+        # to adjust the maximum upload size to 1024MB or larger files.
+        # The default 200MB limit of Streamlit's file_uploader component might be insufficient for video-based interactions.
+        # Adjust the size based on your GPU memory usage.
+
+        if selected_mode == "Video":
+            # 单个视频模态
+            uploaded_video = st.sidebar.file_uploader("Upload a single video file", key=3, type=video_type,
+                                                    accept_multiple_files=False)
+            if uploaded_video is not None:
+                st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
+                st.session_state.history.append({"role": "user", "content": None, "image": None, "video": uploaded_video})
+
+                uploaded_video_path = os.path.join(".\\uploads", uploaded_video.name)
+                with open(uploaded_video_path, "wb") as vf:
+                    vf.write(uploaded_video.getvalue())
+                st.session_state.uploaded_video_list = [uploaded_video_path]
+                st.session_state.uploaded_video_num = 1
+                
+        system = st.sidebar.text_area(
+            label="System Prompt (If exists)",
+            height=200,
+            value="",
+        )
+        functions = st.sidebar.text_area(
+            label="Functions Json Format (If exists)",
+            height=200,
+            value="",
+        )
+
+        try:
+            if functions is not None and functions.strip() != '':
+                functions = json.loads(functions)
+            else:
+                functions = None
+        except json.JSONDecodeError:
+            functions = None
+            log_warn('Functions implement not json format')
+
+        if system is not None and system.strip() != '':
+            self.system = system
+
+        for i, message in enumerate(st.session_state.history):
+            role = message['role']
+            if role not in {'user', 'assistant'}:
+                continue
+            with st.chat_message(name=role, avatar=role):
+                st.markdown(message.get('raw_content', message['content']))
+        
+        with st.chat_message(name="user", avatar="user"):
+            input_placeholder = st.empty()
+        with st.chat_message(name="assistant", avatar="assistant"):
+            message_placeholder = st.empty()
+
+        query = st.chat_input("请输入您的问题")
+        if query:
+            if query.strip() is "":
+                st.warning('Input message could not be empty!', icon="⚠️")
+            else:
+                input_placeholder.markdown(query)
+                history = [i for i in st.session_state.history if i['content'] is not None]
+                states = st.session_state.states
+                self.generation_config['max_length'] = max_length
+                self.generation_config['top_p'] = top_p
+                self.generation_config['temperature'] = temperature
+                self.generation_config['repetition_penalty'] = repetition_penalty
+                self.generation_config['states'] = states
+
+                images = st.session_state.uploaded_image_list
+                vedios = st.session_state.uploaded_video_list
+                input_text = self.build_prompt(query, images, vedios, history, functions)
+                for response in self.model.stream_generate(input_text, **self.generation_config):
+                    response = self.process_response_history(response, history)
+                    message_placeholder.markdown(history[-1].get('raw_content', response))
+                st.session_state.history += history[-1]
+                st.session_state.states = self.generation_config.get('states')
 
 
 class ChatVOpenaiApi(ChatOpenaiApi):
@@ -260,7 +368,12 @@ class ChatVOpenaiApi(ChatOpenaiApi):
 
 
 class MiniCPMV(ChatVBase):
-    def build_prompt(self, queries: str, images: Union[Image.Image, List[Image.Image]], vedios=None, history: List[Dict]=None, **kwargs):
+    def build_prompt(
+            self,
+            queries: Union[str, list], 
+            images: Union[Image.Image, List[Image.Image]]=None, 
+            vedios=None, history: List[Dict]=None, 
+            **kwargs):
         '''
         history: [
                     {'role': 'user', 'content': '图片中描述的是什么', 'images': [PIL.Image.Image]},
@@ -275,29 +388,7 @@ class MiniCPMV(ChatVBase):
         |  List[str]  |     List[Image]    |  各自提问单张图片  |
         |  List[str]  |  List[List[Image]] |各自同时提问多张图片|
         '''
-        images = trans_images_to_Image(images)
-
-        if isinstance(queries, str):
-            queries = [queries]
-            if isinstance(images, Image.Image):
-                # 提问单张图片
-                images = [images]
-            elif isinstance(images, List) and all([isinstance(image, Image.Image) for image in images]):
-                # 同时提问多张图片
-                images = [images]
-            elif images is None:
-                images = [images]
-        elif isinstance(queries, List) and all([isinstance(query, str) for query in queries]):
-            if isinstance(images, Image.Image):
-                # 多次提问单张图片
-                images = [images] * len(queries)
-            elif isinstance(images, List) and all([isinstance(image, Image.Image) for image in images]):
-                # 各自提问单张图片
-                pass
-            elif isinstance(images, List) and all([isinstance(image, List) for image in images]) and \
-                all([isinstance(i, Image.Image) for image in images for i in image]):
-                # 各自同时提问多张图片
-                pass
+        queries, images = trans_query_images_tolist(queries, images)
 
         assert len(queries) == len(images), "The batch dim of query and images should be the same."        
         assert self.model.config.query_num == self.processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
@@ -371,41 +462,49 @@ class MiniCPMV(ChatVBase):
 
 
 class Qwen2VL(ChatVBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.min_pixels = kwargs.get('min_pixels', MIN_PIXELS)
+        self.max_pixels = kwargs.get('max_pixels', MAX_PIXELS)
+        log_warn_once('Please set `max_pixels` smaller when CUDA out_of_memory eccured')
+
     def build_prompt(
             self,
             queries: Union[str, List[str]], 
-            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]], 
+            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]]=None, 
             vedios=None,
             history: List[Dict]=None, 
-            functions=None,
-            max_pixels:int=None,
             **kwargs
-        ) -> str:
-        queries = [queries] if isinstance(queries, str) else queries
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
-                        "max_pixels": 512 * 512,
-                    },
-                    {"type": "text", "text": query},
-                ],
-            }
-            for query in queries
-        ]
+        ):
+        if hasattr(self, 'system') and not history:
+            history.append({'role': 'system', 'content': self.system})
+        queries, images = trans_query_images_tolist(queries, images)
+        all_messages = []
+        for query, image in zip(queries, images):
+            messages = (copy.deepcopy(history) or [] or []) + [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": query}]
+                }]
+            if image is None:
+                pass
+            elif isinstance(image, list):
+                messages[-1]['content'] = [{"type": "image", "image": i, "min_pixels":self.min_pixels, 
+                                            "max_pixels": self.max_pixels} for i in image] + messages[-1]['content']
+            else:
+                messages[-1]['content'] = [{"type": "image", "image": image, "min_pixels":self.min_pixels, 
+                                            "max_pixels": self.max_pixels}] + messages[-1]['content']
+            all_messages.append(messages)
 
-        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        image_inputs, video_inputs = process_vision_info(messages)
+        text = self.processor.apply_chat_template(all_messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, video_inputs = process_vision_info(all_messages)
         inputs = self.processor(
-            text=[text],
+            text=text,
             images=image_inputs,
             videos=video_inputs,
             padding=True,
             return_tensors="pt",
-        )
+        ).to(self.device)
         history.append({'role': 'user', 'content': queries[0]})
         if all([i is not None for i in images]):
             history[-1]['images'] = images
@@ -416,7 +515,8 @@ class Qwen2VL(ChatVBase):
 # =======================                统一Chat入口             ==========================
 # ==========================================================================================
 MAPPING = {
-    'minicpmv': MiniCPMV
+    'minicpmv': MiniCPMV,
+    'qwen2_vl': Qwen2VL
 }
 
 class ChatV:
