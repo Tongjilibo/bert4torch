@@ -536,7 +536,7 @@ class ChatWebStreamlit(ChatBase):
 
         query = st.chat_input("请输入您的问题")
         if query:
-            if query.strip() is "":
+            if query.strip() == "":
                 st.warning('Input message could not be empty!', icon="⚠️")
             else:
                 input_placeholder.markdown(query)

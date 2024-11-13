@@ -268,6 +268,7 @@ class ChatVWebStreamlit(ChatWebStreamlit):
         # Supported image file extensions
         image_type = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
 
+        images = []
         if selected_mode == "Images":
             # Multiple Images Mode
             uploaded_image_list = st.sidebar.file_uploader("Upload Images", key=2, type=image_type, accept_multiple_files=True)
@@ -276,15 +277,13 @@ class ChatVWebStreamlit(ChatWebStreamlit):
             if uploaded_image_list is not None and uploaded_image_num > 0:
                 for img in uploaded_image_list:
                     st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
-                    # Add the uploaded images to the chat history
-                    st.session_state.history.append({"role": "user", "content": None, "image": img, "video": None})
-                # Update the uploaded image list and count in st.session_state
-                st.session_state.uploaded_image_list = uploaded_image_list
-                st.session_state.uploaded_image_num = uploaded_image_num
+                    with st.chat_message(name='user', avatar='user'):
+                        st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
+                    images.append(img)
 
         # Supported video format suffixes
         video_type = ['.mp4', '.mkv', '.mov', '.avi', '.flv', '.wmv', '.webm', '.m4v']
-
+        videos = []
         # Tip: You can use the command `streamlit run ./web_demo_streamlit-minicpmv2_6.py --server.maxUploadSize 1024`
         # to adjust the maximum upload size to 1024MB or larger files.
         # The default 200MB limit of Streamlit's file_uploader component might be insufficient for video-based interactions.
@@ -296,13 +295,13 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                                                     accept_multiple_files=False)
             if uploaded_video is not None:
                 st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
-                st.session_state.history.append({"role": "user", "content": None, "image": None, "video": uploaded_video})
+                with st.chat_message(name='user', avatar='user'):
+                    st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
+                videos.append(uploaded_video)
 
                 uploaded_video_path = os.path.join(".\\uploads", uploaded_video.name)
                 with open(uploaded_video_path, "wb") as vf:
                     vf.write(uploaded_video.getvalue())
-                st.session_state.uploaded_video_list = [uploaded_video_path]
-                st.session_state.uploaded_video_num = 1
                 
         system = st.sidebar.text_area(
             label="System Prompt (If exists)",
@@ -341,11 +340,11 @@ class ChatVWebStreamlit(ChatWebStreamlit):
 
         query = st.chat_input("请输入您的问题")
         if query:
-            if query.strip() is "":
+            if query.strip() == "":
                 st.warning('Input message could not be empty!', icon="⚠️")
             else:
                 input_placeholder.markdown(query)
-                history = [i for i in st.session_state.history if i['content'] is not None]
+                history = st.session_state.history
                 states = st.session_state.states
                 self.generation_config['max_length'] = max_length
                 self.generation_config['top_p'] = top_p
@@ -353,13 +352,11 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                 self.generation_config['repetition_penalty'] = repetition_penalty
                 self.generation_config['states'] = states
 
-                images = st.session_state.uploaded_image_list
-                vedios = st.session_state.uploaded_video_list
-                input_text = self.build_prompt(query, images, vedios, history, functions)
+                input_text = self.build_prompt(query, images, videos, history, functions)
                 for response in self.model.stream_generate(input_text, **self.generation_config):
                     response = self.process_response_history(response, history)
                     message_placeholder.markdown(history[-1].get('raw_content', response))
-                st.session_state.history += history[-1]
+                st.session_state.history = history
                 st.session_state.states = self.generation_config.get('states')
 
 

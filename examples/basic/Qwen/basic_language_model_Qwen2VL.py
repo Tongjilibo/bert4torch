@@ -11,7 +11,7 @@ from transformers import AutoProcessor
 
 # Qwen2-VL-2B-Instruct
 # Qwen2-VL-7B-Instruct
-model_dir = '/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
+model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
 
 def chat_demo1():
     device = 'cuda'
