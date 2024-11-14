@@ -72,7 +72,7 @@ def chat_demo1():
 def chat_demo2():
     demo = ChatV(model_dir, 
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
-                mode='gradio',
+                mode='streamlit',
                 template='qwen2_vl'
                 )
     demo.run()

@@ -140,13 +140,13 @@ class ChatVBase(ChatBase):
 
     @inference_mode()
     def chat(self, query:Union[str, List[str]], images:Union[ImageType, List[ImageType]]=None, 
-             vedios=None, history:List[dict]=None, **kwargs) -> Union[str, List[str]]:
+             vedios=None, history:List[dict]=None, functions:List[dict]=None, **kwargs) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
 
         if isinstance(query, str) or self.return_tensor_from_build_prompt:
             # 单条输入，或在build_prompt阶段即组建了batch的tensor
-            inputs:Dict[torch.Tensor] = self.build_prompt(query, images, vedios, history, **kwargs)
+            inputs:Dict[torch.Tensor] = self.build_prompt(query, images, vedios, history, functions, **kwargs)
             response = self.model.generate(**inputs, **self.generation_config)
             if isinstance(response, str):
                 # 生成单条输出
@@ -162,7 +162,7 @@ class ChatVBase(ChatBase):
             history_copy = [copy.deepcopy(history) for _ in query]
             images = [images] * len(query) if images is None or isinstance(images, (str, Image.Image, np.ndarray)) else images
             vedios = [vedios] * len(query) if vedios is None or isinstance(vedios, (str, Image.Image, np.ndarray)) else vedios
-            inputs:List[Dict[torch.Tensor]] = [self.build_prompt(q, img, ved, hist, **kwargs) for q, img, ved, hist in zip(query, images, vedios, history_copy)]
+            inputs:List[Dict[torch.Tensor]] = [self.build_prompt(q, img, ved, hist, functions, **kwargs) for q, img, ved, hist in zip(query, images, vedios, history_copy)]
             response = self.model.generate(inputs, **self.generation_config)
             return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
         else:
@@ -191,8 +191,8 @@ class ChatVWebGradio(ChatWebGradio):
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
         input_image, input_vedio = self.get_image_vedio(chatbot)
         chatbot.append((query, ""))
-        self._set_system_functions(system, None)
-        input_kwargs = self.build_prompt(query, input_image, input_vedio, history)
+        self._set_system_functions(system, functions)
+        input_kwargs = self.build_prompt(query, input_image, input_vedio, history, functions)
         for response in self.model.stream_generate(**input_kwargs, **self.generation_config):
             response = self.process_response_history(response, history)
             if history[-1].get('raw_content'):
@@ -263,7 +263,7 @@ class ChatVWebStreamlit(ChatWebStreamlit):
             st.rerun()
         
         # Select mode
-        selected_mode = st.sidebar.selectbox("Select Mode", ["Text", "Single Image", "Multiple Images", "Video"])
+        selected_mode = st.sidebar.selectbox("Select Mode", ["Text", "Images", "Video"])
 
         # Supported image file extensions
         image_type = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
@@ -277,9 +277,9 @@ class ChatVWebStreamlit(ChatWebStreamlit):
             if uploaded_image_list is not None and uploaded_image_num > 0:
                 for img in uploaded_image_list:
                     st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
-                    with st.chat_message(name='user', avatar='user'):
-                        st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
-                    images.append(img)
+                    # with st.chat_message(name='user', avatar='user'):
+                    #     st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
+                    images.append(Image.open(img).convert('RGB'))
 
         # Supported video format suffixes
         video_type = ['.mp4', '.mkv', '.mov', '.avi', '.flv', '.wmv', '.webm', '.m4v']
@@ -295,8 +295,8 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                                                     accept_multiple_files=False)
             if uploaded_video is not None:
                 st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
-                with st.chat_message(name='user', avatar='user'):
-                    st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
+                # with st.chat_message(name='user', avatar='user'):
+                #     st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
                 videos.append(uploaded_video)
 
                 uploaded_video_path = os.path.join(".\\uploads", uploaded_video.name)
@@ -353,7 +353,7 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                 self.generation_config['states'] = states
 
                 input_text = self.build_prompt(query, images, videos, history, functions)
-                for response in self.model.stream_generate(input_text, **self.generation_config):
+                for response in self.model.stream_generate(**input_text, **self.generation_config):
                     response = self.process_response_history(response, history)
                     message_placeholder.markdown(history[-1].get('raw_content', response))
                 st.session_state.history = history
@@ -370,6 +370,7 @@ class MiniCPMV(ChatVBase):
             queries: Union[str, list], 
             images: Union[Image.Image, List[Image.Image]]=None, 
             vedios=None, history: List[Dict]=None, 
+            functions:List[dict]=None,
             **kwargs):
         '''
         history: [
@@ -471,11 +472,13 @@ class Qwen2VL(ChatVBase):
             images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]]=None, 
             vedios=None,
             history: List[Dict]=None, 
+            functions:List[dict]=None,
             **kwargs
         ):
         if hasattr(self, 'system') and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
+        print(images)
         all_messages = []
         for query, image in zip(queries, images):
             messages = (copy.deepcopy(history) or [] or []) + [
