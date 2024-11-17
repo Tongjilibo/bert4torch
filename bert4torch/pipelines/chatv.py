@@ -251,7 +251,7 @@ class ChatVWebStreamlit(ChatWebStreamlit):
         if "states" not in st.session_state:
             st.session_state.states = None
 
-        max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
+        max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length, step=1)
         top_p = st.sidebar.slider("top_p", 0.0, 1.0, self.generation_config.get('top_p', 1.0), step=0.01)
         temperature = st.sidebar.slider("temperature", 0.0, self.max_temperature, self.generation_config.get('temperature', 1.0), step=0.01)
         repetition_penalty = st.sidebar.slider("repetition_penalty", 0.0, self.max_repetition_penalty, self.generation_config.get('repetition_penalty', 1.0), step=0.1)
@@ -352,8 +352,8 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                 self.generation_config['repetition_penalty'] = repetition_penalty
                 self.generation_config['states'] = states
 
-                input_text = self.build_prompt(query, images, videos, history, functions)
-                for response in self.model.stream_generate(**input_text, **self.generation_config):
+                input_kwargs = self.build_prompt(query, images, videos, history, functions)
+                for response in self.model.stream_generate(**input_kwargs, **self.generation_config):
                     response = self.process_response_history(response, history)
                     message_placeholder.markdown(history[-1].get('raw_content', response))
                 st.session_state.history = history
@@ -478,7 +478,7 @@ class Qwen2VL(ChatVBase):
         if hasattr(self, 'system') and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
-        print(images)
+
         all_messages = []
         for query, image in zip(queries, images):
             messages = (copy.deepcopy(history) or [] or []) + [

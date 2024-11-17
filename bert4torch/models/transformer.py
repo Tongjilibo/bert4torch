@@ -39,7 +39,7 @@ class DecoderBase(BERT_BASE):
 
     def _update_model_kwargs_for_generation(self, model_kwargs:dict):
         '''需要返回给下一次generate使用到的要素，方便继承'''
-        if 'states' in model_kwargs:
+        if model_kwargs.get('states') is not None:
             return model_kwargs['states']
         return {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
 
