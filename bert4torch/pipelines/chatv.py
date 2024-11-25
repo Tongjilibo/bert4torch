@@ -245,7 +245,19 @@ class ChatVWebGradio(ChatWebGradio):
 
 
 class ChatVWebStreamlit(ChatWebStreamlit):
-    def run(self):
+    def run(self, debug:bool=False):
+        def check_img_in_history(history, tgt_img):
+            for i, message in enumerate(history):
+                if message.get('images') is not None:
+                    for img in message['images']:
+                        if isinstance(img, list):
+                            for i in img:
+                                if i == tgt_img:
+                                    return True
+                        elif img == tgt_img:
+                            return True
+            return False
+
         if "history" not in st.session_state:
             st.session_state.history = []
         if "states" not in st.session_state:
@@ -268,18 +280,41 @@ class ChatVWebStreamlit(ChatWebStreamlit):
         # Supported image file extensions
         image_type = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
 
+        for i, message in enumerate(st.session_state.history):
+            role = message['role']
+            if role not in {'user', 'assistant'}:
+                continue
+            if role == 'user':
+                if message.get('images') is not None:
+                    for img in message['images']:
+                        if isinstance(img, list):
+                            if not img:
+                                continue
+                            with st.chat_message(name=role, avatar=role):
+                                for i in img:
+                                    st.image(i, caption='User Uploaded Image', width=512, use_column_width=False)
+                        else:
+                            with st.chat_message(name=role, avatar=role):
+                                st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
+                if message.get('vedio') is not None:
+                    with st.chat_message(name=role, avatar=role):
+                        st.video(message['vedio'], format="video/mp4", loop=False, autoplay=False, muted=True) 
+            with st.chat_message(name=role, avatar=role):
+                st.markdown(message.get('raw_content', message['content']))
+        
         images = []
         if selected_mode == "Images":
             # Multiple Images Mode
             uploaded_image_list = st.sidebar.file_uploader("Upload Images", key=2, type=image_type, accept_multiple_files=True)
-            uploaded_image_num = len(uploaded_image_list)
-
-            if uploaded_image_list is not None and uploaded_image_num > 0:
+            if uploaded_image_list is not None:
                 for img in uploaded_image_list:
-                    st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
-                    # with st.chat_message(name='user', avatar='user'):
-                    #     st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
-                    images.append(Image.open(img).convert('RGB'))
+                    # st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
+                    # 判断img是否在历史中
+                    img_numpy = Image.open(img).convert('RGB')
+                    if not check_img_in_history(st.session_state.history, img_numpy):
+                        with st.chat_message(name='user', avatar='user'):
+                            st.image(img, caption='User Uploaded Image', width=512, use_column_width=False)
+                        images.append(img_numpy)
 
         # Supported video format suffixes
         video_type = ['.mp4', '.mkv', '.mov', '.avi', '.flv', '.wmv', '.webm', '.m4v']
@@ -294,9 +329,9 @@ class ChatVWebStreamlit(ChatWebStreamlit):
             uploaded_video = st.sidebar.file_uploader("Upload a single video file", key=3, type=video_type,
                                                     accept_multiple_files=False)
             if uploaded_video is not None:
-                st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
-                # with st.chat_message(name='user', avatar='user'):
-                #     st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
+                # st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
+                with st.chat_message(name='user', avatar='user'):
+                    st.video(uploaded_video, format="video/mp4", loop=False, autoplay=False, muted=True)
                 videos.append(uploaded_video)
 
                 uploaded_video_path = os.path.join(".\\uploads", uploaded_video.name)
@@ -325,13 +360,6 @@ class ChatVWebStreamlit(ChatWebStreamlit):
 
         if system is not None and system.strip() != '':
             self.system = system
-
-        for i, message in enumerate(st.session_state.history):
-            role = message['role']
-            if role not in {'user', 'assistant'}:
-                continue
-            with st.chat_message(name=role, avatar=role):
-                st.markdown(message.get('raw_content', message['content']))
         
         with st.chat_message(name="user", avatar="user"):
             input_placeholder = st.empty()
@@ -352,11 +380,15 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                 self.generation_config['repetition_penalty'] = repetition_penalty
                 self.generation_config['states'] = states
 
+                if debug:
+                    log_info(f'History before generate: {history}')
                 input_kwargs = self.build_prompt(query, images, videos, history, functions)
                 for response in self.model.stream_generate(**input_kwargs, **self.generation_config):
                     response = self.process_response_history(response, history)
                     message_placeholder.markdown(history[-1].get('raw_content', response))
                 st.session_state.history = history
+                if debug:
+                    log_info(f'History after generate: {history}')
                 st.session_state.states = self.generation_config.get('states')
 
 
