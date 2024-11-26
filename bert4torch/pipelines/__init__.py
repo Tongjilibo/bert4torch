@@ -6,4 +6,4 @@ from .text2vec import Text2Vec
 from .uie_predictor import UIEPredictor
 from .fill_mask import FillMask
 from .chat import *
-from .chatv import *
+from .chat_vl import *

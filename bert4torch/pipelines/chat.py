@@ -582,7 +582,7 @@ class ModelList(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Union[str, Dict]
     function_call: Optional[Dict] = None
 
 

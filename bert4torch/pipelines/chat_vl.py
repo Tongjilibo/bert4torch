@@ -14,6 +14,7 @@
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
 from bert4torch.pipelines.chat import ChatBase, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from bert4torch.pipelines.chat import ChatCompletionRequest, ChatCompletionResponseChoice, ChatMessage, ChatCompletionResponse, ChatCompletionResponseStreamChoice, DeltaMessage
 from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.snippets import (
@@ -393,7 +394,101 @@ class ChatVWebStreamlit(ChatWebStreamlit):
 
 
 class ChatVOpenaiApi(ChatOpenaiApi):
-    pass
+    async def create_chat_completion(self, request: ChatCompletionRequest):
+        if request.model != self.name:
+            raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
+        if request.messages[-1].role != self.role_user:  # 最后一条msg的role必须是user
+            raise HTTPException(status_code=400, detail=f"Invalid request: messages last role shold be {self.role_user}")
+
+        if request.temperature:
+            self.generation_config['temperature'] = request.temperature
+        if request.top_p:
+            self.generation_config['top_p'] = request.top_p
+        if request.top_k:
+            self.generation_config['top_k'] = request.top_k
+        if request.max_length:
+            self.generation_config['max_length'] = request.max_length
+        if request.repetition_penalty:
+            self.generation_config['repetition_penalty'] = request.repetition_penalty
+
+        content = request.messages[-1].content
+        def get_query_images(content):
+            if isinstance(content, str):
+                query = content
+                images = None
+            else:  # dict
+                query = [i for i in content if i['type']=='text'][0]['text']
+                images = [i['image_url'] for i in content if i['type']=='image_url']
+            return query, images
+        query, images = get_query_images(content)
+        history = []
+        for item in request.messages[:-1]:
+            item_query, item_images = get_query_images(item.content)
+            history.append({'role': item.role, 'content': item_query, 'images': item_images})
+        input_kwargs = self.build_prompt(query, images, None, history, request.functions)
+        
+        if self.offload_when_nocall is None:
+            self.model = self.build_model()
+        else:
+            with self.lock:
+                self.model = self.build_model()
+            self.last_callapi_timestamp = time.time()
+
+        # 流式输出
+        if request.stream:
+            generate = self.predict(input_kwargs, request.model, history)
+            return self.EventSourceResponse(generate, media_type="text/event-stream")
+        
+        # 非流式输出
+        else:
+            response = self.model.generate(**input_kwargs, **self.generation_config)
+            response = self.process_response_history(response, history)
+            function_call = history[-1].get('function_call', None)
+            choice_data = ChatCompletionResponseChoice(
+                index=0,
+                message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
+                finish_reason= "function_call" if function_call is not None else "stop"
+            )
+
+            return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
+
+    async def predict(self, input_kwargs: dict, model_id: str, history:list):
+        choice_data = ChatCompletionResponseStreamChoice(
+            index=0,
+            delta=DeltaMessage(role=self.role_assistant),
+            finish_reason=None
+        )
+        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+        yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+
+        current_length = 0
+
+        for new_response in self.model.stream_generate(**input_kwargs, **self.generation_config):
+            if len(new_response) == current_length:
+                continue
+
+            self.process_response_history(new_response, history)
+            new_text = new_response[current_length:]
+            current_length = len(new_response)
+
+            function_call = history[-1].get('function_call', None)
+            choice_data = ChatCompletionResponseStreamChoice(
+                index=0,
+                delta=DeltaMessage(content=new_text, function_call=function_call),
+                finish_reason=None
+            )
+            chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+            yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+
+        function_call = history[-1].get('function_call', None)
+        choice_data = ChatCompletionResponseStreamChoice(
+            index=0,
+            delta=DeltaMessage(function_call=function_call),
+            finish_reason= "function_call" if function_call is not None else "stop"
+        )
+        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
+        yield "{}".format(chunk.model_dump_json(exclude_unset=True))
+        yield '[DONE]'
 
 
 class MiniCPMV(ChatVBase):
@@ -623,13 +718,13 @@ class ChatV:
                  offload_when_nocall:Literal['cpu', 'disk']=None, 
                  api_keys:List[str]=None,
                  # 模式
-                 mode:Literal['raw','gradio', 'streamlit', 'openai']='openai',
+                 mode:Literal['raw','gradio', 'streamlit', 'openai']='raw',
                  template: str=None,
                  **kwargs
                  ) -> None:
         pass
 
-    def __new__(cls, *args, mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli', **kwargs):
+    def __new__(cls, *args, mode:Literal['raw', 'gradio', 'streamlit', 'openai']='raw', **kwargs):
         # template指定使用的模板
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
