@@ -37,21 +37,15 @@ from bert4torch.snippets import (
     inference_mode,
     sequence_padding
 )
-from packaging import version
-import gc
 import time
 import json
-import requests
-from contextlib import asynccontextmanager
-import threading
-import re
 import copy
-from argparse import REMAINDER, ArgumentParser
-from copy import deepcopy
 from PIL import Image
 import inspect
 import numpy as np
 import os
+import base64
+from io import BytesIO
 
 
 if is_fastapi_available():
@@ -417,8 +411,8 @@ class ChatVOpenaiApi(ChatOpenaiApi):
                 query = content
                 images = None
             else:  # dict
-                query = [i for i in content if i['type']=='text'][0]['text']
-                images = [i['image_url'] for i in content if i['type']=='image_url']
+                query = [i for i in content if i['type']=='text'][0]['content']
+                images = [Image.open(BytesIO(base64.b64decode(i['url']))).convert('RGB') for i in content if i['type']=='image_url']
             return query, images
         query, images = get_query_images(content)
         history = []

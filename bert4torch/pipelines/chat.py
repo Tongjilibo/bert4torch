@@ -582,7 +582,7 @@ class ModelList(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str
-    content: Union[str, Dict]
+    content: Union[str, List[Dict]]
     function_call: Optional[Dict] = None
 
 
@@ -915,7 +915,7 @@ class ChatOpenaiClientAsync:
     ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
     ...         {"content": "你可以做什么？", "role": "user"}
     ...         ]
-    >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
+    >>> client = ChatOpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
 
     >>> # 流式
     >>> for token in client.stream_chat(messages):
