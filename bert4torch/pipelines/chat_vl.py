@@ -73,9 +73,10 @@ if is_transformers_available():
     from transformers import AutoProcessor
 
 __all__ = [
-    'ChatVBase',
+    'ChatVLBase',
     'MiniCPMV',
-    "ChatV"
+    'Qwen2VL'
+    "ChatVL"
     ]
 
 ImageType = Union[str, Image.Image, np.ndarray]
@@ -120,7 +121,7 @@ def trans_query_images_tolist(query, images):
             pass
     return query, images
 
-class ChatVBase(ChatBase):
+class ChatVLBase(ChatBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.return_tensor_from_build_prompt = True
@@ -164,7 +165,7 @@ class ChatVBase(ChatBase):
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
 
 
-class ChatVWebGradio(ChatWebGradio):
+class ChatVLWebGradio(ChatWebGradio):
     '''需要添加一个图片的上传'''
     @staticmethod
     def get_image_vedio(chatbot):
@@ -239,7 +240,7 @@ class ChatVWebGradio(ChatWebGradio):
                             **launch_configs)
 
 
-class ChatVWebStreamlit(ChatWebStreamlit):
+class ChatVLWebStreamlit(ChatWebStreamlit):
     def run(self, debug:bool=False):
         def check_img_in_history(history, tgt_img):
             for i, message in enumerate(history):
@@ -387,7 +388,7 @@ class ChatVWebStreamlit(ChatWebStreamlit):
                 st.session_state.states = self.generation_config.get('states')
 
 
-class ChatVOpenaiApi(ChatOpenaiApi):
+class ChatVLOpenaiApi(ChatOpenaiApi):
     async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
             raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
@@ -485,7 +486,7 @@ class ChatVOpenaiApi(ChatOpenaiApi):
         yield '[DONE]'
 
 
-class MiniCPMV(ChatVBase):
+class MiniCPMV(ChatVLBase):
     def build_prompt(
             self,
             queries: Union[str, list], 
@@ -580,7 +581,7 @@ class MiniCPMV(ChatVBase):
         return inputs
 
 
-class Qwen2VL(ChatVBase):
+class Qwen2VL(ChatVLBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.min_pixels = kwargs.get('min_pixels', MIN_PIXELS)
@@ -640,7 +641,7 @@ MAPPING = {
     'qwen2_vl': Qwen2VL
 }
 
-class ChatV:
+class ChatVL:
     """
     部署类似OpenAi的api server端
 
@@ -734,13 +735,13 @@ class ChatV:
 
         if mode == 'gradio':
             @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVWebGradio): pass
+            class ChatDemo(ChatTemplate, ChatVLWebGradio): pass
         elif mode == 'streamlit':
             @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVWebStreamlit): pass
+            class ChatDemo(ChatTemplate, ChatVLWebStreamlit): pass
         elif mode == 'openai':
             @add_start_docstrings(OPENAI_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVOpenaiApi): pass
+            class ChatDemo(ChatTemplate, ChatVLOpenaiApi): pass
         elif mode == 'raw':
             ChatDemo = ChatTemplate
         else:

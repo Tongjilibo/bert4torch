@@ -2,7 +2,7 @@ from PIL import Image
 from bert4torch.pipelines import MiniCPMV
 from bert4torch.snippets import log_info
 import requests
-from bert4torch.pipelines import ChatV
+from bert4torch.pipelines import ChatVL
 
 
 # E:/data/pretrain_ckpt/MiniCPM/MiniCPM-Llama3-V-2_5
@@ -53,7 +53,7 @@ def chat_demo2():
         'repetition_penalty': 1.1
     }
 
-    demo = ChatV(model_dir, 
+    demo = ChatVL(model_dir, 
                 generation_config=generation_config,
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
                 mode='gradio',

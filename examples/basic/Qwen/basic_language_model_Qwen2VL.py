@@ -3,11 +3,13 @@
 阿里云的通义千问: https://github.com/QwenLM/Qwen2-VL
 """
 
-from bert4torch.pipelines import ChatV
+from bert4torch.pipelines import ChatVL, ChatOpenaiClient
 from bert4torch.models import build_transformer_model
 from bert4torch.models.qwen2_vl import process_vision_info
 from transformers import AutoProcessor
-
+from PIL import Image
+import base64
+import io
 
 # Qwen2-VL-2B-Instruct
 # Qwen2-VL-7B-Instruct
@@ -70,13 +72,45 @@ def chat_demo1():
         print('\n')
 
 def chat_demo2():
-    demo = ChatV(model_dir, 
+    demo = ChatVL(model_dir, 
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
                 mode='openai',
                 template='qwen2_vl'
                 )
     demo.run()
 
+def call_openai():
+    '''调用openai接口的多模态模型
+    '''
+    image = Image.open('E:/Github/bert4torch/test_local/images/资料概要.png').convert('RGB')
+
+    # save by BytesIO and convert to base64
+    buffered = io.BytesIO()
+    image.save(buffered, format="png")
+    im_b64 = base64.b64encode(buffered.getvalue()).decode()
+
+    # First round chat 
+    question = "图片中的基金名称叫什么"
+
+    messages = [{'role': 'user', 
+                'content': [
+                    {'type': 'text', 'content': question}, 
+                    {'type': 'image_url', 'url': im_b64}
+                    ]
+                }]
+
+    # messages = [
+    #              {"content": "你好", "role": "user"},
+    #              {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
+    #              {"content": "你可以做什么？", "role": "user"}
+    #              ]
+
+    client = ChatOpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
+    for token in client.stream_chat(messages):
+        print(token, end='', flush=True)
+
+    # 非流式
+    print(client.chat(messages))
 
 if __name__ == '__main__':
     # chat_demo1()
