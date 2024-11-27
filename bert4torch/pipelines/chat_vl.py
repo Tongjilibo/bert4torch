@@ -75,7 +75,7 @@ if is_transformers_available():
 __all__ = [
     'ChatVLBase',
     'MiniCPMV',
-    'Qwen2VL'
+    'Qwen2VL',
     "ChatVL"
     ]
 
@@ -389,6 +389,27 @@ class ChatVLWebStreamlit(ChatWebStreamlit):
 
 
 class ChatVLOpenaiApi(ChatOpenaiApi):
+    '''
+    请求示例：
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "这张图片是什么地方？"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        # Either an url or base64
+                        "url": "http://djclub.cdn.bcebos.com/uploads/images/pageimg/20230325/64-2303252115313.jpg"
+                    }
+                }
+            ]
+        }
+    ]
+    '''
     async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
             raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
@@ -412,7 +433,7 @@ class ChatVLOpenaiApi(ChatOpenaiApi):
                 query = content
                 images = None
             else:  # dict
-                query = [i for i in content if i['type']=='text'][0]['content']
+                query = [i for i in content if i['type']=='text'][0]['text']
                 images = [Image.open(BytesIO(base64.b64decode(i['url']))).convert('RGB') for i in content if i['type']=='image_url']
             return query, images
         query, images = get_query_images(content)

@@ -94,7 +94,7 @@ def call_openai():
 
     messages = [{'role': 'user', 
                 'content': [
-                    {'type': 'text', 'content': question}, 
+                    {'type': 'text', 'text': question}, 
                     {'type': 'image_url', 'url': im_b64}
                     ]
                 }]
