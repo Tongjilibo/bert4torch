@@ -731,6 +731,13 @@ class ChatOpenaiApi(ChatBase):
         model_card = ModelCard(id=self.name)
         return ModelList(data=[model_card])
 
+    def prepare_build_prompt_args(self, request):
+        '''准备build_prompt的参数'''
+        query = request.messages[-1].content
+        history = [{'role': item.role, 'content': item.content} for item in request.messages[:-1]]
+        input_args_or_kwargs = self.build_prompt(query, history, request.functions)
+        return input_args_or_kwargs, history
+
     async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
             raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
@@ -748,22 +755,24 @@ class ChatOpenaiApi(ChatBase):
         if request.repetition_penalty:
             self.generation_config['repetition_penalty'] = request.repetition_penalty
 
-        query = request.messages[-1].content
-        history = [{'role': item.role, 'content': item.content} for item in request.messages[:-1]]
-        input_text = self.build_prompt(query, history, request.functions)
-        
+        # 准备build_prompt的参数
+        input_args_or_kwargs, history = self.prepare_build_prompt_args(request)
+
         with self.lock:
             self.model = self.build_model()
             self.last_callapi_timestamp = time.time()
 
             # 流式输出
             if request.stream:
-                generate = self.predict(input_text, request.model, history)
+                generate = self.predict(input_args_or_kwargs, request.model, history)
                 return self.EventSourceResponse(generate, media_type="text/event-stream")
             
             # 非流式输出
             else:
-                response = self.model.generate(input_text, **self.generation_config)
+                if isinstance(input_args_or_kwargs, (str,list)):
+                    response = self.model.generate(input_args_or_kwargs, **self.generation_config)
+                else:
+                    response = self.model.generate(**input_args_or_kwargs, **self.generation_config)
                 response = self.process_response_history(response, history)
                 function_call = history[-1].get('function_call', None)
                 choice_data = ChatCompletionResponseChoice(
@@ -774,7 +783,7 @@ class ChatOpenaiApi(ChatBase):
 
                 return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
 
-    async def predict(self, query: str, model_id: str, history:list):
+    async def predict(self, input_args_or_kwargs: str, model_id: str, history:list):
         choice_data = ChatCompletionResponseStreamChoice(
             index=0,
             delta=DeltaMessage(role=self.role_assistant),
@@ -785,7 +794,13 @@ class ChatOpenaiApi(ChatBase):
 
         current_length = 0
 
-        for new_response in self.model.stream_generate(query, **self.generation_config):
+        def get_generator(query):
+            if isinstance(query, (str,list)):
+                return self.model.stream_generate(query, **self.generation_config)
+            else:
+                return self.model.stream_generate(**query, **self.generation_config)
+    
+        for new_response in get_generator(input_args_or_kwargs):
             if len(new_response) == current_length:
                 continue
 

@@ -410,23 +410,7 @@ class ChatVLOpenaiApi(ChatOpenaiApi):
         }
     ]
     '''
-    async def create_chat_completion(self, request: ChatCompletionRequest):
-        if request.model != self.name:
-            raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
-        if request.messages[-1].role != self.role_user:  # 最后一条msg的role必须是user
-            raise HTTPException(status_code=400, detail=f"Invalid request: messages last role shold be {self.role_user}")
-
-        if request.temperature:
-            self.generation_config['temperature'] = request.temperature
-        if request.top_p:
-            self.generation_config['top_p'] = request.top_p
-        if request.top_k:
-            self.generation_config['top_k'] = request.top_k
-        if request.max_length:
-            self.generation_config['max_length'] = request.max_length
-        if request.repetition_penalty:
-            self.generation_config['repetition_penalty'] = request.repetition_penalty
-
+    def prepare_build_prompt_args(self, request):
         content = request.messages[-1].content
         def get_query_images(content):
             if isinstance(content, str):
@@ -442,69 +426,7 @@ class ChatVLOpenaiApi(ChatOpenaiApi):
             item_query, item_images = get_query_images(item.content)
             history.append({'role': item.role, 'content': item_query, 'images': item_images})
         input_kwargs = self.build_prompt(query, images, None, history, request.functions)
-        
-        if self.offload_when_nocall is None:
-            self.model = self.build_model()
-        else:
-            with self.lock:
-                self.model = self.build_model()
-            self.last_callapi_timestamp = time.time()
-
-        # 流式输出
-        if request.stream:
-            generate = self.predict(input_kwargs, request.model, history)
-            return self.EventSourceResponse(generate, media_type="text/event-stream")
-        
-        # 非流式输出
-        else:
-            response = self.model.generate(**input_kwargs, **self.generation_config)
-            response = self.process_response_history(response, history)
-            function_call = history[-1].get('function_call', None)
-            choice_data = ChatCompletionResponseChoice(
-                index=0,
-                message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
-                finish_reason= "function_call" if function_call is not None else "stop"
-            )
-
-            return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
-
-    async def predict(self, input_kwargs: dict, model_id: str, history:list):
-        choice_data = ChatCompletionResponseStreamChoice(
-            index=0,
-            delta=DeltaMessage(role=self.role_assistant),
-            finish_reason=None
-        )
-        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-        yield "{}".format(chunk.model_dump_json(exclude_unset=True))
-
-        current_length = 0
-
-        for new_response in self.model.stream_generate(**input_kwargs, **self.generation_config):
-            if len(new_response) == current_length:
-                continue
-
-            self.process_response_history(new_response, history)
-            new_text = new_response[current_length:]
-            current_length = len(new_response)
-
-            function_call = history[-1].get('function_call', None)
-            choice_data = ChatCompletionResponseStreamChoice(
-                index=0,
-                delta=DeltaMessage(content=new_text, function_call=function_call),
-                finish_reason=None
-            )
-            chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-            yield "{}".format(chunk.model_dump_json(exclude_unset=True))
-
-        function_call = history[-1].get('function_call', None)
-        choice_data = ChatCompletionResponseStreamChoice(
-            index=0,
-            delta=DeltaMessage(function_call=function_call),
-            finish_reason= "function_call" if function_call is not None else "stop"
-        )
-        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data], object="chat.completion.chunk")
-        yield "{}".format(chunk.model_dump_json(exclude_unset=True))
-        yield '[DONE]'
+        return input_kwargs, history
 
 
 class MiniCPMV(ChatVLBase):
