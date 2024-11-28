@@ -19,6 +19,7 @@ from bert4torch.models import build_transformer_model, Decoder, Transformer
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
+    log_free,
     log_info, 
     log_info_once,
     log_warn, 
@@ -33,7 +34,8 @@ from bert4torch.snippets import (
     has_chinese_char,
     add_start_docstrings,
     JsonConfig,
-    inference_mode
+    inference_mode,
+    NoopContextManager
 )
 from packaging import version
 import gc
@@ -193,7 +195,7 @@ class ChatBase(PipeLineBase):
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
             cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-            log_info(f'{cur} - Moving model from cpu to {self.device}')
+            log_free(f'{cur} - Moving model from cpu to {self.device}', prefix='[LOAD]', prefix_color='cyan')
             self.model.to(self.device)
             gc.collect()
             cuda_empty_cache()
@@ -634,9 +636,9 @@ OPENAI_START_DOCSTRING = r"""
     # openai api参数
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
-    :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
-    :param max_callapi_interval: int, 最长调用间隔
-    :param scheduler_interval: int, 定时任务的执行间隔
+    :param offload_when_nocall: str, 在一定时长内无调用就卸载模型，可以卸载到内存和disk
+    :param offload_max_callapi_interval: int, 最长调用间隔
+    :param offload_scheduler_interval: int, 定时任务的执行间隔
     :param api_keys: List[str], api keys的list
 """
 
@@ -644,26 +646,26 @@ OPENAI_START_DOCSTRING = r"""
 class ChatOpenaiApi(ChatBase):
     """
     TODO:
-    1. 在后续调用服务，模型从cpu转到cuda上时，内存不下降，猜测是因为不同线程中操作导致的
-    2. 偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误
-    3. 如何offload到disk上，不占用内存和显存
+    1. 在后续调用服务，模型从cpu转到cuda上时，linux环境下内存下降，显存不能完全降低为0
+    2. 【已修复】偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误，因为forward过程时候发生offload
+    3. cpu和delete测试通过，但是如何offload到disk上，不占用内存和显存
     """
     def __init__(self, checkpoint_path:str, name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
-                 max_callapi_interval:int=24*3600, scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, 
+                 offload_max_callapi_interval:int=24*3600, offload_scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk', 'delete']=None, 
                  api_keys:List[str]=None, **kwargs):
         assert kwargs.get('system') is None, "Args `system` is used in request key `message`"
-        self.offload_when_nocall = offload_when_nocall
-        if offload_when_nocall is not None:
-            kwargs['create_model_at_startup'] = False
         super().__init__(checkpoint_path, **kwargs)
         if not is_fastapi_available():
             raise ModuleNotFoundError("No module found, use `pip install fastapi`")
         from sse_starlette.sse import EventSourceResponse
-        import sse_starlette
-        if version.parse(sse_starlette.__version__) > version.parse('1.8'):
-                log_warn('Module `sse_starlette` above 1.8 not support stream output')
-        self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
-        self.scheduler_interval = scheduler_interval
+        # import sse_starlette
+        # if version.parse(sse_starlette.__version__) > version.parse('1.8'):
+        #     log_warn('Module `sse_starlette` above 1.8 not support stream output')
+        self.offload_when_nocall = offload_when_nocall
+        if offload_max_callapi_interval <= offload_scheduler_interval:
+            raise ValueError('Args `offload_scheduler_interval` must < `offload_max_callapi_interval`')
+        self.offload_max_callapi_interval = offload_max_callapi_interval  # 最长调用间隔
+        self.offload_scheduler_interval = offload_scheduler_interval
         self.api_keys = api_keys
         self.EventSourceResponse = EventSourceResponse
         self.name = name
@@ -672,6 +674,7 @@ class ChatOpenaiApi(ChatBase):
 
         if offload_when_nocall is None:
             self.app = FastAPI(lifespan=lifespan)
+            self.lock = NoopContextManager()  # 仅用于占位，规整代码
         else:
             # 启用后台任务，监控接口调用次数
             self.app = FastAPI()
@@ -716,7 +719,7 @@ class ChatOpenaiApi(ChatBase):
     def startup_event(self):
         from apscheduler.schedulers.background import BackgroundScheduler  
         scheduler = BackgroundScheduler()  
-        scheduler.add_job(self.check_last_call, 'interval', seconds=self.scheduler_interval)
+        scheduler.add_job(self.check_call_and_offload, 'interval', seconds=self.offload_scheduler_interval)
         scheduler.start()
         self.app.state.scheduler = scheduler  # 将调度器存储在app的状态中，以便在shutdown时使用  
     
@@ -749,30 +752,27 @@ class ChatOpenaiApi(ChatBase):
         history = [{'role': item.role, 'content': item.content} for item in request.messages[:-1]]
         input_text = self.build_prompt(query, history, request.functions)
         
-        if self.offload_when_nocall is None:
+        with self.lock:
             self.model = self.build_model()
-        else:
-            with self.lock:
-                self.model = self.build_model()
             self.last_callapi_timestamp = time.time()
 
-        # 流式输出
-        if request.stream:
-            generate = self.predict(input_text, request.model, history)
-            return self.EventSourceResponse(generate, media_type="text/event-stream")
-        
-        # 非流式输出
-        else:
-            response = self.model.generate(input_text, **self.generation_config)
-            response = self.process_response_history(response, history)
-            function_call = history[-1].get('function_call', None)
-            choice_data = ChatCompletionResponseChoice(
-                index=0,
-                message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
-                finish_reason= "function_call" if function_call is not None else "stop"
-            )
+            # 流式输出
+            if request.stream:
+                generate = self.predict(input_text, request.model, history)
+                return self.EventSourceResponse(generate, media_type="text/event-stream")
+            
+            # 非流式输出
+            else:
+                response = self.model.generate(input_text, **self.generation_config)
+                response = self.process_response_history(response, history)
+                function_call = history[-1].get('function_call', None)
+                choice_data = ChatCompletionResponseChoice(
+                    index=0,
+                    message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
+                    finish_reason= "function_call" if function_call is not None else "stop"
+                )
 
-            return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
+                return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
 
     async def predict(self, query: str, model_id: str, history:list):
         choice_data = ChatCompletionResponseStreamChoice(
@@ -812,30 +812,28 @@ class ChatOpenaiApi(ChatBase):
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
         yield '[DONE]'
 
-    def check_last_call(self):
-        '''检测距离上一次调用超出规定时间段'''
+    def check_call_and_offload(self):
+        '''检测距离上一次调用超出规定时间段，超出间隔则offload'''
         now = time.time()
         if not hasattr(self, 'model')  or (self.model is None):
             return
         elif not hasattr(self, 'last_callapi_timestamp'):
             self.last_callapi_timestamp = now
-        elif now - self.last_callapi_timestamp > self.max_callapi_interval:  # 超出调用间隔
+        elif now - self.last_callapi_timestamp > self.offload_max_callapi_interval:  # 超出调用间隔
+            cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
             if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
                 with self.lock:
                     # 如果没有调用，将模型转移到CPU
                     self.model.to('cpu')
-                    cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                    log_info(f"{cur} - Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
-                    gc.collect()
-                    cuda_empty_cache()
+                    log_free(f"{cur} - Model moved to cpu due to no activity for {self.offload_max_callapi_interval} sec.", prefix='[OFFLOAD]', prefix_color='cyan')
             elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
                 with self.lock:
                     self.model = None
                     del self.model
-                    cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                    log_info(f"{cur} - Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
-                    gc.collect()
-                    cuda_empty_cache()
+                    log_free(f"{cur} - Model moved to disk due to no activity for {self.offload_max_callapi_interval} sec.", prefix='[OFFLOAD]', prefix_color='cyan')
+            gc.collect()
+            cuda_empty_cache()
+        # print(now - self.last_callapi_timestamp)
 
     def run(self, app:str=None, host:str="0.0.0.0", port:int=8000, **kwargs):
         '''主程序入口'''
@@ -2266,8 +2264,8 @@ class Chat:
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
-    :param max_callapi_interval: int, 最长调用间隔
-    :param scheduler_interval: int, 定时任务的执行间隔
+    :param offload_max_callapi_interval: int, 最长调用间隔
+    :param offload_scheduler_interval: int, 定时任务的执行间隔
     :param api_keys: List[str], api keys的list
 
     ### Examples:
@@ -2298,9 +2296,9 @@ class Chat:
                  name:str='default', 
                  route_api:str='/chat/completions', 
                  route_models:str='/models', 
-                 max_callapi_interval:int=24*3600, 
-                 scheduler_interval:int=10*60, 
-                 offload_when_nocall:Literal['cpu', 'disk']=None, 
+                 offload_max_callapi_interval:int=24*3600, 
+                 offload_scheduler_interval:int=10*60, 
+                 offload_when_nocall:Literal['cpu', 'disk', 'delete']=None, 
                  api_keys:List[str]=None,
                  # 模式
                  mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli',
@@ -2384,9 +2382,9 @@ def get_args_parser() -> ArgumentParser:
     parser.add_argument("--route_api", type=str, default='/chat/completions', help="openai api args: `/chat/completions` route url")
     parser.add_argument("--route_models", type=str, default='/models', help="openai api args: `/models` route url")
     parser.add_argument("--api_keys", type=List[str], default=None, help="openai api args: authorized api keys list")
-    # parser.add_argument("--max_callapi_interval", type=int, default=24*3600, help="openai api args: ")
-    # parser.add_argument("--scheduler_interval", type=int, default=10*60, help="openai api args: ")
-    # parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk'], default=None, help="openai api args: ")
+    parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk', 'delete'], default=None, help="openai api args: ")
+    parser.add_argument("--offload_max_callapi_interval", type=int, default=24*3600, help="openai api args: ")
+    parser.add_argument("--offload_scheduler_interval", type=int, default=10*60, help="openai api args: ")
     
     # host和port
     parser.add_argument("--host", type=str, default='0.0.0.0', help="server host")
@@ -2420,7 +2418,11 @@ def main():
                 system = args.system,
                 config_path = getattr(args, 'config_path', None),
                 generation_config = args.generation_config,
-                quantization_config = getattr(args, 'quantization_config', None)
+                quantization_config = getattr(args, 'quantization_config', None),
+                create_model_at_startup = args.create_model_at_startup,
+                offload_when_nocall = args.offload_when_nocall,
+                offload_max_callapi_interval = args.offload_max_callapi_interval,
+                offload_scheduler_interval = args.offload_scheduler_interval
                 )
     if args.mode == 'cli':
         demo.run(functions = getattr(args, 'functions', None))

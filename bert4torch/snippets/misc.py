@@ -6,7 +6,7 @@ from torch import nn
 import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
-from torch4keras.snippets import log_info, log_warn, Timeit, is_accelerate_available, find_tied_parameters, log_warn_once
+from torch4keras.snippets import log_info, log_warn, TimeitContextManager, is_accelerate_available, find_tied_parameters, log_warn_once
 from typing import Union
 import re
 from packaging import version
@@ -254,7 +254,7 @@ def old_checkpoint(function, model_kwargs):
         return outputs
 
 
-class GenerateSpeed(Timeit):
+class GenerateSpeed(TimeitContextManager):
     '''上下文管理器，计算token生成的速度
 
     Examples:
