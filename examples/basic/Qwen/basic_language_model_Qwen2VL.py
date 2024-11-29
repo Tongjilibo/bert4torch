@@ -108,10 +108,12 @@ def call_openai():
     client = ChatOpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
     for token in client.stream_chat(messages):
         print(token, end='', flush=True)
-
+    
     # 非流式
+    print()
     print(client.chat(messages))
 
 if __name__ == '__main__':
     # chat_demo1()
     chat_demo2()
+    # call_openai()

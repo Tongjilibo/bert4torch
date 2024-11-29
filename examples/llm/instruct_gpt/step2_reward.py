@@ -59,8 +59,8 @@ def collate_fn(batch):
         input_ids_chosen.append(input_ids_chosen_i)
         input_ids_rejected.append(input_ids_rejected_i)
     # padding在左侧
-    input_ids_chosen = torch.tensor(sequence_padding(input_ids_chosen, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
-    input_ids_rejected = torch.tensor(sequence_padding(input_ids_rejected, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
+    input_ids_chosen = torch.tensor(sequence_padding(input_ids_chosen, value=pad_token_id, padding_side='pre'), dtype=torch.long, device=args.device)
+    input_ids_rejected = torch.tensor(sequence_padding(input_ids_rejected, value=pad_token_id, padding_side='pre'), dtype=torch.long, device=args.device)
     return [input_ids_chosen, input_ids_rejected], None
 
 train_dataloader = DataLoader(MyDataset(glob(args.data_path, recursive=True)), batch_size=args.batch_size, collate_fn=collate_fn) 

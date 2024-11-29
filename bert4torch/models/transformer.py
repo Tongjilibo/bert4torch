@@ -41,7 +41,8 @@ class DecoderBase(BERT_BASE):
         '''需要返回给下一次generate使用到的要素，方便继承'''
         if model_kwargs.get('states') is not None:
             return model_kwargs['states']
-        return {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+        states = {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+        return states if states else None
 
     def forward(self, *inputs, **model_kwargs):
         """定义模型的训练流程
@@ -68,7 +69,7 @@ class DecoderBase(BERT_BASE):
             self.generation = SeqGeneration(self, **kwargs)
 
     def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
-        '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre'
+        '''单条样本生成 / batch样本生成，use_states=True时要求padding_side='pre'
         '''
         self._prepare_generation(**kwargs)
         return self.generation.generate(input_ids, **kwargs)

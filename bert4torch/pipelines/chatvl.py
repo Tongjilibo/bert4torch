@@ -124,12 +124,8 @@ def trans_query_images_tolist(query, images):
 class ChatVLBase(ChatBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.return_tensor_from_build_prompt = True
+        self.return_tensorDict_from_build_prompt = True
         self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
-
-    def generate(self, *args, **kwargs):
-        '''base模型使用'''
-        return self.model.generate(*args, **kwargs)
 
     def build_prompt(self, *args, **kwargs) -> str:
         raise NotImplementedError
@@ -140,7 +136,7 @@ class ChatVLBase(ChatBase):
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
 
-        if isinstance(query, str) or self.return_tensor_from_build_prompt:
+        if isinstance(query, str) or self.return_tensorDict_from_build_prompt:
             # 单条输入，或在build_prompt阶段即组建了batch的tensor
             inputs:Dict[torch.Tensor] = self.build_prompt(query, images, vedios, history, functions, **kwargs)
             response = self.model.generate(**inputs, **self.generation_config)
@@ -163,6 +159,22 @@ class ChatVLBase(ChatBase):
             return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
+
+    def stream_chat(self, query:str, images:Union[ImageType, List[ImageType]]=None, 
+                    vedios=None, history:List[dict]=None, functions:List[dict]=None, **kwargs):
+        '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
+        history = history or []
+        inputs = self.build_prompt(query, images, vedios, history, functions, **kwargs)
+        for response in self.model.stream_generate(**inputs, **self.generation_config):
+            yield self.process_response_history(response, history)
+    
+    def generate(self, *args, **kwargs):
+        '''base模型使用'''
+        return self.model.generate(*args, **kwargs, **self.generation_config)
+
+    def stream_generate(self, *args, **kwargs):
+        '''base模型使用, 单条样本stream输出预测的结果'''
+        yield from self.model.stream_generate(*args, **kwargs, **self.generation_config)
 
 
 class ChatVLWebGradio(ChatWebGradio):
@@ -599,7 +611,7 @@ class ChatVL:
         - min_new_tokens: int, 最小解码长度, 默认为1
         - max_length: int, 最大文本长度
         - pad_token_id: int, pad_id, 在batch解码时候使用
-        - pad_mode: str, padding在前面还是后面, pre或者post
+        - padding_side: str, padding在前面还是后面, pre或者post
         - device: str, 默认为'cpu'
         - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
         - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)

@@ -280,9 +280,36 @@ def lowercase_and_normalize(text:str, never_split:Union[Set, Tuple, List]=()):
 
 
 def sequence_padding(inputs:Union[List[np.ndarray], List[List], List[torch.Tensor]], length:Union[List, int]=None, 
-                     value:int=0, seq_dims:int=1, mode:Literal['pre', 'left', 'post', 'right']='post'):
+                     value:int=0, seq_dims:int=1, padding_side:Literal['pre', 'left', 'post', 'right']='post', mode=None):
     """将序列padding到同一长度"""
-    if isinstance(inputs[0], (np.ndarray, list)):
+    if mode is not None:
+        raise DeprecationWarning('Args `mode` has been deprecated since v0.5.5, use `padding_side` instead')
+    
+    def flatten(lst):
+        """Flatten a nested list."""
+        for item in lst:
+            item:torch.Tensor
+            if item.dim() > 1:
+                yield from flatten(item)
+            else:
+                yield item
+    
+    return_torch_format = False
+    if all([isinstance(input_, torch.Tensor) for input_ in inputs]) :
+        # 都是torch.Tensor        
+        inputs = list(flatten(inputs))  # 多维度的则打平处理
+        if length is not None:
+            inputs = [i[:length] for i in inputs]
+        
+        if padding_side in {'post', 'right'}:
+            return pad_sequence(inputs, padding_value=value, batch_first=True)
+        else:
+            # 转为np.array处理
+            inputs = [i.numpy() for i in inputs]
+            return_torch_format = True
+
+    if all([isinstance(input_, (np.ndarray, list)) for input_ in inputs]):
+        # 都是np.ndarray, list
         if length is None:
             length = np.max([np.shape(x)[:seq_dims] for x in inputs], axis=0)
         elif not hasattr(length, '__getitem__'):
@@ -296,22 +323,17 @@ def sequence_padding(inputs:Union[List[np.ndarray], List[List], List[torch.Tenso
         for x in inputs:
             x = x[slices]
             for i in range(seq_dims):
-                if mode in {'post', 'right'}:
+                if padding_side in {'post', 'right'}:
                     pad_width[i] = (0, length[i] - np.shape(x)[i])
-                elif mode in {'pre', 'left'}:
+                elif padding_side in {'pre', 'left'}:
                     pad_width[i] = (length[i] - np.shape(x)[i], 0)
                 else:
                     raise ValueError('"mode" argument must be "post/right" or "pre/left".')
             x = np.pad(x, pad_width, 'constant', constant_values=value)
             outputs.append(x)
 
-        return np.array(outputs)
+        return torch.tensor(np.array(outputs)) if return_torch_format else np.array(outputs)
     
-    elif isinstance(inputs[0], torch.Tensor):
-        assert mode in {'post', 'right'}, '"mode" argument must be "post/right" when element is torch.Tensor'
-        if length is not None:
-            inputs = [i[:length] for i in inputs]
-        return pad_sequence(inputs, padding_value=value, batch_first=True)
     else:
         raise ValueError('"input" argument must be tensor/list/ndarray.')
 

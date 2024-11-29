@@ -35,7 +35,8 @@ from bert4torch.snippets import (
     add_start_docstrings,
     JsonConfig,
     inference_mode,
-    NoopContextManager
+    NoopContextManager,
+    sequence_padding
 )
 from packaging import version
 import gc
@@ -135,7 +136,8 @@ class ChatBase(PipeLineBase):
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        self.model = self.build_model(**kwargs)
+        if create_model_at_startup:
+            self.model = self.build_model(**kwargs)
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
@@ -243,10 +245,11 @@ class ChatBase(PipeLineBase):
     def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
+
         if isinstance(query, str):
             # 单条输入
-            prompt = self.build_prompt(query, history, functions)
-            response = self.model.generate(prompt, **self.generation_config)
+            prompts:Union[str, torch.Tensor] = self.build_prompt(query, history, functions)
+            response = self.model.generate(prompts, **self.generation_config)
             if isinstance(response, str):
                 # 生成单条输出
                 return self.process_response_history(response, history=history)
@@ -258,10 +261,13 @@ class ChatBase(PipeLineBase):
             
         elif isinstance(query, list):
             # 多条输入
-            history_copy = [copy.deepcopy(history) for _ in query]
-            prompt = [self.build_prompt(q, hist, functions) for q, hist in zip(query, history_copy)]
-            response = self.model.generate(prompt, **self.generation_config)
-            return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
+            history_cp = [copy.deepcopy(history) for _ in query]
+            prompts:List[str] = [self.build_prompt(q, h, functions) for q, h in zip(query, history_cp)]
+            if all([isinstance(i, torch.Tensor) for i in prompts]):
+                # build_prompt返回的都是tokenize后的input_ids，需要concat+padding在一起
+                prompts = sequence_padding(prompts, value=self.tokenizer.pad_token_id, padding_side='left')
+            response = self.model.generate(prompts, **self.generation_config)
+            return [self.process_response_history(r, history=h) for r, h in zip(response, history_cp)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
 
@@ -1341,10 +1347,10 @@ class Glm4(ChatBase):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         history.append({"role": "user", "content": query})
         if self.no_history_states():
-            input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=True, return_tensors="pt")
+            prompt = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=False)
         else:
-            input_ids += self.generation_config['states']['last_token']
-        return input_ids
+            prompt += self.generation_config['states']['last_token']
+        return prompt
     
     def process_response_history(self, response:str, history:list):
         response = super().process_response_history(response, history)
@@ -1897,12 +1903,11 @@ class Qwen2(ChatBase):
 
         history.append({"role": "user", "content": query})  # 在终端打印显示原始的
         if self.no_history_states():
-            # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
-            input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, return_tensors='pt')
+            prompt = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=False)
         else:
-            input_ids += self.generation_config['states']['last_token']
+            prompt += self.generation_config['states']['last_token']
 
-        return input_ids
+        return prompt
     
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         """
@@ -2259,7 +2264,7 @@ class Chat:
         - min_new_tokens: int, 最小解码长度, 默认为1
         - max_length: int, 最大文本长度
         - pad_token_id: int, pad_id, 在batch解码时候使用
-        - pad_mode: str, padding在前面还是后面, pre或者post
+        - padding_side: str, padding在前面还是后面, pre或者post
         - device: str, 默认为'cpu'
         - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
         - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)

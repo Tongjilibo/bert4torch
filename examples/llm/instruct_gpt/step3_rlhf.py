@@ -100,7 +100,7 @@ def collate_fn(batch):
         batch_token_ids.append(token_ids)
         batch_queries.append(query)
 
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=pad_token_id, mode='pre'), dtype=torch.long, device=args.device)
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=pad_token_id, padding_side='pre'), dtype=torch.long, device=args.device)
     return {'input_ids': batch_token_ids, 'query': batch_queries}, None
 
 train_dataset = MyDataset(glob(args.data_path, recursive=True))

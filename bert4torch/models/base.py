@@ -153,6 +153,9 @@ class BERT_BASE(nn.Module):
         model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
         outputs = self.apply_final_layers(**model_kwargs)
+
+        if model_kwargs.get('use_states', False):
+            return outputs, model_kwargs
         return outputs
 
     @torch.no_grad()

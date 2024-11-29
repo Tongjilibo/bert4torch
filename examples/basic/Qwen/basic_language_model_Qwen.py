@@ -53,7 +53,7 @@ def main():
     # openai: 启动一个openai的server服务
     # gradio: web demo
     # streamlit: web demo  [启动命令]: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
-    choice = 'streamlit'
+    choice = 'batch'
 
     generation_config = {'repetition_penalty': 1.1, 
                          'temperature':0.8,
@@ -76,9 +76,9 @@ def main():
         print(res)
 
     elif choice == 'gen_1toN':
-        # 一条输出N跳回复
+        # 一条输出N条回复
         demo.generation_config['n'] = 5
-        res = demo.chat(['你是谁？', '你好'])
+        res = demo.chat('你是谁？')
         print(res)
 
     else:
