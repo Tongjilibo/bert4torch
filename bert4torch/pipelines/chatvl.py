@@ -34,7 +34,6 @@ from bert4torch.snippets import (
     add_start_docstrings,
     JsonConfig,
     is_transformers_available,
-    inference_mode,
     sequence_padding
 )
 import time
@@ -124,13 +123,9 @@ def trans_query_images_tolist(query, images):
 class ChatVLBase(ChatBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.return_tensorDict_from_build_prompt = True
+        self.return_tensorDict_from_build_prompt = True  # build_prompt返回的是字典
         self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
 
-    def build_prompt(self, *args, **kwargs) -> str:
-        raise NotImplementedError
-
-    @inference_mode()
     def chat(self, query:Union[str, List[str]], images:Union[ImageType, List[ImageType]]=None, 
              vedios=None, history:List[dict]=None, functions:List[dict]=None, **kwargs) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''

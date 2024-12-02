@@ -34,7 +34,6 @@ from bert4torch.snippets import (
     has_chinese_char,
     add_start_docstrings,
     JsonConfig,
-    inference_mode,
     NoopContextManager,
     sequence_padding
 )
@@ -146,12 +145,7 @@ class ChatBase(PipeLineBase):
         '''不使用history的states'''
         return self.generation_config.get('states') is None
     
-    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        '''对query和history进行处理，生成进入模型的text
-        :param query: str, 最近的一次user的input
-        :param history: List, 历史对话记录
-        :param functions: List, 支持的function
-        '''
+    def build_prompt(self, *args, **kwargs) -> str:
         raise NotImplementedError
     
     def build_tokenizer(self, **kwargs):
@@ -241,7 +235,6 @@ class ChatBase(PipeLineBase):
         else:
             raise TypeError(f'`response` type={type(response)} which is not supported')
 
-    @inference_mode()
     def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []

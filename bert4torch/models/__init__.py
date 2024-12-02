@@ -11,6 +11,7 @@ from bert4torch.models.gau_alpha import GAU_alpha
 from bert4torch.models.glm import GLM, GLM2
 from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
 from bert4torch.models.llama import LLaMA, Baichuan, MiniCPM
+from bert4torch.models.mllama import Mllama
 from bert4torch.models.minicpmv import MiniCPMV, MiniCPMLlama3V
 from bert4torch.models.nezha import NEZHA
 from bert4torch.models.roformer import RoFormer, RoFormerV2
@@ -179,7 +180,8 @@ def build_transformer_model(
         'minicpm': MiniCPM,
         'minicpmv': MiniCPMV,
         'minicpm_llama3_v': MiniCPMLlama3V,
-        'qwen2_vl': Qwen2VL
+        'qwen2_vl': Qwen2VL,
+        'mllama': Mllama
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))
