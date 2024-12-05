@@ -314,6 +314,30 @@ class GAULayer(nn.Module):
         return model_kwargs
         
 
+class MllamaCrossAttentionDecoderLayer(BertLayer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cross_attn_attn_gate = torch.nn.Parameter(torch.zeros(1))
+        self.cross_attn_mlp_gate = torch.nn.Parameter(torch.zeros(1))
+
+
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, encoder_hidden_states=None, 
+                encoder_attention_mask=None, past_key_value=None, cross_past_key_value=None, **model_kwargs):
+        x = self.attnLayerNorm(hidden_states, conditional_emb)
+        self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value)
+
+        hidden_states = residual + self.cross_attn_attn_gate.tanh() * hidden_states
+
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        if model_kwargs.get('full_text_row_masked_out_mask') is not None:
+            hidden_states = model_kwargs[]'full_text_row_masked_out_mask'][:, 0] * hidden_states  # type: ignore
+        hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
+        model_kwargs['hidden_states'] = hidden_states
+        return model_kwargs
+
+
 TRANSFORMER_BLOCKS = {
     "BertLayer": BertLayer,
     "MiniCPMLayer": MiniCPMLayer,

@@ -1,6 +1,6 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
-from bert4torch.layers import LlamaFeedForward, NormHead
+from bert4torch.layers import NormHead
 import torch
 import re
 
