@@ -41,67 +41,24 @@ if is_accelerate_available():
     )
 
 
-class BERT_BASE(nn.Module):
+class PreTrainedModel(nn.Module):
     """模型基类
     """
     def __init__(
             self,
-            vocab_size:int,  # 词表大小
-            hidden_size:int,  # 编码维度
-            num_hidden_layers:int,  # Transformer总层数
-            num_attention_heads:int,  # Attention的头数
-            intermediate_size:int,  # FeedForward的隐层维度
-            hidden_act:str,  # FeedForward隐层的激活函数
-            dropout_rate:float=None,  # Dropout比例
-            attention_probs_dropout_prob:float=None,  # Attention矩阵的Dropout比例
-            embedding_size:int=None,  # 指定embedding_size, 不指定则使用config文件的参数
-            attention_head_size:int=None,  # Attention中V的head_size
-            attention_key_size:int=None,  # Attention中Q,K的head_size
             initializer_range:float=0.02,  # 权重初始化方差
-            sequence_length:int=None,  # 是否固定序列长度
             keep_tokens:List[int]=None,  # 要保留的词ID列表
             compound_tokens:List[int]=None,  # 扩展Embedding
-            residual_attention_scores:bool=False,  # Attention矩阵加残差
-            keep_hidden_layers:List[int]=None, # 保留的hidden_layer层的id
-            hierarchical_position:Union[bool, float]=None,  # 是否层次分解位置编码
-            gradient_checkpoint:bool=False, # 是否使用gradient_checkpoint
-            output_all_encoded_layers:bool=False, # 是否返回所有layer的hidden_states
-            tie_word_embeddings:bool=False,  # 是否绑定embedding和lm_head的权重
-            return_dict:bool=False,  # 是否返回的格式是dict
             **kwargs
     ):
-        super(BERT_BASE, self).__init__()
-        if keep_tokens is not None:
-            vocab_size = len(keep_tokens)
-        if compound_tokens is not None:
-            vocab_size += len(compound_tokens)
-        self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.attention_head_size = attention_head_size or self.hidden_size // self.num_attention_heads
-        self.attention_key_size = attention_key_size or self.attention_head_size
-        self.intermediate_size = intermediate_size
-        self.dropout_rate = dropout_rate or 0
-        self.attention_probs_dropout_prob = attention_probs_dropout_prob or 0
-        self.hidden_act = hidden_act
-        self.embedding_size = embedding_size or hidden_size
+        super(PreTrainedModel, self).__init__()
         self.initializer_range = initializer_range
-        self.sequence_length = sequence_length
         self.keep_tokens = keep_tokens
         self.compound_tokens = compound_tokens
         self.attention_bias = None
         self.position_bias = None
-        self.attention_scores = None
-        self.residual_attention_scores = residual_attention_scores
-        self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
-        self.hierarchical_position = hierarchical_position
-        self.gradient_checkpoint = gradient_checkpoint
         self.quantized = False
-        self.output_all_encoded_layers = output_all_encoded_layers
-        self.add_trainer = kwargs['add_trainer']
-        self.tie_word_embeddings = tie_word_embeddings or kwargs.get('tie_emb_prj_weight', False)  # 兼顾old version
-        self.return_dict = return_dict
+        self.add_trainer = kwargs.get('add_trainer', False)
 
     def tie_weights(self):
         pass
@@ -348,7 +305,7 @@ class BERT_BASE(nn.Module):
             module = modules_to_check.pop(-1)
             # if the module does not appear in _no_split_modules, we also check the children
             if module.__class__.__name__ not in _no_split_modules:
-                if isinstance(module, BERT_BASE):
+                if isinstance(module, PreTrainedModel):
                     if module._no_split_modules is None:
                         raise ValueError(
                             f"{module.__class__.__name__} does not support `device_map='{device_map}'`. To implement support, the model "
@@ -459,33 +416,6 @@ class BERT_BASE(nn.Module):
     def apply_final_layers(self, *inputs, **model_kwargs):
         raise NotImplementedError
     
-    def apply_on_layer_begin(self, l_i, **model_kwargs):
-        '''新增对layer block输入进行操作的函数'''
-        # if model_kwargs.get('use_states') is not True:
-        #     return model_kwargs
-        
-        if model_kwargs.get('past_key_values') is not None:
-            model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
-
-        if ('encoder_hidden_states' in model_kwargs) and model_kwargs.get('cross_past_key_values') is not None:
-            model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
-        return model_kwargs
-    
-    def apply_on_layer_end(self, l_i, **model_kwargs):
-        '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
-        if model_kwargs.get('use_states') is not True:
-            return model_kwargs
-
-        if model_kwargs.get('past_key_value') is not None:
-            if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
-                model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
-            model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
-        if model_kwargs.get('cross_past_key_value') is not None:
-            if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
-                model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
-            model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']
-        return model_kwargs
-
     def compute_attention_bias(self, inputs=None):
         """定义每一层的Attention Bias"""
         return self.attention_bias
@@ -591,7 +521,7 @@ class BERT_BASE(nn.Module):
 
 def extend_with_base_model(InputModel):
     """添加torch4keras的BaseModel, 可以使用.compile, .fit等Trainer的功能"""
-    class BertBaseModel(InputModel, BERT_BASE, BaseModel):
+    class BertBaseModel(InputModel, PreTrainedModel, BaseModel):
         pass
     return BertBaseModel
 

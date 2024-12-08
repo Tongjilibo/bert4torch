@@ -2,7 +2,7 @@ from torch4keras.model import BaseModel, BaseModelDP, BaseModelDDP
 from torch4keras.trainer import Trainer
 from bert4torch.models.albert import ALBERT, ALBERT_Unshared
 from bert4torch.models.bart import BART
-from bert4torch.models.base import BERT_BASE, extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
+from bert4torch.models.base import PreTrainedModel, extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
 from bert4torch.models.bert import BERT
 from bert4torch.models.deberta import DebertaV2
 from bert4torch.models.electra import ELECTRA
@@ -48,12 +48,12 @@ from bert4torch.snippets import (
 def build_transformer_model(
         config_path: Union[str, os.PathLike] = None, 
         checkpoint_path: Union[str, os.PathLike, list] = None, 
-        model: Union[str, BERT_BASE] = None, 
+        model: Union[str, PreTrainedModel] = None, 
         application: Literal['encoder', 'lm', 'unilm', None] = None, 
         add_trainer: bool = False, 
         verbose: int = 1, 
         **kwargs
-        ) -> Union[BERT_BASE, BERT, Transformer, Trainer]:
+        ) -> Union[PreTrainedModel, BERT, Transformer, Trainer]:
     """根据配置文件构建模型, 可选加载checkpoint权重, 类似AutoModel.from_pretrained(...)
 
     :param config_path: str, 模型的config文件地址, 大部分模型都提供了bert4torch_config.json
@@ -189,10 +189,10 @@ def build_transformer_model(
         MODEL = models[model.lower()]
         if model.endswith('t5.1.1'):
             config['version'] = model
-    elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
+    elif isinstance(model, type) and issubclass(model, PreTrainedModel): # nn.Module表示使用自定义的模型：
         MODEL = model
     else:
-        raise ValueError('Args `model` type should be string or BERT_BASE')
+        raise ValueError('Args `model` type should be string or PreTrainedModel')
 
     # 使用 lm/unilm
     application = (application or config.get('application', 'encoder')).lower()

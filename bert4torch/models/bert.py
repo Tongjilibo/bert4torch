@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
-from bert4torch.models.base import BERT_BASE
+from bert4torch.models.base import PreTrainedModel
 from bert4torch.layers import LayerNorm, BertEmbeddings, TRANSFORMER_BLOCKS
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
 from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_padding, DottableDict, modify_variable_mapping
@@ -11,14 +11,33 @@ from packaging import version
 from typing import Union, Literal, List
 
 
-class BERT(BERT_BASE):
+class BERT(PreTrainedModel):
     """构建BERT模型
     """
     _no_split_modules = ["BertLayer"]
 
     def __init__(
             self,
+            vocab_size:int,  # 词表大小
+            hidden_size:int,  # 编码维度
+            num_hidden_layers:int,  # Transformer总层数
+            num_attention_heads:int,  # Attention的头数
+            intermediate_size:int,  # FeedForward的隐层维度
+            hidden_act:str,  # FeedForward隐层的激活函数
             max_position:int,  # 序列最大长度
+            dropout_rate:float=None,  # Dropout比例
+            attention_probs_dropout_prob:float=None,  # Attention矩阵的Dropout比例
+            embedding_size:int=None,  # 指定embedding_size, 不指定则使用config文件的参数
+            attention_head_size:int=None,  # Attention中V的head_size
+            attention_key_size:int=None,  # Attention中Q,K的head_size
+            keep_hidden_layers:List[int]=None, # 保留的hidden_layer层的id
+            residual_attention_scores:bool=False,  # Attention矩阵加残差
+            hierarchical_position:Union[bool, float]=None,  # 是否层次分解位置编码
+            gradient_checkpoint:bool=False, # 是否使用gradient_checkpoint
+            output_all_encoded_layers:bool=False, # 是否返回所有layer的hidden_states
+            return_dict:bool=False,  # 是否返回的格式是dict
+            tie_word_embeddings:bool=False,  # 是否绑定embedding和lm_head的权重
+
             segment_vocab_size:int=2,  # segment总数目
             with_pool:bool=False,  # 是否包含Pool部分
             with_nsp:bool=False,  # 是否包含NSP部分
@@ -34,6 +53,30 @@ class BERT(BERT_BASE):
             **kwargs  # 其余参数
     ):
         super(BERT, self).__init__(**kwargs)
+        if self.keep_tokens is not None:
+            vocab_size = len(self.keep_tokens)
+        if self.compound_tokens is not None:
+            vocab_size += len(self.compound_tokens)
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self.num_hidden_layers = num_hidden_layers
+        self.num_attention_heads = num_attention_heads
+        self.attention_head_size = attention_head_size or self.hidden_size // self.num_attention_heads
+        self.attention_key_size = attention_key_size or self.attention_head_size
+        self.intermediate_size = intermediate_size
+        self.dropout_rate = dropout_rate or 0
+        self.attention_probs_dropout_prob = attention_probs_dropout_prob or 0
+        self.hidden_act = hidden_act
+        self.embedding_size = embedding_size or hidden_size
+        self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
+        self.residual_attention_scores = residual_attention_scores
+        self.hierarchical_position = hierarchical_position
+        self.gradient_checkpoint = gradient_checkpoint
+        self.attention_scores = None
+        self.output_all_encoded_layers = output_all_encoded_layers
+        self.return_dict = return_dict
+        self.tie_word_embeddings = tie_word_embeddings or kwargs.get('tie_emb_prj_weight', False)  # 兼顾old version
+
         self.max_position = max_position
         self.segment_vocab_size = segment_vocab_size
         self.with_pool = with_pool
@@ -236,6 +279,33 @@ class BERT(BERT_BASE):
         
         return model_kwargs
 
+    def apply_on_layer_begin(self, l_i, **model_kwargs):
+        '''新增对layer block输入进行操作的函数'''
+        # if model_kwargs.get('use_states') is not True:
+        #     return model_kwargs
+        
+        if model_kwargs.get('past_key_values') is not None:
+            model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
+
+        if ('encoder_hidden_states' in model_kwargs) and model_kwargs.get('cross_past_key_values') is not None:
+            model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
+        return model_kwargs
+    
+    def apply_on_layer_end(self, l_i, **model_kwargs):
+        '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
+        if model_kwargs.get('use_states') is not True:
+            return model_kwargs
+
+        if model_kwargs.get('past_key_value') is not None:
+            if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
+                model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
+            model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
+        if model_kwargs.get('cross_past_key_value') is not None:
+            if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
+                model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
+            model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']
+        return model_kwargs
+    
     def apply_main_layers(self, **model_kwargs):
         """BERT的主体是基于Self-Attention的模块；
         顺序:Att --> Add --> LN --> FFN --> Add --> LN
@@ -316,7 +386,7 @@ class BERT(BERT_BASE):
 
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理
-        这么写的原因是下游很多模型从BERT继承，这样下游可以默认使用BERT_BASE的load_trans_ckpt
+        这么写的原因是下游很多模型从BERT继承，这样下游可以默认使用PreTrainedModel的load_trans_ckpt
         """
         state_dict = super().load_trans_ckpt(checkpoint)        
         if hasattr(self, 'model_type') and (self.model_type == 'bert'):

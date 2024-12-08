@@ -957,6 +957,20 @@ class T5Attention(MultiHeadAttention):
         return attention_scores
 
 
+class MllamaTextCrossAttention(MultiHeadAttention):
+    '''mllama部分层使用的crossattention'''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.q_norm = LayerNorm(self.attention_head_size, norm_mode='rmsnorm', eps=kwargs.get('layer_norm_eps', 1e-6), bias=False)
+        self.k_norm = LayerNorm(self.attention_key_size, norm_mode='rmsnorm', eps=kwargs.get('layer_norm_eps', 1e-6), bias=False)
+
+    def _get_qkv_states(self, *args, **kwargs):
+        query_states, key_states, value_states, attention_mask = super()._get_qkv_states(*args, **kwargs)
+        query_states = self.q_norm(query_states)
+        key_states = self.k_norm(key_states)
+        return query_states, key_states, value_states, attention_mask
+    
+
 ATTENTION_MAP = {
     'MultiHeadAttention': MultiHeadAttention,
     'GatedAttention': GatedAttention,
@@ -967,6 +981,8 @@ ATTENTION_MAP = {
     'NezhaTypicalRelativeAttention': NezhaTypicalRelativeAttention,
     'RopeAttention': RopeAttention,
     'T5Attention': T5Attention,
+    'MllamaTextCrossAttention': MllamaTextCrossAttention,
+
     # 下面是以p_bias为key
     'deberta_v2': DebertaV2Attention,
     'alibi': AlibiAttention,

@@ -1,5 +1,5 @@
 from bert4torch.models.bert import BERT
-from bert4torch.models.base import LM_Mask, BERT_BASE
+from bert4torch.models.base import LM_Mask, PreTrainedModel
 from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
 from bert4torch.layers import LayerNorm
@@ -26,7 +26,7 @@ class Encoder(BERT):
         return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
 
-class DecoderBase(BERT_BASE):
+class PreTrainedModelForDecoder(PreTrainedModel):
     passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
                      'attention_mask', 'past_key_values', 'cross_past_key_values'}
 
@@ -80,7 +80,7 @@ class DecoderBase(BERT_BASE):
         yield from self.generation.stream_generate(input_ids, **kwargs)
 
 
-class Decoder(LM_Mask, BERT, DecoderBase):
+class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
     '''所有decoder模型的基类(含大模型)
 
     :param logit_scale: bool, 是否对lm_logits进行缩放
@@ -188,7 +188,7 @@ class Decoder(LM_Mask, BERT, DecoderBase):
         return mapping
 
 
-class Transformer(DecoderBase):
+class Transformer(PreTrainedModelForDecoder):
     '''encoder-decoder结构
     :param tie_word_embeddings: bool, decoder的word_embeddings和lm_head的权重共享
     :param tie_word_embeddings_encoder_decoder: bool, encoder和decoder之间的word_embedding权重共享

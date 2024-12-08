@@ -62,7 +62,7 @@ class BART(Transformer):
             'decoder.embeddings.layerNorm.weight': 'decoder.layernorm_embedding.weight',
             'decoder.embeddings.layerNorm.bias': 'decoder.layernorm_embedding.bias',
         }
-        for i in range(self.num_hidden_layers):
+        for i in range(self.encoder.num_hidden_layers):
             mapping.update(
                 {
                 f'encoder.encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.layers.{i}.self_attn.q_proj.weight',

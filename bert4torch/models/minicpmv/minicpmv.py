@@ -5,13 +5,13 @@ from .modeling_navit_siglip import SiglipVisionTransformer
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
-from bert4torch.models.transformer import DecoderBase
+from bert4torch.models.transformer import PreTrainedModelForDecoder
 from bert4torch.snippets import DottableDict
 import inspect
 
 
-class MiniCPMV(DecoderBase):
-    passed_kwargs = DecoderBase.passed_kwargs | {"pixel_values", "tgt_sizes", "image_bound"}
+class MiniCPMV(PreTrainedModelForDecoder):
+    passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "tgt_sizes", "image_bound"}
     def __init__(self, **config):
         super().__init__(**config)
         self.llm = Qwen2(**config)
@@ -160,7 +160,7 @@ class MiniCPMV(DecoderBase):
             'llm.LayerNormFinal.weight': 'llm.model.norm.weight',
             }
 
-        for i in range(self.num_hidden_layers):
+        for i in range(self.llm.num_hidden_layers):
             mapping.update( 
             {
             f'llm.decoderLayer.{i}.multiHeadAttention.q.weight': f'llm.model.layers.{i}.self_attn.q_proj.weight',

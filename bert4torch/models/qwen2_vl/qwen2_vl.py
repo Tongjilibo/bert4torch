@@ -1,12 +1,12 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
-from bert4torch.models.transformer import DecoderBase
+from bert4torch.models.transformer import PreTrainedModelForDecoder
 from bert4torch.snippets import DottableDict, inference_mode
 import torch
 
 
-class Qwen2VL(DecoderBase):
-    passed_kwargs = DecoderBase.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
+class Qwen2VL(PreTrainedModelForDecoder):
+    passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DottableDict(config)
@@ -83,7 +83,7 @@ class Qwen2VL(DecoderBase):
             'model.LayerNormFinal.weight': 'model.norm.weight',
             }
 
-        for i in range(self.num_hidden_layers):
+        for i in range(self.model.num_hidden_layers):
             mapping.update( 
             {
             f'model.decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
