@@ -248,13 +248,6 @@ class Qwen2VL(PreTrainedModelForDecoder):
                     )
 
                 return position_ids, mrope_position_deltas
-
-    # def get_states(self, kwargs):
-    #     new_kwargs = super().get_states(kwargs)
-    #     for key in ['pixel_values', 'pixel_values_videos', 'image_grid_thw', 'video_grid_thw']:
-    #         if key in kwargs:
-    #             new_kwargs[key] = kwargs[key]
-    #     return new_kwargs
     
     def prepare_inputs_for_generation(
         self,

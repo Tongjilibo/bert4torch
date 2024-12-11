@@ -6,6 +6,7 @@ from bert4torch.models.llama import LLaMA
 from bert4torch.models.transformer import PreTrainedModelForDecoder
 from bert4torch.snippets import DottableDict, inference_mode
 from torch import nn
+import torch
 
 __all__ = ['Mllama']
 
@@ -22,7 +23,7 @@ class MllamaTextModel(LLaMA):
 
 
 class Mllama(PreTrainedModelForDecoder):
-    passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
+    passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {'pixel_values', 'aspect_ratio_ids', 'aspect_ratio_mask', 'cross_attention_mask'}
     def __init__(self, **config):
         self.config = DottableDict(config)
         super().__init__(**self.config)
@@ -47,6 +48,7 @@ class Mllama(PreTrainedModelForDecoder):
         aspect_ratio_ids = model_kwargs.get('aspect_ratio_ids')
         aspect_ratio_mask = model_kwargs.get('aspect_ratio_mask')
         cross_attention_mask = model_kwargs.get('cross_attention_mask')
+        cache_position = model_kwargs.get('cache_position')
 
         if pixel_values is not None:
             if aspect_ratio_ids is None:
@@ -56,17 +58,18 @@ class Mllama(PreTrainedModelForDecoder):
                 pixel_values=pixel_values,
                 aspect_ratio_ids=aspect_ratio_ids,
                 aspect_ratio_mask=aspect_ratio_mask,
-                output_hidden_states=output_hidden_states,
-                output_attentions=output_attentions,
-                return_dict=return_dict,
+                output_hidden_states=False,
+                output_attentions=False,
+                return_dict=False,
             )
             cross_attention_states = vision_outputs[0]
             cross_attention_states = self.multi_modal_projector(cross_attention_states).reshape(
-                -1, cross_attention_states.shape[-2], self.hidden_size
-            )
+                -1, cross_attention_states.shape[-2], self.config.text_config.hidden_size)
+        else:
+            cross_attention_states = None
 
         if cross_attention_mask is not None:
-            cross_attention_mask, full_text_row_masked_out_mask = _prepare_cross_attention_mask(
+            cross_attention_mask, full_text_row_masked_out_mask = self._prepare_cross_attention_mask(
                 cross_attention_mask,
                 num_vision_tokens=self.vision_model.num_patches,
                 dtype=self.dtype,
@@ -78,8 +81,45 @@ class Mllama(PreTrainedModelForDecoder):
             cross_attention_mask = cross_attention_mask[:, :, cache_position]
             full_text_row_masked_out_mask = full_text_row_masked_out_mask[:, :, cache_position]
 
-        return self.language_model(input_ids=inputs[0], **model_kwargs)
+        return self.language_model(input_ids=inputs[0], 
+                                   cross_attention_states=cross_attention_states, 
+                                   cross_attention_mask=cross_attention_mask,
+                                   full_text_row_masked_out_mask=full_text_row_masked_out_mask,
+                                   **model_kwargs)
     
+    def prepare_inputs_for_generation(self, *inputs, **states):
+        #TODO 增加cache_position的逻辑
+        return super().prepare_inputs_for_generation(*inputs, **states)
+    
+    @staticmethod
+    def _prepare_cross_attention_mask(
+        cross_attention_mask: torch.Tensor,
+        num_vision_tokens: int,
+        dtype: str,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # reshape so it can be used by attn module
+        batch_size, text_total_length, *_ = cross_attention_mask.shape
+        cross_attention_mask = cross_attention_mask.repeat_interleave(num_vision_tokens, dim=3)
+        cross_attention_mask = cross_attention_mask.view(batch_size, text_total_length, -1)
+        cross_attention_mask = cross_attention_mask.unsqueeze(1)
+
+        # invert the mask
+        inverted_cross_attn_mask = (1.0 - cross_attention_mask).to(dtype)
+        cross_attention_mask = inverted_cross_attn_mask.masked_fill(
+            inverted_cross_attn_mask.to(torch.bool), torch.finfo(dtype).min
+        )
+
+        # apply full-row bias, which return 4D tensor of shape [B, H, S1, 1] where value is 0 if the a full row in cross attn mask's
+        # last dimension contains negative infinity values, otherwise it's 1
+        negative_inf_value = torch.finfo(dtype).min
+        full_text_row_masked_out_mask = (
+            (cross_attention_mask != negative_inf_value).any(dim=-1).type_as(cross_attention_mask)[..., None]
+        )
+        cross_attention_mask *= full_text_row_masked_out_mask
+
+        return cross_attention_mask, full_text_row_masked_out_mask
+
+
     def load_variable(self, variable, old_key, new_key):
         if old_key in {'language_model.embeddings.word_embeddings.weight', 'language_model.lm_head.weight'}:
             return self.load_embeddings(variable)
