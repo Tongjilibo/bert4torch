@@ -59,6 +59,7 @@ class PreTrainedModel(nn.Module):
         self.position_bias = None
         self.quantized = False
         self.add_trainer = kwargs.get('add_trainer', False)
+        self.dtype = None
 
     def tie_weights(self):
         pass
@@ -249,7 +250,8 @@ class PreTrainedModel(nn.Module):
             **kwargs
     ):
         """加载预训练模型(单个/多个ckpt)"""
-
+        self.dtype = torch_dtype
+        
         # 单个权重文件
         if isinstance(checkpoints, str):
             self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 

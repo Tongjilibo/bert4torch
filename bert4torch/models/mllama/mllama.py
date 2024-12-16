@@ -42,13 +42,16 @@ class Mllama(PreTrainedModelForDecoder):
         )
         self.language_model.passed_kwargs = Mllama.passed_kwargs
 
-    def forward(self, *inputs:Union[tuple, list], **model_kwargs):
+    def forward(
+            self, 
+            *inputs:Union[tuple, list], 
+            pixel_values=None,
+            aspect_ratio_ids=None,
+            aspect_ratio_mask=None,
+            cross_attention_mask=None, 
+            cache_position=None,
+            **model_kwargs):
         inputs = self.args_segmentate(inputs, **model_kwargs)
-        pixel_values = model_kwargs.get('pixel_values')
-        aspect_ratio_ids = model_kwargs.get('aspect_ratio_ids')
-        aspect_ratio_mask = model_kwargs.get('aspect_ratio_mask')
-        cross_attention_mask = model_kwargs.get('cross_attention_mask')
-        cache_position = model_kwargs.get('cache_position')
 
         if pixel_values is not None:
             if aspect_ratio_ids is None:
@@ -87,9 +90,19 @@ class Mllama(PreTrainedModelForDecoder):
                                    full_text_row_masked_out_mask=full_text_row_masked_out_mask,
                                    **model_kwargs)
     
-    def prepare_inputs_for_generation(self, *inputs, **states):
-        #TODO 增加cache_position的逻辑
-        return super().prepare_inputs_for_generation(*inputs, **states)
+    def prepare_inputs_for_generation(
+            self, 
+            input_ids, 
+            step=None,
+            input_seqlen=None,
+            output_ids=None,
+            **states):
+        # TODO 增加cache_position的逻辑
+        if step == 0 or (states.get('use_states') is False):
+            states['cache_position'] = torch.arange(input_seqlen[0], device=input_ids.device)
+        else:
+            states['cache_position'] = input_seqlen
+        return states
     
     @staticmethod
     def _prepare_cross_attention_mask(
