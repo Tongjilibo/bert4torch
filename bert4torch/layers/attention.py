@@ -967,9 +967,34 @@ class MllamaTextCrossAttention(MultiHeadAttention):
     def _get_qkv_states(self, *args, **kwargs):
         query_states, key_states, value_states, attention_mask = super()._get_qkv_states(*args, **kwargs)
         query_states = self.q_norm(query_states)
+        bsz = query_states.shape[0]
+        key_states = key_states.permute([1,0,2,3]).reshape(bsz, self.num_key_value_heads, -1, self.attention_key_size)
+        value_states = value_states.permute([1,0,2,3]).reshape(bsz, self.num_key_value_heads, -1, self.attention_key_size)
         key_states = self.k_norm(key_states)
         return query_states, key_states, value_states, attention_mask
-    
+    # def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+    #     query_states = self.transpose_for_q_scores(self.q(hidden_states))
+    #     query_states = self.q_norm(query_states)
+    #     bsz = query_states.shape[0]
+
+    #     if (encoder_hidden_states is not None) and (past_key_value is not None):
+    #         key_states, value_states = past_key_value
+    #         attention_mask = encoder_attention_mask
+    #     elif encoder_hidden_states is not None:
+    #         key_states = self.k(encoder_hidden_states)
+    #         value_states = self.v(encoder_hidden_states)
+    #         key_states = key_states.view(bsz, -1, self.num_key_value_heads, self.attention_key_size).transpose(1, 2)
+    #         value_states = value_states.view(bsz, -1, self.num_key_value_heads, self.attention_key_size).transpose(1, 2)
+    #         attention_mask = encoder_attention_mask
+    #     elif past_key_value is not None:
+    #         key_states = self.transpose_for_k_scores(self.k(hidden_states))
+    #         value_states = self.transpose_for_v_scores(self.v(hidden_states))
+    #         key_states = torch.cat([past_key_value[0], key_states], dim=2)
+    #         value_states = torch.cat([past_key_value[1], value_states], dim=2)
+    #     else:
+    #         key_states = self.transpose_for_k_scores(self.k(hidden_states))
+    #         value_states = self.transpose_for_v_scores(self.v(hidden_states))
+    #     return query_states, key_states, value_states, attention_mask
 
 ATTENTION_MAP = {
     'MultiHeadAttention': MultiHeadAttention,
