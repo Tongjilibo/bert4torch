@@ -325,10 +325,10 @@ class MllamaCrossAttentionDecoderLayer(BertLayer):
         self.cross_attn_mlp_gate = torch.nn.Parameter(torch.zeros(1))
 
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, cross_attention_states=None, 
-                cross_attention_mask=None, past_key_value=None, **model_kwargs):
+                cross_attention_mask=None, cross_past_key_value=None, **model_kwargs):
         residual = hidden_states
         x = self.attnLayerNorm(hidden_states, conditional_emb)
-        cross_attn_output = self.crossAttention(x, attention_mask, cross_attention_states, cross_attention_mask, past_key_value=past_key_value)
+        cross_attn_output = self.crossAttention(x, attention_mask, cross_attention_states, cross_attention_mask, past_key_value=cross_past_key_value)
 
         hidden_states = residual + self.cross_attn_attn_gate.tanh() * cross_attn_output[0]
 
@@ -340,7 +340,7 @@ class MllamaCrossAttentionDecoderLayer(BertLayer):
         hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
 
         if self.is_decoder and model_kwargs.get('use_states', False):
-            model_kwargs['past_key_value'] = cross_attn_output[-1]
+            model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
 
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs

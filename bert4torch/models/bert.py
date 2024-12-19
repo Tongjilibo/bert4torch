@@ -287,7 +287,7 @@ class BERT(PreTrainedModel):
         if model_kwargs.get('past_key_values') is not None:
             model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
 
-        if ('encoder_hidden_states' in model_kwargs) and model_kwargs.get('cross_past_key_values') is not None:
+        if model_kwargs.get('cross_past_key_values') is not None:
             model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
         return model_kwargs
     

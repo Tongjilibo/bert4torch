@@ -96,14 +96,25 @@ class Mllama(PreTrainedModelForDecoder):
             step=None,
             input_seqlen=None,
             output_ids=None,
-            **states):
+            **model_kwargs):
         # TODO 增加cache_position的逻辑
-        if step == 0 or (states.get('use_states') is False):
-            states['cache_position'] = torch.arange(input_seqlen[0], device=input_ids.device)
+        if step == 0 or (model_kwargs.get('use_states') is False):
+            model_kwargs['cache_position'] = torch.arange(input_seqlen[0], device=input_ids.device)
         else:
-            states['cache_position'] = input_seqlen
-        return states
+            model_kwargs['cache_position'] = input_seqlen
+        model_kwargs['cross_attention_mask_prev'] = model_kwargs.get('cross_attention_mask')
+        return model_kwargs
     
+    def _update_model_kwargs_for_generation(self, outputs, model_kwargs:dict):
+        cross_attention_mask_prev = model_kwargs.get("cross_attention_mask_prev", None)
+
+        model_kwargs = super()._update_model_kwargs_for_generation(outputs, model_kwargs)
+
+        # add cross-attn mask for new token
+        if cross_attention_mask_prev is not None:
+            model_kwargs["cross_attention_mask"] = torch.cat([cross_attention_mask_prev, cross_attention_mask_prev[:, -1:, ...]], dim=1)
+        return model_kwargs
+
     @staticmethod
     def _prepare_cross_attention_mask(
         cross_attention_mask: torch.Tensor,

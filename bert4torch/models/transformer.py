@@ -37,7 +37,14 @@ class PreTrainedModelForDecoder(PreTrainedModel):
         '''为后续forward定义所需参数，方便继承'''
         return states
 
-    def _update_model_kwargs_for_generation(self, model_kwargs:dict):
+    def _get_initial_model_kwargs(self, model_kwargs:dict):
+        '''初始化的时候去掉不需要要素'''
+        if model_kwargs.get('states') is not None:
+            return model_kwargs['states']
+        states = {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+        return states if states else None
+    
+    def _update_model_kwargs_for_generation(self, outputs:Union[torch.Tensor, list, tuple, dict], model_kwargs:dict):
         '''需要返回给下一次generate使用到的要素，方便继承'''
         if model_kwargs.get('states') is not None:
             return model_kwargs['states']
@@ -60,7 +67,7 @@ class PreTrainedModelForDecoder(PreTrainedModel):
         outputs = self.apply_final_layers(**model_kwargs)
 
         if model_kwargs.get('use_states', False):
-            return outputs, self._update_model_kwargs_for_generation(model_kwargs)
+            return outputs, model_kwargs
         else:
             return outputs
 

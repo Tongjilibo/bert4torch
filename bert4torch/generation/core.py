@@ -825,6 +825,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                         states['cross_past_key_values'] = [(kv[0][self.flag], kv[1][self.flag]) for kv in states['cross_past_key_values']]
 
             logits, states = self.decoder.predict(next_inputs, **states)
+            states = self.decoder._update_model_kwargs_for_generation(logits, states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return logits[:, -1, :], states
 
@@ -944,9 +945,9 @@ class SeqGeneration(AutoRegressiveDecoder):
         inputs = self.pre_process(input_ids)
 
         if self.mode == 'random_sample':
-            output_ids = self.random_sample(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs))  # 基于随机采样
+            output_ids = self.random_sample(inputs, states=self.decoder._get_initial_model_kwargs(kwargs))  # 基于随机采样
         elif self.mode == 'beam_search':
-            output_ids = self.beam_search(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs))  # 基于beam search
+            output_ids = self.beam_search(inputs, states=self.decoder._get_initial_model_kwargs(kwargs))  # 基于beam search
 
         return self.post_process(output_ids)
 
@@ -958,10 +959,10 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.use_batch = False
         inputs = self.pre_process(input_ids)
         if self.mode == 'random_sample':
-            for output_ids in self.stream_random_sample(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs)):  # stream随机采样
+            for output_ids in self.stream_random_sample(inputs, states=self.decoder._get_initial_model_kwargs(kwargs)):  # stream随机采样
                 yield self.post_process(output_ids)
         elif self.mode == 'beam_search':
-            for output_ids in self.stream_beam_search(inputs, states=self.decoder._update_model_kwargs_for_generation(kwargs)):  # stream beam采样
+            for output_ids in self.stream_beam_search(inputs, states=self.decoder._get_initial_model_kwargs(kwargs)):  # stream beam采样
                 yield self.post_process(output_ids)
 
 
