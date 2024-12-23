@@ -23,6 +23,11 @@ class MllamaTextModel(LLaMA):
 
 
 class Mllama(PreTrainedModelForDecoder):
+    _no_split_modules = [
+        "MllamaVisionEncoderLayer",
+        "MllamaCrossAttentionDecoderLayer",
+        "BertLayer",
+    ]
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {'pixel_values', 'aspect_ratio_ids', 'aspect_ratio_mask', 'cross_attention_mask'}
     def __init__(self, **config):
         self.config = DottableDict(config)

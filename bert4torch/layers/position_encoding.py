@@ -354,24 +354,23 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
 
         low_freq_wavelen = self.old_context_len / self.low_freq_factor
         high_freq_wavelen = self.old_context_len / self.high_freq_factor
-        new_freqs = []
-        for freq in inv_freq:
-            wavelen = 2 * math.pi / freq
-            if wavelen < high_freq_wavelen:
-                new_freqs.append(freq)
-            elif wavelen > low_freq_wavelen:
-                new_freqs.append(freq / scaling_factor)
-            else:
-                assert low_freq_wavelen != high_freq_wavelen
-                smooth = (self.old_context_len / wavelen - self.low_freq_factor) / (self.high_freq_factor - self.low_freq_factor)
-                new_freqs.append((1 - smooth) * freq / scaling_factor + smooth * freq)
-        inv_freq = torch.tensor(new_freqs, dtype=inv_freq.dtype, device=inv_freq.device)
+
+        wavelen = 2 * math.pi / inv_freq
+        # wavelen < high_freq_wavelen: do nothing
+        # wavelen > low_freq_wavelen: divide by factor
+        inv_freq_llama = torch.where(wavelen > low_freq_wavelen, inv_freq / scaling_factor, inv_freq)
+        # otherwise: interpolate between the two, using a smooth factor
+        smooth_factor = (self.old_context_len / wavelen - self.low_freq_factor) / (self.high_freq_factor - self.low_freq_factor)
+        smoothed_inv_freq = (1 - smooth_factor) * inv_freq_llama / scaling_factor + smooth_factor * inv_freq_llama
+        is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(wavelen > low_freq_wavelen)
+        inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
         embeddings_table = torch.zeros(n_position, d_hid)
-        if (scaling_factor is not None) and (scaling_factor != 1):
-            position = position / scaling_factor
-        embeddings_table[:, 0::2] = torch.sin(position * inv_freq)
-        embeddings_table[:, 1::2] = torch.cos(position * inv_freq)
+        # 这里factor置为1,所以注释下面两行
+        # if (scaling_factor is not None) and (scaling_factor != 1):
+        #     position = position / scaling_factor
+        embeddings_table[:, 0::2] = torch.sin(position * inv_freq_llama)
+        embeddings_table[:, 1::2] = torch.cos(position * inv_freq_llama)
         return embeddings_table    
 
 
