@@ -21,7 +21,7 @@ model = build_transformer_model(checkpoint_path=model_dir, device_map="auto")
 
 while True:
     query = input('User: ')
-    query = 'If I had to write a haiku for this one, it would be: '
+    # query = 'If I had to write a haiku for this one, it would be: '
     messages = [
         {"role": "user", "content": [
             {"type": "image"},
