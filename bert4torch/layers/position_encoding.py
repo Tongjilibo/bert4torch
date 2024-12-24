@@ -5,24 +5,15 @@ import torch.nn.functional as F
 from typing import Union, List, Literal, Optional
 
 
-def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
-                                scaling_factor:float=1.0, padding_idx:Optional[int]=None):
+def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, padding_idx:Optional[int]=None):
     ''' sinusoid编码
         
         :param n_position: int, 位置长度
         :param d_hid: int, 位置编码长度
         :param padding_idx: padding的token_ids
-        :param ntk_alpha: int, 要扩展的倍数
-        :param scaling_factor: int, chatglm中32k的插值
         :return: [seq_len, d_hid]
-    '''
-    if (ntk_alpha is not None) and (ntk_alpha != 1):
-        base = base * ntk_alpha ** (d_hid / (d_hid-2))
-    
-    inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
-    if (scaling_factor is not None) and (scaling_factor != 1):
-        inv_freq = inv_freq / scaling_factor
-    
+    '''   
+    inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))    
     position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
     embeddings_table = torch.zeros(n_position, d_hid)
     embeddings_table[:, 0::2] = torch.sin(position * inv_freq)
@@ -213,6 +204,7 @@ class RopePositionEncoding(nn.Module):
         if dtype is not None:
             inv_freq = inv_freq.to(dtype)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.inv_freq:torch.Tensor
 
     def rotate_and_compute(self, x, cos, sin):
         # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
@@ -225,33 +217,44 @@ class RopePositionEncoding(nn.Module):
             x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
         return x * cos + x2 * sin
     
-    def compute_cos_sin(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids, seq_len, seq_dim):
-        '''计算cos和sin'''
+    def compute_cos_sin(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor, seq_len:int, seq_dim):
+        '''计算cos和sin
+        param position_ids: [..., btz, seq_len]
+        '''
         q:torch.Tensor = qk[0] if isinstance(qk, list) else qk
         if position_ids is None:
             position_ids = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(0)
-   
-        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
-        position_ids_expanded = position_ids[:, None, :].float()
         device_type = q.device.type
         device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+
+        # 兼容position_ids传入不同的维度
+        # if pos_dim == 2:  # 一般的rope
+        #     inv_freq_expanded = self.inv_freq[None, :, None]
+        # elif pos_dim == 3:  # qwen2_vl
+        #     inv_freq_expanded = self.inv_freq[None, None, :, None]
+        pos_dim = position_ids.dim()
+        inv_freq_expanded:torch.Tensor = self.inv_freq
+        for i in range(pos_dim+1):
+            if i != pos_dim-1:
+                inv_freq_expanded = inv_freq_expanded.unsqueeze(i)
+
+        inv_freq_expanded = inv_freq_expanded.float().expand(*position_ids.shape[:pos_dim-1], -1, 1)
+        position_ids_expanded = position_ids.unsqueeze(-2).float()
+
         with torch.autocast(device_type=device_type, enabled=False):
-            emb = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+            emb = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(pos_dim-1, pos_dim)
             cos:torch.Tensor = emb.cos()
             sin:torch.Tensor = emb.sin()
 
         if self.rope_rank == 'adjacent':
             # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
-            cos = cos.repeat_interleave(2, dim=-1)  # [btz, seq_len, hdsz]
-            sin = sin.repeat_interleave(2, dim=-1)  # [btz, seq_len, hdsz]
+            cos = cos.repeat_interleave(2, dim=-1)  # [..., seq_len, hdsz]
+            sin = sin.repeat_interleave(2, dim=-1)  # [..., seq_len, hdsz]
         elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
             # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
-            cos = torch.cat((cos, cos), dim=-1)  # [btz, seq_len, hdsz]
-            sin = torch.cat((sin, sin), dim=-1)  # [btz, seq_len, hdsz]
+            cos = torch.cat((cos, cos), dim=-1)  # [..., seq_len, hdsz]
+            sin = torch.cat((sin, sin), dim=-1)  # [..., seq_len, hdsz]
 
-        if cos.dim() < q.dim():
-            cos = cos.unsqueeze(seq_dim-1)
-            sin = sin.unsqueeze(seq_dim-1)
         return cos.to(dtype=q.dtype), sin.to(dtype=q.dtype)
 
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
@@ -269,12 +272,12 @@ class RopePositionEncoding(nn.Module):
                 seq_len = qk[0].shape[seq_dim]
             elif isinstance(qk, torch.Tensor):
                 seq_len = qk.shape[seq_dim]
-        
-        # 超长了则重新设置cache
+
+        # 超过缓存长度则重新设置cache
         if seq_len > self.max_seq_len_cache:
             self.max_seq_len_cache = seq_len
             self._set_inv_freq_cache(seq_len, device, dtype)
-        if self.inv_freq.dtype != dtype:
+        if (self.inv_freq.dtype != dtype) or (self.inv_freq.device != device):
             self._register_buffer(self.inv_freq, device, dtype)
         
         # 计算cos和sin
@@ -356,7 +359,7 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
     def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
         base = self.rope_theta
         if (self.ntk_alpha is not None) and (self.ntk_alpha != 1):
-            base = base * self.ntk_alpha ** (self.embedding_siz / (self.embedding_siz-2))
+            base = base * self.ntk_alpha ** (self.embedding_size / (self.embedding_size-2))
         
         inv_freq = torch.exp(torch.arange(0, self.embedding_size, 2).float() * (-math.log(base) / self.embedding_size))
 
