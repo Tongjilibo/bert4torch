@@ -306,8 +306,8 @@ class GAULayer(nn.Module):
         self.gau = GatedAttention(**kwargs)
         self.dropout_rate = kwargs.get('dropout_rate')
         self.attnLayerNorm = LayerNorm(**kwargs)
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
-        gau_hidden_states = self.gau(hidden_states, attention_mask)
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, position_ids=None, **model_kwargs):
+        gau_hidden_states = self.gau(hidden_states, attention_mask, position_ids)
         hidden_states = hidden_states + F.dropout(gau_hidden_states, p=self.dropout_rate, training=self.training)
         hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
         model_kwargs['hidden_states'] = hidden_states

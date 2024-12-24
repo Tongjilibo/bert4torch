@@ -637,7 +637,7 @@ class RopeAttention(MultiHeadAttention):
             kv_seq_len += past_key_value[0].shape[-2]
         
         # 执行相对位置编码
-        query_states, key_states = self.relative_positions_encoding([query_states, key_states], position_ids, kv_seq_len)
+        query_states, key_states = self.relative_positions_encoding([query_states, key_states], position_ids)
         
         # 过了rope再concat
         if past_key_value is not None:
@@ -673,7 +673,7 @@ class GatedAttention(nn.Module):
         if self.p_bias == 'rotary':  # RoPE
             self.relative_positions_encoding = RopePositionEncoding(embedding_size=self.attention_head_size, **kwargs)
 
-    def forward(self, hidden_states, attention_mask):
+    def forward(self, hidden_states, attention_mask, position_ids):
         # 投影变换
         hidden_states = self.hidden_fn(self.i_dense(hidden_states))
         u, v, qk = hidden_states.split([self.intermediate_size, self.intermediate_size, self.attention_head_size], dim=-1)
@@ -681,8 +681,8 @@ class GatedAttention(nn.Module):
 
         # 加入RoPE
         if self.p_bias == 'rotary':
-            q = self.relative_positions_encoding(q)
-            k = self.relative_positions_encoding(k)
+            q = self.relative_positions_encoding(q, position_ids)
+            k = self.relative_positions_encoding(k, position_ids)
 
         # Attention
         attention_scores = torch.einsum('b i d, b j d -> b i j', q, k)  # [btz, seq_len, seq_len]
@@ -919,7 +919,7 @@ class DeepseekV2Attention(MultiHeadAttention):
         if past_key_value is not None:
             kv_seq_len += past_key_value[0].shape[-2]
         
-        q_pe, k_pe = self.relative_positions_encoding([q_pe, k_pe], position_ids, kv_seq_len)
+        q_pe, k_pe = self.relative_positions_encoding([q_pe, k_pe], position_ids)
         k_pe : torch.Tensor
         query_states = k_pe.new_empty(bsz, self.num_attention_heads, q_len, self.q_head_dim)
         query_states[:, :, :, : self.qk_nope_head_dim] = q_nope

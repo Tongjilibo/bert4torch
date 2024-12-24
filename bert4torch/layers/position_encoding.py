@@ -217,26 +217,25 @@ class RopePositionEncoding(nn.Module):
             x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
         return x * cos + x2 * sin
     
-    def compute_cos_sin(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor, seq_len:int, seq_dim):
+    def compute_cos_sin(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor):
         '''计算cos和sin
         param position_ids: [..., btz, seq_len]
         '''
         q:torch.Tensor = qk[0] if isinstance(qk, list) else qk
-        if position_ids is None:
-            position_ids = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(0)
         device_type = q.device.type
         device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
 
         # 兼容position_ids传入不同的维度
-        # if pos_dim == 2:  # 一般的rope
-        #     inv_freq_expanded = self.inv_freq[None, :, None]
-        # elif pos_dim == 3:  # qwen2_vl
-        #     inv_freq_expanded = self.inv_freq[None, None, :, None]
         pos_dim = position_ids.dim()
-        inv_freq_expanded:torch.Tensor = self.inv_freq
-        for i in range(pos_dim+1):
-            if i != pos_dim-1:
-                inv_freq_expanded = inv_freq_expanded.unsqueeze(i)
+        if pos_dim == 2:  # 一般的rope
+            inv_freq_expanded = self.inv_freq[None, :, None]
+        elif pos_dim == 3:  # qwen2_vl
+            inv_freq_expanded = self.inv_freq[None, None, :, None]
+        else:  # 通用的
+            inv_freq_expanded:torch.Tensor = self.inv_freq
+            for i in range(pos_dim+1):
+                if i != pos_dim-1:
+                    inv_freq_expanded = inv_freq_expanded.unsqueeze(i)
 
         inv_freq_expanded = inv_freq_expanded.float().expand(*position_ids.shape[:pos_dim-1], -1, 1)
         position_ids_expanded = position_ids.unsqueeze(-2).float()
@@ -257,23 +256,15 @@ class RopePositionEncoding(nn.Module):
 
         return cos.to(dtype=q.dtype), sin.to(dtype=q.dtype)
 
-    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
+    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor):
         '''修改了原有的q和k重复走一遍embedding，实现加速'''
         if isinstance(qk, list):
             device, dtype = qk[0].device, qk[0].dtype
         else:
             device, dtype = qk.device, qk.dtype
 
-        # 超过缓存长度
-        if seq_len is None:
-            if position_ids is not None:
-                seq_len = position_ids.max() + 1
-            elif isinstance(qk, list):
-                seq_len = qk[0].shape[seq_dim]
-            elif isinstance(qk, torch.Tensor):
-                seq_len = qk.shape[seq_dim]
-
         # 超过缓存长度则重新设置cache
+        seq_len = position_ids.max() + 1
         if seq_len > self.max_seq_len_cache:
             self.max_seq_len_cache = seq_len
             self._set_inv_freq_cache(seq_len, device, dtype)
@@ -281,7 +272,7 @@ class RopePositionEncoding(nn.Module):
             self._register_buffer(self.inv_freq, device, dtype)
         
         # 计算cos和sin
-        cos, sin = self.compute_cos_sin(qk, position_ids, seq_len, seq_dim)
+        cos, sin = self.compute_cos_sin(qk, position_ids)
 
         if isinstance(qk, list):
             return [self.rotate_and_compute(x, cos, sin) for x in qk]
@@ -460,8 +451,8 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)  # rotate_half
         return x * cos + x2 * sin
 
-    def compute_cos_sin(self, qk, position_ids, seq_len, seq_dim):
-        cos, sin =  super().compute_cos_sin(qk, position_ids, seq_len, seq_dim)
+    def compute_cos_sin(self, qk, position_ids):
+        cos, sin =  super().compute_cos_sin(qk, position_ids)
         cos = cos * self._mscale
         sin = sin * self._mscale
         return cos, sin
@@ -473,8 +464,8 @@ class RopeMropePositionEncoding(RopePositionEncoding):
         super().__init__(*args, **kwargs)
         self.mrope_section = kwargs.get('mrope_section')
 
-    def compute_cos_sin(self, qk, position_ids, seq_len, seq_dim):
-        cos, sin =  super().compute_cos_sin(qk, position_ids, seq_len, seq_dim)
+    def compute_cos_sin(self, qk, position_ids):
+        cos, sin =  super().compute_cos_sin(qk, position_ids)
         mrope_section = self.mrope_section * 2
         cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
         sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
