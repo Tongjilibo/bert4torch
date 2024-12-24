@@ -652,7 +652,13 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         if model.training:
             model.eval()
-        kwargs = self._default_generation_config(tokenizer, model, kwargs)  # 对部分参数进行默认设置
+        
+        if hasattr(model, 'config'):  # 从model.config中解析出generation_config和tokenizer_config
+            generation_config = model.config.get('generation_config', dict())
+            tokenizer_config = {**generation_config.pop('tokenizer_config', dict()), 
+                                **(tokenizer_config if tokenizer_config else dict())}
+            kwargs.update({k:v for k, v in generation_config.items() if k not in kwargs})
+        kwargs = self._default_generation_config(tokenizer, model, **kwargs)  # 对部分参数进行默认设置
         super().__init__(**kwargs)
 
         self.encoder = None
@@ -676,7 +682,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         self.set_generation_config(kwargs)
     
     @staticmethod
-    def _default_generation_config(tokenizer, model, kwargs):
+    def _default_generation_config(tokenizer, model, **kwargs):
         # 可以直接以generation_config方式传参, 也可以top_p=0.9, top_k=50方式传参
         if kwargs.get('generation_config'):
             generation_config = kwargs.pop('generation_config')

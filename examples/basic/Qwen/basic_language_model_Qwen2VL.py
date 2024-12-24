@@ -74,7 +74,7 @@ def chat_demo1():
 def chat_demo2():
     demo = ChatVL(model_dir, 
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
-                mode='openai',
+                mode='gradio',
                 template='qwen2_vl'
                 )
     demo.run()

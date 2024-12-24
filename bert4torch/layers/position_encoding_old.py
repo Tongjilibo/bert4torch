@@ -194,25 +194,35 @@ class RopePositionEncoding(nn.Module):
         self.rope_theta = rope_theta or 10000.0
         self.max_position = max_position  # 原始支持的最大长度
         self.max_seq_len_cache = max_position  # 推理过程中遇到的最大长度max(seq_len, max_position)
-        self._set_inv_freq_cache(max_position, device=device, dtype=torch.get_default_dtype())  # 这里没有直接设置到max_position，因为容易占显存
+        self._set_cos_sin_cache(max_position, device=device, dtype=torch.get_default_dtype())  # 这里没有直接设置到max_position，因为容易占显存
     
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
-        base = self.rope_theta
-        if (self.ntk_alpha is not None) and (self.ntk_alpha != 1):
-            base = base * self.ntk_alpha ** (self.embedding_size / (self.embedding_size-2))
-        
-        inv_freq = torch.exp(torch.arange(0, self.embedding_size, 2).float() * (-math.log(base) / self.embedding_size))
-        if (self.scaling_factor is not None) and (self.scaling_factor != 1):
-            inv_freq = inv_freq / self.scaling_factor
+    def get_sinusoid_encoding_table(self, n_position:int, d_hid:int, base:float=10000.0, ntk_alpha:float=1.0, 
+                                     scaling_factor:float=1.0, padding_idx:Optional[int]=None):
+        '''这里重新定义主要是为了后续继承'''
+        return get_sinusoid_encoding_table(n_position, d_hid, base, ntk_alpha=ntk_alpha, scaling_factor=scaling_factor)
 
-        self._register_buffer(inv_freq, device, dtype)
+    def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
+        position_embeddings = self.get_sinusoid_encoding_table(seq_len, self.embedding_size, base=self.rope_theta,
+                                                               ntk_alpha=self.ntk_alpha, scaling_factor=self.scaling_factor)  # [seq_len, hdsz]
 
-    def _register_buffer(self, inv_freq, device=None, dtype=None):
+        if self.rope_rank == 'adjacent':
+            # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
+            cos_cache = position_embeddings[:, 1::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+            sin_cache = position_embeddings[:, ::2].repeat_interleave(2, dim=-1)  # [seq_len, hdsz]
+        elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
+            # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
+            cos_cache = position_embeddings[:, 1::2].repeat(1,2)  # [seq_len, hdsz]
+            sin_cache = position_embeddings[:, ::2].repeat(1,2)  # [seq_len, hdsz]
+
+        self._register_buffer(cos_cache, sin_cache, device, dtype)
+
+    def _register_buffer(self, cos_cache, sin_cache, device=None, dtype=None):
         if device is not None:
-            inv_freq = inv_freq.to(device)
+            cos_cache, sin_cache = cos_cache.to(device), sin_cache.to(device)
         if dtype is not None:
-            inv_freq = inv_freq.to(dtype)
-        self.register_buffer("inv_freq", inv_freq, persistent=False)
+            cos_cache, sin_cache = cos_cache.to(dtype), sin_cache.to(dtype)
+        self.register_buffer("cos_cache", cos_cache, persistent=False)
+        self.register_buffer("sin_cache", sin_cache, persistent=False)
 
     def rotate_and_compute(self, x, cos, sin):
         # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
@@ -225,35 +235,6 @@ class RopePositionEncoding(nn.Module):
             x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
         return x * cos + x2 * sin
     
-    def compute_cos_sin(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids, seq_len, seq_dim):
-        '''计算cos和sin'''
-        q:torch.Tensor = qk[0] if isinstance(qk, list) else qk
-        if position_ids is None:
-            position_ids = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(0)
-   
-        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
-        position_ids_expanded = position_ids[:, None, :].float()
-        device_type = q.device.type
-        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
-        with torch.autocast(device_type=device_type, enabled=False):
-            emb = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
-            cos:torch.Tensor = emb.cos()
-            sin:torch.Tensor = emb.sin()
-
-        if self.rope_rank == 'adjacent':
-            # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
-            cos = cos.repeat_interleave(2, dim=-1)  # [btz, seq_len, hdsz]
-            sin = sin.repeat_interleave(2, dim=-1)  # [btz, seq_len, hdsz]
-        elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
-            # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
-            cos = cos.repeat(1,1,2)  # [btz, seq_len, hdsz]
-            sin = sin.repeat(1,1,2)  # [btz, seq_len, hdsz]
-
-        if cos.dim() < q.dim():
-            cos = cos.unsqueeze(seq_dim-1)
-            sin = sin.unsqueeze(seq_dim-1)
-        return cos.to(dtype=q.dtype), sin.to(dtype=q.dtype)
-
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
         '''修改了原有的q和k重复走一遍embedding，实现加速'''
         if isinstance(qk, list):
@@ -273,12 +254,22 @@ class RopePositionEncoding(nn.Module):
         # 超长了则重新设置cache
         if seq_len > self.max_seq_len_cache:
             self.max_seq_len_cache = seq_len
-            self._set_inv_freq_cache(seq_len, device, dtype)
-        if self.inv_freq.dtype != dtype:
-            self._register_buffer(self.inv_freq, device, dtype)
+            self._set_cos_sin_cache(seq_len, device, dtype)
+        if (self.cos_cache.dtype != dtype) or (self.cos_cache.device != device):
+            self._register_buffer(self.cos_cache, self.sin_cache, device, dtype)
         
-        # 计算cos和sin
-        cos, sin = self.compute_cos_sin(qk, position_ids, seq_len, seq_dim)
+        # 传入position_ids来获取cos和sin, 主要是在use_states时候能直接取到对应位置的编码
+        if position_ids is not None:
+            # position_ids: [btz, seq_len]
+            cos = F.embedding(position_ids, self.cos_cache)  # [btz, seq_len, hdsz]
+            sin = F.embedding(position_ids, self.sin_cache)
+        else:
+            cos = self.cos_cache[:seq_len]  # [seq_len, hdsz]
+            sin = self.sin_cache[:seq_len]
+
+        if cos.dim() < qk[0].dim() if isinstance(qk, list) else qk.dim():
+            cos = cos.unsqueeze(seq_dim-1)
+            sin = sin.unsqueeze(seq_dim-1)
 
         if isinstance(qk, list):
             return [self.rotate_and_compute(x, cos, sin) for x in qk]
@@ -289,7 +280,6 @@ class RopePositionEncoding(nn.Module):
 class RopeLinearScalingPositionEncoding(RopePositionEncoding):
     '''使用linear scaling的rope, scaling_factor != 1的时候生效'''
     pass
-
 
 class RopeGlmPositionEncoding(RopePositionEncoding):
     '''GLM对应的rope编码'''
@@ -333,10 +323,10 @@ class RopeDynamicNTKScalingPositionEncoding(RopePositionEncoding):
         scaling_factor = 1.0  # 仅在超长时候能使用的到
         super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
 
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
+    def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
         # 根据transformer中llama代码，dynamic时候需要seq_len > self.max_seq_len_cache才执行scaling_factor
         self.ntk_alpha = (self.scaling_factor_raw * seq_len / self.max_position) - (self.scaling_factor_raw - 1)
-        return super()._set_inv_freq_cache(seq_len, device, dtype)
+        return super()._set_cos_sin_cache(seq_len, device, dtype)
 
 
 class RopeLlama3PositionEncoding(RopePositionEncoding):
@@ -353,12 +343,14 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
         self.old_context_len = kwargs["original_max_position_embeddings"]  # `8192` in the original implementation
         super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
 
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
-        if (self.ntk_alpha is not None) and (self.ntk_alpha != 1):
-            base = base * self.ntk_alpha ** (self.embedding_siz / (self.embedding_siz-2))
+    def get_sinusoid_encoding_table(self, n_position: int, d_hid: int, base: float = 10000, ntk_alpha: float = 1, 
+                                    scaling_factor: float = 1, padding_idx:Optional[int]=None):
+        if (ntk_alpha is not None) and (ntk_alpha != 1):
+            base = base * ntk_alpha ** (d_hid / (d_hid-2))
         
         scaling_factor = scaling_factor or 1
-        inv_freq = torch.exp(torch.arange(0, self.embedding_size, 2).float() * (-math.log(base) / self.embedding_size))
+        position = torch.arange(0, n_position, dtype=torch.float).unsqueeze(1)
+        inv_freq = torch.exp(torch.arange(0, d_hid, 2).float() * (-math.log(base) / d_hid))
 
         low_freq_wavelen = self.old_context_len / self.low_freq_factor
         high_freq_wavelen = self.old_context_len / self.high_freq_factor
@@ -373,18 +365,23 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
         is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(wavelen > low_freq_wavelen)
         inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
-        self._register_buffer(inv_freq, device, dtype)
-        return inv_freq_llama    
+        embeddings_table = torch.zeros(n_position, d_hid)
+        # 这里factor置为1,所以注释下面两行
+        # if (scaling_factor is not None) and (scaling_factor != 1):
+        #     position = position / scaling_factor
+        embeddings_table[:, 0::2] = torch.sin(position * inv_freq_llama)
+        embeddings_table[:, 1::2] = torch.cos(position * inv_freq_llama)
+        return embeddings_table    
 
 
 class RopeDynamicNTKScalingQwenPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope (Qwen版)'''
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
+    def _set_cos_sin_cache(self, seq_len, device=None, dtype=None):
         context_value = math.log(seq_len / self.max_position, 2) + 1
         ntk_alpha = max(2 ** math.ceil(context_value) - 1, 1)
         if ntk_alpha != self.ntk_alpha:
             self.ntk_alpha = ntk_alpha
-        return super()._set_inv_freq_cache(seq_len, device, dtype)
+        return super()._set_cos_sin_cache(seq_len, device, dtype)
 
 
 class RopeYarnPositionEncoding(RopePositionEncoding):
@@ -436,7 +433,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         ramp_func = torch.clamp(linear_func, 0, 1)
         return ramp_func
 
-    def _set_inv_freq_cache(self, seq_len, device='cpu', dtype=torch.float32):
+    def _set_cos_sin_cache(self, seq_len, device='cpu', dtype=torch.float32):
         self.max_seq_len_cache = seq_len
         dim = self.embedding_size
 
@@ -448,8 +445,14 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         inv_freq = freq_inter * (1 - inv_freq_mask) + freq_extra * inv_freq_mask
         # self.register_buffer("inv_freq", inv_freq, persistent=False)
 
-        self._mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
-        self._register_buffer(inv_freq, device, dtype)
+        t = torch.arange(seq_len, device=device, dtype=torch.float32)
+        freqs = torch.outer(t, inv_freq)
+
+        _mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
+
+        emb = torch.cat((freqs, freqs), dim=-1)
+        self.register_buffer("cos_cache", (emb.cos() * _mscale).to(dtype), persistent=False)
+        self.register_buffer("sin_cache", (emb.sin() * _mscale).to(dtype), persistent=False)
 
     def rotate_and_compute(self, x, cos, sin):
         b, h, s, d = x.shape
@@ -457,25 +460,55 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)  # rotate_half
         return x * cos + x2 * sin
 
-    def compute_cos_sin(self, qk, position_ids, seq_len, seq_dim):
-        cos, sin =  super().compute_cos_sin(qk, position_ids, seq_len, seq_dim)
-        cos = cos * self._mscale
-        sin = sin * self._mscale
-        return cos, sin
-    
-
 class RopeMropePositionEncoding(RopePositionEncoding):
     '''qwen2vl中使用'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.mrope_section = kwargs.get('mrope_section')
 
-    def compute_cos_sin(self, qk, position_ids, seq_len, seq_dim):
-        cos, sin =  super().compute_cos_sin(qk, position_ids, seq_len, seq_dim)
+    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
+        if isinstance(qk, list):
+            device, dtype = qk[0].device, qk[0].dtype
+        else:
+            device, dtype = qk.device, qk.dtype
+
+        # 超过缓存长度
+        if seq_len is None:
+            if position_ids is not None:
+                seq_len = position_ids.max() + 1
+            elif isinstance(qk, list):
+                seq_len = qk[0].shape[seq_dim]
+            elif isinstance(qk, torch.Tensor):
+                seq_len = qk.shape[seq_dim]
+        
+        # 超长了则重新设置cache
+        if seq_len > self.max_seq_len_cache:
+            self.max_seq_len_cache = seq_len
+            self._set_cos_sin_cache(seq_len, device, dtype)
+        if (self.cos_cache.dtype != dtype) or (self.cos_cache.device != device):
+            self._register_buffer(self.cos_cache, self.sin_cache, device, dtype)
+        
+        # 传入position_ids来获取cos和sin, 主要是在use_states时候能直接取到对应位置的编码
+        if position_ids is not None:
+            # position_ids: [btz, seq_len]
+            cos = F.embedding(position_ids, self.cos_cache)  # [btz, seq_len, hdsz]
+            sin = F.embedding(position_ids, self.sin_cache)
+        else:
+            cos = self.cos_cache[:seq_len]  # [seq_len, hdsz]
+            sin = self.sin_cache[:seq_len]
+
+        if cos.dim() < qk[0].dim() if isinstance(qk, list) else qk.dim():
+            cos = cos.unsqueeze(seq_dim-1)
+            sin = sin.unsqueeze(seq_dim-1)
+
         mrope_section = self.mrope_section * 2
         cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
         sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
-        return cos, sin
+
+        if isinstance(qk, list):
+            return [self.rotate_and_compute(x, cos, sin) for x in qk]
+        else:
+            return self.rotate_and_compute(qk, cos, sin)
 
         
 ROPE_ENCODGING_MAP = {
