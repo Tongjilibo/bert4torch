@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import numpy as np
 import warnings
 import math
@@ -13,8 +13,10 @@ from torch.nn.init import trunc_normal_, constant_, xavier_normal_, xavier_unifo
 
 try:
     from transformers.integrations import is_deepspeed_zero3_enabled
+    from torch._numpy._dtypes import DType
 except:
-    pass
+    class DType:
+        pass
 
 
 def get_2d_sincos_pos_embed(embed_dim, image_size):
