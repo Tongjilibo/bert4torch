@@ -8,6 +8,7 @@ from bert4torch.models.deberta import DebertaV2
 from bert4torch.models.electra import ELECTRA
 from bert4torch.models.ernie import ERNIE
 from bert4torch.models.gau_alpha import GAU_alpha
+from bert4torch.models.modernbert import ModernBert
 from bert4torch.models.glm import GLM, GLM2
 from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
 from bert4torch.models.llama import LLaMA, Baichuan, MiniCPM
@@ -142,6 +143,7 @@ def build_transformer_model(
         'electra': ELECTRA,
         'ernie': ERNIE,
         'deberta_v2': DebertaV2,
+        'modernbert': ModernBert,
         'uie': UIE,
         'encoder': Encoder,
         'decoder': Decoder,

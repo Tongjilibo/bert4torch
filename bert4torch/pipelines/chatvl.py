@@ -583,12 +583,55 @@ class Qwen2VL(ChatVLBase):
         return inputs
 
 
+class Mllama(ChatVLBase):
+    def build_prompt(
+            self,
+            queries: Union[str, List[str]], 
+            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]]=None, 
+            vedios=None,
+            history: List[Dict]=None, 
+            functions:List[dict]=None,
+            **kwargs
+        ):
+        if hasattr(self, 'system') and not history:
+            history.append({'role': 'system', 'content': self.system})
+        queries, images = trans_query_images_tolist(queries, images)
+
+        all_messages = []
+        for query, image in zip(queries, images):
+            messages = (copy.deepcopy(history) or [] or []) + [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": query}]
+                }]
+            if image is None:
+                pass
+            elif isinstance(image, list):
+                messages[-1]['content'] = [{"type": "image", "image": i} for i in image] + messages[-1]['content']
+            else:
+                messages[-1]['content'] = [{"type": "image", "image": image}] + messages[-1]['content']
+            all_messages.append(messages)
+
+        input_text = self.processor.apply_chat_template(messages, add_generation_prompt=True)
+        inputs = self.processor(
+            image,
+            input_text,
+            add_special_tokens=False,
+            return_tensors="pt"
+        ).to(self.device)
+        history.append({'role': 'user', 'content': queries[0]})
+        if all([i is not None for i in images]):
+            history[-1]['images'] = images
+        return inputs
+    
+
 # ==========================================================================================
 # =======================                统一Chat入口             ==========================
 # ==========================================================================================
 MAPPING = {
     'minicpmv': MiniCPMV,
-    'qwen2_vl': Qwen2VL
+    'qwen2_vl': Qwen2VL,
+    'mllama': Mllama
 }
 
 class ChatVL:
