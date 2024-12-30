@@ -982,6 +982,27 @@ class MllamaTextCrossAttention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
 
 
+class ModernBertAttention(MultiHeadAttention):
+    def init_position_encoding(self, **kwargs):
+        if self.layer_idx % kwargs['global_attn_every_n_layers'] != 0:
+            self.local_attention = (kwargs['local_attention'] // 2, kwargs['local_attention'] // 2)
+        else:
+            self.local_attention = (-1, -1)
+
+        kwargs['rope_theta'] = kwargs['global_rope_theta']
+        self.max_position = kwargs['max_position_embeddings']
+        if self.local_attention != (-1, -1):
+            if kwargs['local_rope_theta'] is not None:
+                kwargs['rope_theta'] = kwargs['local_rope_theta']
+            self.max_position = kwargs['local_attention']
+        super().init_position_encoding(**kwargs)
+
+    def forward(self, *args, attention_mask=None, sliding_window_mask=None, **model_kwargs):
+        if self.local_attention != (-1, -1):
+            attention_mask = sliding_window_mask
+        return super().forward(*args, attention_mask=attention_mask, **model_kwargs)
+
+
 ATTENTION_MAP = {
     'MultiHeadAttention': MultiHeadAttention,
     'GatedAttention': GatedAttention,
@@ -993,6 +1014,7 @@ ATTENTION_MAP = {
     'RopeAttention': RopeAttention,
     'T5Attention': T5Attention,
     'MllamaTextCrossAttention': MllamaTextCrossAttention,
+    'ModernBertAttention': ModernBertAttention,
 
     # 下面是以p_bias为key
     'deberta_v2': DebertaV2Attention,

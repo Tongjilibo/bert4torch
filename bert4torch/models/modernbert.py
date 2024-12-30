@@ -1,14 +1,41 @@
 from bert4torch.models.bert import BERT
-from torch import nn
 import torch
+try:
+    from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
+except:
+    pass
 
 
 class ModernBert(BERT):
     def __init__(self, *args, **kwargs):
-        kwargs.update({'mlp_type': 'LlamaFeedForward', 'bias':False, 'p_bias': 'rotary'})
+        kwargs.update({'mlp_type': 'LlamaFeedForward', 'bias':False, 'p_bias': 'rotary',
+                       'attn_type': 'ModernBertAttention'})
         super(ModernBert, self).__init__(*args, **kwargs)
         self.model_type = 'modernbert'
+        self.local_attention = kwargs['local_attention']
 
+    def _update_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
+        global_attention_mask = _prepare_4d_attention_mask(attention_mask, self.dtype)
+
+        # Create position indices
+        rows = torch.arange(global_attention_mask.shape[2]).unsqueeze(0)
+        # Calculate distance between positions
+        distance = torch.abs(rows - rows.T)
+
+        # Create sliding window mask (1 for positions within window, 0 outside)
+        window_mask = (
+            (distance <= self.local_attention // 2).unsqueeze(0).unsqueeze(0).to(attention_mask.device)
+        )
+        # Combine with existing mask
+        sliding_window_mask = global_attention_mask.masked_fill(window_mask.logical_not(), torch.finfo(self.dtype).min)
+
+        return sliding_window_mask
+
+    def apply_embeddings(self, *inputs, **model_kwargs):
+        model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
+        model_kwargs['sliding_window_mask'] = self._update_attention_mask(model_kwargs['attention_mask'])
+        return model_kwargs
+    
     def load_trans_ckpt(self, checkpoint, prefix=''):
         state_dict = super().load_trans_ckpt(checkpoint)
         # weight bias
