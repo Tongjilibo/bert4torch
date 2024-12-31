@@ -10,7 +10,7 @@ import torch
 # config_path = root_model_path + "/bert4torch_config.json"
 # checkpoint_path = root_model_path + '/pytorch_model.bin'
 
-model_dir = "E:\data\pretrain_ckpt\ModernBERT\\answerdotai@ModernBERT-base"
+model_dir = "E:/data/pretrain_ckpt/ModernBERT/answerdotai@ModernBERT-base"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = 'cpu'
 text = "The capital of France is [MASK]."
@@ -18,7 +18,7 @@ text = "The capital of France is [MASK]."
 # ==========================bert4torch调用=========================
 # 建立分词器
 tokenizer = AutoTokenizer.from_pretrained(model_dir)
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, with_mlm='softmax').to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, with_mlm='softmax', verbose=2).to(device)  # 建立模型，加载权重
 
 inputs = tokenizer(text, return_tensors="pt")
 
@@ -28,7 +28,7 @@ with torch.no_grad():
     outputs = model(**inputs)
 
     masked_index = inputs["input_ids"][0].tolist().index(tokenizer.mask_token_id)
-    predicted_token_id = outputs.logits[0, masked_index].argmax(axis=-1)
+    predicted_token_id = outputs[-1][0, masked_index].argmax(axis=-1)
     predicted_token = tokenizer.decode(predicted_token_id)
     print("Predicted token:", predicted_token)
     # Predicted token:  Paris

@@ -982,7 +982,7 @@ class MllamaTextCrossAttention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
 
 
-class ModernBertAttention(MultiHeadAttention):
+class ModernBertAttention(RopeAttention):
     def init_position_encoding(self, **kwargs):
         if self.layer_idx % kwargs['global_attn_every_n_layers'] != 0:
             self.local_attention = (kwargs['local_attention'] // 2, kwargs['local_attention'] // 2)
@@ -997,10 +997,20 @@ class ModernBertAttention(MultiHeadAttention):
             self.max_position = kwargs['local_attention']
         super().init_position_encoding(**kwargs)
 
-    def forward(self, *args, attention_mask=None, sliding_window_mask=None, **model_kwargs):
+    def forward(self, 
+                hidden_states:Optional[torch.Tensor]=None, 
+                attention_mask:Optional[torch.FloatTensor]=None, 
+                encoder_hidden_states:Optional[torch.FloatTensor]=None, 
+                encoder_attention_mask:Optional[torch.FloatTensor]=None, 
+                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
+                position_ids=None, 
+                sliding_window_mask=None,
+                **model_kwargs
+        ):
         if self.local_attention != (-1, -1):
             attention_mask = sliding_window_mask
-        return super().forward(*args, attention_mask=attention_mask, **model_kwargs)
+        return super().forward(hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, 
+                               past_key_value=past_key_value, position_ids=position_ids)
 
 
 ATTENTION_MAP = {

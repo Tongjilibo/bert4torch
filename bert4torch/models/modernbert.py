@@ -32,8 +32,8 @@ class ModernBert(BERT):
         return sliding_window_mask
 
     def apply_embeddings(self, *inputs, **model_kwargs):
-        model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         model_kwargs['sliding_window_mask'] = self._update_attention_mask(model_kwargs['attention_mask'])
+        model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         return model_kwargs
     
     def load_trans_ckpt(self, checkpoint, prefix=''):
@@ -81,14 +81,15 @@ class ModernBert(BERT):
         }
         i = 0
         prefix_i = f'model.layers.{i}.'
-        mapping.update({f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attn.query.weight',
-                        f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attn.key.weight',
-                        f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'attn.value.weight',
-                        f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attn.dense.weight',
-                        # f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'mlp.Wi.weight',
-                        f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'mlp.Wo.weight',
-                        f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'mlp_norm.weight',
-                        })
+        mapping.update({
+            # f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attn.query.weight',
+            # f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attn.key.weight',
+            # f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'attn.value.weight',
+            # f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attn.dense.weight',
+            # f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'mlp.Wi.weight',
+            f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'mlp.Wo.weight',
+            f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'mlp_norm.weight',
+            })
 
         return mapping
 

@@ -256,6 +256,9 @@ class PreTrainedModel(nn.Module):
         if isinstance(checkpoints, str):
             self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 
                                         device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+        elif isinstance(checkpoints, (tuple, list)) and len(checkpoints)==1:
+            self.from_pretrained_single(checkpoints[0], mapping=mapping, skip_init=skip_init, 
+                                        device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
             all_missing_keys, all_over_keys = [], []
