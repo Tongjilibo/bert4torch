@@ -72,12 +72,12 @@ class DebertaV2(BERT):
         for del_key in ['nsp.weight', 'nsp.bias', 'embeddings.position_embeddings.weight', 'embeddings.segment_embeddings.weight']:
             del mapping[del_key]
         
-        # 把old_key中的部分关键字替换一下
+        # 把ckpt_key中的部分关键字替换一下
         rep_str = {'query': 'query_proj', 'key': 'key_proj', 'value': 'value_proj'}
         mapping_tmp = {}
-        for new_key, old_key in mapping.items():
+        for model_key, ckpt_key in mapping.items():
             for i, k in rep_str.items():
-                if i in old_key:
-                    mapping_tmp[new_key] = old_key.replace(i, k)
+                if i in ckpt_key:
+                    mapping_tmp[model_key] = ckpt_key.replace(i, k)
         mapping.update(mapping_tmp)
         return mapping

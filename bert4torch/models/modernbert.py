@@ -1,5 +1,7 @@
 from bert4torch.models.bert import BERT
 import torch
+from bert4torch.snippets import delete_arguments
+from bert4torch.layers import LayerNorm, BlockIdentity
 try:
     from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 except:
@@ -7,12 +9,22 @@ except:
 
 
 class ModernBert(BERT):
+    @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'mlp_type': 'LlamaFeedForward', 'bias':False, 'p_bias': 'rotary',
-                       'attn_type': 'ModernBertAttention'})
+                       'attn_type': 'ModernBertAttention', 'norm_mode': 'torch_buildin', 
+                       'pre_layernorm':True})
         super(ModernBert, self).__init__(*args, **kwargs)
         self.model_type = 'modernbert'
         self.local_attention = kwargs['local_attention']
+        self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), 
+                                        conditional_size=self.conditional_size, 
+                                        norm_mode=kwargs.get('norm_mode', 'torch_buildin'),
+                                        weight=kwargs.get('weight', True), 
+                                        bias=kwargs.get('bias', True))
+        self.encoderLayer[0].attnLayerNorm = BlockIdentity(return_args_index=set([0]))
+        self.mlmDense.register_parameter('bias', None)
+        self.mlmLayerNorm.register_parameter('bias', None)
 
     def _update_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
         global_attention_mask = _prepare_4d_attention_mask(attention_mask, self.dtype)
@@ -36,18 +48,23 @@ class ModernBert(BERT):
         model_kwargs = super().apply_embeddings(*inputs, **model_kwargs)
         return model_kwargs
     
+    def apply_final_layers(self, **model_kwargs):
+        last_hidden_state = model_kwargs['encoded_layers'][-1]
+        model_kwargs['encoded_layers'][-1] = self.LayerNormFinal(last_hidden_state)
+        return super().apply_final_layers(**model_kwargs)
+    
     def load_trans_ckpt(self, checkpoint, prefix=''):
         state_dict = super().load_trans_ckpt(checkpoint)
         # weight bias
         for i in range(self.num_hidden_layers):
-            old_key, new_key = f'model.layers.{i}.attn.Wqkv.weight', 'decoderLayer.{}.multiHeadAttention.{}.weight'
+            ckpt_key, model_key = f'model.layers.{i}.attn.Wqkv.weight', 'encoderLayer.{}.multiHeadAttention.{}.weight'
             # 如果当前ckpt不存在该key，则跳过
-            if (qkv := state_dict.get(old_key)) is None:
+            if (qkv := state_dict.get(ckpt_key)) is None:
                 continue
             qkv = torch.chunk(qkv, 3, dim=0)
             for i_k, i_v in zip(['q', 'k', 'v'], qkv):
-                state_dict[new_key.format(i, i_k)] = i_v
-            state_dict.pop(old_key)
+                state_dict[model_key.format(i, i_k)] = i_v
+            state_dict.pop(ckpt_key)
             
             mlp_Wi = state_dict.pop(f'model.layers.{i}.mlp.Wi.weight')
             intermediateDense, intermediateDense2 = torch.chunk(mlp_Wi, 2, dim=0)
@@ -59,12 +76,12 @@ class ModernBert(BERT):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
-            old_key, new_key = 'decoderLayer.{}.multiHeadAttention.{}.weight', f'model.layers.{i}.attn.Wqkv.weight'
+            model_key, ckpt_key = 'encoderLayer.{}.multiHeadAttention.{}.weight', f'model.layers.{i}.attn.Wqkv.weight'
             qkv = []
             for i_k in ['q', 'k', 'v']:
-                qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                qkv.append(state_dict.pop(model_key.format(i, i_k)))
             if qkv:
-                state_dict[new_key] = torch.cat(qkv)
+                state_dict[ckpt_key] = torch.cat(qkv)
             
             intermediateDense = state_dict[f'encoderLayer.{i}.feedForward.intermediateDense.weight']
             intermediateDense2 = state_dict[f'encoderLayer.{i}.feedForward.intermediateDense2.weight']
@@ -75,27 +92,26 @@ class ModernBert(BERT):
         mapping = {
             'embeddings.word_embeddings.weight': 'model.embeddings.tok_embeddings.weight',
             'embeddings.layerNorm.weight': 'model.embeddings.norm.weight',
+            'LayerNormFinal.weight': f'model.final_norm.weight',
             'mlmDense.weight': 'head.dense.weight',
             'mlmLayerNorm.weight': 'head.norm.weight',
             'mlmBias': 'decoder.bias'
         }
-        i = 0
-        prefix_i = f'model.layers.{i}.'
-        mapping.update({
-            # f'encoderLayer.{i}.multiHeadAttention.q.weight': prefix_i + 'attn.query.weight',
-            # f'encoderLayer.{i}.multiHeadAttention.k.weight': prefix_i + 'attn.key.weight',
-            # f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'attn.value.weight',
-            # f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attn.dense.weight',
-            # f'encoderLayer.{i}.feedForward.intermediateDense.weight': prefix_i + 'mlp.Wi.weight',
-            f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'mlp.Wo.weight',
-            f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'mlp_norm.weight',
-            })
+        for i in range(self.num_hidden_layers):
+            prefix_i = f'model.layers.{i}.'
+            mapping.update({
+                f'encoderLayer.{i}.multiHeadAttention.o.weight': prefix_i + 'attn.Wo.weight',
+                f'encoderLayer.{i}.feedForward.outputDense.weight': prefix_i + 'mlp.Wo.weight',
+                f'encoderLayer.{i}.ffnLayerNorm.weight': prefix_i + 'mlp_norm.weight',
+                })
+            if i > 0:
+                mapping[f'encoderLayer.{i}.attnLayerNorm.weight'] = prefix_i + 'attn_norm.weight'
 
         return mapping
 
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {
+        if ckpt_key in {
             'model.embeddings.tok_embeddings.weight',
             'predictions.bias',
             'predictions.decoder.weight',

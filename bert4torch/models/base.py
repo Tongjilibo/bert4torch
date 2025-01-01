@@ -186,41 +186,50 @@ class PreTrainedModel(nn.Module):
         # 加载模型文件, 并可专业些转换
         ckpt_state_dict = self.load_trans_ckpt(checkpoint)
         
+        state_dict_new = {}  # 用model_key作为key整理后的权重字典
+        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重ckpt_key名
+        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
+        needed_keys = []  # 所需要的全部的ckpt_key名
+        model_state_dict = self.state_dict()  # 模型的字典
+
         # 计算mapping
         mapping = mapping or self.variable_mapping()
         model_params = set([i[0] for i in self.named_parameters()])  # 可更新的变量
-        # 如果ckpt和model中同时存在，且不在预设的mapping中，则更新mapping
-        # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
         if isinstance(mapping, dict):
             for layer_name in model_params:
-                if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
+                if layer_name in mapping:
+                    continue
+                if layer_name in ckpt_state_dict:
+                    # 不在预设的mapping中, 但是ckpt和model中同时存在，则更新mapping
+                    # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
                     mapping.update({layer_name: layer_name})
+                else:
+                    # TODO: 不在预设的mapping中, 但是在model中
+                    # 如果权重文件只有一个，则这些参数随机初始化的，其实应该算missing_keys
+                    # 如果权重文件有多个，则这些参数可能在其shards中，这里添加到missing_keys，在外面统一清算
+                    missing_keys.append(layer_name)
         elif isinstance(mapping, Callable):
             mapping = {mapping(k):k for k in ckpt_state_dict}
         else:
             raise TypeError(f'Args `mapping`={type(mapping)} not supported')
 
-        state_dict_new = {}  # 用new_key作为key整理后的权重字典
-        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
-        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
-        needed_keys = []  # 所需要的全部的old_keys名
-        model_state_dict = self.state_dict()  # 模型的字典
-        for new_key, old_key in mapping.items():
+        # 加载parameter
+        for model_key, ckpt_key in mapping.items():
             # 1. mapping和model不一致则忽略，如with_nsp=False时候在mapping中有但是model中没有
-            if new_key not in model_state_dict:
+            if model_key not in model_state_dict:
                 continue
 
             # 2. model中有，且ckpt中有，正常加载
-            if old_key in ckpt_state_dict:
-                state_dict_new[new_key] = self.load_variable(ckpt_state_dict[old_key], old_key, new_key)
+            if ckpt_key in ckpt_state_dict:
+                state_dict_new[model_key] = self.load_variable(ckpt_state_dict[ckpt_key], ckpt_key, model_key)
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
-                if old_key in over_keys:
-                    over_keys.remove(old_key)
+                if ckpt_key in over_keys:
+                    over_keys.remove(ckpt_key)
             
             # 3. model中有，但ckpt中没有，即ckpt中缺失部分参数
             else:
-                missing_keys.append(old_key)
-            needed_keys.append(old_key)
+                missing_keys.append(ckpt_key)
+            needed_keys.append(ckpt_key)
         
         over_keys = list(over_keys)
         del ckpt_state_dict
@@ -261,21 +270,22 @@ class PreTrainedModel(nn.Module):
                                         device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
-            all_missing_keys, all_over_keys = [], []
+            all_needed_keys, all_missing_keys, all_over_keys = [], [], []
             tqdm_checkpoints = tqdm(checkpoints)
             for checkpoint in tqdm_checkpoints:
                 tqdm_checkpoints.set_description(f'Loading {os.path.basename(checkpoint)}')
                 missing_keys, over_keys, needed_keys = \
                     self.from_pretrained_single(checkpoint, mapping=mapping, skip_init=skip_init, 
                                                 device_map=device_map, torch_dtype=torch_dtype, verbose=0)
+                all_needed_keys.extend(needed_keys)
                 all_missing_keys.extend(missing_keys)
                 all_over_keys.extend(over_keys)
                 if checkpoint == checkpoints[-1]:
                     tqdm_checkpoints.set_description('Loading checkpoint shards')
                                              
             # 打印mixmatch keys
-            all_missing_keys = set(all_missing_keys).difference(set(needed_keys))
-            all_over_keys = set(all_over_keys).difference(set(needed_keys))
+            all_missing_keys = set(all_missing_keys).difference(set(all_needed_keys))
+            all_over_keys = set(all_over_keys).difference(set(all_needed_keys))
             self._print_mismatch_keys(all_missing_keys, all_over_keys, verbose)
 
         else:
@@ -325,11 +335,13 @@ class PreTrainedModel(nn.Module):
     def _print_mismatch_keys(missing_keys, over_keys, verbose):
         """打印mismatch keys"""
         if verbose != 0:
-            for key in missing_keys:  # model中有，但是ckpt中不存在
-                log_warn(f'`{key}` not found in pretrained checkpoints')
+            # model中有，但是ckpt中不存在
+            if missing_keys:
+                log_warn(f'`{missing_keys}` not found in pretrained checkpoints')
         if verbose > 1:
-            for key in over_keys:  # ckpt中存在，但是model中不存在
-                log_warn(f'`{key}` only exists in pretrained checkpoints but not in model parameters')
+            # ckpt中存在，但是model中不存在
+            if over_keys:
+                log_warn(f'`{over_keys}` only exists in pretrained checkpoints but not in model parameters')
 
     def save_trans_ckpt(self):
         """对state_dict进行转换

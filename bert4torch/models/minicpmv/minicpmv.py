@@ -147,8 +147,8 @@ class MiniCPMV(PreTrainedModelForDecoder):
         vllm_embedding = self.get_vllm_embedding(inputs[0], **model_kwargs)
         return self.llm(input_ids=vllm_embedding, **model_kwargs)
     
-    def load_variable(self, variable, old_key, new_key):
-        if old_key in {'llm.embeddings.word_embeddings.weight', 'llm.lm_head.weight'}:
+    def load_variable(self, variable, ckpt_key, model_key):
+        if ckpt_key in {'llm.embeddings.word_embeddings.weight', 'llm.lm_head.weight'}:
             return self.load_embeddings(variable)
         return variable
     

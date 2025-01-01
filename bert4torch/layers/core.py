@@ -32,6 +32,8 @@ class LayerNorm(nn.Module):
         # 兼容t5不包含bias项, 和t5使用的RMSnorm
         if bias:
             self.bias = nn.Parameter(torch.zeros(hidden_size))
+        else:
+            self.bias = None
         # 条件layernorm, 用于条件文本生成
         if conditional_size:
             # 这里采用全零初始化, 目的是在初始状态不干扰原来的预训练权重

@@ -169,14 +169,13 @@ class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, variable, old_key, new_key, prefix='decoder'):
+    def load_variable(self, variable, ckpt_key, model_key, prefix='decoder'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         mapping = self.variable_mapping()
 
-        if old_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
+        if ckpt_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
             return self.load_embeddings(variable)
-        elif new_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
-            # bert4torch中new_key相对固定, 能cover住绝大多数Decoder子类
+        elif model_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable

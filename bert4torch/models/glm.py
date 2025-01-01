@@ -38,15 +38,15 @@ class GLM(Decoder):
                 # int8和int4的weight_scale权重
                 f'{prefix}.layers.{i}.attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'  
             }
-            for old_key, new_key in mapping.items():
-                if (qkv := state_dict.get(old_key)) is None:
+            for ckpt_key, model_key in mapping.items():
+                if (qkv := state_dict.get(ckpt_key)) is None:
                     continue
                 qkv = torch.split(qkv, self.attention_head_size, 0)
                 q, k, v = qkv[0::3], qkv[1::3], qkv[2::3]
                 q, k, v = torch.cat(q), torch.cat(k), torch.cat(v)
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
-                    state_dict[new_key.format(i, i_k)] = i_v
-                state_dict.pop(old_key)
+                    state_dict[model_key.format(i, i_k)] = i_v
+                state_dict.pop(ckpt_key)
         return state_dict
     
     def save_trans_ckpt(self, prefix='transformer'):
@@ -59,13 +59,13 @@ class GLM(Decoder):
                 # int8和int4的weight_scale权重
                 'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{prefix}.layers.{i}.attention.query_key_value.weight_scale'
             }
-            for old_key, new_key in mapping.items():
+            for model_key, ckpt_key in mapping.items():
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
-                    if old_key.format(i, i_k) in state_dict:
-                        qkv.append(state_dict.pop(old_key.format(i, i_k)).split(self.attention_head_size, 0))
+                    if model_key.format(i, i_k) in state_dict:
+                        qkv.append(state_dict.pop(model_key.format(i, i_k)).split(self.attention_head_size, 0))
                 if qkv:
-                    state_dict[new_key] = torch.cat([torch.cat(i) for i in zip(*qkv)])
+                    state_dict[ckpt_key] = torch.cat([torch.cat(i) for i in zip(*qkv)])
         return state_dict
     
     def variable_mapping(self, prefix='transformer'):
@@ -196,14 +196,14 @@ class GLM2(GLM):
                 f'{prefix}.layers.{i}.self_attention.query_key_value.bias': 'decoderLayer.{}.multiHeadAttention.{}.bias',
                 f'{prefix}.layers.{i}.self_attention.query_key_value.weight_scale': 'decoderLayer.{}.multiHeadAttention.{}.weight_scale'
             }
-            for old_key, new_key in mapping.items():
-                if (qkv := state_dict.get(old_key)) is None:
+            for ckpt_key, model_key in mapping.items():
+                if (qkv := state_dict.get(ckpt_key)) is None:
                     continue
                 inner_dim = (qkv.shape[0]-self.hidden_size) // 2
                 q, k, v = torch.split(qkv, [self.hidden_size, inner_dim, inner_dim], 0)
                 for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
-                    state_dict[new_key.format(i, i_k)] = i_v
-                state_dict.pop(old_key)
+                    state_dict[model_key.format(i, i_k)] = i_v
+                state_dict.pop(ckpt_key)
         return state_dict
 
     def save_trans_ckpt(self, prefix='transformer.encoder'):
@@ -215,13 +215,13 @@ class GLM2(GLM):
                 'decoderLayer.{}.multiHeadAttention.{}.bias': f'{prefix}.layers.{i}.self_attention.query_key_value.bias',
                 'decoderLayer.{}.multiHeadAttention.{}.weight_scale': f'{prefix}.layers.{i}.self_attention.query_key_value.weight_scale'
             }
-            for old_key, new_key in mapping.items():
+            for model_key, ckpt_key in mapping.items():
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
-                    if old_key.format(i, i_k) in state_dict:
-                        qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                    if model_key.format(i, i_k) in state_dict:
+                        qkv.append(state_dict.pop(model_key.format(i, i_k)))
                 if qkv:
-                    state_dict[new_key] = torch.cat(qkv)
+                    state_dict[ckpt_key] = torch.cat(qkv)
         return state_dict
 
     def variable_mapping(self, prefix='transformer.encoder'):

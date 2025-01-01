@@ -149,8 +149,8 @@ class Mllama(PreTrainedModelForDecoder):
         return cross_attention_mask, full_text_row_masked_out_mask
 
 
-    def load_variable(self, variable, old_key, new_key):
-        if old_key in {'language_model.embeddings.word_embeddings.weight', 'language_model.lm_head.weight'}:
+    def load_variable(self, variable, ckpt_key, model_key):
+        if ckpt_key in {'language_model.embeddings.word_embeddings.weight', 'language_model.lm_head.weight'}:
             return self.load_embeddings(variable)
         return variable
     

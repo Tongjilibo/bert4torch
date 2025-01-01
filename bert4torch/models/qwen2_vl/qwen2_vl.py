@@ -70,8 +70,8 @@ class Qwen2VL(PreTrainedModelForDecoder):
         return self.model(input_ids=inputs_embeds, **model_kwargs)
 
 
-    def load_variable(self, variable, old_key, new_key):
-        if old_key in {'model.embeddings.word_embeddings.weight', 'model.lm_head.weight'}:
+    def load_variable(self, variable, ckpt_key, model_key):
+        if ckpt_key in {'model.embeddings.word_embeddings.weight', 'model.lm_head.weight'}:
             return self.load_embeddings(variable)
         return variable
     

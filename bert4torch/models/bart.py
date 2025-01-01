@@ -16,9 +16,9 @@ class BART(Transformer):
         super(BART, self).__init__(*args, **kwargs)
         self.model_type = 'bart'
 
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'}:
+        if ckpt_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable

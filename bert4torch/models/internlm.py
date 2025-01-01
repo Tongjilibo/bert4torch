@@ -67,10 +67,10 @@ class InternLM2(Decoder):
         state_dict = super().load_trans_ckpt(checkpoint)
         # qkv有特殊的排布方式
         for i in range(self.num_hidden_layers):
-            old_key = 'model.layers.%s.attention.wqkv.weight' % i
-            new_key = 'decoderLayer.{}.multiHeadAttention.{}.weight'
+            ckpt_key = 'model.layers.%s.attention.wqkv.weight' % i
+            model_key = 'decoderLayer.{}.multiHeadAttention.{}.weight'
             # 如果当前ckpt不存在该key，则跳过
-            if (qkv := state_dict.get(old_key)) is None:
+            if (qkv := state_dict.get(ckpt_key)) is None:
                 continue
             num_key_value_groups = self.num_attention_heads // self.decoderLayer[0].multiHeadAttention.num_key_value_heads
             num_key_value_heads = qkv.shape[0] // (2 + num_key_value_groups) // self.attention_head_size
@@ -79,24 +79,24 @@ class InternLM2(Decoder):
             k = qkv[:, -2, :, :].reshape(-1, qkv.shape[-1])
             v = qkv[:, -1, :, :].reshape(-1, qkv.shape[-1])
             for i_k, i_v in {'q':q, 'k':k, 'v':v}.items():
-                state_dict[new_key.format(i, i_k)] = i_v
-            state_dict.pop(old_key)
+                state_dict[model_key.format(i, i_k)] = i_v
+            state_dict.pop(ckpt_key)
         return state_dict
     
     def save_trans_ckpt(self):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
-            new_key = 'model.layers.%s.attention.wqkv.weight' % i
-            old_key = 'decoderLayer.{}.multiHeadAttention.{}.weight'
-            k = state_dict.pop(old_key.format(i, 'k'))
+            ckpt_key = 'model.layers.%s.attention.wqkv.weight' % i
+            model_key = 'decoderLayer.{}.multiHeadAttention.{}.weight'
+            k = state_dict.pop(model_key.format(i, 'k'))
             num_key_value_heads = k.shape[0] // self.attention_head_size
             k = k.reshape(num_key_value_heads, -1, self.attention_head_size, k.shape[-1])
-            v = state_dict.pop(old_key.format(i, 'v'))
+            v = state_dict.pop(model_key.format(i, 'v'))
             v = v.reshape(num_key_value_heads, -1, self.attention_head_size, v.shape[-1])
-            q = state_dict.pop(old_key.format(i, 'q'))
+            q = state_dict.pop(model_key.format(i, 'q'))
             q = q.reshape(num_key_value_heads, -1, self.attention_head_size, q.shape[-1])
-            state_dict[new_key] = torch.cat([q, k, v], dim=1).reshape(-1, self.hidden_size)
+            state_dict[ckpt_key] = torch.cat([q, k, v], dim=1).reshape(-1, self.hidden_size)
         return state_dict
     
     def variable_mapping(self):

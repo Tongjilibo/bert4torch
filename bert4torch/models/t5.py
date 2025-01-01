@@ -31,9 +31,9 @@ class T5_Encoder(Encoder):
         last_hidden_state = outputs['last_hidden_state'] if self.return_dict else outputs
         return self.dropout(self.final_layer_norm(last_hidden_state))
 
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {f'encoder.embed_tokens.weight', 'shared.weight'}:
+        if ckpt_key in {f'encoder.embed_tokens.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -88,9 +88,9 @@ class T5_Decoder(Decoder):
         model_kwargs['decoded_layers'][-1] = self.dropout(self.final_layer_norm(last_hidden_state))  # 在转logit前把最后一层的hidden_states加layernorm
         return super().apply_final_layers(**model_kwargs)
 
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {f'decoder.embed_tokens.weight', 'lm_head.weight', 'shared.weight'}:
+        if ckpt_key in {f'decoder.embed_tokens.weight', 'lm_head.weight', 'shared.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -147,9 +147,9 @@ class T5(Transformer):
         self.decoder = T5_Decoder(*args, **kwargs)
         self.model_type = 't5'
     
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'}:
+        if ckpt_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable

@@ -22,14 +22,14 @@ class Qwen(InternLM):
                 'transformer.h.%s.attn.c_attn.weight' % i: 'decoderLayer.{}.multiHeadAttention.{}.weight',
                 'transformer.h.%s.attn.c_attn.bias' % i: 'decoderLayer.{}.multiHeadAttention.{}.bias'
             }
-            for old_key, new_key in mapping.items():
+            for ckpt_key, model_key in mapping.items():
                 # 如果当前ckpt不存在该key，则跳过
-                if (qkv := state_dict.get(old_key)) is None:
+                if (qkv := state_dict.get(ckpt_key)) is None:
                     continue
                 qkv = torch.chunk(qkv, 3, dim=0)
                 for i_k, i_v in zip(['q', 'k', 'v'], qkv):
-                    state_dict[new_key.format(i, i_k)] = i_v
-                state_dict.pop(old_key)
+                    state_dict[model_key.format(i, i_k)] = i_v
+                state_dict.pop(ckpt_key)
         return state_dict
     
     def save_trans_ckpt(self):
@@ -40,16 +40,16 @@ class Qwen(InternLM):
                 'decoderLayer.{}.multiHeadAttention.{}.weight': 'transformer.h.%s.attn.c_attn.weight' % i,
                 'decoderLayer.{}.multiHeadAttention.{}.bias': 'transformer.h.%s.attn.c_attn.bias' % i
             }
-            for old_key, new_key in mapping.items():
+            for model_key, ckpt_key in mapping.items():
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
-                    qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                    qkv.append(state_dict.pop(model_key.format(i, i_k)))
                 if qkv:
-                    state_dict[new_key] = torch.cat(qkv)
+                    state_dict[ckpt_key] = torch.cat(qkv)
         return state_dict
     
     def variable_mapping(self):
-        """权重映射字典, 格式为{new_key: old_key}"""
+        """权重映射字典, 格式为{model_key: ckpt_key}"""
         mapping = {
             'embeddings.word_embeddings.weight': 'transformer.wte.weight',
             'lm_head.weight': 'lm_head.weight',

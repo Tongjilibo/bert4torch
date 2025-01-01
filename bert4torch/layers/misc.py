@@ -6,6 +6,7 @@ from bert4torch.layers.core import LayerNorm
 import random
 import warnings
 import math
+from typing import Union
 
 
 class AdaptiveEmbedding(nn.Module):
@@ -69,11 +70,39 @@ class AdaptiveEmbedding(nn.Module):
 
 class BlockIdentity(nn.Module):
     ''' A placeholder identity operator that is argument-insensitive. '''
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, return_args_index:Union[int, list, set, tuple]=None, return_kwargs_key:Union[str, list, set, tuple]=None, **kwargs):
+        '''
+        return_args_index: 指定返回的args的index
+        return_kwargs_key: 指定返回的kwargs的keys
+        '''
         super(BlockIdentity, self).__init__()
+        if return_args_index is not None:
+            self.return_args_index = return_args_index if isinstance(return_args_index, (tuple,list,set)) else [return_args_index]
+        else:
+            self.return_args_index = return_args_index
+        if return_kwargs_key is not None:
+            self.return_kwargs_key = return_kwargs_key if isinstance(return_kwargs_key, (tuple,list,set)) else [return_kwargs_key]
+        else:
+            self.return_kwargs_key = return_kwargs_key
 
+    def get_args(self, *args):
+        new_args = [arg for i, arg in enumerate(args) if i in self.return_args_index]
+        if len(new_args) > 1:
+            return new_args
+        else:
+            return new_args[0]
+    
+    def get_kwargs(self, **kwargs):
+        return {k:v for k, v in kwargs.items() if k in self.return_kwargs_key}
+    
     def forward(self, *args, **kwargs):
-        if (len(args) > 0) and (len(kwargs) > 0):
+        if self.return_args_index and self.return_kwargs_key:
+            return self.get_args(*args), self.get_kwargs(kwargs)
+        elif self.return_args_index:
+            return self.get_args(*args)
+        elif self.return_kwargs_key:
+            return self.get_kwargs(kwargs)
+        elif (len(args) > 0) and (len(kwargs) > 0):
             return args, kwargs
         elif len(args) > 0:
             return args[0] if len(args) == 1 else args

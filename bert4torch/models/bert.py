@@ -406,26 +406,26 @@ class BERT(PreTrainedModel):
             self.variable_mapping = modify_variable_mapping(self.variable_mapping, **mapping)
         return state_dict
     
-    def load_variable(self, variable, old_key, new_key, prefix='bert'):
+    def load_variable(self, variable, ckpt_key, model_key, prefix='bert'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
         # mapping = self.variable_mapping()
 
-        if old_key in {
+        if ckpt_key in {
             f'{prefix}.embeddings.word_embeddings.weight',
             'cls.predictions.bias',
             'cls.predictions.decoder.weight',
             'cls.predictions.decoder.bias'
         }:
             return self.load_embeddings(variable)
-        elif new_key in {'embeddings.word_embeddings.weight', 'mlmBias',
+        elif model_key in {'embeddings.word_embeddings.weight', 'mlmBias',
                          'mlmDecoder.weight', 'mlmDecoder.bias'}:
-            # bert4torch中new_key相对固定, 能cover住绝大多数BERT子类
+            # bert4torch中model_key相对固定, 能cover住绝大多数BERT子类
             return self.load_embeddings(variable)
         else:
             return variable
 
     def variable_mapping(self, prefix='bert'):
-        """权重映射字典，格式为{new_key: old_key}"""
+        """权重映射字典，格式为{model_key: ckpt_key}"""
         mapping = {
             'embeddings.word_embeddings.weight': f'{prefix}.embeddings.word_embeddings.weight',
             'embeddings.position_embeddings.weight': f'{prefix}.embeddings.position_embeddings.weight',
