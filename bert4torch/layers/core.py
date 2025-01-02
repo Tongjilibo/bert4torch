@@ -75,6 +75,9 @@ class LayerNorm(nn.Module):
             output += self.bias
         return output if output.dtype == hidden_states.dtype else output.type_as(hidden_states)
 
+    def extra_repr(self) -> str:
+        return f"{self.__dict__['normalized_shape']}, eps={self.__dict__['eps']}, norm_mode={self.__dict__['norm_mode']}, bias={self.bias is not None}"
+
 
 class BertEmbeddings(nn.Module):
     """embeddings层
