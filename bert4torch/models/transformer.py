@@ -171,11 +171,10 @@ class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
 
     def load_variable(self, variable, ckpt_key, model_key, prefix='decoder'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
-        mapping = self.variable_mapping()
-
-        if ckpt_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
-            return self.load_embeddings(variable)
-        elif model_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
+        # mapping = self.variable_mapping()
+        # if ckpt_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
+        #     return self.load_embeddings(variable)
+        if model_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable

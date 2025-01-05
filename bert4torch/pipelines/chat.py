@@ -50,6 +50,10 @@ from argparse import REMAINDER, ArgumentParser
 import asyncio
 
 
+class NoneObject:
+    def __init__(self, *args, **kwarg):
+        pass
+
 if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter, Depends
     from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -57,12 +61,13 @@ if is_fastapi_available():
 else:
     class FastAPI: pass
     class HTTPAuthorizationCredentials: pass
-    Depends, HTTPBearer = object, object
+    Depends, HTTPBearer = NoneObject, NoneObject
 
 if is_pydantic_available():
     from pydantic import BaseModel, Field
 else:
-    BaseModel, Field = object, object
+    BaseModel, Field = object, NoneObject
+
 
 if is_streamlit_available():
     import streamlit as st
@@ -160,9 +165,9 @@ class ChatBase(PipeLineBase):
             config_tmp = os.path.join(self.checkpoint_path, 'config.json')
             request_version = JsonConfig(config_tmp).get('transformers_version') if os.path.exists(config_tmp) else None
             if request_version is not None:
-                log_warn(f'Please check your transformer=={transformer_version}, while transformer=={request_version} requested.')
+                log_error(f'Please check your transformer=={transformer_version}, while transformer=={request_version} requested.')
             else:
-                log_warn(f'Please check your transformer=={transformer_version}, which may not compatible.')
+                log_error(f'Please check your transformer=={transformer_version}, which may not compatible.')
             raise e
 
     def build_model(self, **model_init_config) -> Union[Decoder, Transformer]:

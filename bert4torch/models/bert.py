@@ -418,7 +418,7 @@ class BERT(PreTrainedModel):
         }:
             return self.load_embeddings(variable)
         elif model_key in {'embeddings.word_embeddings.weight', 'mlmBias',
-                         'mlmDecoder.weight', 'mlmDecoder.bias'}:
+                           'mlmDecoder.weight', 'mlmDecoder.bias'}:
             # bert4torch中model_key相对固定, 能cover住绝大多数BERT子类
             return self.load_embeddings(variable)
         else:

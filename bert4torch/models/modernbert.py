@@ -53,7 +53,7 @@ class ModernBert(BERT):
         model_kwargs['encoded_layers'][-1] = self.LayerNormFinal(last_hidden_state)
         return super().apply_final_layers(**model_kwargs)
     
-    def load_trans_ckpt(self, checkpoint, prefix=''):
+    def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
         # weight bias
         for i in range(self.num_hidden_layers):
@@ -72,7 +72,7 @@ class ModernBert(BERT):
             state_dict[f'encoderLayer.{i}.feedForward.intermediateDense2.weight'] = intermediateDense2
         return state_dict
     
-    def save_trans_ckpt(self, prefix=''):
+    def save_trans_ckpt(self):
         '''把q,k,v合并成qkv, 以便于transformers包加载'''
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
