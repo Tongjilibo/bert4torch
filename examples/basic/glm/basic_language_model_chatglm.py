@@ -20,12 +20,13 @@ import re
 # chatglm2-6b, chatglm2-6b-int4, chatglm2-6b-32k
 # chatglm3-6b, chatglm3-6b-32k
 # glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
-model_dir = f"E:/data/pretrain_ckpt/glm/chatglm3-6b"
+model_dir = f"E:/data/pretrain_ckpt/glm/glm-4-9b-chat"
 
 generation_config = {
     'top_p': 0.8, 
     'temperature': 0.8, 
     'include_input': True if re.search('glm-4-9b$', model_dir) else False, 
+    'mex_new_tokens': 512
     # 'n': 5
     }
 

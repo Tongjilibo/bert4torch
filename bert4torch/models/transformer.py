@@ -34,7 +34,7 @@ class PreTrainedModelForDecoder(PreTrainedModel):
         super().__init__(*args, **kwargs)
             
     def prepare_inputs_for_generation(self, *inputs, **states):
-        '''为后续forward定义所需参数，方便继承'''
+        '''每次generate时候在self.forward前准备所需参数，方便继承'''
         return states
 
     def _get_initial_model_kwargs(self, model_kwargs:dict):

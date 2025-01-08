@@ -298,16 +298,16 @@ class RopeGlmPositionEncoding(RopePositionEncoding):
         # glm的embedding_size不同
         super().__init__(embedding_size // 2, max_position, rope_rank, scaling_factor, rope_theta, device, **kwargs)
     
-    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None, seq_len:int=None, seq_dim:int=-2):
+    def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None):
         query_states, key_states = qk
         
         q1, q2 = query_states.chunk(2, dim=(query_states.ndim - 1))
         k1, k2 = key_states.chunk(2, dim=(key_states.ndim - 1))
         if len(position_ids.shape) == 3:
-            q1, k1 = super().forward([q1, k1], position_ids[:, 0, :], seq_len)
-            q2, k2 = super().forward([q2, k2], position_ids[:, 1, :], seq_len)
+            q1, k1 = super().forward([q1, k1], position_ids[:, 0, :])
+            q2, k2 = super().forward([q2, k2], position_ids[:, 1, :])
         else:
-            q1, k1 = super().forward([q1, k1], position_ids, seq_len)
+            q1, k1 = super().forward([q1, k1], position_ids)
         query_states = torch.concat([q1, q2], dim=(q1.ndim - 1))
         key_states = torch.concat([k1, k2], dim=(k1.ndim - 1))
     
