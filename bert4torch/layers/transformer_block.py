@@ -269,9 +269,8 @@ class Glm2Layer(BertLayer):
     '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-        self.attnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-        self.ffnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+        self.attnLayerNorm.register_parameter('bias', None)
+        self.ffnLayerNorm.register_parameter('bias', None)
         self.multiHeadAttention.o.register_parameter('bias', None)
         self.feedForward.intermediateDense.register_parameter('bias', None)
         self.feedForward.outputDense.register_parameter('bias', None)

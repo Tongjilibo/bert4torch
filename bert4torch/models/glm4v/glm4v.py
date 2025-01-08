@@ -53,8 +53,9 @@ class GLM4V(PreTrainedModelForDecoder):
 
     def forward(self, *inputs, images=None, position_ids=None, **model_kwargs):
         inputs = self.args_segmentate(inputs, **model_kwargs)
-        input_ids = inputs[0]
+        inputs_embeds = input_ids = inputs[0]
 
+        # first_forward
         if not is_empty(images):  # multi-modality
             image_size: int = self.config.vision_config['image_size']
             patch_size: int = self.config.vision_config['patch_size']
@@ -82,14 +83,11 @@ class GLM4V(PreTrainedModelForDecoder):
                 ))
             inputs_embeds = torch.stack(new_input_embeds, dim=0)
             position_ids = torch.stack(new_position_ids, dim=0)
-        else:
-            inputs_embeds = input_ids
 
         return self.llm(input_ids=inputs_embeds, position_ids=position_ids, **model_kwargs)
     
     def prepare_inputs_for_generation(self,
         input_ids,
-        past_key_values=None,
         attention_mask=None,
         step=None,
         input_seqlen=None,
@@ -110,6 +108,8 @@ class GLM4V(PreTrainedModelForDecoder):
 
             for i in range(len(input_ids)):
                 input_id = input_ids[i].tolist()
+                if output_ids is not None:
+                    input_id += output_ids[i].tolist()
                 if not is_empty(images):
                     boi_token_pos, eoi_token_pos = input_id.index(self.config.boi_token_id), input_id.index(self.config.eoi_token_id)
                 assert eoi_token_pos - boi_token_pos == 2
@@ -118,20 +118,15 @@ class GLM4V(PreTrainedModelForDecoder):
                      attention_mask[i, eoi_token_pos:])
                 ))
             attention_mask = torch.stack(new_attention_masks, dim=0)
-        
-        if step > 0:
-            if past_key_values is not None:
-                position_ids = position_ids[..., -1:]
-                input_ids = input_ids[:, -1:]
-        
+                
         kwargs.update(
             {
-                # "input_ids": input_ids,
                 "images": images,
-                "past_key_values": past_key_values,
                 "attention_mask": attention_mask
             }
         )
+        if step > 0 and kwargs.get('use_states', False) is True:
+            kwargs['images'] = None
         return kwargs
 
     def get_position_ids(self, input_ids, device):

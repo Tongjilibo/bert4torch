@@ -9,7 +9,7 @@ from typing import Union, Literal, Optional, List, Tuple
 
 class LayerNorm(nn.Module):
     def __init__(self, hidden_size:int, eps:float=1e-12, conditional_size:Union[bool, int]=False, weight:bool=True, bias:bool=True, 
-                 norm_mode:Literal['normal', 'torch_buildin', 'rmsnorm']='normal', **kwargs):
+                 norm_mode:Literal['normal', 'torch_buildin', 'rmsnorm']='normal', rmsnorm_fp32:Literal['llama-qwen', 'glm']='llama-qwen', **kwargs):
         """ layernorm层，自行实现是为了兼容conditianal layernorm，使得可以做条件文本生成、条件分类等任务
 
             :param hidden_size: int, layernorm的神经元个数
@@ -18,11 +18,14 @@ class LayerNorm(nn.Module):
             :param weight: bool, 是否包含权重
             :param bias: bool, 是否包含偏置
             :param norm_mode: str, `normal`, `rmsnorm`, `torch_buildin`
+            :param rmsnorm_fp32: str
         """
         super(LayerNorm, self).__init__()
         assert norm_mode in {'normal', 'rmsnorm', 'torch_buildin'}, f'Args norm_mode:{norm_mode} not supported'
         self.normalized_shape = (hidden_size,)
         self.norm_mode = norm_mode
+        assert rmsnorm_fp32 in {'llama-qwen', 'glm'}
+        self.rmsnorm_fp32 = rmsnorm_fp32
         self.eps = eps
         self.conditional_size = conditional_size
         
@@ -50,11 +53,16 @@ class LayerNorm(nn.Module):
         # torch自带LayerNorm
         if self.norm_mode == 'torch_buildin':
             return F.layer_norm(hidden_states, self.normalized_shape, self.weight, self.bias, self.eps)
+        
         # RMSnorm: t5、大模型系列均使用
         elif self.norm_mode == 'rmsnorm':
             hidden_states_fp32 = hidden_states.float()
             variance = hidden_states_fp32.pow(2).mean(-1, keepdim=True)
-            o = (hidden_states_fp32 * torch.rsqrt(variance + self.eps)).type_as(hidden_states)  # 这里转type结果才一致
+            if self.rmsnorm_fp32 == 'llama-qwen':
+                o = (hidden_states_fp32 * torch.rsqrt(variance + self.eps)).type_as(hidden_states)  # LLAMA, QWEN
+            elif self.rmsnorm_fp32 == 'glm':  # glm
+                o = (hidden_states * torch.rsqrt(variance + self.eps))
+        
         # 自行实现的LayerNorm
         else:
             u = hidden_states.mean(-1, keepdim=True)

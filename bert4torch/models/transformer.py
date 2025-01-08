@@ -123,7 +123,8 @@ class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
         
         if self.final_layernorm:
             self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), 
-                                            conditional_size=self.conditional_size, norm_mode=kwargs.get('norm_mode', 'normal'),
+                                            conditional_size=self.conditional_size, norm_mode=kwargs.get('norm_mode', 'normal'), 
+                                            rmsnorm_fp32=kwargs.get('rmsnorm_fp32', 'llama-qwen'),
                                             weight=kwargs.get('weight', True), bias=kwargs.get('bias', True))
 
     def tie_weights(self):

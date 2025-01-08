@@ -179,7 +179,7 @@ class GLM2(GLM):
     """
     _no_split_modules = ["Glm2Layer"]
     def __init__(self, *args, **kwargs):
-        kwargs.update({'layer_type': "Glm2Layer", 'norm_mode': 'rmsnorm', 'pre_layernorm': True})
+        kwargs.update({'layer_type': "Glm2Layer", 'norm_mode': 'rmsnorm', 'rmsnorm_fp32': 'glm', 'pre_layernorm': True})
         super().__init__(*args, **kwargs)
         self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-5), norm_mode='rmsnorm', bias=False)
         self.model_type = 'glm2'
