@@ -16,6 +16,7 @@ def is_empty(images_list: Optional[List[List[torch.Tensor]]]):
 
 
 class GLM4V(PreTrainedModelForDecoder):
+    _no_split_modules = ["Glm2Layer"] 
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"images"}
     def __init__(self, **config):
         super().__init__(**config)
@@ -51,12 +52,43 @@ class GLM4V(PreTrainedModelForDecoder):
     def load_embeddings(self, embeddings):
         return super().load_embeddings(embeddings)
 
-    def forward(self, *inputs, images=None, position_ids=None, **model_kwargs):
+    def forward(self, *inputs, images=None, position_ids=None, attention_mask=None, **model_kwargs):
         inputs = self.args_segmentate(inputs, **model_kwargs)
         inputs_embeds = input_ids = inputs[0]
 
-        # first_forward
-        if not is_empty(images):  # multi-modality
+        # ===============训练===============
+        # - 有images则调整attention_mask, 生成input_embeds
+        # - 无images则直接用input_ids即可
+        
+        # ===============推理===============
+        # 有images
+        # - use_cache: step=0的时候调整attention_mask, 生成input_embeds, step>=1时候images在prepare_inputs_for_generation去掉了,即不调整
+        # - not use_cache: 每次都一样, 有images则vision编码,无则和语言模型一样
+        # 无images: 无特别调整,和一般语言模型一样
+
+        if not is_empty(images):
+            # 调整attention_mask
+            image_size: int = self.config.vision_config['image_size']
+            patch_size: int = self.config.vision_config['patch_size']
+            num_patches = (image_size // patch_size // 2) ** 2
+            new_attention_masks = []
+
+            # if not image, use this default id
+            eoi_token_pos = 6
+            boi_token_pos = 4
+
+            for i in range(len(input_ids)):
+                input_id = input_ids[i].tolist()
+                if not is_empty(images):
+                    boi_token_pos, eoi_token_pos = input_id.index(self.config.boi_token_id), input_id.index(self.config.eoi_token_id)
+                assert eoi_token_pos - boi_token_pos == 2
+                new_attention_masks.append(torch.cat(
+                    (attention_mask[i, :boi_token_pos + 1], attention_mask.new_ones(num_patches),
+                     attention_mask[i, eoi_token_pos:])
+                ))
+            attention_mask = torch.stack(new_attention_masks, dim=0)
+
+            # 结合vision生成inputs_embeds
             image_size: int = self.config.vision_config['image_size']
             patch_size: int = self.config.vision_config['patch_size']
             num_patches = (image_size // patch_size // 2) ** 2
@@ -84,47 +116,9 @@ class GLM4V(PreTrainedModelForDecoder):
             inputs_embeds = torch.stack(new_input_embeds, dim=0)
             position_ids = torch.stack(new_position_ids, dim=0)
 
-        return self.llm(input_ids=inputs_embeds, position_ids=position_ids, **model_kwargs)
+        return self.llm(input_ids=inputs_embeds, position_ids=position_ids, attention_mask=attention_mask, **model_kwargs)
     
-    def prepare_inputs_for_generation(self,
-        input_ids,
-        attention_mask=None,
-        step=None,
-        input_seqlen=None,
-        output_ids=None,
-        position_ids=None,
-        images=None,
-        **kwargs,
-    ):
-        if attention_mask is not None:
-            image_size: int = self.config.vision_config['image_size']
-            patch_size: int = self.config.vision_config['patch_size']
-            num_patches = (image_size // patch_size // 2) ** 2
-            new_attention_masks = []
-
-            # if not image, use this default id
-            eoi_token_pos = 6
-            boi_token_pos = 4
-
-            for i in range(len(input_ids)):
-                input_id = input_ids[i].tolist()
-                if output_ids is not None:
-                    input_id += output_ids[i].tolist()
-                if not is_empty(images):
-                    boi_token_pos, eoi_token_pos = input_id.index(self.config.boi_token_id), input_id.index(self.config.eoi_token_id)
-                assert eoi_token_pos - boi_token_pos == 2
-                new_attention_masks.append(torch.cat(
-                    (attention_mask[i, :boi_token_pos + 1], attention_mask.new_ones(num_patches),
-                     attention_mask[i, eoi_token_pos:])
-                ))
-            attention_mask = torch.stack(new_attention_masks, dim=0)
-                
-        kwargs.update(
-            {
-                "images": images,
-                "attention_mask": attention_mask
-            }
-        )
+    def prepare_inputs_for_generation(self, *inputs, step=None, **kwargs):
         if step > 0 and kwargs.get('use_states', False) is True:
             kwargs['images'] = None
         return kwargs

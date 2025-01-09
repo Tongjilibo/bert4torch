@@ -720,10 +720,10 @@ class SeqGeneration(AutoRegressiveDecoder):
             if not self.use_batch:
                 return torch.cat([token_ids, output_ids], 1)
             
-            inputs = []
+            inputs_ = []
             for seq_l, token_ids_i, output_ids_i in zip(self.input_seqlen, token_ids, output_ids):
-                inputs.append(torch.cat([token_ids_i[:seq_l], output_ids_i, token_ids_i[seq_l:]]))
-            return torch.stack(inputs)
+                inputs_.append(torch.cat([token_ids_i[:seq_l], output_ids_i, token_ids_i[seq_l:]]))
+            return torch.stack(inputs_)
 
         # 部分序列已经完成, 需要更新input_seqlen
         if len(self.input_seqlen) != len(output_ids):
@@ -798,10 +798,10 @@ class SeqGeneration(AutoRegressiveDecoder):
                     states['position_ids'] = states['position_ids'][:, -1:] + 1
 
                 # attention_mask: 根据token_ids生成的, 因此这里重置下
-                if states.get('pad_attention_mask') is not None:  # 在states中input_attention_mask才是[btz, seq_len]
-                    attention_mask = states['pad_attention_mask']
+                if states.get('attention_mask_2d') is not None:  # 在states中attention_mask_2d才是[btz, seq_len]
+                    attention_mask = states['attention_mask_2d']
                     states['attention_mask'] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-                    del states['pad_attention_mask']
+                    del states['attention_mask_2d']
 
                 # shape和size不一致: step=1时候, beam_search的btz=束宽, 或者要返回多个结果
                 if (self.mode == 'beam_search' or self.n > 1) and (self.step == 1):
@@ -837,12 +837,12 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # 不使用cache
         elif not self.use_states:
-            next_inputs, model_kwargs = self._prepare_next_inputs(inputs, output_ids, include_past=True)
+            next_inputs, states = self._prepare_next_inputs(inputs, output_ids, include_past=True)
 
             # 如果use_states=False且padding_side='pre', 则需要自定义position_ids, 否则position_ids不正确, 但这么使用很少
-            if 'position_ids' not in model_kwargs and self.padding_side in {'pre', 'left'}:
-                model_kwargs['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
-            logits = self.decoder.predict(next_inputs, **model_kwargs)
+            if 'position_ids' not in states and self.padding_side in {'pre', 'left'}:
+                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
+            logits = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)
 

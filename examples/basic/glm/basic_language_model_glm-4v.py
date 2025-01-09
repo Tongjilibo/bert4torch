@@ -14,13 +14,14 @@ query = '描述这张图片'
 image = Image.open(requests.get(url, stream=True).raw).convert('RGB')
 inputs = tokenizer.apply_chat_template([{"role": "user", "image": image, "content": query}],
                                        add_generation_prompt=True, tokenize=True, return_tensors="pt",
-                                       return_dict=True)  # chat mode
+                                       return_dict=True).to(device)  # chat mode
 
-inputs = inputs.to(device)
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, device_map='auto')
 
 gen_kwargs = {"max_length": 2500, "do_sample": True, "top_k": 1}
+last_len = 0
 with torch.no_grad():
-    outputs = model.generate(**inputs, **gen_kwargs)
-    outputs = outputs[:, inputs['input_ids'].shape[1]:]
-    print(tokenizer.decode(outputs[0]))
+    for generated_ids in model.stream_generate(**inputs, **gen_kwargs):
+        output_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+        print(output_text[last_len:], flush=True, end='')
+        last_len = len(output_text)

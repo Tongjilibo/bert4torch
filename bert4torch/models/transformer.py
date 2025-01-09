@@ -27,7 +27,7 @@ class Encoder(BERT):
 
 
 class PreTrainedModelForDecoder(PreTrainedModel):
-    passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
+    passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'attention_mask_2d', 
                      'attention_mask', 'past_key_values', 'cross_past_key_values'}
 
     def __init__(self, *args, **kwargs):
