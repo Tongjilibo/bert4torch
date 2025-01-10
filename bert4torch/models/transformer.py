@@ -39,6 +39,7 @@ class PreTrainedModelForDecoder(PreTrainedModel):
 
     def _get_initial_model_kwargs(self, model_kwargs:dict):
         '''初始化的时候去掉不需要要素'''
+        self.num_logits_to_keep = 1  # generate的时候,只计算最后一个logit
         if model_kwargs.get('states') is not None:
             return model_kwargs['states']
         states = {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
@@ -76,7 +77,7 @@ class PreTrainedModelForDecoder(PreTrainedModel):
             self.generation = SeqGeneration(self, **kwargs)
 
     def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
-        '''单条样本生成 / batch样本生成，use_states=True时要求padding_side='pre'
+        '''单条样本生成 / batch样本生成，use_states=True时要求padding_side='left'
         '''
         self._prepare_generation(**kwargs)
         return self.generation.generate(input_ids, **kwargs)

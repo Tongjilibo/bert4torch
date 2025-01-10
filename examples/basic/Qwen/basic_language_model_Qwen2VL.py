@@ -113,6 +113,7 @@ def call_openai():
     print()
     print(client.chat(messages))
 
+
 if __name__ == '__main__':
     # chat_demo1()
     chat_demo2()

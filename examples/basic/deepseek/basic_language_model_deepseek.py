@@ -3,6 +3,8 @@ from bert4torch.pipelines import Chat
 
 # deepseek-ai@deepseek-moe-16b-base
 # deepseek-ai@deepseek-moe-16b-chat
+
+# deepseek-ai@deepseek-llm-7b-base
 # deepseek-ai@deepseek-llm-7b-chat
 
 # deepseek-ai@deepseek-coder-1.3b-base
@@ -12,8 +14,8 @@ from bert4torch.pipelines import Chat
 # deepseek-ai@deepseek-coder-7b-base-v1.5
 # deepseek-ai@deepseek-coder-7b-instruct-v1.5
 
+# deepseek-ai@DeepSeek-V2-Lite
 # deepseek-ai@DeepSeek-V2-Lite-Chat
-# model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@deepseek-coder-1.3b-instruct'
 model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@DeepSeek-V2-Lite-Chat'
 generation_config = {
     'max_length': 512,

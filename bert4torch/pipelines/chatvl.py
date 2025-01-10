@@ -625,14 +625,54 @@ class Mllama(ChatVLBase):
         return inputs
     
 
+class GLM4V(ChatVLBase):
+    def build_prompt(
+            self,
+            queries: Union[str, List[str]], 
+            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]]=None, 
+            vedios=None,
+            history: List[Dict]=None, 
+            functions:List[dict]=None,
+            **kwargs
+        ):
+        
+        if hasattr(self, 'system') and not history:
+            history.append({'role': 'system', 'content': self.system})
+        queries, images = trans_query_images_tolist(queries, images)
+
+        all_messages = []
+        for query, image in zip(queries, images):
+            messages = (copy.deepcopy(history) or [] or []) + [{"role": "user", "content": query}]
+            if image is None:
+                pass
+            elif isinstance(image, list):
+                messages[-1]['image'] = image[0]
+                if len(image) > 1:
+                    log_warn(f'glm4v only can process one image in one turn chat, but got len(image)={len(image)}')
+            else:
+                messages[-1]['image'] = image
+            all_messages.append(messages)
+
+        inputs = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=True, 
+            return_tensors="pt", return_dict=True).to(self.device)
+
+        history.append({'role': 'user', 'content': queries[0]})
+        if all([i is not None for i in images]):
+            history[-1]['images'] = images
+        return inputs
+
+
 # ==========================================================================================
 # =======================                统一Chat入口             ==========================
 # ==========================================================================================
 MAPPING = {
     'minicpmv': MiniCPMV,
     'qwen2_vl': Qwen2VL,
-    'mllama': Mllama
+    'mllama': Mllama,
+    'glm4v': GLM4V
 }
+
 
 class ChatVL:
     """
@@ -649,7 +689,7 @@ class ChatVL:
         - min_new_tokens: int, 最小解码长度, 默认为1
         - max_length: int, 最大文本长度
         - pad_token_id: int, pad_id, 在batch解码时候使用
-        - padding_side: str, padding在前面还是后面, pre或者post
+        - padding_side: str, padding在前面还是后面, left或者right
         - device: str, 默认为'cpu'
         - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
         - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)

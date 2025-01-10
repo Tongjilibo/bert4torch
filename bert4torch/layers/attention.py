@@ -288,7 +288,7 @@ class MultiHeadAttention(nn.Module):
             attention_scores = attention_scores + attention_mask
 
         # 将attention score 归一化到0-1
-        attention_probs = F.softmax(attention_scores, dim=-1, dtype=query_states.dtype)
+        attention_probs = F.softmax(attention_scores, dim=-1, dtype=torch.float32).to(query_states.dtype)
         attention_probs = self.dropout(attention_probs)
         context_layer = torch.matmul(attention_probs, value_states)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 

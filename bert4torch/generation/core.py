@@ -47,7 +47,7 @@ class AutoRegressiveDecoder(object):
     :param min_new_tokens: int, 最小解码长度, 默认为1
     :param max_length: int, 最大文本长度
     :param pad_token_id: int, pad_token_id, 在batch解码时候使用
-    :param padding_side: str, padding在前面还是后面, pre或者post
+    :param padding_side: str, padding在前面还是后面, left或者right
     :param device: str, 默认为'cpu'
     :param n: int, random_sample时候表示生成的个数; beam_search时表示束宽
     :param top_k: int, 这里的top_k是指仅保留topk的值 (仅在top_k上进行概率采样)
@@ -69,7 +69,7 @@ class AutoRegressiveDecoder(object):
                  min_new_tokens:int=1, 
                  max_length:int=64, 
                  pad_token_id:int=0, 
-                 padding_side:Literal['pre', 'left', 'post', 'right']='post', 
+                 padding_side:Literal['left', 'right']='right', 
                  device:str='cpu', 
                  n:int=1, 
                  top_k:int=None, 
@@ -231,7 +231,7 @@ class AutoRegressiveDecoder(object):
                 input_new = torch.tensor(sequence_padding(input_, value=self.pad_token_id, padding_side=self.padding_side), dtype=torch.long, device=self.device)
 
                 # padding在右边则input_seqlen是真实的长度, 左边则统一为最大程度
-                if self.padding_side in {'post', 'right'}:
+                if self.padding_side == 'right':
                     self.input_seqlen = torch.tensor([len(i) for i in input_], dtype=torch.long).to(self.device)
                 else:
                     max_len = input_new.shape[1]
@@ -624,7 +624,7 @@ class SeqGeneration(AutoRegressiveDecoder):
     :param max_new_tokens: int, 最大解码长度
     :param min_new_tokens: int, 最小解码长度, 默认为1
     :param pad_token_id: int, pad_token_id, 在batch解码时候使用
-    :param padding_side: str, padding在前面还是后面, pre或者post
+    :param padding_side: str, padding在前面还是后面, left或者right
     :param n: int, random_sample时候表示生成的个数; beam_search时表示束宽
     :param top_k: int, 这里的top_k是指仅保留topk的值
     :param top_p: float, 这里的top_p是token的概率阈值设置
@@ -784,7 +784,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 next_inputs, states = self._prepare_next_inputs(inputs, output_ids, include_past=True, **states)
 
                 # position_ids: 在第0步如果padding在左侧, 则需要自定义position_ids
-                if 'position_ids' not in states and self.use_batch and (self.padding_side in {'pre', 'left'}):
+                if 'position_ids' not in states and self.use_batch and (self.padding_side == 'left'):
                     # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                     #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
                     states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
@@ -839,8 +839,8 @@ class SeqGeneration(AutoRegressiveDecoder):
         elif not self.use_states:
             next_inputs, states = self._prepare_next_inputs(inputs, output_ids, include_past=True)
 
-            # 如果use_states=False且padding_side='pre', 则需要自定义position_ids, 否则position_ids不正确, 但这么使用很少
-            if 'position_ids' not in states and self.padding_side in {'pre', 'left'}:
+            # 如果use_states=False且padding_side='left', 则需要自定义position_ids, 否则position_ids不正确, 但这么使用很少
+            if 'position_ids' not in states and self.padding_side == 'left':
                 states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
             logits = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
@@ -939,9 +939,10 @@ class SeqGeneration(AutoRegressiveDecoder):
                 if kwargs.get('n', 0) > 1:
                     log_warn_once(f"Args `n`={kwargs['n']} has been reset to `1` when batch generate")
                 kwargs['n'] = 1
-            if self.use_states and (self.padding_side in {'post', 'right'}):
-                self.padding_side = 'pre'
-                log_info("When arg `use_states`=True, you may set `padding_side`='pre' to avoid error output, reset `padding_side`='pre' instead")
+            if self.use_states and (self.padding_side == 'right') and self.encoder is None:
+                # 对于decoder_only的模型,非encoder_decoder的, batch推理智能padding在左侧
+                self.padding_side = 'left'
+                log_info("When arg `use_states`=True, reset `padding_side`='left' to avoid error output")
         elif isinstance(input_ids, torch.Tensor):
             self.use_batch = False if input_ids.shape[0] == 1 else True
         else:

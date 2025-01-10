@@ -27,6 +27,6 @@ generation = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tok
 
 if __name__ == '__main__':
     while True:
-        query = input("\n输入：")
+        query = input("\n输入：")  # 输入英文
         response = generation.generate(query, top_k=1, include_input=True)      
         print(f"续写:{response}")

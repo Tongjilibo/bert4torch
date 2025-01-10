@@ -2262,7 +2262,7 @@ class Chat:
         - min_new_tokens: int, 最小解码长度, 默认为1
         - max_length: int, 最大文本长度
         - pad_token_id: int, pad_id, 在batch解码时候使用
-        - padding_side: str, padding在前面还是后面, pre或者post
+        - padding_side: str, padding在前面还是后面, left或者right
         - device: str, 默认为'cpu'
         - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
         - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)

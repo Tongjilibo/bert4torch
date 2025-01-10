@@ -280,7 +280,7 @@ def lowercase_and_normalize(text:str, never_split:Union[Set, Tuple, List]=()):
 
 
 def sequence_padding(inputs:Union[List[np.ndarray], List[List], List[torch.Tensor]], length:Union[List, int]=None, 
-                     value:int=0, seq_dims:int=1, padding_side:Literal['pre', 'left', 'post', 'right']='post', mode=None):
+                     value:int=0, seq_dims:int=1, padding_side:Literal['left', 'right']='right', mode=None):
     """将序列padding到同一长度"""
     if mode is not None:
         raise DeprecationWarning('Args `mode` has been deprecated since v0.5.5, use `padding_side` instead')
@@ -301,7 +301,7 @@ def sequence_padding(inputs:Union[List[np.ndarray], List[List], List[torch.Tenso
         if length is not None:
             inputs = [i[:length] for i in inputs]
         
-        if padding_side in {'post', 'right'}:
+        if padding_side == 'right':
             return pad_sequence(inputs, padding_value=value, batch_first=True)
         else:
             # 转为np.array处理
@@ -323,12 +323,12 @@ def sequence_padding(inputs:Union[List[np.ndarray], List[List], List[torch.Tenso
         for x in inputs:
             x = x[slices]
             for i in range(seq_dims):
-                if padding_side in {'post', 'right'}:
+                if padding_side == 'right':
                     pad_width[i] = (0, length[i] - np.shape(x)[i])
-                elif padding_side in {'pre', 'left'}:
+                elif padding_side == 'left':
                     pad_width[i] = (length[i] - np.shape(x)[i], 0)
                 else:
-                    raise ValueError('"mode" argument must be "post/right" or "pre/left".')
+                    raise ValueError('"mode" argument must be "right" or "left".')
             x = np.pad(x, pad_width, 'constant', constant_values=value)
             outputs.append(x)
 
