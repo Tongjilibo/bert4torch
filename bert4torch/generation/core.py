@@ -898,8 +898,6 @@ class SeqGeneration(AutoRegressiveDecoder):
         
         if self.return_states:
             output_ids, states = output_ids
-        else:
-            output_ids = output_ids
 
         if len(output_ids) > 1:
             output_text = [self.tokenizer.decode(ids.cpu().numpy(), **self.tokenizer_decode_config) for ids in output_ids]
