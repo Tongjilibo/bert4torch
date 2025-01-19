@@ -10,10 +10,16 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
-from transformers.activations import ACT2FN
-from transformers.modeling_outputs import (BaseModelOutput, BaseModelOutputWithPooling)
-from transformers.modeling_utils import PreTrainedModel
 from bert4torch.snippets import log_warn, log_info
+
+try:
+    from transformers.activations import ACT2FN
+    from transformers.modeling_outputs import (BaseModelOutput, BaseModelOutputWithPooling)
+    from transformers.modeling_utils import PreTrainedModel
+    from transformers.configuration_utils import PretrainedConfig
+except:
+    pass
+
 
 try:
     from einops import rearrange
@@ -401,6 +407,7 @@ class InternVisionModel(PreTrainedModel):
     _no_split_modules = ['InternVisionEncoderLayer']
 
     def __init__(self, config):
+        config = PretrainedConfig(**config)
         super().__init__(config)
         self.config = config
 

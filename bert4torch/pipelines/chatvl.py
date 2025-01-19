@@ -17,6 +17,7 @@ from bert4torch.pipelines.chat import ChatBase, ChatWebGradio, ChatWebStreamlit,
 from bert4torch.pipelines.chat import ChatCompletionRequest, ChatCompletionResponseChoice, ChatMessage, ChatCompletionResponse, ChatCompletionResponseStreamChoice, DeltaMessage
 from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
+from bert4torch.models.internvl.vision_process import load_image
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -553,7 +554,7 @@ class Qwen2VL(ChatVLBase):
 
         all_messages = []
         for query, image in zip(queries, images):
-            messages = (copy.deepcopy(history) or [] or []) + [
+            messages = (copy.deepcopy(history) or []) + [
                 {
                     "role": "user",
                     "content": [{"type": "text", "text": query}]
@@ -599,7 +600,7 @@ class Mllama(ChatVLBase):
 
         all_messages = []
         for query, image in zip(queries, images):
-            messages = (copy.deepcopy(history) or [] or []) + [
+            messages = (copy.deepcopy(history) or []) + [
                 {
                     "role": "user",
                     "content": [{"type": "text", "text": query}]
@@ -642,7 +643,7 @@ class GLM4V(ChatVLBase):
 
         all_messages = []
         for query, image in zip(queries, images):
-            messages = (copy.deepcopy(history) or [] or []) + [{"role": "user", "content": query}]
+            messages = (copy.deepcopy(history) or []) + [{"role": "user", "content": query}]
             if image is None:
                 pass
             elif isinstance(image, list):
@@ -662,6 +663,56 @@ class GLM4V(ChatVLBase):
             history[-1]['images'] = images
         return inputs
 
+
+class InternVL(ChatVLBase):
+    def build_prompt(
+            self,
+            queries: Union[str, List[str]], 
+            images: Union[Image.Image, List[Image.Image], List[List[Image.Image]]]=None, 
+            vedios=None,
+            history: List[Dict]=None, 
+            functions:List[dict]=None,
+            IMG_START_TOKEN='<img>', 
+            IMG_END_TOKEN='</img>', 
+            IMG_CONTEXT_TOKEN='<IMG_CONTEXT>',
+            num_patches_list=None,
+            **kwargs
+        ):
+        queries, images = trans_query_images_tolist(queries, images)
+
+        query_input = []
+        for query, image in zip(queries, images):
+            if history is None and image is not None and '<image>' not in query:
+                query = '<image>\n' + query
+            if image is not None:
+                pixel_values = load_image(image, max_num=12).to(torch.bfloat16).cuda()
+            else:
+                pixel_values = None
+            
+            if num_patches_list is None:
+                num_patches_list = [pixel_values.shape[0]] if pixel_values is not None else []
+            assert pixel_values is None or len(pixel_values) == sum(num_patches_list)
+
+            template = get_conv_template(self.template)
+            template.system_message = self.system
+
+            history = [] if history is None else history
+            for (old_question, old_answer) in history:
+                template.append_message(template.roles[0], old_question)
+                template.append_message(template.roles[1], old_answer)
+            template.append_message(template.roles[0], query)
+            template.append_message(template.roles[1], None)
+            query = template.get_prompt()
+
+            for num_patches in num_patches_list:
+                image_tokens = IMG_START_TOKEN + IMG_CONTEXT_TOKEN * self.num_image_token * num_patches + IMG_END_TOKEN
+                query = query.replace('<image>', image_tokens, 1)
+
+        history.append({'role': 'user', 'content': queries[0]})
+        if all([i is not None for i in images]):
+            history[-1]['images'] = images
+        return inputs
+    
 
 # ==========================================================================================
 # =======================                统一Chat入口             ==========================

@@ -26,6 +26,7 @@ from bert4torch.models.bloom import Bloom
 from bert4torch.models.qwen import Qwen, Qwen2
 from bert4torch.models.qwen2_vl import Qwen2VL
 from bert4torch.models.internlm import InternLM, InternLM2
+from bert4torch.models.internvl import InternVL
 from bert4torch.models.falcon import Falcon
 from bert4torch.models.deepseek import DeepSeek
 from typing import Union, Literal
@@ -154,11 +155,13 @@ def build_transformer_model(
         'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
         'llama': LLaMA,
+        'mllama': Mllama,
         'baichuan': Baichuan,
         'glm': GLM,
         'chatglm': GLM,
         'glm2': GLM2,
         'chatglm2': GLM2,
+        'glm4v': GLM4V,
         't5': T5,
         't5_encoder': T5_Encoder,
         't5_decoder': T5_Decoder,
@@ -176,16 +179,15 @@ def build_transformer_model(
         'bloom': Bloom,
         'qwen': Qwen,
         'qwen2': Qwen2,
+        'qwen2_vl': Qwen2VL,
         'internlm': InternLM,
         'internlm2': InternLM2,
+        'internvl': InternVL,
         'falcon': Falcon,
         'deepseek': DeepSeek,
         'minicpm': MiniCPM,
         'minicpmv': MiniCPMV,
-        'minicpm_llama3_v': MiniCPMLlama3V,
-        'qwen2_vl': Qwen2VL,
-        'mllama': Mllama,
-        'glm4v': GLM4V
+        'minicpm_llama3_v': MiniCPMLlama3V
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))
