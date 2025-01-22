@@ -99,6 +99,9 @@ class InternVL(PreTrainedModelForDecoder):
     def tie_weights(self):
         self.language_model.tie_weights()
 
+    def load_variable(self, *args, **kwargs):
+        return self.language_model.load_variable(*args, **kwargs)
+
     def forward(self, *inputs:Union[tuple, list], **model_kwargs):
         '''准备进embedding层的一些输入
         '''

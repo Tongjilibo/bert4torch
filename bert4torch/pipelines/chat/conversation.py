@@ -46,7 +46,8 @@ class Conversation:
     # The system message
     system_message: str = ''
     # The names of two roles
-    roles: Tuple[str] = ('USER', 'ASSISTANT')
+    role_user: str = 'USER'
+    role_assistant: str = 'ASSISTANT'
     # All messages. Each item is (role, message).
     messages: List[List[str]] = ()
     # The number of few shot examples
@@ -133,7 +134,7 @@ class Conversation:
             else:
                 ret = '[INST] '
             for i, (role, message) in enumerate(self.messages):
-                tag = self.roles[i % 2]
+                tag = self.role_user if i % 2 == 0 else self.role_assistant
                 if message:
                     if i == 0:
                         ret += message + ' '
@@ -293,7 +294,8 @@ class Conversation:
             name=self.name,
             system_template=self.system_template,
             system_message=self.system_message,
-            roles=self.roles,
+            role_user=self.role_user,
+            role_assistant=self.role_assistant,
             messages=[[x, y] for x, y in self.messages],
             offset=self.offset,
             sep_style=self.sep_style,
@@ -307,7 +309,28 @@ class Conversation:
         return {
             'template_name': self.name,
             'system_message': self.system_message,
-            'roles': self.roles,
+            'role_user': self.role_user,
+            'role_assistant': self.role_assistant,
             'messages': self.messages,
             'offset': self.offset,
         }
+
+
+# A global registry for all conversation templates
+conv_templates: Dict[str, Conversation] = {}
+
+
+def register_conv_template(template: Conversation, override: bool = False):
+    """Register a new conversation template."""
+    if not override:
+        assert (
+            template.name not in conv_templates
+        ), f'{template.name} has been registered.'
+
+    conv_templates[template.name] = template
+
+
+def get_conv_template(name: str) -> Conversation:
+    """Get a conversation template."""
+    return conv_templates[name].copy()
+

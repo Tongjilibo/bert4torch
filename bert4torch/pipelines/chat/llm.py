@@ -48,6 +48,7 @@ import re
 import copy
 from argparse import REMAINDER, ArgumentParser
 import asyncio
+from .conversation import Conversation
 
 
 class NoneObject:
@@ -127,15 +128,17 @@ class ChatBase(PipeLineBase):
     def __init__(self, checkpoint_path:str, config_path:str=None, 
                  precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, 
-                 create_model_at_startup:bool=True, **kwargs):
+                 create_model_at_startup:bool=True, system:str=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
         self.config_path = config_path or checkpoint_path
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
         config_path_tmp = get_config_path(self.config_path, allow_none=True)
         if config_path_tmp is not None:
-            self.generation_config = json.load(open(config_path_tmp)).get('generation_config', dict())
+            config = json.load(open(config_path_tmp, encoding='utf-8'))
+            self.generation_config = config.get('generation_config', dict())
         else:
+            config = dict()
             self.generation_config = dict()
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
@@ -145,6 +148,8 @@ class ChatBase(PipeLineBase):
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
+        self.template_config = config.pop('template_config', dict())
+        self.system = system
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
@@ -152,6 +157,12 @@ class ChatBase(PipeLineBase):
     
     def build_prompt(self, *args, **kwargs) -> str:
         raise NotImplementedError
+    
+    def build_template(self, **kwargs):
+        kwargs = {k:v for k,v in kwargs.items() if v}
+        if self.template_config or kwargs:
+            return Conversation(**{**self.template_config, **kwargs}).copy()
+        return None
     
     def build_tokenizer(self, **kwargs):
         '''初始化tokenizer'''
@@ -408,8 +419,7 @@ class ChatWebGradio(ChatBase):
             functions = None
             log_warn('Functions implement not json format')
 
-        if system is not None and system.strip() != '':
-            self.system = system
+        self.system = system
         return functions
 
     def regenerate(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
@@ -525,8 +535,7 @@ class ChatWebStreamlit(ChatBase):
             functions = None
             log_warn('Functions implement not json format')
 
-        if system is not None and system.strip() != '':
-            self.system = system
+        self.system = system
 
         for i, message in enumerate(st.session_state.history):
             role = message['role']
@@ -2112,13 +2121,10 @@ class Ziya(ChatBase):
 class ChineseLlamaAlpaca(ChatBase):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if system is None:
-            self.system = \
+        self.system = system or \
 ("Below is an instruction that describes a task. "
 "Write a response that appropriately completes the request.\n\n"
 )
-        else:
-            self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions is not None: 
@@ -2331,7 +2337,7 @@ class Chat:
             template = kwargs.pop('template')
         else:
             config_path = kwargs['config_path'] if kwargs.get('config_path') is not None else args[0]
-            config = json.load(open(get_config_path(config_path, allow_none=True)))
+            config = json.load(open(get_config_path(config_path, allow_none=True), encoding='utf-8'))
             template = config.get('template', config.get('model', config.get('model_type')))
         if template is None:
             raise ValueError('template/model/model_type not found in bert4torch_config.json')

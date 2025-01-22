@@ -13,11 +13,10 @@
 
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
-from bert4torch.pipelines.chat import ChatBase, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
-from bert4torch.pipelines.chat import ChatCompletionRequest, ChatCompletionResponseChoice, ChatMessage, ChatCompletionResponse, ChatCompletionResponseStreamChoice, DeltaMessage
+from .llm import ChatBase, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
 from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
-from bert4torch.models.internvl.vision_process import load_image
+from bert4torch.models.internvl.vision_process import fetch_image
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -28,16 +27,11 @@ from bert4torch.snippets import (
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
-    is_sseclient_available, 
     is_streamlit_available,
-    is_package_available,
-    has_chinese_char,
     add_start_docstrings,
-    JsonConfig,
     is_transformers_available,
-    sequence_padding
+    load_image
 )
-import time
 import json
 import copy
 from PIL import Image
@@ -86,10 +80,8 @@ def trans_query_images_tolist(query, images):
     '''把query，images转为list'''
     def trans_images_to_Image(images:Union[ImageType, List[ImageType], List[List[ImageType]]]):
         '''把各种类型的images转化为Image.Image格式'''
-        if isinstance(images, str):
-            images = Image.open(images).convert('RGB')
-        elif isinstance(images, np.ndarray):
-            images = Image.fromarray(images)
+        if isinstance(images, str) or isinstance(images, np.ndarray):
+            images = load_image(images)
         elif isinstance(images, List) and all([isinstance(image, (str, Image.Image, np.ndarray)) for image in images]):
             images = [trans_images_to_Image(image) for image in images]
         elif isinstance(images, List) and all([isinstance(image, List) for image in images]):
@@ -120,6 +112,7 @@ def trans_query_images_tolist(query, images):
             # 各自同时提问多张图片
             pass
     return query, images
+
 
 class ChatVLBase(ChatBase):
     def __init__(self, *args, **kwargs):
@@ -548,7 +541,7 @@ class Qwen2VL(ChatVLBase):
             functions:List[dict]=None,
             **kwargs
         ):
-        if hasattr(self, 'system') and not history:
+        if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
 
@@ -594,7 +587,7 @@ class Mllama(ChatVLBase):
             functions:List[dict]=None,
             **kwargs
         ):
-        if hasattr(self, 'system') and not history:
+        if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
 
@@ -637,7 +630,7 @@ class GLM4V(ChatVLBase):
             **kwargs
         ):
         
-        if hasattr(self, 'system') and not history:
+        if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
 
@@ -685,7 +678,7 @@ class InternVL(ChatVLBase):
             if history is None and image is not None and '<image>' not in query:
                 query = '<image>\n' + query
             if image is not None:
-                pixel_values = load_image(image, max_num=12).to(torch.bfloat16).cuda()
+                pixel_values = fetch_image(image, max_num=12).to(torch.bfloat16).to(self.device)
             else:
                 pixel_values = None
             
@@ -693,25 +686,26 @@ class InternVL(ChatVLBase):
                 num_patches_list = [pixel_values.shape[0]] if pixel_values is not None else []
             assert pixel_values is None or len(pixel_values) == sum(num_patches_list)
 
-            template = get_conv_template(self.template)
-            template.system_message = self.system
-
+            template = self.build_template(system_message=self.system)
             history = [] if history is None else history
-            for (old_question, old_answer) in history:
-                template.append_message(template.roles[0], old_question)
-                template.append_message(template.roles[1], old_answer)
-            template.append_message(template.roles[0], query)
-            template.append_message(template.roles[1], None)
+            for hist in history:
+                if hist['role'] == 'user':
+                    template.append_message(template.role_user, hist['content'])
+                elif hist['role'] == 'assistant':
+                    template.append_message(template.role_assistant, hist['content'])
+            template.append_message(template.role_user, query)
+            template.append_message(template.role_assistant, None)
             query = template.get_prompt()
 
             for num_patches in num_patches_list:
                 image_tokens = IMG_START_TOKEN + IMG_CONTEXT_TOKEN * self.num_image_token * num_patches + IMG_END_TOKEN
                 query = query.replace('<image>', image_tokens, 1)
-
+            query_input.append(query)
+        
         history.append({'role': 'user', 'content': queries[0]})
         if all([i is not None for i in images]):
             history[-1]['images'] = images
-        return inputs
+        return query_input
     
 
 # ==========================================================================================
@@ -721,7 +715,8 @@ MAPPING = {
     'minicpmv': MiniCPMV,
     'qwen2_vl': Qwen2VL,
     'mllama': Mllama,
-    'glm4v': GLM4V
+    'glm4v': GLM4V,
+    'internvl2_5': InternVL
 }
 
 
@@ -809,7 +804,7 @@ class ChatVL:
             template = kwargs.pop('template')
         else:
             config_path = kwargs['config_path'] if kwargs.get('config_path') is not None else args[0]
-            config = json.load(open(get_config_path(config_path, allow_none=True)))
+            config = json.load(open(get_config_path(config_path, allow_none=True), encoding='utf-8'))
             template = config.get('template', config.get('model', config.get('model_type')))
         if template is None:
             raise ValueError('template/model/model_type not found in bert4torch_config.json')

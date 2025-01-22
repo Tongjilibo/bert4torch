@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import logging
 import math
 import os
@@ -8,15 +7,13 @@ import sys
 import time
 import warnings
 from functools import lru_cache
-from io import BytesIO
-
-import requests
 import torch
 import torchvision
 from packaging import version
 from PIL import Image
 from torchvision import io, transforms
 from torchvision.transforms import InterpolationMode
+from bert4torch.snippets import load_image
 
 
 logger = logging.getLogger(__name__)
@@ -84,23 +81,9 @@ def fetch_image(ele: dict[str, str | Image.Image], size_factor: int = IMAGE_FACT
         image = ele["image"]
     else:
         image = ele["image_url"]
-    image_obj = None
-    if isinstance(image, Image.Image):
-        image_obj = image
-    elif image.startswith("http://") or image.startswith("https://"):
-        image_obj = Image.open(requests.get(image, stream=True).raw)
-    elif image.startswith("file://"):
-        image_obj = Image.open(image[7:])
-    elif image.startswith("data:image"):
-        if "base64," in image:
-            _, base64_data = image.split("base64,", 1)
-            data = base64.b64decode(base64_data)
-            image_obj = Image.open(BytesIO(data))
-    else:
-        image_obj = Image.open(image)
-    if image_obj is None:
-        raise ValueError(f"Unrecognized image input, support local path, http url, base64 and PIL.Image, got {image}")
-    image = image_obj.convert("RGB")
+
+    image = load_image(image)  # 加载图片
+
     ## resize
     if "resized_height" in ele and "resized_width" in ele:
         resized_height, resized_width = smart_resize(

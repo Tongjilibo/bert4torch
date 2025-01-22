@@ -1,4 +1,5 @@
 import torch
+from bert4torch.snippets import load_image
 try:
     from PIL import Image
     import torchvision.transforms as T
@@ -73,8 +74,8 @@ def dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbna
         processed_images.append(thumbnail_img)
     return processed_images
 
-def load_image(image_file, input_size=448, max_num=12):
-    image = Image.open(image_file).convert('RGB')
+def fetch_image(image_file, input_size=448, max_num=12):
+    image = load_image(image_file)
     transform = build_transform(input_size=input_size)
     images = dynamic_preprocess(image, image_size=input_size, use_thumbnail=True, max_num=max_num)
     pixel_values = [transform(image) for image in images]

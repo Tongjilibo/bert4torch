@@ -6,7 +6,7 @@ bert4torch_config.json见readme
 [1] internlm-chat-7b模型：https://huggingface.co/internlm/internlm-chat-7b
 """
 
-from bert4torch.pipelines import Chat
+from bert4torch.pipelines import ChatVL
 import re
 from bert4torch.models import build_transformer_model
 
@@ -79,13 +79,15 @@ def chat_demo2():
     - InternLM (书生·浦语) is a conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.
     - InternLM (书生·浦语) can understand and communicate fluently in the language chosen by the user such as English and 中文."""
 
-    cli_demo = Chat(model_dir, 
+    cli_demo = ChatVL(model_dir, 
                     system=system_prompt,
                     generation_config=generation_config,
-                    mode='cli'
+                    mode='raw'
                     )
-    cli_demo.run()
+    # cli_demo.run()
+    cli_demo.build_prompt('图片中描述的是什么', 'E:/Github/bert4torch/test_local/images/资料概要.png')
 
 
 if __name__ == '__main__':
-    chat_demo1()
+    # chat_demo1()
+    chat_demo2()
