@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
 from bert4torch.models.transformer import PreTrainedModelForDecoder
-from bert4torch.snippets import DottableDict, inference_mode
+from bert4torch.snippets import DottableDict, inference_mode, log_warn_once
 import torch
 from .modeling_intern_vit import InternVisionModel, has_flash_attn
 from torch import nn
@@ -14,31 +14,27 @@ class InternVL(PreTrainedModelForDecoder):
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DottableDict(config)
-        image_size = self.config.force_image_size or self.config.vision_config.image_size
-        patch_size = self.config.vision_config.patch_size
-        self.patch_size = patch_size
         self.select_layer = self.config.select_layer
-        self.template = self.config.template
-        self.num_image_token = int((image_size // patch_size) ** 2 * (self.config.downsample_ratio ** 2))
         self.downsample_ratio = self.config.downsample_ratio
-        self.ps_version = self.config.ps_version
-        use_flash_attn = use_flash_attn if has_flash_attn else False
+        use_flash_attn = has_flash_attn if has_flash_attn else False
         self.config.vision_config.use_flash_attn = True if use_flash_attn else False
-        self.config.llm_config._attn_implementation = 'flash_attention_2' if use_flash_attn else 'eager'
+        self.config._attn_implementation = 'flash_attention_2' if use_flash_attn else 'eager'
+        self.ps_version = self.config.ps_version
+        self.img_context_token_id = self.config.img_context_token_id
 
+        # 模型结构
         self.vision_model = InternVisionModel(self.config.vision_config)
-
-        if self.config.llm_config.model == 'llama':
-            self.language_model = LLaMA(**self.config.llm_config)
-        elif self.config.llm_config.model == 'qwen2':
-            self.language_model = Qwen2(**self.config.llm_config)
+        if self.config.model_llm == 'llama':
+            self.language_model = LLaMA(**self.config)
+        elif self.config.model_llm == 'qwen2':
+            self.language_model = Qwen2(**self.config)
         else:
-            raise NotImplementedError(f'{self.config.llm_config.architectures[0]} is not implemented.')
+            raise NotImplementedError(f'{self.config.model_llm} is not implemented.')
 
         self.language_model.passed_kwargs = InternVL.passed_kwargs
 
         vit_hidden_size = self.config.vision_config.hidden_size
-        llm_hidden_size = self.config.llm_config.hidden_size
+        llm_hidden_size = self.config.hidden_size
 
         self.mlp1 = nn.Sequential(
             nn.LayerNorm(vit_hidden_size * int(1 / self.downsample_ratio) ** 2),
@@ -47,10 +43,25 @@ class InternVL(PreTrainedModelForDecoder):
             nn.Linear(llm_hidden_size, llm_hidden_size)
         )
 
+    def pixel_shuffle(self, x, scale_factor=0.5):
+        n, w, h, c = x.size()
+        # N, W, H, C --> N, W, H * scale, C // scale
+        x = x.view(n, w, int(h * scale_factor), int(c / scale_factor))
+        # N, W, H * scale, C // scale --> N, H * scale, W, C // scale
+        x = x.permute(0, 2, 1, 3).contiguous()
+        # N, H * scale, W, C // scale --> N, H * scale, W * scale, C // (scale ** 2)
+        x = x.view(n, int(h * scale_factor), int(w * scale_factor),
+                   int(c / (scale_factor * scale_factor)))
+        if self.ps_version == 'v1':
+            log_warn_once("In ps_version 'v1', the height and width have not been swapped back, "
+                          'which results in a transposed image.')
+        else:
+            x = x.permute(0, 2, 1, 3).contiguous()
+        return x
+    
     def get_vllm_embedding(
             self, 
             input_ids: torch.LongTensor = None,
-            inputs_embeds: Optional[torch.FloatTensor] = None,
             pixel_values: Optional[torch.Tensor] = None,
             **kwargs
         ):
@@ -62,39 +73,34 @@ class InternVL(PreTrainedModelForDecoder):
                 step=1: input_ids为新生成的last_token_id, pixel_values和pixel_values_videos为空
             use_states=False: 和train阶段一致
         '''
-        if inputs_embeds is None:
-            inputs_embeds = self.language_model.get_input_embeddings()(input_ids)
-            if pixel_values is not None:
-                pixel_values = pixel_values.type(self.vision_model.get_dtype())
+        input_embeds = self.language_model.get_input_embeddings()(input_ids)
+        if pixel_values is not None:
+            if self.select_layer == -1:
+                vit_embeds = self.vision_model(
+                    pixel_values=pixel_values,
+                    output_hidden_states=False,
+                    return_dict=True).last_hidden_state
+            else:
+                vit_embeds = self.vision_model(
+                    pixel_values=pixel_values,
+                    output_hidden_states=True,
+                    return_dict=True).hidden_states[self.select_layer]
+            vit_embeds:torch.Tensor = vit_embeds[:, 1:, :]
 
-                if self.select_layer == -1:
-                    vit_embeds = self.vision_model(
-                        pixel_values=pixel_values,
-                        output_hidden_states=False,
-                        return_dict=True).last_hidden_state
-                else:
-                    vit_embeds = self.vision_model(
-                        pixel_values=pixel_values,
-                        output_hidden_states=True,
-                        return_dict=True).hidden_states[self.select_layer]
-                vit_embeds = vit_embeds[:, 1:, :]
+            h = w = int(vit_embeds.shape[1] ** 0.5)
+            vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
+            vit_embeds = self.pixel_shuffle(vit_embeds, scale_factor=self.downsample_ratio)
+            vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
+            vit_embeds = self.mlp1(vit_embeds)
 
-                h = w = int(vit_embeds.shape[1] ** 0.5)
-                vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
-                vit_embeds = self.pixel_shuffle(vit_embeds, scale_factor=self.downsample_ratio)
-                vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
-                vit_embeds = self.mlp1(vit_embeds)
-
-                B, N, C = input_embeds.shape
-                input_embeds = input_embeds.reshape(B * N, C)
-                input_ids = input_ids.reshape(B * N)
-                selected = (input_ids == self.img_context_token_id)
-                assert selected.sum() != 0
-                input_embeds[selected] = vit_embeds.reshape(-1, C).to(input_embeds.device)
-                input_embeds = input_embeds.reshape(B, N, C)
-        else:
-            inputs_embeds = input_ids
-        return inputs_embeds
+            B, N, C = input_embeds.shape
+            input_embeds = input_embeds.reshape(B * N, C)
+            input_ids = input_ids.reshape(B * N)
+            selected = (input_ids == self.img_context_token_id)
+            assert selected.sum() != 0
+            input_embeds[selected] = vit_embeds.reshape(-1, C).to(input_embeds.device)
+            input_embeds = input_embeds.reshape(B, N, C)
+        return input_embeds
 
     def tie_weights(self):
         self.language_model.tie_weights()

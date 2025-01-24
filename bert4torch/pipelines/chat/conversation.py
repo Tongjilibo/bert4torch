@@ -298,7 +298,7 @@ class Conversation:
             role_assistant=self.role_assistant,
             messages=[[x, y] for x, y in self.messages],
             offset=self.offset,
-            sep_style=self.sep_style,
+            sep_style=eval(self.sep_style) if isinstance(self.sep_style, str) else self.sep_style,
             sep=self.sep,
             sep2=self.sep2,
             stop_str=self.stop_str,

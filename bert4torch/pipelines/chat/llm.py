@@ -35,7 +35,8 @@ from bert4torch.snippets import (
     add_start_docstrings,
     JsonConfig,
     NoopContextManager,
-    sequence_padding
+    sequence_padding,
+    DottableDict
 )
 from packaging import version
 import gc
@@ -135,10 +136,10 @@ class ChatBase(PipeLineBase):
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
         config_path_tmp = get_config_path(self.config_path, allow_none=True)
         if config_path_tmp is not None:
-            config = json.load(open(config_path_tmp, encoding='utf-8'))
-            self.generation_config = config.get('generation_config', dict())
+            self.config = DottableDict(json.load(open(config_path_tmp, encoding='utf-8')))
+            self.generation_config = self.config.get('generation_config', dict())
         else:
-            config = dict()
+            self.config = DottableDict()
             self.generation_config = dict()
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
@@ -148,7 +149,7 @@ class ChatBase(PipeLineBase):
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
-        self.template_config = config.pop('template_config', dict())
+        self.template_config = self.config.get('template_config', dict())
         self.system = system
 
     def no_history_states(self) -> bool:
@@ -251,7 +252,8 @@ class ChatBase(PipeLineBase):
         else:
             raise TypeError(f'`response` type={type(response)} which is not supported')
 
-    def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None) -> Union[str, List[str]]:
+    def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None, 
+             return_history:bool=False, **kwargs) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
 
@@ -261,10 +263,10 @@ class ChatBase(PipeLineBase):
             response = self.model.generate(prompts, **self.generation_config)
             if isinstance(response, str):
                 # 生成单条输出
-                return self.process_response_history(response, history=history)
+                response = self.process_response_history(response, history=history)
             elif isinstance(response, list):
                 # 为单条query生成多条response
-                return [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
+                response = [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
             else:
                 raise TypeError(f'`response` type={type(response)} which is not supported')
             
@@ -276,18 +278,22 @@ class ChatBase(PipeLineBase):
                 # build_prompt返回的都是tokenize后的input_ids，需要concat+padding在一起
                 prompts = sequence_padding(prompts, value=self.tokenizer.pad_token_id, padding_side='left')
             response = self.model.generate(prompts, **self.generation_config)
-            return [self.process_response_history(r, history=h) for r, h in zip(response, history_cp)]
+            response = [self.process_response_history(r, history=h) for r, h in zip(response, history_cp)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
-
-    def stream_chat(self, query:str, history:List[dict]=None, functions:List[dict]=None):
+        if return_history:
+            return response, history
+        else:
+            return response
+        
+    def stream_chat(self, query:str, history:List[dict]=None, functions:List[dict]=None, **kwargs):
         '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
         history = history or []
         prompt = self.build_prompt(query, history, functions)
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response_history(response, history)
 
-    def generate(self, query:Union[str, List[str]]) -> Union[str, List[str]]:
+    def generate(self, query:Union[str, List[str]], **kwargs) -> Union[str, List[str]]:
         '''base模型使用'''
         return self.model.generate(query, **self.generation_config)
 
@@ -418,8 +424,8 @@ class ChatWebGradio(ChatBase):
         except json.JSONDecodeError:
             functions = None
             log_warn('Functions implement not json format')
-
-        self.system = system
+        if system.strip() != '':
+            self.system = system
         return functions
 
     def regenerate(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):

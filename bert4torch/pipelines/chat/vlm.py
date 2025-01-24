@@ -120,8 +120,8 @@ class ChatVLBase(ChatBase):
         self.return_tensorDict_from_build_prompt = True  # build_prompt返回的是字典
         self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
 
-    def chat(self, query:Union[str, List[str]], images:Union[ImageType, List[ImageType]]=None, 
-             vedios=None, history:List[dict]=None, functions:List[dict]=None, **kwargs) -> Union[str, List[str]]:
+    def chat(self, query:Union[str, List[str]], images:Union[ImageType, List[ImageType]]=None, vedios=None, 
+             history:List[dict]=None, functions:List[dict]=None, return_history:bool=False,**kwargs) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
 
@@ -131,10 +131,10 @@ class ChatVLBase(ChatBase):
             response = self.model.generate(**inputs, **self.generation_config)
             if isinstance(response, str):
                 # 生成单条输出
-                return self.process_response_history(response, history=history)
+                response = self.process_response_history(response, history=history)
             elif isinstance(response, list):
                 # 为单条query生成多条response
-                return [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
+                response = [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
             else:
                 raise TypeError(f'`response` type={type(response)} which is not supported')
             
@@ -145,9 +145,13 @@ class ChatVLBase(ChatBase):
             vedios = [vedios] * len(query) if vedios is None or isinstance(vedios, (str, Image.Image, np.ndarray)) else vedios
             inputs:List[Dict[torch.Tensor]] = [self.build_prompt(q, img, ved, hist, functions, **kwargs) for q, img, ved, hist in zip(query, images, vedios, history_copy)]
             response = self.model.generate(inputs, **self.generation_config)
-            return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
+            response = [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
+        if return_history:
+            return response, history
+        else:
+            return response
 
     def stream_chat(self, query:str, images:Union[ImageType, List[ImageType]]=None, 
                     vedios=None, history:List[dict]=None, functions:List[dict]=None, **kwargs):
@@ -159,11 +163,11 @@ class ChatVLBase(ChatBase):
     
     def generate(self, *args, **kwargs):
         '''base模型使用'''
-        return self.model.generate(*args, **kwargs, **self.generation_config)
+        return self.model.generate(*args, **self.generation_config, **kwargs)
 
     def stream_generate(self, *args, **kwargs):
         '''base模型使用, 单条样本stream输出预测的结果'''
-        yield from self.model.stream_generate(*args, **kwargs, **self.generation_config)
+        yield from self.model.stream_generate(*args, **self.generation_config, **kwargs)
 
 
 class ChatVLWebGradio(ChatWebGradio):
@@ -647,7 +651,7 @@ class GLM4V(ChatVLBase):
                 messages[-1]['image'] = image
             all_messages.append(messages)
 
-        inputs = self.tokenizer.apply_chat_template(
+        inputs: dict = self.tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, tokenize=True, 
             return_tensors="pt", return_dict=True).to(self.device)
 
@@ -658,6 +662,12 @@ class GLM4V(ChatVLBase):
 
 
 class InternVL(ChatVLBase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        image_size = self.config.force_image_size or self.config.vision_config.image_size
+        patch_size = self.config.vision_config.patch_size
+        self.num_image_token = int((image_size // patch_size) ** 2 * (self.config.downsample_ratio ** 2))
+
     def build_prompt(
             self,
             queries: Union[str, List[str]], 
@@ -675,7 +685,7 @@ class InternVL(ChatVLBase):
 
         query_input = []
         for query, image in zip(queries, images):
-            if history is None and image is not None and '<image>' not in query:
+            if not history and image is not None and '<image>' not in query:
                 query = '<image>\n' + query
             if image is not None:
                 pixel_values = fetch_image(image, max_num=12).to(torch.bfloat16).to(self.device)
@@ -705,7 +715,9 @@ class InternVL(ChatVLBase):
         history.append({'role': 'user', 'content': queries[0]})
         if all([i is not None for i in images]):
             history[-1]['images'] = images
-        return query_input
+        inputs = self.tokenizer(query_input, return_tensors='pt', padding=True).to(self.device)
+        inputs['pixel_values'] = pixel_values
+        return inputs
     
 
 # ==========================================================================================
