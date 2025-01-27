@@ -9,10 +9,10 @@ from bert4torch.pipelines import ChatVL
 device = "cuda"
 model_dir = 'E:/data/pretrain_ckpt/glm/glm-4v-9b'
 url = "https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
+image = Image.open(requests.get(url, stream=True).raw).convert('RGB')
 tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
 
 def chat_demo1():
-    image = Image.open(requests.get(url, stream=True).raw).convert('RGB')
     model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, device_map='auto')
     gen_kwargs = {"max_length": 2500, "do_sample": True, "top_k": 1}
     while True:
