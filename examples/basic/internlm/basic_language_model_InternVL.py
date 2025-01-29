@@ -18,9 +18,8 @@ import requests
 # InternVL2_5-4B
 # InternVL2_5-8B
 model_dir = 'E:/data/pretrain_ckpt/internlm/InternVL2_5-1B'
-url = "https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
-image1 = Image.open(requests.get(url, stream=True).raw).convert('RGB')
-
+image1 = Image.open(requests.get("https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg", stream=True).raw).convert('RGB')
+image2 = Image.open(requests.get("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg", stream=True).raw).convert('RGB')
 
 def chat_demo1():
     device = 'cuda'
@@ -65,6 +64,13 @@ def chat_demo2():
     print(f'User: {question}\nAssistant: {response}\n')
 
 
+    log_info('multi-image multi-round conversation, separate images (多图多轮对话，独立图像)')
+    question = '图片中描述的是什么'
+    response, history = demo.chat(question, [image1, image2], return_history=True)
+    print(f'User: {question}\nAssistant: {response}\n')
+    question = '这两张图片的区别是什么？'
+    response, history = demo.chat(question, history=history, return_history=True)
+    print(f'User: {question}\nAssistant: {response}')
 
 if __name__ == '__main__':
     # chat_demo1()

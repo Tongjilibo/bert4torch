@@ -534,12 +534,12 @@ class MiniCPMV(ChatVLBase):
         # assert self.model.config.slice_mode == self.processor.image_processor.slice_mode, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
 
         # 处理history
-        history_copy, history_images = self.trans_history_format(history)
+        history_messages, history_images = self.trans_history_format(history)
 
         prompts_lists = []
         input_images_lists = []
         for q, image in zip(queries, images):
-            copy_msgs = copy.deepcopy(history_copy) if history else []
+            copy_msgs = copy.deepcopy(history_messages) if history else []
             if image is None:
                 image = []
             elif isinstance(image, Image.Image):
@@ -610,11 +610,11 @@ class Qwen2VL(ChatVLBase):
         if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
-        history_cp = self.trans_history_format(history)
+        history_messages = self.trans_history_format(history)
 
         all_messages = []
         for query, image in zip(queries, images):
-            messages = copy.deepcopy(history_cp) + [{"role": "user", "content": [{"type": "text", "text": query}]}]
+            messages = copy.deepcopy(history_messages) + [{"role": "user", "content": [{"type": "text", "text": query}]}]
             if image is None:
                 pass
             elif isinstance(image, list):
@@ -654,11 +654,11 @@ class Mllama(ChatVLBase):
         if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
-        history_cp = self.trans_history_format(history)
+        history_messages = self.trans_history_format(history)
 
         all_messages = []
         for query, image in zip(queries, images):
-            messages = copy.deepcopy(history_cp) + [{"role": "user", "content": [{"type": "text", "text": query}]}]
+            messages = copy.deepcopy(history_messages) + [{"role": "user", "content": [{"type": "text", "text": query}]}]
             if image is None:
                 pass
             elif isinstance(image, list):
@@ -684,13 +684,13 @@ class Mllama(ChatVLBase):
 class GLM4V(ChatVLBase):
     @staticmethod
     def trans_history_format(history):
-        history_cp = []
+        history_messages = []
         for msg in history or []:
             if 'images' in msg:
-                history_cp.append({'image':msg['images'], **{k:v for k,v in msg.items() if k != 'images'}})
+                history_messages.append({'image':msg['images'], **{k:v for k,v in msg.items() if k != 'images'}})
             else:
-                history_cp.append(msg)
-        return history_cp
+                history_messages.append(msg)
+        return history_messages
 
     def build_prompt(
             self,
@@ -705,11 +705,11 @@ class GLM4V(ChatVLBase):
         if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
         queries, images = trans_query_images_tolist(queries, images)
-        history_cp = self.trans_history_format(history)
+        history_messages = self.trans_history_format(history)
 
         all_messages = []
         for query, image in zip(queries, images):
-            messages = copy.deepcopy(history_cp) + [{"role": "user", "content": query}]
+            messages = copy.deepcopy(history_messages) + [{"role": "user", "content": query}]
             if image is not None:
                 messages[-1]['image'] = image
             # message中如果有多张图片，只保留最后一张
@@ -742,32 +742,44 @@ class GLM4V(ChatVLBase):
 
 
 class InternVL(ChatVLBase):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, max_num:int=12, separate_or_conbined_images:Literal['separate', 'conbined']='separate', **kwargs):
         super().__init__(*args, **kwargs)
         image_size = self.config.force_image_size or self.config.vision_config.image_size
         patch_size = self.config.vision_config.patch_size
         self.num_image_token = int((image_size // patch_size) ** 2 * (self.config.downsample_ratio ** 2))
-        self.max_num = kwargs.get('max_num', 12)
+        self.max_num = max_num
         self.IMG_START_TOKEN = '<img>'
         self.IMG_END_TOKEN = '</img>'
         self.IMG_CONTEXT_TOKEN = '<IMG_CONTEXT>'
+        self.separate_or_conbined_images = separate_or_conbined_images
+
+    def trans_image2pixel_values(self, images, query):
+        images = [images] if not isinstance(images, (tuple,list)) else images
+        pixel_value_list = [fetch_image(image, max_num=self.max_num).to(torch.bfloat16).to(self.device) for image in images]
+        pixel_values = torch.cat(pixel_value_list, dim=0)
+        if self.separate_or_conbined_images == 'separate':
+            content = '<image>\n' * len(images) + query
+            num_patches_list = [pixel.shape[0] for pixel in pixel_value_list]
+        else:
+            content = '<image>\n' + query
+            num_patches_list = [pixel_values.shape[0]]
+        return content, pixel_values, num_patches_list
 
     def trans_history_format(self, history):
-        history_cp = []
+        history_messages = []
         history_pixel_values = []
         history_num_patches_list = []
         for hist in history:
             images = hist.get('images', [])
-            images = [images] if not isinstance(images, list) else images
-            query = ''
-            for image in images:
-                query += '<image>\n'
-                history_pixel_values.append(fetch_image(image, max_num=self.max_num).to(torch.bfloat16).to(self.device))
-            query += hist['content']
-            history_cp.append({'role': hist['role'], 'content': query})
-        
-        history_num_patches_list = [pixel_values.size(0) for pixel_values in history_pixel_values]
-        return history_cp, history_pixel_values, history_num_patches_list
+            if images:
+                # 有图片
+                content, pixel_values, num_patches_list = self.trans_image2pixel_values(images, hist['content'])
+                history_pixel_values.append(pixel_values)
+                history_num_patches_list.extend(num_patches_list)
+            else:
+                content = hist['content']
+            history_messages.append({'role': hist['role'], 'content': content})        
+        return history_messages, history_pixel_values, history_num_patches_list
     
     def build_prompt(
             self,
@@ -776,30 +788,26 @@ class InternVL(ChatVLBase):
             vedios=None,
             history: List[Dict]=None, 
             functions:List[dict]=None,
-            num_patches_list=None,
             **kwargs
         ):
         queries, images = trans_query_images_tolist(queries, images)
-        history_cp, history_pixel_values_list, history_num_patches_list = self.trans_history_format(history)
+        history_messages, history_pixel_values_list, history_num_patches_list = self.trans_history_format(history)
         
         query_input = []
         pixel_values_list = []
         for query, image in zip(queries, images):
-            if image is not None and '<image>' not in query:
-                query = '<image>\n' + query
             if image is not None:
-                pixel_values = fetch_image(image, max_num=self.max_num).to(torch.bfloat16).to(self.device)
+                query, pixel_values, num_patches_list = self.trans_image2pixel_values(image, query)
             else:
                 pixel_values = None
-            
-            if num_patches_list is None:
-                num_patches_list = [pixel_values.shape[0]] if pixel_values is not None else []
+                num_patches_list = []
+
             assert pixel_values is None or len(pixel_values) == sum(num_patches_list)
             if history_pixel_values_list:
                 pixel_values = torch.cat(history_pixel_values_list + ([pixel_values] if pixel_values else []), dim=0)
 
             template = self.build_template(system_message=self.system)
-            for hist in history_cp:
+            for hist in history_messages:
                 if hist['role'] == 'user':
                     template.append_message(template.role_user, hist['content'])
                 elif hist['role'] == 'assistant':
@@ -816,7 +824,8 @@ class InternVL(ChatVLBase):
 
         history.append({'role': 'user', 'content': queries[0]})
         if all([i is not None for i in images]):
-            history[-1]['images'] = images
+            history[-1]['images'] = images[0]
+        self.tokenizer.padding_side = 'left'
         inputs = self.tokenizer(query_input, return_tensors='pt', padding=True).to(self.device)
         if all([i is not None for i in pixel_values_list]):
             inputs['pixel_values'] = torch.cat(pixel_values_list, dim=0)
