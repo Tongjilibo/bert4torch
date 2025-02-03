@@ -265,16 +265,16 @@ class BERT(PreTrainedModel):
     def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
         """BERT的embedding，可接受"位置参数/关键字参数"形式
 
-        :param inputs: List[torch.Tensor], 默认顺序是[token_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有), additional_input(若有)]
+        :param inputs: List[torch.Tensor], 默认顺序是[input_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有), additional_input(若有)]
         :param model_kwargs: Dict[torch.Tensor], 字典输入项，和inputs是二选一的
         :return: Dict[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
         """        
         # 准备进embedding层的一些输入
-        token_ids, segment_ids, position_ids, conditional_emb, additional_embs, attention_mask, model_kwargs = \
+        input_ids, segment_ids, position_ids, conditional_emb, additional_embs, attention_mask, model_kwargs = \
             self.preprare_embeddings_inputs(*inputs, **model_kwargs)
         
         # 进入embedding层
-        hidden_states = self.embeddings(token_ids, segment_ids, position_ids, conditional_emb, additional_embs)
+        hidden_states = self.embeddings(input_ids, segment_ids, position_ids, conditional_emb, additional_embs)
         model_kwargs.update({'hidden_states': hidden_states, 'attention_mask':attention_mask, 'conditional_emb': conditional_emb})
         
         return model_kwargs

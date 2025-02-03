@@ -16,12 +16,15 @@ from bert4torch.pipelines import Chat
 
 # deepseek-ai@DeepSeek-V2-Lite
 # deepseek-ai@DeepSeek-V2-Lite-Chat
-model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@DeepSeek-V2-Lite-Chat'
+
+# DeepSeek-R1-Distill-Qwen-1.5B
+model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@DeepSeek-R1-Distill-Qwen-1.5B'
 generation_config = {
     'max_length': 512,
 }
 
 demo = Chat(model_dir, 
+            system='You are a helpful assistant.',
             generation_config=generation_config,
             device_map='auto',
             # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}

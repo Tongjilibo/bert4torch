@@ -2045,18 +2045,9 @@ class LLaMA2(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
-class LLaMA3(ChatBase):
-    '''llama3不支持function call, llama3.1支持function call
-    
-    ### LLaMA3.1请求的Example
-    ```json
-    [
-        {"role": "system", "content": "You are a bot that responds to weather queries."},
-        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
-        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
-        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
-    ]
-    ```
+class ApplyChatTemplate(ChatBase):
+    '''直接使用self.tokenizer.apply_chat_template来构建输入
+    如果模型直接沿用这种方式，则无需做特殊的处理
     '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -2094,11 +2085,32 @@ class LLaMA3(ChatBase):
         return response
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
-class ApplyChatTemplate(LLaMA3):
+class LLaMA3(ApplyChatTemplate):
+    '''llama3不支持function call, llama3.1支持function call
+    
+    ### LLaMA3.1请求的Example
+    ```json
+    [
+        {"role": "system", "content": "You are a bot that responds to weather queries."},
+        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
+        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
+        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
+    ]
+    ```
+    '''
+    pass
+
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class DeepSeekR1(ApplyChatTemplate):
     '''直接使用self.tokenizer.apply_chat_template来构建输入
     如果模型直接沿用这种方式，则无需做特殊的处理
     '''
-    pass
+    def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        response = super().process_response_history(response, history)
+        if '</think>' in response:
+            history[-1]['content'] = response.split('</think>')[-1].strip()
+        return response
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -2255,7 +2267,8 @@ MAPPING = {
     'belle': Belle,
     'baichuan': Baichuan,
     'apply_chat_template': ApplyChatTemplate,
-    'pretrained_text_continuation': PretrainedTextContinuation
+    'pretrained_text_continuation': PretrainedTextContinuation,
+    'deepseek_r1': DeepSeekR1
 }
 
 

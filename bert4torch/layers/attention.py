@@ -621,6 +621,8 @@ class RopeAttention(MultiHeadAttention):
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
             embedding_size=self.attention_head_size, 
             max_position=self.max_position, 
+            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position),
+            sin_cos_cached = kwargs.get('rope_sin_cos_cached', False),
             rope_rank=rope_rank, 
             scaling_factor=scaling_factor, 
             rope_theta=rope_theta,
@@ -887,6 +889,8 @@ class DeepseekV2Attention(MultiHeadAttention):
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
             embedding_size = kwargs.get('qk_rope_head_dim'), 
             max_position = self.max_position, 
+            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position),
+            sin_cos_cached = kwargs.get('rope_sin_cos_cached', False),
             rope_rank = rope_rank, 
             scaling_factor = scaling_factor, 
             rope_theta = rope_theta,

@@ -184,10 +184,19 @@ class RopePositionEncoding(nn.Module):
         self.scaling_factor = scaling_factor  # chatglm中32k的插值
         self.rope_theta = rope_theta or 10000.0
         self.max_position = max_position  # 原始支持的最大长度
-        self.max_seq_len_cache = max_position  # 推理过程中遇到的最大长度max(seq_len, max_position)
-        self._set_inv_freq_cache(max_position, device=device, dtype=torch.get_default_dtype())  # 这里没有直接设置到max_position，因为容易占显存
+
+        # 有三种方案
+        # 1. 仅register_buffer inv_freq, cos和sin都在forward现算，优点省显存，缺点降低forward速度, transformer中最新逻辑
+        # 2. 按照最大长度register_buffer cos和sin，优点forward速度快，缺点费显存
+        # 3. 按照给定的最小长度register_buffer cos和sin，优点forward速度折中（>最小长度需现算），缺点显存折中
+        self.max_seq_len_cached = kwargs.get('max_seq_len_cached', max_position)  # 推理过程中遇到的最大长度max(seq_len, max_position)
+        self.sin_cos_cached = kwargs.get('sin_cos_cached', False)
+        self._set_inv_freq_cache(self.max_seq_len_cached, device=device)  # 这里没有直接设置到max_position，因为容易占显存
+        if self.sin_cos_cached:
+            self._set_cos_sin_cache(self.max_seq_len_cached, device or 'cpu', dtype=torch.get_default_dtype())
     
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
+    def _set_inv_freq_cache(self, seq_len, device=None):
+        '''inv_freq永远是float32的'''
         base = self.rope_theta
         if (self.ntk_alpha is not None) and (self.ntk_alpha != 1):
             base = base * self.ntk_alpha ** (self.embedding_size / (self.embedding_size-2))
@@ -195,35 +204,29 @@ class RopePositionEncoding(nn.Module):
         inv_freq = torch.exp(torch.arange(0, self.embedding_size, 2).float() * (-math.log(base) / self.embedding_size))
         if (self.scaling_factor is not None) and (self.scaling_factor != 1):
             inv_freq = inv_freq / self.scaling_factor
-
-        self._register_buffer(inv_freq, device, dtype)
-
-    def _register_buffer(self, inv_freq, device=None, dtype=None):
-        if device is not None:
-            inv_freq = inv_freq.to(device)
-        if dtype is not None:
-            inv_freq = inv_freq.to(dtype)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
-        self.inv_freq:torch.Tensor
 
-    def rotate_and_compute(self, x, cos, sin):
-        # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
-        # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
-        # EfficientGlobalPointer中x是[btz, seq_len, head_size]
-        if self.rope_rank == 'adjacent':
-            x2 = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1).reshape_as(x)
-        elif self.rope_rank in {'updown', 'rotate_half'}:
-            # 其实就是rotate_half，注意cat和stack+reshape是结果不同的
-            x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
-        return x * cos + x2 * sin
-    
+    def _set_cos_sin_cache(self, seq_len, device, dtype):
+        position_ids = torch.arange(self.max_seq_len_cached, device=device, dtype=torch.int64).type_as(self.inv_freq)
+
+        cos, sin = self._compute_cos_sin(self.inv_freq[None, :, None], position_ids[None, :], device, dtype)
+        self.register_buffer("cos_cached", cos, persistent=False)
+        self.register_buffer("sin_cached", sin, persistent=False)
+
     def compute_cos_sin(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor):
         '''计算cos和sin
         param position_ids: [..., btz, seq_len]
         '''
+        if self.sin_cos_cached and hasattr(self, 'cos_cached') and hasattr(self, 'sin_cached'):
+            # position_ids [btz, seq_len], cos_cached [btz, max_seq_len, emb_size]
+            cos = torch.stack([F.embedding(i[0], i[1]) for i in zip(position_ids, self.cos_cached)])
+            sin = torch.stack([F.embedding(i[0], i[1]) for i in zip(position_ids, self.sin_cached)])
+            return cos, sin
+
         q:torch.Tensor = qk[0] if isinstance(qk, list) else qk
         device_type = q.device.type
         device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+        self.inv_freq: torch.Tensor
 
         # 兼容position_ids传入不同的维度
         pos_dim = position_ids.dim()
@@ -236,12 +239,17 @@ class RopePositionEncoding(nn.Module):
             for i in range(pos_dim+1):
                 if i != pos_dim-1:
                     inv_freq_expanded = inv_freq_expanded.unsqueeze(i)
+        
+        cos, sin = self._compute_cos_sin(inv_freq_expanded, position_ids, device_type, q.dtype)
+        return cos, sin
 
-        inv_freq_expanded = inv_freq_expanded.float().expand(*position_ids.shape[:pos_dim-1], -1, 1)
+    def _compute_cos_sin(self, inv_freq_expanded:torch.Tensor, position_ids:torch.Tensor, device_type:str, dtype:str):
+        '''拆分出来，方便compute_cos_sin和_set_cos_sin_cache调用'''
+        inv_freq_expanded = inv_freq_expanded.float().expand(*position_ids.shape[:-1], -1, 1)
         position_ids_expanded = position_ids.unsqueeze(-2).float()
 
         with torch.autocast(device_type=device_type, enabled=False):
-            emb = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(pos_dim-1, pos_dim)
+            emb = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(-2, -1)  # btz, seq_len, hdsz
             cos:torch.Tensor = emb.cos()
             sin:torch.Tensor = emb.sin()
 
@@ -254,7 +262,18 @@ class RopePositionEncoding(nn.Module):
             cos = torch.cat((cos, cos), dim=-1)  # [..., seq_len, hdsz]
             sin = torch.cat((sin, sin), dim=-1)  # [..., seq_len, hdsz]
 
-        return cos.to(dtype=q.dtype), sin.to(dtype=q.dtype)
+        return cos.to(dtype=dtype), sin.to(dtype=dtype)
+    
+    def rotate_and_compute(self, x, cos, sin):
+        # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
+        # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
+        # EfficientGlobalPointer中x是[btz, seq_len, head_size]
+        if self.rope_rank == 'adjacent':
+            x2 = torch.stack([-x[..., 1::2], x[..., ::2]], dim=-1).reshape_as(x)
+        elif self.rope_rank in {'updown', 'rotate_half'}:
+            # 其实就是rotate_half，注意cat和stack+reshape是结果不同的
+            x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
+        return x * cos + x2 * sin
 
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor):
         '''修改了原有的q和k重复走一遍embedding，实现加速'''
@@ -265,11 +284,11 @@ class RopePositionEncoding(nn.Module):
 
         # 超过缓存长度则重新设置cache
         seq_len = position_ids.max() + 1
-        if seq_len > self.max_seq_len_cache:
-            self.max_seq_len_cache = seq_len
-            self._set_inv_freq_cache(seq_len, device, dtype)
-        if (self.inv_freq.dtype != dtype) or (self.inv_freq.device != device):
-            self._register_buffer(self.inv_freq, device, dtype)
+        if seq_len > self.max_seq_len_cached:
+            self.max_seq_len_cached = seq_len
+            self._set_inv_freq_cache(seq_len, device)
+            if self.sin_cos_cached:
+                self._set_cos_sin_cache(seq_len, device, dtype)
         
         # 计算cos和sin
         cos, sin = self.compute_cos_sin(qk, position_ids)
@@ -327,10 +346,10 @@ class RopeDynamicNTKScalingPositionEncoding(RopePositionEncoding):
         scaling_factor = 1.0  # 仅在超长时候能使用的到
         super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
 
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
+    def _set_inv_freq_cache(self, seq_len, device=None):
         # 根据transformer中llama代码，dynamic时候需要seq_len > self.max_seq_len_cache才执行scaling_factor
         self.ntk_alpha = (self.scaling_factor_raw * seq_len / self.max_position) - (self.scaling_factor_raw - 1)
-        return super()._set_inv_freq_cache(seq_len, device, dtype)
+        return super()._set_inv_freq_cache(seq_len, device)
 
 
 class RopeLlama3PositionEncoding(RopePositionEncoding):
@@ -347,7 +366,7 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
         self.old_context_len = kwargs["original_max_position_embeddings"]  # `8192` in the original implementation
         super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
 
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
+    def _set_inv_freq_cache(self, seq_len, device=None):
         base = self.rope_theta
         if (self.ntk_alpha is not None) and (self.ntk_alpha != 1):
             base = base * self.ntk_alpha ** (self.embedding_size / (self.embedding_size-2))
@@ -367,18 +386,18 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
         is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(wavelen > low_freq_wavelen)
         inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
-        self._register_buffer(inv_freq, device, dtype)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
         return inv_freq_llama    
 
 
 class RopeDynamicNTKScalingQwenPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope (Qwen版)'''
-    def _set_inv_freq_cache(self, seq_len, device=None, dtype=None):
+    def _set_inv_freq_cache(self, seq_len, device=None):
         context_value = math.log(seq_len / self.max_position, 2) + 1
         ntk_alpha = max(2 ** math.ceil(context_value) - 1, 1)
         if ntk_alpha != self.ntk_alpha:
             self.ntk_alpha = ntk_alpha
-        return super()._set_inv_freq_cache(seq_len, device, dtype)
+        return super()._set_inv_freq_cache(seq_len, device)
 
 
 class RopeYarnPositionEncoding(RopePositionEncoding):
@@ -430,7 +449,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         ramp_func = torch.clamp(linear_func, 0, 1)
         return ramp_func
 
-    def _set_inv_freq_cache(self, seq_len, device='cpu', dtype=torch.float32):
+    def _set_inv_freq_cache(self, seq_len, device='cpu'):
         self.max_seq_len_cache = seq_len
         dim = self.embedding_size
 
@@ -443,7 +462,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         # self.register_buffer("inv_freq", inv_freq, persistent=False)
 
         self._mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
-        self._register_buffer(inv_freq, device, dtype)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
 
     def rotate_and_compute(self, x, cos, sin):
         b, h, s, d = x.shape
