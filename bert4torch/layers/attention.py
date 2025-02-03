@@ -87,6 +87,7 @@ class MultiHeadAttention(nn.Module):
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
+        self.scaling = 1 / math.sqrt(self.attention_head_size)
         q_inner_dim = self.attention_key_size * num_attention_heads
         k_inner_dim = q_inner_dim
         v_inner_dim = self.attention_head_size * num_attention_heads
@@ -179,16 +180,7 @@ class MultiHeadAttention(nn.Module):
             context_layer = xops.memory_efficient_attention(query_states, key_states, value_states, attn_bias=xops.LowerTriangularMask())
         # SDPA
         elif self._attn_implementation in {True, 'sdpa'}:
-            # 适用于qlen=klen, 测试下来is_causal=True训练更快
-            is_causal = (query_states.shape[2] == key_states.shape[2]) and is_causal_mask(attention_mask)
-            context_layer = F.scaled_dot_product_attention(
-                query_states, 
-                key_states, 
-                value_states, 
-                attn_mask=None if is_causal else attention_mask,
-                dropout_p=self.attention_probs_dropout_prob if self.training else 0.0,
-                is_causal=is_causal
-                )
+            context_layer = self.spda_attention_forward(query_states, key_states, value_states, attention_mask)
         # flash_attn
         elif self._attn_implementation == 'flash_attn_2':
             context_layer = self.flash_attention_forward(query_states, key_states, value_states, past_key_value, attention_mask, hidden_states.shape[1])
@@ -205,9 +197,9 @@ class MultiHeadAttention(nn.Module):
             context_layer = context_layer.reshape(bsz, q_len, self.hidden_size)
         else:
             # context_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-            context_layer = context_layer.permute(0, 2, 1, 3)
+            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
             new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-            context_layer = context_layer.reshape(*new_context_layer_shape)
+            context_layer = context_layer.reshape(*new_context_layer_shape).contiguous()
 
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
@@ -262,7 +254,7 @@ class MultiHeadAttention(nn.Module):
    
     def apply_attention_scale(self, attention_scores):
         '''方便子类继承'''
-        return attention_scores / math.sqrt(self.attention_head_size)
+        return attention_scores * self.scaling
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         return attention_scores
@@ -294,6 +286,24 @@ class MultiHeadAttention(nn.Module):
 
         return context_layer, attention_scores
     
+    def spda_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, attention_mask:torch.Tensor):
+        '''spda: torch2.0新特性'''
+        # 适用于qlen=klen, 测试下来is_causal=True训练更快
+        query_states = query_states.contiguous()
+        key_states = key_states.contiguous()
+        value_states = value_states.contiguous()
+        is_causal = (query_states.shape[2] == key_states.shape[2]) and is_causal_mask(attention_mask)
+        context_layer = F.scaled_dot_product_attention(
+            query_states, 
+            key_states, 
+            value_states, 
+            attn_mask=None if is_causal else attention_mask,
+            dropout_p=self.attention_probs_dropout_prob if self.training else 0.0,
+            scale=self.scaling,
+            is_causal=is_causal
+            )
+        return context_layer
+            
     def flash_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                                 past_key_value:Union[Tuple[torch.Tensor]], attention_mask:torch.Tensor, 
                                 query_length:int, softmax_scale:float=None):
