@@ -1,24 +1,27 @@
 
 from bert4torch.pipelines import Chat
 
-# deepseek-ai@deepseek-moe-16b-base
-# deepseek-ai@deepseek-moe-16b-chat
+# deepseek-moe-16b-base
+# deepseek-moe-16b-chat
 
-# deepseek-ai@deepseek-llm-7b-base
-# deepseek-ai@deepseek-llm-7b-chat
+# deepseek-llm-7b-base
+# deepseek-llm-7b-chat
 
-# deepseek-ai@deepseek-coder-1.3b-base
-# deepseek-ai@deepseek-coder-1.3b-instruct
-# deepseek-ai@deepseek-coder-6.7b-base
-# deepseek-ai@deepseek-coder-6.7b-instruct
-# deepseek-ai@deepseek-coder-7b-base-v1.5
-# deepseek-ai@deepseek-coder-7b-instruct-v1.5
+# deepseek-coder-1.3b-base
+# deepseek-coder-1.3b-instruct
+# deepseek-coder-6.7b-base
+# deepseek-coder-6.7b-instruct
+# deepseek-coder-7b-base-v1.5
+# deepseek-coder-7b-instruct-v1.5
 
-# deepseek-ai@DeepSeek-V2-Lite
-# deepseek-ai@DeepSeek-V2-Lite-Chat
+# DeepSeek-V2-Lite
+# DeepSeek-V2-Lite-Chat
 
 # DeepSeek-R1-Distill-Qwen-1.5B
-model_dir = 'E:/data/pretrain_ckpt/deepseek/deepseek-ai@DeepSeek-R1-Distill-Qwen-1.5B'
+# DeepSeek-R1-Distill-Qwen-7B
+# DeepSeek-R1-Distill-Llama-8B
+# DeepSeek-R1-Distill-Qwen-14B
+model_dir = 'E:/data/pretrain_ckpt/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B'
 generation_config = {
     'max_length': 512,
 }

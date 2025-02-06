@@ -87,7 +87,7 @@ class MultiHeadAttention(nn.Module):
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
-        self.scaling = 1 / math.sqrt(self.attention_head_size)
+        self.scaling = self.attention_head_size ** (-0.5)
         q_inner_dim = self.attention_key_size * num_attention_heads
         k_inner_dim = q_inner_dim
         v_inner_dim = self.attention_head_size * num_attention_heads
@@ -305,8 +305,7 @@ class MultiHeadAttention(nn.Module):
         return context_layer
             
     def flash_attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
-                                past_key_value:Union[Tuple[torch.Tensor]], attention_mask:torch.Tensor, 
-                                query_length:int, softmax_scale:float=None):
+                                past_key_value:Union[Tuple[torch.Tensor]], attention_mask:torch.Tensor, query_length:int):
         """ flash_attn，参考transformers中的调用
         """
         def _get_unpad_data(attention_mask):
@@ -356,7 +355,6 @@ class MultiHeadAttention(nn.Module):
             if use_sliding_windows and past_key_value is not None and past_key_value[0].shape[2] > 0:
                 use_sliding_windows = True
             return use_sliding_windows
-    
 
         def _run_sliding_windows(key_states, value_states, past_key_value, attention_mask):
             '''sliding_window部分'''
@@ -413,7 +411,7 @@ class MultiHeadAttention(nn.Module):
                 max_seqlen_q=max_seqlen_in_batch_q,
                 max_seqlen_k=max_seqlen_in_batch_k, 
                 dropout_p=dropout, 
-                softmax_scale=softmax_scale, 
+                softmax_scale=self.scaling, 
                 causal=False, 
                 window_size=(self.sliding_window, self.sliding_window) if use_sliding_windows else (-1, -1)
             )
@@ -426,7 +424,7 @@ class MultiHeadAttention(nn.Module):
             if use_sliding_windows:
                 key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
 
-            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=True,
+            attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=self.scaling, causal=True,
                                           window_size=(self.sliding_window, self.sliding_window) if use_sliding_windows else (-1, -1))
         
         elif is_causal:
@@ -881,13 +879,13 @@ class DeepseekV2Attention(MultiHeadAttention):
                               (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
 
-        self.softmax_scale = self.q_head_dim ** (-0.5)
+        self.scaling = self.q_head_dim ** (-0.5)
         if self.rope_scaling is not None:
             mscale_all_dim = self.rope_scaling.get("mscale_all_dim", 0)
             scaling_factor = self.rope_scaling["factor"]
             if mscale_all_dim:
                 mscale = 1.0 if scaling_factor <= 1 else 0.1 * mscale_all_dim * math.log(scaling_factor) + 1.0
-                self.softmax_scale = self.softmax_scale * mscale * mscale
+                self.scaling = self.scaling * mscale * mscale
         
     def init_position_encoding(self, **kwargs):
         '''这里dim为qk_rope_head_dim所以重新初始化了'''
@@ -906,9 +904,6 @@ class DeepseekV2Attention(MultiHeadAttention):
             rope_theta = rope_theta,
             **rope_scaling
             )
-
-    def apply_attention_scale(self, attention_scores):
-        return attention_scores * self.softmax_scale
     
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
         bsz, q_len, _ = hidden_states.size()
