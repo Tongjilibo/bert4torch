@@ -1,12 +1,12 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
-from bert4torch.models.transformer import DecoderBase
+from bert4torch.models.transformer import PreTrainedModelForDecoder
 from bert4torch.snippets import DottableDict, inference_mode
 import torch
 
 
-class Qwen2VL(DecoderBase):
-    passed_kwargs = DecoderBase.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
+class Qwen2VL(PreTrainedModelForDecoder):
+    passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DottableDict(config)
@@ -70,8 +70,8 @@ class Qwen2VL(DecoderBase):
         return self.model(input_ids=inputs_embeds, **model_kwargs)
 
 
-    def load_variable(self, variable, old_key, new_key):
-        if old_key in {'model.embeddings.word_embeddings.weight', 'model.lm_head.weight'}:
+    def load_variable(self, variable, ckpt_key, model_key):
+        if ckpt_key in {'model.embeddings.word_embeddings.weight', 'model.lm_head.weight'}:
             return self.load_embeddings(variable)
         return variable
     
@@ -83,7 +83,7 @@ class Qwen2VL(DecoderBase):
             'model.LayerNormFinal.weight': 'model.norm.weight',
             }
 
-        for i in range(self.num_hidden_layers):
+        for i in range(self.model.num_hidden_layers):
             mapping.update( 
             {
             f'model.decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
@@ -248,13 +248,6 @@ class Qwen2VL(DecoderBase):
                     )
 
                 return position_ids, mrope_position_deltas
-
-    # def get_states(self, kwargs):
-    #     new_kwargs = super().get_states(kwargs)
-    #     for key in ['pixel_values', 'pixel_values_videos', 'image_grid_thw', 'video_grid_thw']:
-    #         if key in kwargs:
-    #             new_kwargs[key] = kwargs[key]
-    #     return new_kwargs
     
     def prepare_inputs_for_generation(
         self,

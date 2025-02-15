@@ -22,10 +22,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-config_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
-data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
+data_dir = 'E:/data/corpus/Sohu2022/Sohu2022_data/nlp_data'
 
 choice = 'train'
 prefix = f'_char_512'
@@ -162,9 +162,9 @@ class Evaluator(Callback):
             if use_swa:
                 swa_model.eval()
                 with torch.no_grad():
-                    entity_logit = F.softmax(swa_model([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
+                    entity_logit = F.softmax(swa_model(token_ids, entity_ids), dim=-1)  # [btz, 实体个数, 实体类别数]
             else:
-                entity_logit = F.softmax(model.predict([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
+                entity_logit = F.softmax(model.predict(token_ids, entity_ids), dim=-1)  # [btz, 实体个数, 实体类别数]
             _, entity_pred = torch.max(entity_logit, dim=-1)  # [btz, 实体个数]
             # v_pred和v_true是实体的预测结果
             valid_index = (entity_ids.flatten()>0).nonzero().squeeze(-1)

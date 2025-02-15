@@ -19,9 +19,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/albert/brightmart@albert_small_zh/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/albert/brightmart@albert_small_zh/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/albert/brightmart@albert_small_zh/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/voidful/albert_chinese_small/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/voidful/albert_chinese_small/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/voidful/albert_chinese_small/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 writer = SummaryWriter(log_dir='./summary')  # prepare summary writer
@@ -68,7 +68,7 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)  # 建立模型，加载权重
+        self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 

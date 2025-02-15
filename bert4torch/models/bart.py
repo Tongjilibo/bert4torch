@@ -16,9 +16,9 @@ class BART(Transformer):
         super(BART, self).__init__(*args, **kwargs)
         self.model_type = 'bart'
 
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'}:
+        if ckpt_key in {'shared.weight', 'encoder.embed_tokens.weight', 'decoder.embed_tokens.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -62,7 +62,7 @@ class BART(Transformer):
             'decoder.embeddings.layerNorm.weight': 'decoder.layernorm_embedding.weight',
             'decoder.embeddings.layerNorm.bias': 'decoder.layernorm_embedding.bias',
         }
-        for i in range(self.num_hidden_layers):
+        for i in range(self.encoder.num_hidden_layers):
             mapping.update(
                 {
                 f'encoder.encoderLayer.{i}.multiHeadAttention.q.weight': f'encoder.layers.{i}.self_attn.q_proj.weight',

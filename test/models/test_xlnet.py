@@ -15,7 +15,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     return model.to(device)
 
 
@@ -25,8 +25,8 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/transformer_xl/huggingface@transfo-xl-wt103",
-                                       "E:/data/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/transfo-xl/transfo-xl-wt103",
+                                       "E:/data/pretrain_ckpt/hfl/chinese-xlnet-base"])
 @torch.inference_mode()
 def test_xlnet(model_dir):
     model = get_bert4torch_model(model_dir)
@@ -44,4 +44,4 @@ def test_xlnet(model_dir):
 
 
 if __name__=='__main__':
-    test_xlnet("E:/data/pretrain_ckpt/transformer_xl/huggingface@transfo-xl-wt103")
+    test_xlnet("E:/data/pretrain_ckpt/transfo-xl/transfo-xl-wt103")

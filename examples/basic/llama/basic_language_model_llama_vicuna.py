@@ -10,7 +10,7 @@ import platform
 import os
 
 
-dir_path = 'E:/data/pretrain_ckpt/llama/lmsys@vicuna-7b-v1.5/'
+dir_path = 'E:/data/pretrain_ckpt/lmsys/vicuna-7b-v1.5/'
 config_path = dir_path + 'bert4torch_config.json'
 checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 spm_path = dir_path + 'tokenizer.model'
@@ -18,8 +18,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = SpTokenizer(spm_path, token_start='<s>', token_end=None, keep_accents=True)
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
-model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half().to(device)
 
 
 # 第一种方式

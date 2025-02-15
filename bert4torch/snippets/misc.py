@@ -6,10 +6,16 @@ from torch import nn
 import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
-from torch4keras.snippets import log_info, log_warn, Timeit, is_accelerate_available, find_tied_parameters, log_warn_once
+from torch4keras.snippets import log_info, log_warn, TimeitContextManager, is_accelerate_available, find_tied_parameters, log_warn_once
 from typing import Union
 import re
 from packaging import version
+from io import BytesIO
+import requests
+from PIL import Image
+import base64
+import numpy as np
+import os
 
 
 if is_accelerate_available():
@@ -254,7 +260,7 @@ def old_checkpoint(function, model_kwargs):
         return outputs
 
 
-class GenerateSpeed(Timeit):
+class GenerateSpeed(TimeitContextManager):
     '''上下文管理器，计算token生成的速度
 
     Examples:
@@ -354,6 +360,32 @@ def has_chinese_char(text:str) -> bool:
     elif text.strip() == '':
         return False
     return re.search(r'[\u4e00-\u9fff]', text)
+
+
+def load_image(image: Union[Image.Image, np.ndarray, str]) -> Image.Image:
+    '''加载图片'''
+    image_obj = None
+    if isinstance(image, Image.Image):
+        image_obj = image
+    elif isinstance(image, np.ndarray):
+        image_obj = Image.fromarray(image)
+    elif isinstance(image, str):
+        if image.startswith("http://") or image.startswith("https://"):  # 网址
+            image_obj = Image.open(requests.get(image, stream=True).raw)
+        elif image.startswith("file://"):  # 网盘
+            image_obj = Image.open(image[7:])
+        elif image.startswith("data:image"):  # base64编码
+            if "base64," in image:
+                _, base64_data = image.split("base64,", 1)
+                data = base64.b64decode(base64_data)
+                image_obj = Image.open(BytesIO(data))
+        elif os.path.isfile(image):  # 本地文件路径
+            image_obj = Image.open(image)
+
+    if image_obj is None:
+        raise ValueError(f"Unrecognized image input, support local path, http url, base64, np.ndarray and PIL.Image, got {image}")
+    image = image_obj.convert("RGB")
+    return image
 
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):

@@ -7,6 +7,7 @@ url: https://github.com/huggingface/transformers/blob/main/src/transformers/gene
 import torch
 from bert4torch.snippets import add_start_docstrings
 import inspect
+from typing import Union
 
 
 LOGITS_PROCESSOR_INPUTS_DOCSTRING = r"""
@@ -148,13 +149,13 @@ class TopKLogitsWarper(LogitsProcessor):
 class TemperatureLogitsWarper(LogitsProcessor):
     """Temperature
     """
-    def __init__(self, temperature: float):
-        if not isinstance(temperature, float) or not (temperature > 0):
+    def __init__(self, temperature: Union[float, int]):
+        if not isinstance(temperature, (float, int)) or not (temperature > 0):
             except_msg = (
                 f"`temperature` (={temperature}) has to be a strictly positive float, otherwise your next token "
                 "scores will be invalid."
             )
-            if isinstance(temperature, float) and temperature == 0.0:
+            if isinstance(temperature, (float, int)) and temperature == 0.0:
                 except_msg += " If you're looking for greedy decoding strategies, set `do_sample=False`."
             raise ValueError(except_msg)
 

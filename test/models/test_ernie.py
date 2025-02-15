@@ -17,7 +17,7 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
-    model = build_transformer_model(config_path, checkpoint_path, model='ERNIE')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, model='ERNIE')
     return model.to(device), tokenizer
 
 
@@ -27,8 +27,8 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/ernie/baidu@ernie-1-base-zh",
-                                       "E:/data/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/nghuyong/ernie-1.0-base-zh",
+                                       "E:/data/pretrain_ckpt/nghuyong/ernie-3.0-base-zh"])
 @torch.inference_mode()
 def test_ernie(model_dir):
     model, _ = get_bert4torch_model(model_dir)
@@ -46,4 +46,4 @@ def test_ernie(model_dir):
 
 
 if __name__=='__main__':
-    test_ernie("E:/data/pretrain_ckpt/ernie/baidu@ernie-3-base-zh")
+    test_ernie("E:/data/pretrain_ckpt/nghuyong/ernie-3.0-base-zh")

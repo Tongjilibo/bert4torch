@@ -1,7 +1,7 @@
 # 模型文件地址
-config_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 
 data_dir = 'F:/data/corpus/qa/FinanceFAQ'
 q_std_file = f'{data_dir}/q_std_file.tsv'  # 标准问数据

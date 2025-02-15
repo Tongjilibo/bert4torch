@@ -8,7 +8,7 @@ from torch.nn.functional import softmax
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/albert/brightmart@albert_base_zh"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/voidful/albert_chinese_base"])
 @torch.inference_mode()
 def test_albert(model_dir):
     inputtext = "今天[MASK]情很好"
@@ -21,7 +21,7 @@ def test_albert(model_dir):
 
     # 建立分词器
     tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
     token_ids, segments_ids = tokenizer.encode(inputtext)
     print(''.join(tokenizer.ids_to_tokens(token_ids)))
@@ -57,4 +57,4 @@ def test_albert(model_dir):
 
 
 if __name__=='__main__':
-    test_albert("E:/data/pretrain_ckpt/albert/brightmart@albert_base_zh")
+    test_albert("E:/data/pretrain_ckpt/voidful/albert_chinese_base")

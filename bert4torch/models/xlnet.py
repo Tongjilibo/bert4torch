@@ -54,9 +54,9 @@ class XLNET(Transformer_XL):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 加载单个变量的函数
-        if old_key in {f'transformer.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
+        if ckpt_key in {f'transformer.word_embedding.weight', 'lm_loss.weight', 'lm_loss.bias'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -71,14 +71,14 @@ class XLNET(Transformer_XL):
                     prefix_i + 'rel_attn.v': f'encoderLayer.{i}.multiHeadAttention.v.weight',
                     prefix_i + 'rel_attn.r': f'encoderLayer.{i}.multiHeadAttention.r.weight',
                     }
-            for old_key, new_key in mapping.items():
-                if state_dict.get(old_key) is not None:
-                    variable = state_dict.pop(old_key)
-                    state_dict[new_key] = variable.reshape(variable.shape[0], -1).T
+            for ckpt_key, model_key in mapping.items():
+                if state_dict.get(ckpt_key) is not None:
+                    variable = state_dict.pop(ckpt_key)
+                    state_dict[model_key] = variable.reshape(variable.shape[0], -1).T
 
-            old_key = prefix_i + 'rel_attn.o'
-            if state_dict.get(old_key) is not None:
-                variable = state_dict.pop(old_key)
+            ckpt_key = prefix_i + 'rel_attn.o'
+            if state_dict.get(ckpt_key) is not None:
+                variable = state_dict.pop(ckpt_key)
                 state_dict[f'encoderLayer.{i}.multiHeadAttention.o.weight'] = variable.reshape(variable.shape[0], -1)
         return state_dict
 
@@ -92,14 +92,14 @@ class XLNET(Transformer_XL):
                     f'encoderLayer.{i}.multiHeadAttention.v.weight': prefix_i + 'rel_attn.v',
                     f'encoderLayer.{i}.multiHeadAttention.r.weight': prefix_i + 'rel_attn.r',
                     }
-            for old_key, new_key in mapping.items():
-                if state_dict.get(old_key) is not None:
-                    variable = state_dict.pop(old_key)
-                    state_dict[new_key] = variable.T.reshape(-1, self.num_attention_heads, self.attention_head_size)
+            for model_key, ckpt_key in mapping.items():
+                if state_dict.get(model_key) is not None:
+                    variable = state_dict.pop(model_key)
+                    state_dict[ckpt_key] = variable.T.reshape(-1, self.num_attention_heads, self.attention_head_size)
 
-            old_key = f'encoderLayer.{i}.multiHeadAttention.o.weight'
-            if state_dict.get(old_key) is not None:
-                variable = state_dict.pop(old_key)
+            model_key = f'encoderLayer.{i}.multiHeadAttention.o.weight'
+            if state_dict.get(model_key) is not None:
+                variable = state_dict.pop(model_key)
                 state_dict[prefix_i + 'rel_attn.o'] = variable.reshape(-1, self.num_attention_heads, self.attention_head_size)
         return state_dict
 

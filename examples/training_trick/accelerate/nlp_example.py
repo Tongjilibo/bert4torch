@@ -45,9 +45,9 @@ if batch_size > MAX_GPU_BATCH_SIZE:
 
 seed_everything(seed)
 
-config_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 

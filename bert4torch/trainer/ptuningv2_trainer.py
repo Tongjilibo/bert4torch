@@ -82,19 +82,19 @@ class PtuningV2Model(BaseModel):
 
     def get_past_key_values(self, token_ids):
         batch_size = token_ids.shape[0]
-        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(token_ids.device)
-        past_key_values = self.prefix_encoder(prefix_tokens).type(torch.float16)
+        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(token_ids.device)  # [btz, pre_seq_len]
+        past_key_values = self.prefix_encoder(prefix_tokens).type(torch.float16)  # [btz, pre_seq_len, num_hidden_layers * hidden_size * 2]
         past_key_values = past_key_values.view(
             batch_size,
             self.config.pre_seq_len,
             self.config.num_hidden_layers * 2,
             self.prefix_encoder.shape_3,
             self.prefix_encoder.shape_4
-        )
-        # b, nh, seq_len, hidden_size
+        ) # [btz, pre_seq_len, num_hidden_layers * 2, num_attention_heads, attention_head_size]
         past_key_values = self.dropout(past_key_values)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         past_key_values = [(v[0], v[1]) for v in past_key_values]
+        # 其中每个元素的尺寸: [btz, num_attention_heads, pre_seq_len, attention_head_size]
         return past_key_values
     
     def forward(self, token_ids):

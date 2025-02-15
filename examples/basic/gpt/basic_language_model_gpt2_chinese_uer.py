@@ -2,7 +2,7 @@
 # 基本测试：uer的gpt2 chinese的效果测试
 # 项目链接：https://huggingface.co/uer/gpt2-chinese-cluecorpussmall
 
-ckpt_dir = 'E:/data/pretrain_ckpt/gpt/uer@gpt2-chinese-cluecorpussmall/'
+ckpt_dir = 'E:/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 
 # ===============transformers======================
@@ -30,7 +30,7 @@ eos_token_id = 50256  # 50256:open-end generation, 511:表示句号
 mode = 'random_sample'
 
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
-model = build_transformer_model(config_path, checkpoint_path).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path).to(device)
 
 print('==============自定义单条样本================')
 class ArticleCompletion(AutoRegressiveDecoder):

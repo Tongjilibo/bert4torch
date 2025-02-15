@@ -36,7 +36,7 @@ epochs = 1
 prefix = ''
 
 # 模型配置
-dir_path = '/mnt/e/pretrain_ckpt/llama/llama-2-7b-chat'
+dir_path = '/mnt/e/pretrain_ckpt/meta-llama/llama-2-7b-chat'
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = dir_path + '/pytorch_model.bin'
 spm_path = dir_path + '/tokenizer.model'

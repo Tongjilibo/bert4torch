@@ -1,5 +1,5 @@
 from bert4torch.models.bert import BERT
-from bert4torch.models.base import LM_Mask, BERT_BASE
+from bert4torch.models.base import LM_Mask, PreTrainedModel
 from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
 from bert4torch.layers import LayerNorm
@@ -26,22 +26,31 @@ class Encoder(BERT):
         return ([outputs] if isinstance(outputs, torch.Tensor) else outputs) + [model_kwargs['attention_mask']]
 
 
-class DecoderBase(BERT_BASE):
-    passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'pad_attention_mask', 
+class PreTrainedModelForDecoder(PreTrainedModel):
+    passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'attention_mask_2d', 
                      'attention_mask', 'past_key_values', 'cross_past_key_values'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
             
     def prepare_inputs_for_generation(self, *inputs, **states):
-        '''为后续forward定义所需参数，方便继承'''
+        '''每次generate时候在self.forward前准备所需参数，方便继承'''
         return states
 
-    def _update_model_kwargs_for_generation(self, model_kwargs:dict):
-        '''需要返回给下一次generate使用到的要素，方便继承'''
-        if 'states' in model_kwargs:
+    def _get_initial_model_kwargs(self, model_kwargs:dict):
+        '''初始化的时候去掉不需要要素'''
+        # self.num_logits_to_keep = 1  # generate的时候,只计算最后一个logit
+        if model_kwargs.get('states') is not None:
             return model_kwargs['states']
-        return {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+        states = {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+        return states if states else None
+    
+    def _update_model_kwargs_for_generation(self, outputs:Union[torch.Tensor, list, tuple, dict], model_kwargs:dict):
+        '''需要返回给下一次generate使用到的要素，方便继承'''
+        if model_kwargs.get('states') is not None:
+            return model_kwargs['states']
+        states = {k:v for k,v in model_kwargs.items() if k in self.passed_kwargs}
+        return states if states else None
 
     def forward(self, *inputs, **model_kwargs):
         """定义模型的训练流程
@@ -59,7 +68,7 @@ class DecoderBase(BERT_BASE):
         outputs = self.apply_final_layers(**model_kwargs)
 
         if model_kwargs.get('use_states', False):
-            return outputs, self._update_model_kwargs_for_generation(model_kwargs)
+            return outputs, model_kwargs
         else:
             return outputs
 
@@ -68,7 +77,7 @@ class DecoderBase(BERT_BASE):
             self.generation = SeqGeneration(self, **kwargs)
 
     def generate(self, input_ids:Union[str, list, torch.Tensor], **kwargs):
-        '''单条样本生成 / batch样本生成，use_states=True时要求pad_mode='pre'
+        '''单条样本生成 / batch样本生成，use_states=True时要求padding_side='left'
         '''
         self._prepare_generation(**kwargs)
         return self.generation.generate(input_ids, **kwargs)
@@ -79,7 +88,7 @@ class DecoderBase(BERT_BASE):
         yield from self.generation.stream_generate(input_ids, **kwargs)
 
 
-class Decoder(LM_Mask, BERT, DecoderBase):
+class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
     '''所有decoder模型的基类(含大模型)
 
     :param logit_scale: bool, 是否对lm_logits进行缩放
@@ -99,6 +108,7 @@ class Decoder(LM_Mask, BERT, DecoderBase):
         self.final_layernorm = final_layernorm
         mapping = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32, 'float64': torch.float64}
         self.convert_lm_logits_dtype = mapping[convert_lm_logits_dtype] if convert_lm_logits_dtype is not None else None
+        self.num_logits_to_keep = kwargs.get('num_logits_to_keep', 0)
 
         # 从hidden_states映射到logit
         if self.with_lm:
@@ -114,7 +124,8 @@ class Decoder(LM_Mask, BERT, DecoderBase):
         
         if self.final_layernorm:
             self.LayerNormFinal = LayerNorm(self.hidden_size, eps=kwargs.get('layer_norm_eps', 1e-12), 
-                                            conditional_size=self.conditional_size, norm_mode=kwargs.get('norm_mode', 'normal'),
+                                            conditional_size=self.conditional_size, norm_mode=kwargs.get('norm_mode', 'normal'), 
+                                            rmsnorm_fp32=kwargs.get('rmsnorm_fp32', 'llama-qwen'),
                                             weight=kwargs.get('weight', True), bias=kwargs.get('bias', True))
 
     def tie_weights(self):
@@ -149,7 +160,7 @@ class Decoder(LM_Mask, BERT, DecoderBase):
             last_hidden_state = self.LayerNormFinal(last_hidden_state)
         
         if self.with_lm:
-            lm_logits = self.lm_head(last_hidden_state)  # [btz, seq_len, vocab_size]
+            lm_logits = self.lm_head(last_hidden_state[:, -self.num_logits_to_keep:, :])  # [btz, seq_len, vocab_size]
             lm_logits = lm_logits * self.logit_scale if hasattr(self, 'logit_scale') else lm_logits
             lm_logits = self.final_activation(lm_logits)
             if self.convert_lm_logits_dtype is not None:
@@ -160,14 +171,12 @@ class Decoder(LM_Mask, BERT, DecoderBase):
         else:
             return self.gen_outputs(locals(), last_hidden_state)
 
-    def load_variable(self, variable, old_key, new_key, prefix='decoder'):
+    def load_variable(self, variable, ckpt_key, model_key, prefix='decoder'):
         """加载单个变量的函数, 这里的名称均为映射前的"""
-        mapping = self.variable_mapping()
-
-        if old_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
-            return self.load_embeddings(variable)
-        elif new_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
-            # bert4torch中new_key相对固定, 能cover住绝大多数Decoder子类
+        # mapping = self.variable_mapping()
+        # if ckpt_key in {f'{prefix}.embeddings.word_embeddings.weight', f'{prefix}.lm_head.weight'}:
+        #     return self.load_embeddings(variable)
+        if model_key in {'embeddings.word_embeddings.weight', 'lm_head.weight'}:
             return self.load_embeddings(variable)
         else:
             return variable
@@ -186,7 +195,7 @@ class Decoder(LM_Mask, BERT, DecoderBase):
         return mapping
 
 
-class Transformer(DecoderBase):
+class Transformer(PreTrainedModelForDecoder):
     '''encoder-decoder结构
     :param tie_word_embeddings: bool, decoder的word_embeddings和lm_head的权重共享
     :param tie_word_embeddings_encoder_decoder: bool, encoder和decoder之间的word_embedding权重共享

@@ -2,15 +2,18 @@ from torch4keras.model import BaseModel, BaseModelDP, BaseModelDDP
 from torch4keras.trainer import Trainer
 from bert4torch.models.albert import ALBERT, ALBERT_Unshared
 from bert4torch.models.bart import BART
-from bert4torch.models.base import BERT_BASE, extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
+from bert4torch.models.base import PreTrainedModel, extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
 from bert4torch.models.bert import BERT
 from bert4torch.models.deberta import DebertaV2
 from bert4torch.models.electra import ELECTRA
 from bert4torch.models.ernie import ERNIE
 from bert4torch.models.gau_alpha import GAU_alpha
+from bert4torch.models.modernbert import ModernBert
 from bert4torch.models.glm import GLM, GLM2
+from bert4torch.models.glm4v import GLM4V
 from bert4torch.models.gpt import GPT, GPT2, GPT2_ML
 from bert4torch.models.llama import LLaMA, Baichuan, MiniCPM
+from bert4torch.models.mllama import Mllama
 from bert4torch.models.minicpmv import MiniCPMV, MiniCPMLlama3V
 from bert4torch.models.nezha import NEZHA
 from bert4torch.models.roformer import RoFormer, RoFormerV2
@@ -23,6 +26,7 @@ from bert4torch.models.bloom import Bloom
 from bert4torch.models.qwen import Qwen, Qwen2
 from bert4torch.models.qwen2_vl import Qwen2VL
 from bert4torch.models.internlm import InternLM, InternLM2
+from bert4torch.models.internvl import InternVL
 from bert4torch.models.falcon import Falcon
 from bert4torch.models.deepseek import DeepSeek
 from typing import Union, Literal
@@ -47,12 +51,12 @@ from bert4torch.snippets import (
 def build_transformer_model(
         config_path: Union[str, os.PathLike] = None, 
         checkpoint_path: Union[str, os.PathLike, list] = None, 
-        model: Union[str, BERT_BASE] = None, 
+        model: Union[str, PreTrainedModel] = None, 
         application: Literal['encoder', 'lm', 'unilm', None] = None, 
         add_trainer: bool = False, 
         verbose: int = 1, 
         **kwargs
-        ) -> Union[BERT_BASE, BERT, Transformer, Trainer]:
+        ) -> Union[PreTrainedModel, BERT, Transformer, Trainer]:
     """根据配置文件构建模型, 可选加载checkpoint权重, 类似AutoModel.from_pretrained(...)
 
     :param config_path: str, 模型的config文件地址, 大部分模型都提供了bert4torch_config.json
@@ -141,6 +145,7 @@ def build_transformer_model(
         'electra': ELECTRA,
         'ernie': ERNIE,
         'deberta_v2': DebertaV2,
+        'modernbert': ModernBert,
         'uie': UIE,
         'encoder': Encoder,
         'decoder': Decoder,
@@ -150,11 +155,13 @@ def build_transformer_model(
         'gpt2': GPT2,
         'gpt2_ml': GPT2_ML,
         'llama': LLaMA,
+        'mllama': Mllama,
         'baichuan': Baichuan,
         'glm': GLM,
         'chatglm': GLM,
         'glm2': GLM2,
         'chatglm2': GLM2,
+        'glm4v': GLM4V,
         't5': T5,
         't5_encoder': T5_Encoder,
         't5_decoder': T5_Decoder,
@@ -172,14 +179,15 @@ def build_transformer_model(
         'bloom': Bloom,
         'qwen': Qwen,
         'qwen2': Qwen2,
+        'qwen2_vl': Qwen2VL,
         'internlm': InternLM,
         'internlm2': InternLM2,
+        'internvl': InternVL,
         'falcon': Falcon,
         'deepseek': DeepSeek,
         'minicpm': MiniCPM,
         'minicpmv': MiniCPMV,
-        'minicpm_llama3_v': MiniCPMLlama3V,
-        'qwen2_vl': Qwen2VL
+        'minicpm_llama3_v': MiniCPMLlama3V
     }
 
     model = model or config.get('model', config.get('model_type', 'bert'))
@@ -187,10 +195,10 @@ def build_transformer_model(
         MODEL = models[model.lower()]
         if model.endswith('t5.1.1'):
             config['version'] = model
-    elif isinstance(model, type) and issubclass(model, BERT_BASE): # nn.Module表示使用自定义的模型：
+    elif isinstance(model, type) and issubclass(model, PreTrainedModel): # nn.Module表示使用自定义的模型：
         MODEL = model
     else:
-        raise ValueError('Args `model` type should be string or BERT_BASE')
+        raise ValueError('Args `model` type should be string or PreTrainedModel')
 
     # 使用 lm/unilm
     application = (application or config.get('application', 'encoder')).lower()
@@ -263,7 +271,7 @@ def check_update_config(config_path:str, **kwargs):
 
     config = dict()
     if config_path is not None:
-        config.update(json.load(open(config_path)))
+        config.update(json.load(open(config_path, encoding='utf-8')))
     config.update(kwargs)
     if 'max_position' not in config:
         config['max_position'] = config.get('max_position_embeddings', 512)

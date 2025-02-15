@@ -181,7 +181,7 @@ class Transformer_XL(BERT):
         model_kwargs['encoded_layers'] = encoded_layers
         return model_kwargs
     
-    def load_variable(self, variable, old_key, new_key):
+    def load_variable(self, variable, ckpt_key, model_key):
         # 这里由于预训练模型使用了AdapterEmbedding，因此暂不支持
         if (self.keep_tokens is not None) or (self.compound_tokens is not None):
             raise ValueError('Custom keep_tokens and compound_tokens is not yet supported in Transformer_XL')
@@ -199,10 +199,10 @@ class Transformer_XL(BERT):
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
             qkv = []
-            old_key = 'encoderLayer.{}.multiHeadAttention.{}.weight'
+            model_key = 'encoderLayer.{}.multiHeadAttention.{}.weight'
             for i_k in ['q', 'k', 'v']:
-                if old_key.format(i, i_k) in state_dict:
-                    qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                if model_key.format(i, i_k) in state_dict:
+                    qkv.append(state_dict.pop(model_key.format(i, i_k)))
             if qkv:
                 state_dict[f'transformer.layers.{i}.dec_attn.qkv_net.weight'] = torch.cat(qkv)
 

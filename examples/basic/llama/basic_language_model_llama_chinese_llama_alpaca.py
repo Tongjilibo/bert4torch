@@ -3,8 +3,8 @@
 基本测试：chinese_llama_apaca模型的测试 https://github.com/ymcui/Chinese-LLaMA-Alpaca
 """
 
-# chinese_alpaca_plus_7b，chinese_llama_plus_7b
-model_dir = 'E:/data/pretrain_ckpt/llama/chinese_alpaca_plus_7b'
+# chinese-alpaca-plus-7b，chinese-llama-plus-7b
+model_dir = 'E:/data/pretrain_ckpt/llama/chinese-alpaca-plus-7b'
 with_prompt = True if 'alpaca' in model_dir else False
 
 

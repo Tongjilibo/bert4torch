@@ -58,7 +58,7 @@ class BertLayer(nn.Module):
         if self.mlp_type == 'PositionWiseFeedForward':
             self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
         elif self.mlp_type == 'LlamaFeedForward':
-            self.feedForward = LlamaFeedForward(hidden_size, intermediate_size, hidden_act, kwargs['bias'])
+            self.feedForward = LlamaFeedForward(hidden_size, intermediate_size, hidden_act, kwargs.get('bias', False))
         else:
             raise ValueError(f'mlp_type={self.mlp_type} not supported')
         self.ffnLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
@@ -269,9 +269,8 @@ class Glm2Layer(BertLayer):
     '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        hidden_size, eps = kwargs['hidden_size'], kwargs.get('layer_norm_eps', 1e-5)
-        self.attnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
-        self.ffnLayerNorm = LayerNorm(hidden_size, eps=eps, norm_mode='rmsnorm', bias=False)
+        self.attnLayerNorm.register_parameter('bias', None)
+        self.ffnLayerNorm.register_parameter('bias', None)
         self.multiHeadAttention.o.register_parameter('bias', None)
         self.feedForward.intermediateDense.register_parameter('bias', None)
         self.feedForward.outputDense.register_parameter('bias', None)
@@ -306,13 +305,45 @@ class GAULayer(nn.Module):
         self.gau = GatedAttention(**kwargs)
         self.dropout_rate = kwargs.get('dropout_rate')
         self.attnLayerNorm = LayerNorm(**kwargs)
-    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, **model_kwargs):
-        gau_hidden_states = self.gau(hidden_states, attention_mask)
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, position_ids=None, **model_kwargs):
+        gau_hidden_states = self.gau(hidden_states, attention_mask, position_ids)
         hidden_states = hidden_states + F.dropout(gau_hidden_states, p=self.dropout_rate, training=self.training)
         hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
         
+
+class MllamaCrossAttentionDecoderLayer(BertLayer):
+    '''mllama的cross_attention版本'''
+    def __init__(self, *args, **kwargs):
+        kwargs['attn_type'] = 'MllamaTextCrossAttention'
+        super().__init__(*args, **kwargs)
+        self.crossAttention = self.multiHeadAttention  # 重命名
+        del self.multiHeadAttention
+        self.cross_attn_attn_gate = torch.nn.Parameter(torch.zeros(1))
+        self.cross_attn_mlp_gate = torch.nn.Parameter(torch.zeros(1))
+
+    def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, cross_attention_states=None, 
+                cross_attention_mask=None, cross_past_key_value=None, **model_kwargs):
+        residual = hidden_states
+        x = self.attnLayerNorm(hidden_states, conditional_emb)
+        cross_attn_output = self.crossAttention(x, attention_mask, cross_attention_states, cross_attention_mask, past_key_value=cross_past_key_value)
+
+        hidden_states = residual + self.cross_attn_attn_gate.tanh() * cross_attn_output[0]
+
+        residual = hidden_states
+        hidden_states = self.ffnLayerNorm(hidden_states)
+        hidden_states = self.feedForward(hidden_states)
+        if model_kwargs.get('full_text_row_masked_out_mask') is not None:
+            hidden_states = model_kwargs['full_text_row_masked_out_mask'][:, 0] * hidden_states  # type: ignore
+        hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
+
+        if self.is_decoder and model_kwargs.get('use_states', False):
+            model_kwargs['cross_past_key_value'] = cross_attn_output[-1]
+
+        model_kwargs['hidden_states'] = hidden_states
+        return model_kwargs
+
 
 TRANSFORMER_BLOCKS = {
     "BertLayer": BertLayer,

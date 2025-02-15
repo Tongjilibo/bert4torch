@@ -40,7 +40,7 @@ response_column = 'summary'
 history_column = None
 
 # 模型配置
-dir_path = "/tf/libo/pretrain_ckpt/glm/chatglm-6b"
+dir_path = "/tf/libo/pretrain_ckpt/THUDM/chatglm-6b"
 config_path = dir_path + '/bert4torch_config.json'
 checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

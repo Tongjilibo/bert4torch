@@ -16,7 +16,7 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     tokenizer = Tokenizer(os.path.join(model_dir, 'vocab.txt'), do_lower_case=True)
-    model = build_transformer_model(config_path, checkpoint_path, model='electra')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, model='electra')
     return model.to(device), tokenizer
 
 def get_hf_model(model_dir):
@@ -24,7 +24,7 @@ def get_hf_model(model_dir):
     model = AutoModel.from_pretrained(model_dir)
     return model.to(device), tokenizer
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/hfl/chinese-electra-base-discriminator"])
 @torch.inference_mode()
 def test_electra(model_dir):
     model, tokenizer = get_bert4torch_model(model_dir)
@@ -41,4 +41,4 @@ def test_electra(model_dir):
 
 
 if __name__=='__main__':
-    test_electra("E:/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator")
+    test_electra("E:/data/pretrain_ckpt/hfl/chinese-electra-base-discriminator")

@@ -15,7 +15,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 
@@ -27,14 +27,14 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/glm/chatglm-6b",
-                                    #    "E:/data/pretrain_ckpt/glm/chatglm-6b-int4",
-                                    #    "E:/data/pretrain_ckpt/glm/chatglm-6b-int8",
-                                       "E:/data/pretrain_ckpt/glm/chatglm2-6b",
-                                    #    "E:/data/pretrain_ckpt/glm/chatglm2-6b-int4",
-                                       "E:/data/pretrain_ckpt/glm/chatglm2-6b-32k",
-                                       "E:/data/pretrain_ckpt/glm/chatglm3-6b",
-                                       "E:/data/pretrain_ckpt/glm/chatglm3-6b-32k"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/THUDM/chatglm-6b",
+                                    #    "E:/data/pretrain_ckpt/THUDM/chatglm-6b-int4",
+                                    #    "E:/data/pretrain_ckpt/THUDM/chatglm-6b-int8",
+                                       "E:/data/pretrain_ckpt/THUDM/chatglm2-6b",
+                                    #    "E:/data/pretrain_ckpt/THUDM/chatglm2-6b-int4",
+                                       "E:/data/pretrain_ckpt/THUDM/chatglm2-6b-32k",
+                                       "E:/data/pretrain_ckpt/THUDM/chatglm3-6b",
+                                       "E:/data/pretrain_ckpt/THUDM/chatglm3-6b-32k"])
 @torch.inference_mode()
 def test_glm(model_dir):
     query = '你好'
@@ -68,4 +68,4 @@ def test_glm(model_dir):
 
 
 if __name__=='__main__':
-    test_glm("E:/data/pretrain_ckpt/glm/chatglm3-6b-32k")
+    test_glm("E:/data/pretrain_ckpt/THUDM/chatglm3-6b-32k")

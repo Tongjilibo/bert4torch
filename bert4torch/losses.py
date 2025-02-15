@@ -407,9 +407,9 @@ class DPOLoss:
         :param logit: tuple/list, 分别表示policy_logits, reference_logits，tensor中前一半为chosen，后一半为rejected
         :param labels: 真实标签
         '''
-        policy_logits, reference_logits = policy_reference_logits  # 均为[btz, seq_len, vocab_size]
+        policy_logits, reference_logits = policy_reference_logits  # 均为[btz*2, seq_len, vocab_size]
 
-        # 计算真实标签labels对应token位置的log prob，均为[btz, seq_len]
+        # 计算真实标签labels对应token位置的log prob，均为[btz]
         policy_chosen_logps, policy_rejected_logps = self.get_batch_logps(policy_logits, labels, average_log_prob=self.loss_type == "ipo")
         reference_chosen_logps, reference_rejected_logps = self.get_batch_logps(reference_logits, labels, average_log_prob=self.loss_type == "ipo")
 
@@ -567,8 +567,9 @@ class DPOLoss:
 
     def get_batch_logps(self, logits:torch.FloatTensor, labels:torch.LongTensor, average_log_prob:bool=False):
         """计算真实标签labels对应token位置的log prob
-
-        :param average_log_prob: bool, 是否对log_prob去均值, 默认为False
+        :param logits: [btz*2, seq_len, vocab_size]
+        :param labels: [btz*2, seq_len]
+        :param average_log_prob: bool, 是否对log_prob取均值, 默认为False, 取均值可以避免样本中chosen比reject长带来的导致预测偏长
         """
         if logits.shape[:-1] != labels.shape:
             raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
@@ -583,9 +584,10 @@ class DPOLoss:
         # dummy token; we'll ignore the losses on these tokens later
         labels[labels == self.pad_token_id] = 0
 
-        # 取真实label对应token位置的概率值logps
+        # 取真实label对应token位置的概率值logps, [btz*2, seq_len]
         per_token_logps = torch.gather(logits.log_softmax(-1), dim=2, index=labels.unsqueeze(2)).squeeze(2)
 
+        # 聚合
         if average_log_prob:
             all_logps = (per_token_logps * loss_mask).sum(-1) / loss_mask.sum(-1)
         else:

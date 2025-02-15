@@ -15,14 +15,14 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
     dict_path = model_dir + '/vocab.txt'
     
-    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
     model.eval()
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base",
-                                       "E:/data/pretrain_ckpt/roformer/sushen@roformer_v2_char_base"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/junnyu/roformer_chinese_base",
+                                       "E:/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base"])
 @torch.inference_mode()
 def test_roformer(model_dir):
     query = "今天[MASK]很好，我[MASK]去公园玩。"
@@ -51,4 +51,4 @@ def test_roformer(model_dir):
 
 
 if __name__=='__main__':
-    test_roformer("E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base")
+    test_roformer("E:/data/pretrain_ckpt/junnyu/roformer_chinese_base")

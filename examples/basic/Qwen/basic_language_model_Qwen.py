@@ -64,7 +64,10 @@ def main():
                 mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
                 system='You are a helpful assistant.', 
                 generation_config=generation_config,
-                # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+                # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8},
+                # offload_when_nocall='disk',  # offload到哪里
+                # offload_max_callapi_interval=30,  # 超出该时间段无调用则offload
+                # offload_scheduler_interval=3,  # 检查的间隔
                 )
 
     if choice == 'batch':
@@ -73,9 +76,9 @@ def main():
         print(res)
 
     elif choice == 'gen_1toN':
-        # 一条输出N跳回复
+        # 一条输出N条回复
         demo.generation_config['n'] = 5
-        res = demo.chat(['你是谁？', '你好'])
+        res = demo.chat('你是谁？')
         print(res)
 
     else:

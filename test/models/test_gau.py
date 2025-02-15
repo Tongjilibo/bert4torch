@@ -13,15 +13,15 @@ def get_bert4torch_model(model_dir):
     if not os.path.exists(config_path):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
-    dict_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/vocab.txt'
+    dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
     
-    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
     model.eval()
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768'])
 @torch.inference_mode()
 def test_gau(model_dir):
     model, tokenizer = get_bert4torch_model(model_dir)
@@ -43,4 +43,4 @@ def test_gau(model_dir):
         assert result == '龙头'
 
 if __name__=='__main__':
-    test_gau('E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch')
+    test_gau('E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768')

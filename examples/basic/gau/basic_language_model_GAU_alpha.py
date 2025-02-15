@@ -9,14 +9,14 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-config_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax').to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode("近期正是上市公司财报密集披露的时间，但有多家龙头公司的业绩令投资者失望")
 token_ids[5] = token_ids[6] = tokenizer._token_mask_id

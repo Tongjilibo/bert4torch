@@ -15,15 +15,15 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/Baichuan-7B',
-                                       'E:/data/pretrain_ckpt/llama/Baichuan-13B',
-                                       'E:/data/pretrain_ckpt/llama/Baichuan2-7B-Chat',
-                                       'E:/data/pretrain_ckpt/llama/Baichuan-13B-Chat'
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/baichuan-inc/Baichuan-7B',
+                                       'E:/data/pretrain_ckpt/baichuan-inc/Baichuan-13B',
+                                       'E:/data/pretrain_ckpt/baichuan-inc/Baichuan2-7B-Chat',
+                                       'E:/data/pretrain_ckpt/baichuan-inc/Baichuan-13B-Chat'
                                        ])
 @torch.inference_mode()
 def test_baichuan(model_dir):
@@ -57,7 +57,7 @@ def test_baichuan(model_dir):
     assert sequence_output==sequence_output_hf
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/belle-llama-7b-2m'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/BelleGroup/belle-llama-7b-2m'])
 @torch.inference_mode()
 def test_belle(model_dir):
     query = f"Human: 你好 \n\nAssistant: "
@@ -79,8 +79,8 @@ def test_belle(model_dir):
     assert sequence_output=='我是Belle，一个人工智能语言模型。你需要我做什么？'
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b',
-                                       'E:/data/pretrain_ckpt/llama/hfl@chinese_llama_plus_7b'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/hfl@chinese-alpaca-plus-7b',
+                                       'E:/data/pretrain_ckpt/llama/hfl@chinese-llama-plus-7b'])
 @torch.inference_mode()
 def test_chinese_llama_alpaca(model_dir):
     query = "你好"
@@ -105,7 +105,7 @@ def test_chinese_llama_alpaca(model_dir):
                                '你好，我是一名高三学生，我今年高考成绩不是很理想，我想请问一下，我可以复读吗？你好，我是一名高三学生，我今年高考成绩不是很理想，我想请问一下，我可以复读吗？你好'}
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/lmsys@vicuna-7b-v1.5'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/lmsys/vicuna-7b-v1.5'])
 @torch.inference_mode()
 def test_vicuna(model_dir):
     query = '你好'
@@ -137,9 +137,9 @@ def test_vicuna(model_dir):
     assert sequence_output==sequence_output_hf
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1',
-                                       'E:/data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1',
-                                       'E:/data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B_pretrain'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/IDEA-CCNL/Ziya-LLaMA-13B-v1.1',
+                                       'E:/data/pretrain_ckpt/IDEA-CCNL/Ziya-LLaMA-13B-v1',
+                                       'E:/data/pretrain_ckpt/IDEA-CCNL/Ziya-LLaMA-13B_pretrain'])
 @torch.inference_mode()
 def test_ziya(model_dir):
     query = '你好'
@@ -171,10 +171,10 @@ def test_ziya(model_dir):
     assert sequence_output==sequence_output_hf
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/llama-2-7b',
-                                       'E:/data/pretrain_ckpt/llama/llama-2-7b-chat',
-                                       'E:/data/pretrain_ckpt/llama/llama-2-13b',
-                                       'E:/data/pretrain_ckpt/llama/llama-2-13b-chat'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/meta-llama/llama-2-7b',
+                                       'E:/data/pretrain_ckpt/meta-llama/llama-2-7b-chat',
+                                       'E:/data/pretrain_ckpt/meta-llama/llama-2-13b',
+                                       'E:/data/pretrain_ckpt/meta-llama/llama-2-13b-chat'])
 @torch.inference_mode()
 def test_llama2(model_dir):
     query = '你好'
@@ -206,8 +206,8 @@ def test_llama2(model_dir):
     assert sequence_output==sequence_output_hf
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/llama/llama-7b',
-                                       'E:/data/pretrain_ckpt/llama/llama-13b'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/meta-llama/llama-7b',
+                                       'E:/data/pretrain_ckpt/meta-llama/llama-13b'])
 @torch.inference_mode()
 def test_llama(model_dir):
     query = '你好'
@@ -238,7 +238,7 @@ def test_llama(model_dir):
     print(sequence_output, '    ====>    ', sequence_output_hf)
     assert sequence_output==sequence_output_hf
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/llama/01-ai@Yi-6B"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/01-ai/Yi-6B"])
 @torch.inference_mode()
 def test_yi(model_dir):
     query = '你好'
@@ -271,11 +271,11 @@ def test_yi(model_dir):
 
 
 if __name__=='__main__':
-    test_baichuan('E:/data/pretrain_ckpt/llama/Baichuan-7B')
-    test_belle('E:/data/pretrain_ckpt/llama/belle-llama-7b-2m')
-    test_chinese_llama_alpaca('E:/data/pretrain_ckpt/llama/hfl@chinese_alpaca_plus_7b')
-    test_vicuna('E:/data/pretrain_ckpt/llama/lmsys@vicuna-7b-v1.5')
-    test_ziya('E:/data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1')
-    test_llama2('E:/data/pretrain_ckpt/llama/llama-2-7b-chat')
-    test_llama('E:/data/pretrain_ckpt/llama/llama-7b')
-    test_yi("E:/data/pretrain_ckpt/llama/01-ai@Yi-6B")
+    test_baichuan('E:/data/pretrain_ckpt/baichuan-inc/Baichuan-7B')
+    test_belle('E:/data/pretrain_ckpt/BelleGroup/belle-llama-7b-2m')
+    test_chinese_llama_alpaca('E:/data/pretrain_ckpt/llama/hfl@chinese-alpaca-plus-7b')
+    test_vicuna('E:/data/pretrain_ckpt/lmsys/vicuna-7b-v1.5')
+    test_ziya('E:/data/pretrain_ckpt/IDEA-CCNL/Ziya-LLaMA-13B-v1.1')
+    test_llama2('E:/data/pretrain_ckpt/meta-llama/llama-2-7b-chat')
+    test_llama('E:/data/pretrain_ckpt/meta-llama/llama-7b')
+    test_yi("E:/data/pretrain_ckpt/01-ai/Yi-6B")

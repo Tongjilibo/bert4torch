@@ -13,9 +13,9 @@ from torch.utils.data import DataLoader
 
 
 maxlen = 256
-config_path = '/mnt/e/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = '/mnt/e/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = '/mnt/e/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+config_path = '/mnt/e/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_config.json'
+checkpoint_path = '/mnt/e/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
+dict_path = '/mnt/e/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 choice = 'train'  # train表示训练，infer表示推理
 
 # 固定seed

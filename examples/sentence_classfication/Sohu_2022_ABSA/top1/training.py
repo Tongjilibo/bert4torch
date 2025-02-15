@@ -24,7 +24,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-pretrain_model = 'E:/data/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base'
+pretrain_model = 'E:/data/pretrain_ckpt/hfl/chinese-xlnet-base'
 config_path = pretrain_model + '/bert4torch_config.json'
 checkpoint_path = pretrain_model + '/pytorch_model.bin'
 data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
@@ -157,13 +157,13 @@ class Evaluator(Callback):
         valid_true, valid_pred = [], []
         eval_step = 0
         result = dict()
-        for (token_ids, entity_ids), entity_labels in tqdm(data):
+        for (token_ids, segment_ids, entity_ids), entity_labels in tqdm(data):
             if use_swa:
                 swa_model.eval()
                 with torch.no_grad():
-                    entity_logit = F.softmax(swa_model([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
+                    entity_logit = F.softmax(swa_model([token_ids, segment_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
             else:
-                entity_logit = F.softmax(model.predict([token_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
+                entity_logit = F.softmax(model.predict([token_ids, segment_ids, entity_ids]), dim=-1)  # [btz, 实体个数, 实体类别数]
             _, entity_pred = torch.max(entity_logit, dim=-1)  # [btz, 实体个数]
             # v_pred和v_true是实体的预测结果
             valid_index = (entity_ids.flatten()>0).nonzero().squeeze(-1)

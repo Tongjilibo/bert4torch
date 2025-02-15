@@ -12,7 +12,7 @@ from bert4torch.pipelines import Chat
 # Ziya-LLaMA-13B_v1.1 
 # Ziya-LLaMA-13B_v1 
 # Ziya-LLaMA-13B_pretrain
-dir_path = 'E:/data/pretrain_ckpt/llama/IDEA-CCNL@Ziya-LLaMA-13B-v1.1'
+dir_path = 'E:/data/pretrain_ckpt/IDEA-CCNL/Ziya-LLaMA-13B-v1.1'
 with_prompt = False if '_pretrain' in dir_path else True
 
 generation_config = {'include_input': not with_prompt}

@@ -5,12 +5,12 @@ import torch
 from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer
 from bert4torch.generation import SeqGeneration
-from bert4torch.snippets import Timeit2
+from bert4torch.snippets import TimeitLogger
 import time
 import os
 
 # chatglm-6b, chatglm-6b-int4, chatglm-6b-int8
-model_dir = "E:/data/pretrain_ckpt/glm/chatglm-6b"
+model_dir = "E:/data/pretrain_ckpt/THUDM/chatglm-6b"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 texts = ['你好', '你是谁', '你有哪些功能可以介绍一下吗']
 
@@ -22,7 +22,7 @@ generation = SeqGeneration(encoder, tokenizer, eos_token_id=tokenizer.eos_token_
 
 
 print('===============single================')
-ti = Timeit2()
+ti = TimeitLogger()
 for text in texts:
     response = generation.generate(text, top_k=50, top_p=0.7, temperature=0.95)
     print(response)

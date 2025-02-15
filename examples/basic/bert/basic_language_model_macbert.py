@@ -6,7 +6,7 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-root_model_path = "E:/data/pretrain_ckpt/bert/hfl@macbert-base"
+root_model_path = "E:/data/pretrain_ckpt/hfl/chinese-macbert-base"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
@@ -14,7 +14,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode("科学研究是第一生产力")
 token_ids[3] = token_ids[4] = tokenizer._token_mask_id

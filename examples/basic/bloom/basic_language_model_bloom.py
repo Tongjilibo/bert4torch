@@ -13,7 +13,7 @@ from bert4torch.generation import SeqGeneration
 from transformers import AutoTokenizer
 
 
-model_dir = 'E:/data/pretrain_ckpt/bloom/bloomz-560m'  # bloom-560m  bloomz-560m
+model_dir = 'E:/data/pretrain_ckpt/bigscience/bloomz-560m'  # bloom-560m  bloomz-560m
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
@@ -27,6 +27,6 @@ generation = SeqGeneration(model, tokenizer, bos_token_id=None, eos_token_id=tok
 
 if __name__ == '__main__':
     while True:
-        query = input("\n输入：")
+        query = input("\n输入：")  # 输入英文
         response = generation.generate(query, top_k=1, include_input=True)      
         print(f"续写:{response}")

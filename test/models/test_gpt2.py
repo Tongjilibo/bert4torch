@@ -16,7 +16,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 
@@ -29,8 +29,8 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/",
-                                       'E:/data/pretrain_ckpt/gpt/uer@gpt2-chinese-cluecorpussmall/'])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/",
+                                       'E:/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'])
 @torch.inference_mode()
 def test_gpt2(model_dir):
     query = '你好'
@@ -62,7 +62,7 @@ def test_gpt2(model_dir):
     assert sequence_output==sequence_output_hf
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/Tongjilibo/gpt2-ml_15g_corpus'])
 @torch.inference_mode()
 def test_gpt2_ml(model_dir):
     query = '你好'
@@ -71,7 +71,7 @@ def test_gpt2_ml(model_dir):
     dict_path = os.path.join(model_dir, 'vocab.txt')
 
     tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
 
     generation_config = {
@@ -91,4 +91,4 @@ def test_gpt2_ml(model_dir):
 
 
 if __name__=='__main__':
-    test_gpt2_ml('E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch')
+    test_gpt2_ml('E:/data/pretrain_ckpt/Tongjilibo/gpt2-ml_15g_corpus')

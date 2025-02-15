@@ -15,7 +15,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 
@@ -28,7 +28,7 @@ def get_hf_model(model_dir):
 
 
 @pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/bloom/bloom-560m',
-                                       'E:/data/pretrain_ckpt/bloom/bloomz-560m'])
+                                       'E:/data/pretrain_ckpt/bigscience/bloomz-560m'])
 @torch.inference_mode()
 def test_bloom(model_dir):
     query = '你好'

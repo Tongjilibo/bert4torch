@@ -5,7 +5,7 @@ import torch
 
 
 def test_generate_speed():
-    model_dir = 'E:/data/pretrain_ckpt/falcon/falcon-rw-1b'
+    model_dir = 'E:/data/pretrain_ckpt/tiiuae/falcon-rw-1b'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)

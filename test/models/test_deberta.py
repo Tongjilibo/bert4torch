@@ -17,7 +17,7 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
-    model = build_transformer_model(config_path, checkpoint_path, model='deberta_v2')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, model='deberta_v2')
     return model.to(device), tokenizer
 
 
@@ -27,9 +27,9 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese",
-                                       "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese",
-                                       "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese",
+                                       "E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese",
+                                       "E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-710M-Chinese"])
 @torch.inference_mode()
 def test_deberta(model_dir):
     model, _ = get_bert4torch_model(model_dir)
@@ -47,6 +47,6 @@ def test_deberta(model_dir):
 
 
 if __name__=='__main__':
-    test_deberta("E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese")
-    test_deberta("E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese")
-    test_deberta("E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese")
+    test_deberta("E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese")
+    test_deberta("E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese")
+    test_deberta("E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-710M-Chinese")

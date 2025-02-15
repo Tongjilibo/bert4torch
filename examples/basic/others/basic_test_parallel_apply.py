@@ -5,10 +5,10 @@ from tqdm import tqdm
 from bert4torch.tokenizers import Tokenizer
 import torch
 import numpy as np
-from bert4torch.snippets import parallel_apply, parallel_apply_concurrent, Timeit
+from bert4torch.snippets import parallel_apply, parallel_apply_concurrent, TimeitContextManager
 import time
 
-dict_path = 'E:/data/pretrain_ckpt/bert/google@bert-base-chinese/vocab.txt'
+dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 categories = {'LOC':2, 'PER':3, 'ORG':4}
 
@@ -118,7 +118,7 @@ def funcs(inputs):
 if __name__ == '__main__':
     corpus = load_data('F:/data/corpus/ner/china-people-daily-ner-corpus/example.train')
 
-    with Timeit() as ti:
+    with TimeitContextManager() as ti:
         train_samples = parallel_apply(
                     func=func,
                     iterable=corpus,
@@ -130,7 +130,7 @@ if __name__ == '__main__':
                 )
     print(len(train_samples))
 
-    with Timeit() as ti:
+    with TimeitContextManager() as ti:
         train_samples = parallel_apply_concurrent(
                     func=funcs,
                     iterable=corpus,

@@ -23,7 +23,7 @@ class GlobalPointer(nn.Module):
         if self.RoPE:
             self.position_embedding = RopePositionEncoding(head_size)
 
-    def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None):
+    def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None, position_ids:torch.Tensor=None):
         ''' 
         :param inputs: shape=[..., hdsz]
         :param mask: shape=[btz, seq_len], padding部分为0
@@ -34,9 +34,12 @@ class GlobalPointer(nn.Module):
 
         # ROPE编码
         if self.RoPE:
+            if position_ids is None:
+                seq_len = qw.shape[1]
+                position_ids = torch.arange(0, seq_len, dtype=torch.float, device=qw.device).unsqueeze(0)
             # 为了seq_len维度在-2, 所以进行了转置
-            qw = self.position_embedding(qw.transpose(1,-2)).transpose(1,-2)
-            kw = self.position_embedding(kw.transpose(1,-2)).transpose(1,-2)
+            qw = self.position_embedding(qw.transpose(1,-2), position_ids).transpose(1,-2)
+            kw = self.position_embedding(kw.transpose(1,-2), position_ids).transpose(1,-2)
 
         # 计算内积
         logits = torch.einsum('bmhd,bnhd->bhmn', qw, kw)  # [btz, heads, seq_len, seq_len]

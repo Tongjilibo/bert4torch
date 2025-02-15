@@ -9,7 +9,7 @@ import torch
 from tqdm import tqdm
 
 # 加载模型，请更换成自己的路径
-root_model_path = "E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"
+root_model_path = "E:/data/pretrain_ckpt/google-bert/bert-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
@@ -20,7 +20,7 @@ tokenizer = Tokenizer(vocab_path, do_lower_case=True)
 
 class BertClient(object):
     def __init__(self, batch_size=10, maxlen=128, use_tqdm=False):
-        self.model = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0, with_pool=True, output_all_encoded_layers=True)  # 建立模型，加载权重
+        self.model = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0, with_pool=True, output_all_encoded_layers=True)
         self.model.to(device)
         self.model.eval()
         self.batch_size=batch_size

@@ -27,13 +27,13 @@ class DeepSeek(Decoder):
                 and layer_idx % self.moe_layer_freq == 0:
                 layer.feedForward = DeepseekMoE(**kwargs)
 
-        self.LayerNormFinal.register_parameter('bias', None)
+        # self.LayerNormFinal.register_parameter('bias', None)
 
     def variable_mapping(self):
         # 映射到权重格式
         mapping = {
             'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'LayerNormFinal.weight': 'model.norm.weight',
             }
 

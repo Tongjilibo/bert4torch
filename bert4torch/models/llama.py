@@ -1,6 +1,6 @@
 from bert4torch.models.transformer import Decoder
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
-from bert4torch.layers import LlamaFeedForward, NormHead
+from bert4torch.layers import NormHead
 import torch
 import re
 
@@ -13,7 +13,6 @@ class LLaMA(Decoder):
     3. feedForward不同, 三层全连接
     4. rotary相对位置编码
     '''
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True, 
@@ -32,7 +31,7 @@ class LLaMA(Decoder):
         '''
         mapping = {
             'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'LayerNormFinal.weight': 'model.norm.weight',
             }
 
@@ -61,13 +60,13 @@ class Baichuan(LLaMA):
         # baichuan的qkv权重是合在一起的W_pack, 单独处理
         for i in range(self.num_hidden_layers):
             mapping = {f'model.layers.{i}.self_attn.W_pack.weight': 'decoderLayer.{}.multiHeadAttention.{}.weight'}
-            for old_key, new_key in mapping.items():
-                if (qkv := state_dict.get(old_key)) is None:
+            for ckpt_key, model_key in mapping.items():
+                if (qkv := state_dict.get(ckpt_key)) is None:
                     continue
                 qkv = torch.split(qkv, [self.hidden_size, self.hidden_size, self.hidden_size], 0)
                 for i_k, i_v in zip(['q','k', 'v'], qkv):
-                    state_dict[new_key.format(i, i_k)] = i_v
-                state_dict.pop(old_key)
+                    state_dict[model_key.format(i, i_k)] = i_v
+                state_dict.pop(ckpt_key)
         return state_dict
     
     def save_trans_ckpt(self):
@@ -75,13 +74,13 @@ class Baichuan(LLaMA):
         state_dict = self.state_dict()
         for i in range(self.num_hidden_layers):
             mapping = {'decoderLayer.{}.multiHeadAttention.{}.weight': f'model.layers.{i}.self_attn.W_pack.weight'}
-            for old_key, new_key in mapping.items():
+            for model_key, ckpt_key in mapping.items():
                 qkv = []
                 for i_k in ['q', 'k', 'v']:
-                    if old_key.format(i, i_k) in state_dict:
-                        qkv.append(state_dict.pop(old_key.format(i, i_k)))
+                    if model_key.format(i, i_k) in state_dict:
+                        qkv.append(state_dict.pop(model_key.format(i, i_k)))
                 if qkv:
-                    state_dict[new_key] = torch.cat(qkv)
+                    state_dict[ckpt_key] = torch.cat(qkv)
         return state_dict
     
     def variable_mapping(self):
@@ -95,3 +94,8 @@ class MiniCPM(LLaMA):
         kwargs['layer_type'] = 'MiniCPMLayer'
         super().__init__(*args, **kwargs)
         self.logit_scale = 1 / (self.hidden_size / kwargs.get('dim_model_base'))
+
+    @property
+    def _layer_args(self):
+        args = super()._layer_args
+        return args + ['num_hidden_layers']

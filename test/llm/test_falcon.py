@@ -14,14 +14,14 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/falcon/falcon-rw-1b',
-                                       'E:/data/pretrain_ckpt/falcon/falcon-7b',
-                                       'E:/data/pretrain_ckpt/falcon/falcon-7b-instruct'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/tiiuae/falcon-rw-1b',
+                                       'E:/data/pretrain_ckpt/tiiuae/falcon-7b',
+                                       'E:/data/pretrain_ckpt/tiiuae/falcon-7b-instruct'])
 @torch.inference_mode()
 def test_falcon(model_dir):
     query = '你好'
@@ -53,4 +53,4 @@ def test_falcon(model_dir):
 
 
 if __name__=='__main__':
-    test_falcon('E:/data/pretrain_ckpt/falcon/falcon-7b')
+    test_falcon('E:/data/pretrain_ckpt/tiiuae/falcon-7b')

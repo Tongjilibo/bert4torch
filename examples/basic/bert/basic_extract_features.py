@@ -5,13 +5,13 @@ import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 
-root_model_path = "E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12"
+root_model_path = "E:/data/pretrain_ckpt/google-bert/bert-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
-model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path)
 
 # 编码测试
 token_ids, segment_ids = tokenizer.encode(u'语言模型')

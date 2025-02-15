@@ -19,6 +19,7 @@ from bert4torch.models import build_transformer_model, Decoder, Transformer
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
+    log_free,
     log_info, 
     log_info_once,
     log_warn, 
@@ -32,7 +33,10 @@ from bert4torch.snippets import (
     is_package_available,
     has_chinese_char,
     add_start_docstrings,
-    JsonConfig
+    JsonConfig,
+    NoopContextManager,
+    sequence_padding,
+    DottableDict
 )
 from packaging import version
 import gc
@@ -45,7 +49,12 @@ import re
 import copy
 from argparse import REMAINDER, ArgumentParser
 import asyncio
+from .conversation import Conversation
 
+
+class NoneObject:
+    def __init__(self, *args, **kwarg):
+        pass
 
 if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter, Depends
@@ -54,12 +63,13 @@ if is_fastapi_available():
 else:
     class FastAPI: pass
     class HTTPAuthorizationCredentials: pass
-    Depends, HTTPBearer = object, object
+    Depends, HTTPBearer = NoneObject, NoneObject
 
 if is_pydantic_available():
     from pydantic import BaseModel, Field
 else:
-    BaseModel, Field = object, object
+    BaseModel, Field = object, NoneObject
+
 
 if is_streamlit_available():
     import streamlit as st
@@ -119,35 +129,41 @@ class ChatBase(PipeLineBase):
     def __init__(self, checkpoint_path:str, config_path:str=None, 
                  precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, 
-                 create_model_at_startup:bool=True, **kwargs):
+                 create_model_at_startup:bool=True, system:str=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.checkpoint_path = checkpoint_path
         self.config_path = config_path or checkpoint_path
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
         config_path_tmp = get_config_path(self.config_path, allow_none=True)
         if config_path_tmp is not None:
-            self.generation_config = json.load(open(config_path_tmp)).get('generation_config', dict())
+            self.config = DottableDict(json.load(open(config_path_tmp, encoding='utf-8')))
+            self.generation_config = self.config.get('generation_config', dict())
         else:
+            self.config = DottableDict()
             self.generation_config = dict()
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.precision = precision
         self.quantization_config = quantization_config
-        self.model = self.build_model(**kwargs)
+        if create_model_at_startup:
+            self.model = self.build_model(**kwargs)
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
         self.tokenizer = self.build_tokenizer(**self.generation_config.get('tokenizer_config', dict()))
         self.generation_config['tokenizer'] = self.tokenizer
+        self.template_config = self.config.get('template_config', dict())
+        self.system = system
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
         return self.generation_config.get('states') is None
     
-    def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        '''对query和history进行处理，生成进入模型的text
-        :param query: str, 最近的一次user的input
-        :param history: List, 历史对话记录
-        :param functions: List, 支持的function
-        '''
+    def build_prompt(self, *args, **kwargs) -> str:
         raise NotImplementedError
+    
+    def build_template(self, **kwargs):
+        kwargs = {k:v for k,v in kwargs.items() if v}
+        if self.template_config or kwargs:
+            return Conversation(**{**self.template_config, **kwargs}).copy()
+        return None
     
     def build_tokenizer(self, **kwargs):
         '''初始化tokenizer'''
@@ -161,9 +177,9 @@ class ChatBase(PipeLineBase):
             config_tmp = os.path.join(self.checkpoint_path, 'config.json')
             request_version = JsonConfig(config_tmp).get('transformers_version') if os.path.exists(config_tmp) else None
             if request_version is not None:
-                log_warn(f'Please check your transformer=={transformer_version}, while transformer=={request_version} requested.')
+                log_error(f'Please check your transformer=={transformer_version}, while transformer=={request_version} requested.')
             else:
-                log_warn(f'Please check your transformer=={transformer_version}, which may not compatible.')
+                log_error(f'Please check your transformer=={transformer_version}, which may not compatible.')
             raise e
 
     def build_model(self, **model_init_config) -> Union[Decoder, Transformer]:
@@ -192,7 +208,7 @@ class ChatBase(PipeLineBase):
         elif self.device not in str(self.model.device):
             # 切换device到cuda上
             cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-            log_info(f'{cur} - Moving model from cpu to {self.device}')
+            log_free(f'{cur} - Moving model from cpu to {self.device}', prefix='[LOAD]', prefix_color='cyan')
             self.model.to(self.device)
             gc.collect()
             cuda_empty_cache()
@@ -236,39 +252,48 @@ class ChatBase(PipeLineBase):
         else:
             raise TypeError(f'`response` type={type(response)} which is not supported')
 
-    def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None) -> Union[str, List[str]]:
+    def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None, 
+             return_history:bool=False, **kwargs) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
         history = history or []
+
         if isinstance(query, str):
             # 单条输入
-            prompt = self.build_prompt(query, history, functions)
-            response = self.model.generate(prompt, **self.generation_config)
+            prompts:Union[str, torch.Tensor] = self.build_prompt(query, history, functions)
+            response = self.model.generate(prompts, **self.generation_config)
             if isinstance(response, str):
                 # 生成单条输出
-                return self.process_response_history(response, history=history)
+                response = self.process_response_history(response, history=history)
             elif isinstance(response, list):
                 # 为单条query生成多条response
-                return [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
+                response = [self.process_response_history(resp, history=copy.deepcopy(history)) for resp in response]
             else:
                 raise TypeError(f'`response` type={type(response)} which is not supported')
             
         elif isinstance(query, list):
             # 多条输入
-            history_copy = [copy.deepcopy(history) for _ in query]
-            prompt = [self.build_prompt(q, hist, functions) for q, hist in zip(query, history_copy)]
-            response = self.model.generate(prompt, **self.generation_config)
-            return [self.process_response_history(r, history=hist) for r, hist in zip(response, history_copy)]
+            history_cp = [copy.deepcopy(history) for _ in query]
+            prompts:List[str] = [self.build_prompt(q, h, functions) for q, h in zip(query, history_cp)]
+            if all([isinstance(i, torch.Tensor) for i in prompts]):
+                # build_prompt返回的都是tokenize后的input_ids，需要concat+padding在一起
+                prompts = sequence_padding(prompts, value=self.tokenizer.pad_token_id, padding_side='left')
+            response = self.model.generate(prompts, **self.generation_config)
+            response = [self.process_response_history(r, history=h) for r, h in zip(response, history_cp)]
         else:
             raise TypeError(f'Args `query` type={type(query)} which is not supported')
-
-    def stream_chat(self, query:str, history:List[dict]=None, functions:List[dict]=None):
+        if return_history:
+            return response, history
+        else:
+            return response
+        
+    def stream_chat(self, query:str, history:List[dict]=None, functions:List[dict]=None, **kwargs):
         '''chat模型使用, 配合对话模板使用, 单条样本stream输出预测的结果'''
         history = history or []
         prompt = self.build_prompt(query, history, functions)
         for response in self.model.stream_generate(prompt, **self.generation_config):
             yield self.process_response_history(response, history)
 
-    def generate(self, query:Union[str, List[str]]) -> Union[str, List[str]]:
+    def generate(self, query:Union[str, List[str]], **kwargs) -> Union[str, List[str]]:
         '''base模型使用'''
         return self.model.generate(query, **self.generation_config)
 
@@ -352,8 +377,8 @@ class ChatWebGradio(ChatBase):
         import gradio as gr
         self.gr = gr
         self.max_length = self.generation_config.get('max_length', 4096)
-        self.max_repetition_penalty = 10.0
-        self.stream = True  # 一般都是流式，因此未放在页面配置项
+        self.max_repetition_penalty = kwargs.get('max_repetition_penalty', 10.0)
+        self.max_temperature = kwargs.get('max_temperature', 10.0)
         if version.parse(gr.__version__) < version.parse("3.44.4"):
             log_warn_once('`gradio` changes frequently, the code is successfully tested under 3.44.4')
 
@@ -373,39 +398,23 @@ class ChatWebGradio(ChatBase):
         self.generation_config['temperature'] = temperature
         self.generation_config['repetition_penalty'] = repetition_penalty
 
-    def __stream_predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
+    def _stream_predict(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
         '''流式生成'''
         self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
-        chatbot.append((input, ""))
-        functions = self.__set_system_functions(system, functions)
-        input_text = self.build_prompt(input, history, functions)
+        chatbot.append((query, ""))
+        functions = self._set_system_functions(system, functions)
+        input_text = self.build_prompt(query, history, functions)
         for response in self.model.stream_generate(input_text, **self.generation_config):
             response = self.process_response_history(response, history)
             if history[-1].get('raw_content'):
                 response = history[-1]['raw_content']
             if history[-1].get('function_call'):
                 response += f"\n\nFunction：{history[-1]['function_call']}"
-            chatbot[-1] = (input, response)
+            chatbot[-1] = (query, response)
             yield chatbot, history
         cuda_empty_cache()  # 清理显存
 
-    def __predict(self, input, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
-        '''一次性生成'''
-        self.set_generation_config(max_length, top_p, temperature, repetition_penalty)
-        chatbot.append((input, ""))
-        functions = self.__set_system_functions(system, functions)
-        input_text = self.build_prompt(input, history, functions)
-        response = self.model.generate(input_text, **self.generation_config)
-        response = self.process_response_history(response, history)
-        if history[-1].get('raw_content'):
-            response = history[-1]['raw_content']
-        if history[-1].get('function_call'):
-            response += f"\n\nFunction：{history[-1]['function_call']}"
-        chatbot[-1] = (input, response)
-        cuda_empty_cache()  # 清理显存
-        return chatbot, history
-
-    def __set_system_functions(self, system:str=None, functions:List[dict]=None):
+    def _set_system_functions(self, system:str=None, functions:List[dict]=None):
         '''设置system和functions参数'''
         try:
             if functions is not None and functions.strip() != '':
@@ -415,42 +424,46 @@ class ChatWebGradio(ChatBase):
         except json.JSONDecodeError:
             functions = None
             log_warn('Functions implement not json format')
-
-        if system is not None and system.strip() != '':
+        if system.strip() != '':
             self.system = system
         return functions
 
+    def regenerate(self, query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions):
+        if chatbot and history and history[-1]['role'] == 'assistant':
+            query, _ = chatbot.pop()
+            history.pop()
+            history.pop()
+            yield from self._stream_predict(query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions)
+        else:
+            return chatbot, history
+    
     def run(self, host:str=None, port:int=None, **launch_configs):
         with self.gr.Blocks() as demo:
             self.gr.HTML("""<h1 align="center">Chabot Gradio Demo</h1>""")
 
             with self.gr.Row():
-                with self.gr.Column(scale=1):
-                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length//2, step=1.0, label="max_length", interactive=True)
-                    top_p = self.gr.Slider(0, 1, value=0.7, step=0.01, label="top_p", interactive=True)
-                    temperature = self.gr.Slider(0, 1, value=0.95, step=0.01, label="temperature", interactive=True)
-                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=1.0, step=0.1, label="repetition_penalty", interactive=True)
-                    system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
-                    functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
-
                 with self.gr.Column(scale=4):
                     chatbot = self.gr.Chatbot()
                     with self.gr.Column(scale=12):
-                        user_input = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10, max_lines=10) # .style(container=False)
+                        query = self.gr.Textbox(show_label=False, placeholder="Input...", lines=10, max_lines=10) # .style(container=False)
                     with self.gr.Row():
-                        with self.gr.Column(min_width=32, scale=1):
-                            emptyBtn = self.gr.Button("Clear History")
-                        with self.gr.Column(min_width=32, scale=1):
-                            submitBtn = self.gr.Button("Submit", variant="primary")
+                        submitBtn = self.gr.Button("🚀 Submit", variant="primary")
+                        regen_btn = self.gr.Button('🤔️ Regenerate')
+                        emptyBtn = self.gr.Button("🧹 Clear History")
+
+                with self.gr.Column(scale=1):
+                    max_length = self.gr.Slider(0, self.max_length, value=self.max_length, step=1.0, label="max_length", interactive=True)
+                    top_p = self.gr.Slider(0, 1, value=self.generation_config.get('top_p', 1.0), step=0.01, label="top_p", interactive=True)
+                    temperature = self.gr.Slider(0, self.max_temperature, value=self.generation_config.get('temperature', 1.0), step=0.1, label="temperature", interactive=True)
+                    repetition_penalty = self.gr.Slider(0, self.max_repetition_penalty, value=self.generation_config.get('repetition_penalty', 1.0), step=0.1, label="repetition_penalty", interactive=True)
+                    system = self.gr.Textbox(label='System Prompt (If exists)', lines=6, max_lines=6)
+                    functions = self.gr.Textbox(label='Functions Json Format (If exists)', lines=6, max_lines=6)
 
             history = self.gr.State([])
-            _input_tuple = [user_input, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions]
-            if self.stream:
-                submitBtn.click(self.__stream_predict, _input_tuple, [chatbot, history], show_progress=True)
-            else:
-                submitBtn.click(self.__predict, _input_tuple, [chatbot, history], show_progress=True)
-
-            submitBtn.click(self.reset_user_input, [], [user_input])
+            _input_tuple = [query, chatbot, history, max_length, top_p, temperature, repetition_penalty, system, functions]
+            submitBtn.click(self._stream_predict, _input_tuple, [chatbot, history], show_progress=True)
+            submitBtn.click(self.reset_user_input, [], [query])
+            regen_btn.click(self.regenerate, _input_tuple, [chatbot, history], show_progress=True)
             emptyBtn.click(self.reset_state, outputs=[chatbot, history], show_progress=True)
 
         demo.queue().launch(server_name = launch_configs.pop('server_name', host), 
@@ -478,8 +491,10 @@ class ChatWebStreamlit(ChatBase):
             layout="wide"
         )
         super().__init__(*args, **kwargs)
-        self.max_length = self.generation_config.get('max_length', 4096)
         log_warn_once('You should use command `streamlit run app.py --server.address 0.0.0.0 --server.port 8001` to launch')
+        self.max_length = self.generation_config.get('max_length', 4096)
+        self.max_repetition_penalty = kwargs.get('max_repetition_penalty', 10.0)
+        self.max_temperature = kwargs.get('max_temperature', 10.0)
 
     @st.cache_resource
     def build_model(_self, **kwarg):
@@ -496,8 +511,16 @@ class ChatWebStreamlit(ChatBase):
             st.session_state.states = None
 
         max_length = st.sidebar.slider("max_length", 0, self.max_length, self.max_length//2, step=1)
-        top_p = st.sidebar.slider("top_p", 0.0, 1.0, 0.8, step=0.01)
-        temperature = st.sidebar.slider("temperature", 0.0, 1.0, 0.6, step=0.01)
+        top_p = st.sidebar.slider("top_p", 0.0, 1.0, self.generation_config.get('top_p', 1.0), step=0.01)
+        temperature = st.sidebar.slider("temperature", 0.0, self.max_temperature, self.generation_config.get('temperature', 1.0), step=0.01)
+        repetition_penalty = st.sidebar.slider("repetition_penalty", 0.0, self.max_repetition_penalty, self.generation_config.get('repetition_penalty', 1.0), step=0.1)
+        buttonClean = st.sidebar.button("Clear history", key="clean")
+        if buttonClean:
+            st.session_state.history = []
+            st.session_state.states = None
+            cuda_empty_cache()
+            st.rerun()
+        
         system = st.sidebar.text_area(
             label="System Prompt (If exists)",
             height=200,
@@ -518,15 +541,7 @@ class ChatWebStreamlit(ChatBase):
             functions = None
             log_warn('Functions implement not json format')
 
-        if system is not None and system.strip() != '':
-            self.system = system
-
-        buttonClean = st.sidebar.button("清理会话历史", key="clean")
-        if buttonClean:
-            st.session_state.history = []
-            st.session_state.states = None
-            cuda_empty_cache()
-            st.rerun()
+        self.system = system
 
         for i, message in enumerate(st.session_state.history):
             role = message['role']
@@ -540,22 +555,26 @@ class ChatWebStreamlit(ChatBase):
         with st.chat_message(name="assistant", avatar="assistant"):
             message_placeholder = st.empty()
 
-        prompt_text = st.chat_input("请输入您的问题")
-        if prompt_text:
-            input_placeholder.markdown(prompt_text)
-            history = st.session_state.history
-            states = st.session_state.states
-            self.generation_config['max_length'] = max_length
-            self.generation_config['top_p'] = top_p
-            self.generation_config['temperature'] = temperature
-            self.generation_config['states'] = states
+        query = st.chat_input("请输入您的问题")
+        if query:
+            if query.strip() == "":
+                st.warning('Input message could not be empty!', icon="⚠️")
+            else:
+                input_placeholder.markdown(query)
+                history = st.session_state.history
+                states = st.session_state.states
+                self.generation_config['max_length'] = max_length
+                self.generation_config['top_p'] = top_p
+                self.generation_config['temperature'] = temperature
+                self.generation_config['repetition_penalty'] = repetition_penalty
+                self.generation_config['states'] = states
 
-            input_text = self.build_prompt(prompt_text, history, functions)
-            for response in self.model.stream_generate(input_text, **self.generation_config):
-                response = self.process_response_history(response, history)
-                message_placeholder.markdown(history[-1].get('raw_content', response))
-            st.session_state.history = history
-            st.session_state.states = self.generation_config.get('states')
+                input_text = self.build_prompt(query, history, functions)
+                for response in self.model.stream_generate(input_text, **self.generation_config):
+                    response = self.process_response_history(response, history)
+                    message_placeholder.markdown(history[-1].get('raw_content', response))
+                st.session_state.history = history
+                st.session_state.states = self.generation_config.get('states')
 
 
 # ==========================================================================================
@@ -584,7 +603,7 @@ class ModelList(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Union[str, List[Dict]]
     function_call: Optional[Dict] = None
 
 
@@ -636,9 +655,9 @@ OPENAI_START_DOCSTRING = r"""
     # openai api参数
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
-    :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
-    :param max_callapi_interval: int, 最长调用间隔
-    :param scheduler_interval: int, 定时任务的执行间隔
+    :param offload_when_nocall: str, 在一定时长内无调用就卸载模型，可以卸载到内存和disk
+    :param offload_max_callapi_interval: int, 最长调用间隔
+    :param offload_scheduler_interval: int, 定时任务的执行间隔
     :param api_keys: List[str], api keys的list
 """
 
@@ -646,26 +665,26 @@ OPENAI_START_DOCSTRING = r"""
 class ChatOpenaiApi(ChatBase):
     """
     TODO:
-    1. 在后续调用服务，模型从cpu转到cuda上时，内存不下降，猜测是因为不同线程中操作导致的
-    2. 偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误
-    3. 如何offload到disk上，不占用内存和显存
+    1. 在后续调用服务，模型从cpu转到cuda上时，linux环境下内存下降，显存不能完全降低为0
+    2. 【已修复】偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误，因为forward过程时候发生offload
+    3. cpu和delete测试通过，但是如何offload到disk上，不占用内存和显存
     """
     def __init__(self, checkpoint_path:str, name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
-                 max_callapi_interval:int=24*3600, scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk']=None, 
+                 offload_max_callapi_interval:int=24*3600, offload_scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk', 'delete']=None, 
                  api_keys:List[str]=None, **kwargs):
         assert kwargs.get('system') is None, "Args `system` is used in request key `message`"
-        self.offload_when_nocall = offload_when_nocall
-        if offload_when_nocall is not None:
-            kwargs['create_model_at_startup'] = False
         super().__init__(checkpoint_path, **kwargs)
         if not is_fastapi_available():
             raise ModuleNotFoundError("No module found, use `pip install fastapi`")
         from sse_starlette.sse import EventSourceResponse
         import sse_starlette
         if version.parse(sse_starlette.__version__) > version.parse('1.8'):
-                log_warn('Module `sse_starlette` above 1.8 not support stream output')
-        self.max_callapi_interval = max_callapi_interval  # 最长调用间隔
-        self.scheduler_interval = scheduler_interval
+            log_warn('Module `sse_starlette` above 1.8 not support stream output, use `pip install sse_starlette==1.6.5`')
+        self.offload_when_nocall = offload_when_nocall
+        if offload_max_callapi_interval <= offload_scheduler_interval:
+            raise ValueError('Args `offload_scheduler_interval` must < `offload_max_callapi_interval`')
+        self.offload_max_callapi_interval = offload_max_callapi_interval  # 最长调用间隔
+        self.offload_scheduler_interval = offload_scheduler_interval
         self.api_keys = api_keys
         self.EventSourceResponse = EventSourceResponse
         self.name = name
@@ -674,6 +693,7 @@ class ChatOpenaiApi(ChatBase):
 
         if offload_when_nocall is None:
             self.app = FastAPI(lifespan=lifespan)
+            self.lock = NoopContextManager()  # 仅用于占位，规整代码
         else:
             # 启用后台任务，监控接口调用次数
             self.app = FastAPI()
@@ -718,7 +738,7 @@ class ChatOpenaiApi(ChatBase):
     def startup_event(self):
         from apscheduler.schedulers.background import BackgroundScheduler  
         scheduler = BackgroundScheduler()  
-        scheduler.add_job(self.check_last_call, 'interval', seconds=self.scheduler_interval)
+        scheduler.add_job(self.check_call_and_offload, 'interval', seconds=self.offload_scheduler_interval)
         scheduler.start()
         self.app.state.scheduler = scheduler  # 将调度器存储在app的状态中，以便在shutdown时使用  
     
@@ -729,6 +749,13 @@ class ChatOpenaiApi(ChatBase):
     async def list_models(self):
         model_card = ModelCard(id=self.name)
         return ModelList(data=[model_card])
+
+    def prepare_build_prompt_args(self, request):
+        '''准备build_prompt的参数'''
+        query = request.messages[-1].content
+        history = [{'role': item.role, 'content': item.content} for item in request.messages[:-1]]
+        input_args_or_kwargs = self.build_prompt(query, history, request.functions)
+        return input_args_or_kwargs, history
 
     async def create_chat_completion(self, request: ChatCompletionRequest):
         if request.model != self.name:
@@ -747,36 +774,35 @@ class ChatOpenaiApi(ChatBase):
         if request.repetition_penalty:
             self.generation_config['repetition_penalty'] = request.repetition_penalty
 
-        query = request.messages[-1].content
-        history = [{'role': item.role, 'content': item.content} for item in request.messages[:-1]]
-        input_text = self.build_prompt(query, history, request.functions)
-        
-        if self.offload_when_nocall is None:
+        # 准备build_prompt的参数
+        input_args_or_kwargs, history = self.prepare_build_prompt_args(request)
+
+        with self.lock:
             self.model = self.build_model()
-        else:
-            with self.lock:
-                self.model = self.build_model()
             self.last_callapi_timestamp = time.time()
 
-        # 流式输出
-        if request.stream:
-            generate = self.predict(input_text, request.model, history)
-            return self.EventSourceResponse(generate, media_type="text/event-stream")
-        
-        # 非流式输出
-        else:
-            response = self.model.generate(input_text, **self.generation_config)
-            response = self.process_response_history(response, history)
-            function_call = history[-1].get('function_call', None)
-            choice_data = ChatCompletionResponseChoice(
-                index=0,
-                message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
-                finish_reason= "function_call" if function_call is not None else "stop"
-            )
+            # 流式输出
+            if request.stream:
+                generate = self.predict(input_args_or_kwargs, request.model, history)
+                return self.EventSourceResponse(generate, media_type="text/event-stream")
+            
+            # 非流式输出
+            else:
+                if isinstance(input_args_or_kwargs, (str,list)):
+                    response = self.model.generate(input_args_or_kwargs, **self.generation_config)
+                else:
+                    response = self.model.generate(**input_args_or_kwargs, **self.generation_config)
+                response = self.process_response_history(response, history)
+                function_call = history[-1].get('function_call', None)
+                choice_data = ChatCompletionResponseChoice(
+                    index=0,
+                    message=ChatMessage(role=self.role_assistant, content=response, function_call=function_call),
+                    finish_reason= "function_call" if function_call is not None else "stop"
+                )
 
-            return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
+                return ChatCompletionResponse(model=request.model, choices=[choice_data], object="chat.completion")
 
-    async def predict(self, query: str, model_id: str, history:list):
+    async def predict(self, input_args_or_kwargs: str, model_id: str, history:list):
         choice_data = ChatCompletionResponseStreamChoice(
             index=0,
             delta=DeltaMessage(role=self.role_assistant),
@@ -787,7 +813,13 @@ class ChatOpenaiApi(ChatBase):
 
         current_length = 0
 
-        for new_response in self.model.stream_generate(query, **self.generation_config):
+        def get_generator(query):
+            if isinstance(query, (str,list)):
+                return self.model.stream_generate(query, **self.generation_config)
+            else:
+                return self.model.stream_generate(**query, **self.generation_config)
+    
+        for new_response in get_generator(input_args_or_kwargs):
             if len(new_response) == current_length:
                 continue
 
@@ -814,30 +846,28 @@ class ChatOpenaiApi(ChatBase):
         yield "{}".format(chunk.model_dump_json(exclude_unset=True))
         yield '[DONE]'
 
-    def check_last_call(self):
-        '''检测距离上一次调用超出规定时间段'''
+    def check_call_and_offload(self):
+        '''检测距离上一次调用超出规定时间段，超出间隔则offload'''
         now = time.time()
         if not hasattr(self, 'model')  or (self.model is None):
             return
         elif not hasattr(self, 'last_callapi_timestamp'):
             self.last_callapi_timestamp = now
-        elif now - self.last_callapi_timestamp > self.max_callapi_interval:  # 超出调用间隔
+        elif now - self.last_callapi_timestamp > self.offload_max_callapi_interval:  # 超出调用间隔
+            cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
             if (self.offload_when_nocall == 'cpu') and (str(self.model.device) != 'cpu'):
                 with self.lock:
                     # 如果没有调用，将模型转移到CPU
                     self.model.to('cpu')
-                    cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                    log_info(f"{cur} - Model moved to cpu due to no activity for {self.max_callapi_interval} sec.")
-                    gc.collect()
-                    cuda_empty_cache()
+                    log_free(f"{cur} - Model moved to cpu due to no activity for {self.offload_max_callapi_interval} sec.", prefix='[OFFLOAD]', prefix_color='cyan')
             elif (self.offload_when_nocall == 'disk') and hasattr(self, 'model'):
                 with self.lock:
                     self.model = None
                     del self.model
-                    cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-                    log_info(f"{cur} - Model moved to disk due to no activity for {self.max_callapi_interval} sec.")
-                    gc.collect()
-                    cuda_empty_cache()
+                    log_free(f"{cur} - Model moved to disk due to no activity for {self.offload_max_callapi_interval} sec.", prefix='[OFFLOAD]', prefix_color='cyan')
+            gc.collect()
+            cuda_empty_cache()
+        # print(now - self.last_callapi_timestamp)
 
     def run(self, app:str=None, host:str="0.0.0.0", port:int=8000, **kwargs):
         '''主程序入口'''
@@ -917,7 +947,7 @@ class ChatOpenaiClientAsync:
     ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
     ...         {"content": "你可以做什么？", "role": "user"}
     ...         ]
-    >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
+    >>> client = ChatOpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
 
     >>> # 流式
     >>> for token in client.stream_chat(messages):
@@ -1330,10 +1360,10 @@ class Glm4(ChatBase):
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
         history.append({"role": "user", "content": query})
         if self.no_history_states():
-            input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=True, return_tensors="pt")
+            prompt = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=False)
         else:
-            input_ids += self.generation_config['states']['last_token']
-        return input_ids
+            prompt += self.generation_config['states']['last_token']
+        return prompt
     
     def process_response_history(self, response:str, history:list):
         response = super().process_response_history(response, history)
@@ -1886,12 +1916,11 @@ class Qwen2(ChatBase):
 
         history.append({"role": "user", "content": query})  # 在终端打印显示原始的
         if self.no_history_states():
-            # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
-            input_ids = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, return_tensors='pt')
+            prompt = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=False)
         else:
-            input_ids += self.generation_config['states']['last_token']
+            prompt += self.generation_config['states']['last_token']
 
-        return input_ids
+        return prompt
     
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         """
@@ -2016,18 +2045,9 @@ class LLaMA2(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
-class LLaMA3(ChatBase):
-    '''llama3不支持function call, llama3.1支持function call
-    
-    ### LLaMA3.1请求的Example
-    ```json
-    [
-        {"role": "system", "content": "You are a bot that responds to weather queries."},
-        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
-        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
-        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
-    ]
-    ```
+class ApplyChatTemplate(ChatBase):
+    '''直接使用self.tokenizer.apply_chat_template来构建输入
+    如果模型直接沿用这种方式，则无需做特殊的处理
     '''
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -2065,11 +2085,32 @@ class LLaMA3(ChatBase):
         return response
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
-class ApplyChatTemplate(LLaMA3):
+class LLaMA3(ApplyChatTemplate):
+    '''llama3不支持function call, llama3.1支持function call
+    
+    ### LLaMA3.1请求的Example
+    ```json
+    [
+        {"role": "system", "content": "You are a bot that responds to weather queries."},
+        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
+        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
+        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
+    ]
+    ```
+    '''
+    pass
+
+
+@add_start_docstrings(CHAT_START_DOCSTRING)
+class DeepSeekR1(ApplyChatTemplate):
     '''直接使用self.tokenizer.apply_chat_template来构建输入
     如果模型直接沿用这种方式，则无需做特殊的处理
     '''
-    pass
+    def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
+        response = super().process_response_history(response, history)
+        if '</think>' in response:
+            history[-1]['content'] = response.split('</think>')[-1].strip()
+        return response
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
@@ -2098,13 +2139,10 @@ class Ziya(ChatBase):
 class ChineseLlamaAlpaca(ChatBase):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if system is None:
-            self.system = \
+        self.system = system or \
 ("Below is an instruction that describes a task. "
 "Write a response that appropriately completes the request.\n\n"
 )
-        else:
-            self.system = system
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions is not None: 
@@ -2229,7 +2267,8 @@ MAPPING = {
     'belle': Belle,
     'baichuan': Baichuan,
     'apply_chat_template': ApplyChatTemplate,
-    'pretrained_text_continuation': PretrainedTextContinuation
+    'pretrained_text_continuation': PretrainedTextContinuation,
+    'deepseek_r1': DeepSeekR1
 }
 
 
@@ -2248,7 +2287,7 @@ class Chat:
         - min_new_tokens: int, 最小解码长度, 默认为1
         - max_length: int, 最大文本长度
         - pad_token_id: int, pad_id, 在batch解码时候使用
-        - pad_mode: str, padding在前面还是后面, pre或者post
+        - padding_side: str, padding在前面还是后面, left或者right
         - device: str, 默认为'cpu'
         - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
         - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)
@@ -2268,8 +2307,8 @@ class Chat:
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
-    :param max_callapi_interval: int, 最长调用间隔
-    :param scheduler_interval: int, 定时任务的执行间隔
+    :param offload_max_callapi_interval: int, 最长调用间隔
+    :param offload_scheduler_interval: int, 定时任务的执行间隔
     :param api_keys: List[str], api keys的list
 
     ### Examples:
@@ -2300,9 +2339,9 @@ class Chat:
                  name:str='default', 
                  route_api:str='/chat/completions', 
                  route_models:str='/models', 
-                 max_callapi_interval:int=24*3600, 
-                 scheduler_interval:int=10*60, 
-                 offload_when_nocall:Literal['cpu', 'disk']=None, 
+                 offload_max_callapi_interval:int=24*3600, 
+                 offload_scheduler_interval:int=10*60, 
+                 offload_when_nocall:Literal['cpu', 'disk', 'delete']=None, 
                  api_keys:List[str]=None,
                  # 模式
                  mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli',
@@ -2317,7 +2356,7 @@ class Chat:
             template = kwargs.pop('template')
         else:
             config_path = kwargs['config_path'] if kwargs.get('config_path') is not None else args[0]
-            config = json.load(open(get_config_path(config_path, allow_none=True)))
+            config = json.load(open(get_config_path(config_path, allow_none=True), encoding='utf-8'))
             template = config.get('template', config.get('model', config.get('model_type')))
         if template is None:
             raise ValueError('template/model/model_type not found in bert4torch_config.json')
@@ -2386,9 +2425,9 @@ def get_args_parser() -> ArgumentParser:
     parser.add_argument("--route_api", type=str, default='/chat/completions', help="openai api args: `/chat/completions` route url")
     parser.add_argument("--route_models", type=str, default='/models', help="openai api args: `/models` route url")
     parser.add_argument("--api_keys", type=List[str], default=None, help="openai api args: authorized api keys list")
-    # parser.add_argument("--max_callapi_interval", type=int, default=24*3600, help="openai api args: ")
-    # parser.add_argument("--scheduler_interval", type=int, default=10*60, help="openai api args: ")
-    # parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk'], default=None, help="openai api args: ")
+    parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk', 'delete'], default=None, help="openai api args: ")
+    parser.add_argument("--offload_max_callapi_interval", type=int, default=24*3600, help="openai api args: ")
+    parser.add_argument("--offload_scheduler_interval", type=int, default=10*60, help="openai api args: ")
     
     # host和port
     parser.add_argument("--host", type=str, default='0.0.0.0', help="server host")
@@ -2422,7 +2461,11 @@ def main():
                 system = args.system,
                 config_path = getattr(args, 'config_path', None),
                 generation_config = args.generation_config,
-                quantization_config = getattr(args, 'quantization_config', None)
+                quantization_config = getattr(args, 'quantization_config', None),
+                create_model_at_startup = args.create_model_at_startup,
+                offload_when_nocall = args.offload_when_nocall,
+                offload_max_callapi_interval = args.offload_max_callapi_interval,
+                offload_scheduler_interval = args.offload_scheduler_interval
                 )
     if args.mode == 'cli':
         demo.run(functions = getattr(args, 'functions', None))

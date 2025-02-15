@@ -8,8 +8,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
-root_path = 'E:/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-base'
-# root_path = 'E:/data/pretrain_ckpt/gpt/thu-coai@CDial-GPT_LCCC-large'
+root_path = 'E:/data/pretrain_ckpt/thu-coai/CDial-GPT_LCCC-base'
+# root_path = 'E:/data/pretrain_ckpt/thu-coai/CDial-GPT_LCCC-large'
 
 config_path = root_path + '/bert4torch_config.json'
 checkpoint_path = root_path + '/pytorch_model.bin'
@@ -20,7 +20,7 @@ tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
 speakers = [tokenizer.token_to_id('[speaker1]'), tokenizer.token_to_id('[speaker2]')]
 
 # config中设置shared_segment_embeddings=True，segment embedding用word embedding的权重生成
-encoder = build_transformer_model(config_path, checkpoint_path).to(device)  # 建立模型，加载权重
+encoder = build_transformer_model(config_path, checkpoint_path).to(device)
 
 class ChatBot(AutoRegressiveDecoder):
     """基于随机采样的闲聊回复

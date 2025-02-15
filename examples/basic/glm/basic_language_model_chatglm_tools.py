@@ -6,7 +6,7 @@ from bert4torch.pipelines import Chat
 # ===================================参数=======================================
 # chatglm3-6b, chatglm3-6b-32k
 # glm-4-9b-chat, glm-4-9b-chat-1m
-model_dir = f"E:/data/pretrain_ckpt/glm/chatglm3-6b"
+model_dir = f"E:/data/pretrain_ckpt/THUDM/chatglm3-6b"
 # ==============================================================================
 
 

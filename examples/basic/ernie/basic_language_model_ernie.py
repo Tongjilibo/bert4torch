@@ -7,8 +7,8 @@ import torch
 from torch.nn.functional import softmax
 
 # 加载模型，请更换成自己的路径
-# root_model_path = "E:/data/pretrain_ckpt/ernie/baidu@ernie-1-base-zh"
-root_model_path = "E:/data/pretrain_ckpt/ernie/baidu@ernie-3-base-zh"
+# root_model_path = "E:/data/pretrain_ckpt/nghuyong/ernie-1.0-base-zh"
+root_model_path = "E:/data/pretrain_ckpt/nghuyong/ernie-3.0-base-zh"
 input_text = "科学[MASK][MASK]是第一生产力"
 
 # ==========================bert4torch调用=========================
@@ -18,7 +18,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode(input_text)
 print('====bert4torch output====')

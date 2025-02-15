@@ -41,67 +41,25 @@ if is_accelerate_available():
     )
 
 
-class BERT_BASE(nn.Module):
+class PreTrainedModel(nn.Module):
     """模型基类
     """
     def __init__(
             self,
-            vocab_size:int,  # 词表大小
-            hidden_size:int,  # 编码维度
-            num_hidden_layers:int,  # Transformer总层数
-            num_attention_heads:int,  # Attention的头数
-            intermediate_size:int,  # FeedForward的隐层维度
-            hidden_act:str,  # FeedForward隐层的激活函数
-            dropout_rate:float=None,  # Dropout比例
-            attention_probs_dropout_prob:float=None,  # Attention矩阵的Dropout比例
-            embedding_size:int=None,  # 指定embedding_size, 不指定则使用config文件的参数
-            attention_head_size:int=None,  # Attention中V的head_size
-            attention_key_size:int=None,  # Attention中Q,K的head_size
             initializer_range:float=0.02,  # 权重初始化方差
-            sequence_length:int=None,  # 是否固定序列长度
             keep_tokens:List[int]=None,  # 要保留的词ID列表
             compound_tokens:List[int]=None,  # 扩展Embedding
-            residual_attention_scores:bool=False,  # Attention矩阵加残差
-            keep_hidden_layers:List[int]=None, # 保留的hidden_layer层的id
-            hierarchical_position:Union[bool, float]=None,  # 是否层次分解位置编码
-            gradient_checkpoint:bool=False, # 是否使用gradient_checkpoint
-            output_all_encoded_layers:bool=False, # 是否返回所有layer的hidden_states
-            tie_word_embeddings:bool=False,  # 是否绑定embedding和lm_head的权重
-            return_dict:bool=False,  # 是否返回的格式是dict
             **kwargs
     ):
-        super(BERT_BASE, self).__init__()
-        if keep_tokens is not None:
-            vocab_size = len(keep_tokens)
-        if compound_tokens is not None:
-            vocab_size += len(compound_tokens)
-        self.vocab_size = vocab_size
-        self.hidden_size = hidden_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.attention_head_size = attention_head_size or self.hidden_size // self.num_attention_heads
-        self.attention_key_size = attention_key_size or self.attention_head_size
-        self.intermediate_size = intermediate_size
-        self.dropout_rate = dropout_rate or 0
-        self.attention_probs_dropout_prob = attention_probs_dropout_prob or 0
-        self.hidden_act = hidden_act
-        self.embedding_size = embedding_size or hidden_size
+        super(PreTrainedModel, self).__init__()
         self.initializer_range = initializer_range
-        self.sequence_length = sequence_length
         self.keep_tokens = keep_tokens
         self.compound_tokens = compound_tokens
         self.attention_bias = None
         self.position_bias = None
-        self.attention_scores = None
-        self.residual_attention_scores = residual_attention_scores
-        self.keep_hidden_layers = set(range(num_hidden_layers)) if keep_hidden_layers is None else set(keep_hidden_layers)
-        self.hierarchical_position = hierarchical_position
-        self.gradient_checkpoint = gradient_checkpoint
         self.quantized = False
-        self.output_all_encoded_layers = output_all_encoded_layers
-        self.add_trainer = kwargs['add_trainer']
-        self.tie_word_embeddings = tie_word_embeddings or kwargs.get('tie_emb_prj_weight', False)  # 兼顾old version
-        self.return_dict = return_dict
+        self.add_trainer = kwargs.get('add_trainer', False)
+        self.dtype = None
 
     def tie_weights(self):
         pass
@@ -153,6 +111,9 @@ class BERT_BASE(nn.Module):
         model_kwargs = self.apply_main_layers(**model_kwargs)
         # Final
         outputs = self.apply_final_layers(**model_kwargs)
+
+        if model_kwargs.get('use_states', False):
+            return outputs, model_kwargs
         return outputs
 
     @torch.no_grad()
@@ -225,41 +186,50 @@ class BERT_BASE(nn.Module):
         # 加载模型文件, 并可专业些转换
         ckpt_state_dict = self.load_trans_ckpt(checkpoint)
         
+        state_dict_new = {}  # 用model_key作为key整理后的权重字典
+        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重ckpt_key名
+        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
+        needed_keys = []  # 所需要的全部的ckpt_key名
+        model_state_dict = self.state_dict()  # 模型的字典
+
         # 计算mapping
         mapping = mapping or self.variable_mapping()
         model_params = set([i[0] for i in self.named_parameters()])  # 可更新的变量
-        # 如果ckpt和model中同时存在，且不在预设的mapping中，则更新mapping
-        # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
         if isinstance(mapping, dict):
             for layer_name in model_params:
-                if (layer_name in ckpt_state_dict) and (layer_name not in mapping):
+                if layer_name in mapping:
+                    continue
+                if layer_name in ckpt_state_dict:
+                    # 不在预设的mapping中, 但是ckpt和model中同时存在，则更新mapping
+                    # 主要是为了在外部继承BERT后有其他layer，也能自动从checkpoint中加载进来
                     mapping.update({layer_name: layer_name})
+                else:
+                    # TODO: 不在预设的mapping中, 但是在model中
+                    # 如果权重文件只有一个，则这些参数随机初始化的，其实应该算missing_keys
+                    # 如果权重文件有多个，则这些参数可能在其shards中，这里添加到missing_keys，在外面统一清算
+                    missing_keys.append(layer_name)
         elif isinstance(mapping, Callable):
             mapping = {mapping(k):k for k in ckpt_state_dict}
         else:
             raise TypeError(f'Args `mapping`={type(mapping)} not supported')
 
-        state_dict_new = {}  # 用new_key作为key整理后的权重字典
-        missing_keys = []  # 即model-ckpt, 当前加载中没有成功加载的权重old_keys名
-        over_keys = set(ckpt_state_dict.keys())  # ckpt-model
-        needed_keys = []  # 所需要的全部的old_keys名
-        model_state_dict = self.state_dict()  # 模型的字典
-        for new_key, old_key in mapping.items():
+        # 加载parameter
+        for model_key, ckpt_key in mapping.items():
             # 1. mapping和model不一致则忽略，如with_nsp=False时候在mapping中有但是model中没有
-            if new_key not in model_state_dict:
+            if model_key not in model_state_dict:
                 continue
 
             # 2. model中有，且ckpt中有，正常加载
-            if old_key in ckpt_state_dict:
-                state_dict_new[new_key] = self.load_variable(ckpt_state_dict[old_key], old_key, new_key)
+            if ckpt_key in ckpt_state_dict:
+                state_dict_new[model_key] = self.load_variable(ckpt_state_dict[ckpt_key], ckpt_key, model_key)
                 # 去除已加载的Parameter，仅保留未能加载预训练权重的Parameter
-                if old_key in over_keys:
-                    over_keys.remove(old_key)
+                if ckpt_key in over_keys:
+                    over_keys.remove(ckpt_key)
             
             # 3. model中有，但ckpt中没有，即ckpt中缺失部分参数
             else:
-                missing_keys.append(old_key)
-            needed_keys.append(old_key)
+                missing_keys.append(ckpt_key)
+            needed_keys.append(ckpt_key)
         
         over_keys = list(over_keys)
         del ckpt_state_dict
@@ -289,28 +259,33 @@ class BERT_BASE(nn.Module):
             **kwargs
     ):
         """加载预训练模型(单个/多个ckpt)"""
-
+        self.dtype = torch_dtype
+        
         # 单个权重文件
         if isinstance(checkpoints, str):
             self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 
                                         device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+        elif isinstance(checkpoints, (tuple, list)) and len(checkpoints)==1:
+            self.from_pretrained_single(checkpoints[0], mapping=mapping, skip_init=skip_init, 
+                                        device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
-            all_missing_keys, all_over_keys = [], []
+            all_needed_keys, all_missing_keys, all_over_keys = [], [], []
             tqdm_checkpoints = tqdm(checkpoints)
             for checkpoint in tqdm_checkpoints:
                 tqdm_checkpoints.set_description(f'Loading {os.path.basename(checkpoint)}')
                 missing_keys, over_keys, needed_keys = \
                     self.from_pretrained_single(checkpoint, mapping=mapping, skip_init=skip_init, 
                                                 device_map=device_map, torch_dtype=torch_dtype, verbose=0)
+                all_needed_keys.extend(needed_keys)
                 all_missing_keys.extend(missing_keys)
                 all_over_keys.extend(over_keys)
                 if checkpoint == checkpoints[-1]:
                     tqdm_checkpoints.set_description('Loading checkpoint shards')
                                              
             # 打印mixmatch keys
-            all_missing_keys = set(all_missing_keys).difference(set(needed_keys))
-            all_over_keys = set(all_over_keys).difference(set(needed_keys))
+            all_missing_keys = set(all_missing_keys).difference(set(all_needed_keys))
+            all_over_keys = set(all_over_keys).difference(set(all_needed_keys))
             self._print_mismatch_keys(all_missing_keys, all_over_keys, verbose)
 
         else:
@@ -345,7 +320,7 @@ class BERT_BASE(nn.Module):
             module = modules_to_check.pop(-1)
             # if the module does not appear in _no_split_modules, we also check the children
             if module.__class__.__name__ not in _no_split_modules:
-                if isinstance(module, BERT_BASE):
+                if isinstance(module, PreTrainedModel):
                     if module._no_split_modules is None:
                         raise ValueError(
                             f"{module.__class__.__name__} does not support `device_map='{device_map}'`. To implement support, the model "
@@ -360,11 +335,13 @@ class BERT_BASE(nn.Module):
     def _print_mismatch_keys(missing_keys, over_keys, verbose):
         """打印mismatch keys"""
         if verbose != 0:
-            for key in missing_keys:  # model中有，但是ckpt中不存在
-                log_warn(f'`{key}` not found in pretrained checkpoints')
+            # model中有，但是ckpt中不存在
+            if missing_keys:
+                log_warn(f'`{missing_keys}` not found in pretrained checkpoints')
         if verbose > 1:
-            for key in over_keys:  # ckpt中存在，但是model中不存在
-                log_warn(f'`{key}` only exists in pretrained checkpoints but not in model parameters')
+            # ckpt中存在，但是model中不存在
+            if over_keys:
+                log_warn(f'`{over_keys}` only exists in pretrained checkpoints but not in model parameters')
 
     def save_trans_ckpt(self):
         """对state_dict进行转换
@@ -456,33 +433,6 @@ class BERT_BASE(nn.Module):
     def apply_final_layers(self, *inputs, **model_kwargs):
         raise NotImplementedError
     
-    def apply_on_layer_begin(self, l_i, **model_kwargs):
-        '''新增对layer block输入进行操作的函数'''
-        # if model_kwargs.get('use_states') is not True:
-        #     return model_kwargs
-        
-        if model_kwargs.get('past_key_values') is not None:
-            model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
-
-        if ('encoder_hidden_states' in model_kwargs) and model_kwargs.get('cross_past_key_values') is not None:
-            model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
-        return model_kwargs
-    
-    def apply_on_layer_end(self, l_i, **model_kwargs):
-        '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
-        if model_kwargs.get('use_states') is not True:
-            return model_kwargs
-
-        if model_kwargs.get('past_key_value') is not None:
-            if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
-                model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
-            model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
-        if model_kwargs.get('cross_past_key_value') is not None:
-            if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
-                model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
-            model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']
-        return model_kwargs
-
     def compute_attention_bias(self, inputs=None):
         """定义每一层的Attention Bias"""
         return self.attention_bias
@@ -588,7 +538,7 @@ class BERT_BASE(nn.Module):
 
 def extend_with_base_model(InputModel):
     """添加torch4keras的BaseModel, 可以使用.compile, .fit等Trainer的功能"""
-    class BertBaseModel(InputModel, BERT_BASE, BaseModel):
+    class BertBaseModel(InputModel, PreTrainedModel, BaseModel):
         pass
     return BertBaseModel
 

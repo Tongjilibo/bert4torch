@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 maxlen = 256
 batch_size = 16
-pretrain_model = 'E:/data/pretrain_ckpt/xlnet/hfl@chinese-xlnet-base/'
+pretrain_model = 'E:/data/pretrain_ckpt/hfl/chinese-xlnet-base/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 spm_path = pretrain_model + 'spiece.model'
@@ -57,7 +57,7 @@ def collate_fn(batch):
         batch_labels.append([label])
 
     # 用tokenizer的pad_id来做padding
-    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer._token_pad_id, mode='pre'), dtype=torch.long, device=device)
+    batch_token_ids = torch.tensor(sequence_padding(batch_token_ids, value=tokenizer._token_pad_id, padding_side='left'), dtype=torch.long, device=device)
     batch_labels = torch.tensor(batch_labels, dtype=torch.long, device=device)
     return batch_token_ids, batch_labels.flatten()
 
