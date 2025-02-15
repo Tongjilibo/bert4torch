@@ -15,7 +15,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
 
 
 class ArticleCompletion(AutoRegressiveDecoder):

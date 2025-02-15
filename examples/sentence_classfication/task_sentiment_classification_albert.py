@@ -68,7 +68,7 @@ class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:
         super().__init__()
         self.pool_method = pool_method
-        self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)  # 建立模型，加载权重
+        self.bert = build_transformer_model(config_path, checkpoint_path, with_pool=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
 

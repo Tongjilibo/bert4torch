@@ -16,7 +16,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax').to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode("近期正是上市公司财报密集披露的时间，但有多家龙头公司的业绩令投资者失望")
 token_ids[5] = token_ids[6] = tokenizer._token_mask_id

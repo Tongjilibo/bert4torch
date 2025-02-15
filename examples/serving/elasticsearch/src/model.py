@@ -20,7 +20,7 @@ tokenizer = Tokenizer(vocab_path, do_lower_case=True)
 
 class BertClient(object):
     def __init__(self, batch_size=10, maxlen=128, use_tqdm=False):
-        self.model = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0, with_pool=True, output_all_encoded_layers=True)  # 建立模型，加载权重
+        self.model = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0, with_pool=True, output_all_encoded_layers=True)
         self.model.to(device)
         self.model.eval()
         self.batch_size=batch_size

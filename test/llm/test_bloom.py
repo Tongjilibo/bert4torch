@@ -15,7 +15,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 

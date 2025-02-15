@@ -93,7 +93,7 @@ def test_qwen(model_dir):
     if not os.path.exists(config_path):
         config_path = model_dir + "/config.json"
 
-    model = build_transformer_model(config_path, model_dir).to(device)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, model_dir).to(device)
     model.eval()
 
     if 'Chat' in model_dir:

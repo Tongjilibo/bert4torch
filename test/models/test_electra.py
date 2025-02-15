@@ -16,7 +16,7 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     tokenizer = Tokenizer(os.path.join(model_dir, 'vocab.txt'), do_lower_case=True)
-    model = build_transformer_model(config_path, checkpoint_path, model='electra')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, model='electra')
     return model.to(device), tokenizer
 
 def get_hf_model(model_dir):

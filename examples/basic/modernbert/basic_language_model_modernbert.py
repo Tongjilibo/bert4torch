@@ -12,7 +12,7 @@ text = "The capital of France is [MASK]."
 # ==========================bert4torch调用=========================
 # 建立分词器
 tokenizer = AutoTokenizer.from_pretrained(model_dir)
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, with_mlm=True).to(device)  # 建立模型，加载权重
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, with_mlm=True).to(device)
 
 inputs = tokenizer(text, return_tensors="pt").to(device)
 

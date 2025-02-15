@@ -18,7 +18,7 @@ tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
 model = build_transformer_model(
     config_path=config_path,
     checkpoint_path=checkpoint_path
-).to(device)  # 建立模型，加载权重
+).to(device)
 
 
 class ArticleCompletion(AutoRegressiveDecoder):

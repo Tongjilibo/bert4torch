@@ -17,7 +17,7 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
-    model = build_transformer_model(config_path, checkpoint_path, model='deberta_v2')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, model='deberta_v2')
     return model.to(device), tokenizer
 
 

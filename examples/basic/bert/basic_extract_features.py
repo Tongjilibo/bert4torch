@@ -11,7 +11,7 @@ config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
-model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path)
 
 # 编码测试
 token_ids, segment_ids = tokenizer.encode(u'语言模型')

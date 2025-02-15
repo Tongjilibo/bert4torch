@@ -16,7 +16,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir
 
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
     return model.to(device)
 
@@ -71,7 +71,7 @@ def test_gpt2_ml(model_dir):
     dict_path = os.path.join(model_dir, 'vocab.txt')
 
     tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
-    model = build_transformer_model(config_path, checkpoint_path)  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
 
     generation_config = {

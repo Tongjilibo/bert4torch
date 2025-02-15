@@ -14,7 +14,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode("科学研究是第一生产力")
 token_ids[3] = token_ids[4] = tokenizer._token_mask_id

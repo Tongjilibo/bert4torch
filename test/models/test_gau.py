@@ -15,7 +15,7 @@ def get_bert4torch_model(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
     dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
     
-    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+    model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
     tokenizer = Tokenizer(dict_path, do_lower_case=True)
     model.eval()
     return model.to(device), tokenizer

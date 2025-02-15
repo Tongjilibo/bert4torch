@@ -32,7 +32,7 @@ print(predicted_token, logit_prob[predicted_index])
 
 # ==========================bert4torch调用==========================
 # 建立分词器
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')  # 建立模型，加载权重
+model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
 # 需要传入参数with_mlm
 model.eval()

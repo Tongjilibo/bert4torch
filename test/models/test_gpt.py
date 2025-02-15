@@ -13,7 +13,7 @@ def get_bert4torch_model(root_path):
     checkpoint_path = root_path + '/pytorch_model.bin'
     dict_path = root_path + '/bert4torch_vocab.txt'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    encoder = build_transformer_model(config_path, checkpoint_path).to(device)  # 建立模型，加载权重
+    encoder = build_transformer_model(config_path, checkpoint_path).to(device)
 
     tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
     encoder.eval()
