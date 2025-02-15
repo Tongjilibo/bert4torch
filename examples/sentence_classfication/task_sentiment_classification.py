@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 maxlen = 256
 batch_size = 16
-model_dir = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12'
+model_dir = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese'
 data_dir = 'F:/data/corpus/sentence_classification/sentiment'
 config_path = f'{model_dir}/bert4torch_config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'

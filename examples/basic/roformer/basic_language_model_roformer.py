@@ -5,8 +5,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import torch
 
-args_model_path = "E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base/"
-# args_model_path = "E:/data/pretrain_ckpt/roformer/sushen@roformer_v2_char_base/"
+args_model_path = "E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/"
+# args_model_path = "E:/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/"
     
 # 加载模型，请更换成自己的路径
 root_model_path = args_model_path

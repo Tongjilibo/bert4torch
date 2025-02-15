@@ -41,7 +41,7 @@ max_seq_length = max_source_length + max_target_length
 epochs = 1
 prefix = ''
 data_dir = 'F:/data/corpus/sft/Llama2-Chinese'  # 数据路径
-model_dir = 'E:/data/pretrain_ckpt/llama/llama-2-7b-chat'  # 模型路径
+model_dir = 'E:/data/pretrain_ckpt/meta-llama/llama-2-7b-chat'  # 模型路径
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)

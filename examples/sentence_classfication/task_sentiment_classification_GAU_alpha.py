@@ -19,9 +19,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/gau/sushen@chinese_GAU-alpha-char_L-24_H-768_torch/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

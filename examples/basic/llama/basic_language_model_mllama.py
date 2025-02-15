@@ -10,7 +10,7 @@ from transformers import AutoProcessor
 from bert4torch.pipelines import ChatVL
 
 
-model_dir = 'E:/data/pretrain_ckpt/llama/Llama-3.2-11B-Vision-Instruct'
+model_dir = 'E:/data/pretrain_ckpt/meta-llama/Llama-3.2-11B-Vision-Instruct'
 
 def chat_demo1():
     device = 'cuda'
@@ -52,5 +52,5 @@ def chat_demo2():
 
 
 if __name__ == '__main__':
-    chat_demo1()
-    # chat_demo2()
+    # chat_demo1()
+    chat_demo2()

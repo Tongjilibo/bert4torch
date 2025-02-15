@@ -5,9 +5,9 @@ import requests
 from bert4torch.pipelines import ChatVL
 
 
-# E:/data/pretrain_ckpt/MiniCPM/MiniCPM-Llama3-V-2_5
-# E:/data/pretrain_ckpt/MiniCPM/MiniCPM-V-2_6
-model_dir = "E:/data/pretrain_ckpt/MiniCPM/MiniCPM-V-2_6"
+# E:/data/pretrain_ckpt/openbmb/MiniCPM-Llama3-V-2_5
+# E:/data/pretrain_ckpt/openbmb/MiniCPM-V-2_6
+model_dir = "E:/data/pretrain_ckpt/openbmb/MiniCPM-V-2_6"
 
 def chat_demo1():
     query1 = '介绍一下这张图片的内容？'

@@ -29,8 +29,8 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/gpt/cpm@cpm_lm_2.6b/",
-                                       'E:/data/pretrain_ckpt/gpt/uer@gpt2-chinese-cluecorpussmall/'])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/",
+                                       'E:/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'])
 @torch.inference_mode()
 def test_gpt2(model_dir):
     query = '你好'
@@ -62,7 +62,7 @@ def test_gpt2(model_dir):
     assert sequence_output==sequence_output_hf
 
 
-@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch'])
+@pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/Tongjilibo/gpt2-ml_15g_corpus'])
 @torch.inference_mode()
 def test_gpt2_ml(model_dir):
     query = '你好'
@@ -91,4 +91,4 @@ def test_gpt2_ml(model_dir):
 
 
 if __name__=='__main__':
-    test_gpt2_ml('E:/data/pretrain_ckpt/gpt/imcaspar@gpt2-ml_15g_corpus_torch')
+    test_gpt2_ml('E:/data/pretrain_ckpt/Tongjilibo/gpt2-ml_15g_corpus')

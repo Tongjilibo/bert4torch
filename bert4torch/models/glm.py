@@ -15,7 +15,6 @@ class GLM(Decoder):
     5) embedding之后没有layernorm
     '''
     _no_split_modules = ["GlmLayer"]
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, layer_type='GlmLayer', **kwargs):
         kwargs.update({'layer_type': layer_type, 'p_bias': 'rotary', 'weight': True, 'is_decoder': True, 'final_layernorm': True})
         super().__init__(*args, **kwargs)
@@ -70,7 +69,7 @@ class GLM(Decoder):
         mapping = {
             'LayerNormFinal.weight': f"{prefix}.final_layernorm.weight",
             'LayerNormFinal.bias': f"{prefix}.final_layernorm.bias",
-            'lm_head.weight': "lm_head.weight",
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight'}
 
         for i in range(self.num_hidden_layers):

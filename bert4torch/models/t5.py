@@ -133,7 +133,6 @@ class T5(Transformer):
     decoder: tie_word_embeddings=False
     encoder-decoder: tie_word_embeddings_encoder_decoder=True
     """
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args,  tie_word_embeddings_encoder_decoder:bool=True, **kwargs):
         kwargs['tie_word_embeddings_encoder_decoder'] = tie_word_embeddings_encoder_decoder
         super(T5, self).__init__(*args, **kwargs)

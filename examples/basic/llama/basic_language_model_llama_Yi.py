@@ -3,9 +3,9 @@ from bert4torch.pipelines import Chat
 import re
 
 
-# 01-ai@Yi-6B
-# 01-ai@Yi-1.5-9B-Chat-16K
-model_dir = "E:/data/pretrain_ckpt/llama/01-ai@Yi-1.5-9B-Chat-16K"
+# Yi-6B
+# Yi-1.5-9B-Chat-16K
+model_dir = "E:/data/pretrain_ckpt/01-ai/Yi-1.5-9B-Chat-16K"
 
 
 # print('==========================transformers=============================')

@@ -18,9 +18,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/electra/hfl@chinese-electra-base-discriminator/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-electra-base-discriminator/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-electra-base-discriminator/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-electra-base-discriminator/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

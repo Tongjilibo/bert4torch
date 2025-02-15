@@ -19,9 +19,9 @@ import torch.nn as nn
 
 maxlen = 256
 batch_size = 8
-config_path = 'E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载标签字典

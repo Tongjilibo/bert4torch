@@ -24,7 +24,7 @@ import re
 # Meta-Llama-3-8B  Meta-Llama-3-8B-Instruct
 # Meta-Llama-3.1-8B  Meta-Llama-3.1-8B-Instruct
 # Llama-3.2-1B  Llama-3.2-1B-Instruct  Llama-3.2-3B  Llama-3.2-3B-Instruct
-model_dir = 'E:/data/pretrain_ckpt/llama/Meta-Llama-3.1-8B-Instruct'
+model_dir = 'E:/data/pretrain_ckpt/meta-llama/Meta-Llama-3.1-8B-Instruct'
 generation_config = {
     'max_length': 512, 
     'include_input': False if re.search('chat|Instruct', model_dir) else True

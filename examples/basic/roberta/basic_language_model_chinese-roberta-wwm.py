@@ -1,4 +1,4 @@
-# 基础测试：中文版chinese-roberta-wwm-ext-base的测试
+# 基础测试：中文版chinese-roberta-wwm-ext的测试
 
 import torch
 from bert4torch.models import build_transformer_model
@@ -6,7 +6,7 @@ from bert4torch.tokenizers import Tokenizer
 
 
 # 加载模型，
-base_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base'
+base_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext'
 dict_path = base_path + '/vocab.txt'
 config_path = base_path + '/config.json'
 checkpoint_path = base_path + '/pytorch_model.bin'

@@ -29,7 +29,7 @@ class InternLM(Decoder):
         # 映射到权重格式
         mapping = {
             'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'LayerNormFinal.weight': 'model.norm.weight',
             }
 
@@ -103,7 +103,7 @@ class InternLM2(Decoder):
         # 映射到权重格式
         mapping = {
             'embeddings.word_embeddings.weight': 'model.tok_embeddings.weight',
-            'lm_head.weight': 'output.weight',
+            'lm_head.weight': 'output.weight' if self.with_lm and not self.tie_word_embeddings else 'model.tok_embeddings.weight',
             'LayerNormFinal.weight': 'model.norm.weight',
             }
 

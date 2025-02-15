@@ -18,7 +18,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 maxlen = 128
 batch_size = 16
-dict_path = 'E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12/vocab.txt'
+dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -62,7 +62,7 @@ test_dataloader = DataLoader(MyDataset(['F:/data/corpus/sentence_classification/
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        self.bert = AutoModelForSequenceClassification.from_pretrained("E:/data/pretrain_ckpt/bert/google@chinese_L-12_H-768_A-12", num_labels=2)
+        self.bert = AutoModelForSequenceClassification.from_pretrained("E:/data/pretrain_ckpt/google-bert/bert-base-chinese", num_labels=2)
     
     def forward(self, token_ids, segment_ids):
         output = self.bert(input_ids=token_ids, token_type_ids=segment_ids)

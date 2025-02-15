@@ -677,9 +677,9 @@ class ChatOpenaiApi(ChatBase):
         if not is_fastapi_available():
             raise ModuleNotFoundError("No module found, use `pip install fastapi`")
         from sse_starlette.sse import EventSourceResponse
-        # import sse_starlette
-        # if version.parse(sse_starlette.__version__) > version.parse('1.8'):
-        #     log_warn('Module `sse_starlette` above 1.8 not support stream output')
+        import sse_starlette
+        if version.parse(sse_starlette.__version__) > version.parse('1.8'):
+            log_warn('Module `sse_starlette` above 1.8 not support stream output, use `pip install sse_starlette==1.6.5`')
         self.offload_when_nocall = offload_when_nocall
         if offload_max_callapi_interval <= offload_scheduler_interval:
             raise ValueError('Args `offload_scheduler_interval` must < `offload_max_callapi_interval`')

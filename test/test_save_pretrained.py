@@ -32,13 +32,13 @@ def get_configs(model_dir):
          configs.pop('with_pool')
     return config_path, checkpoint_path, configs
      
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/bert/google@bert-base-chinese",
-                                       "E:/data/pretrain_ckpt/albert/brightmart@albert_base_zh",
-                                       "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese",
-                                       "E:/data/pretrain_ckpt/ernie/baidu@ernie-1-base-zh",
-                                       "E:/data/pretrain_ckpt/bert/hfl@macbert-base",
-                                       'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/',
-                                       "E:/data/pretrain_ckpt/bert/sushen@wobert_chinese_plus_base"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/google-bert/bert-base-chinese",
+                                       "E:/data/pretrain_ckpt/voidful/albert_chinese_base",
+                                       "E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese",
+                                       "E:/data/pretrain_ckpt/nghuyong/ernie-1.0-base-zh",
+                                       "E:/data/pretrain_ckpt/hfl/chinese-macbert-base",
+                                       'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/',
+                                       "E:/data/pretrain_ckpt/junnyu/wobert_chinese_plus_base"])
 @torch.inference_mode()
 def test_encoder_model(model_dir):
     config_path, checkpoint_path, configs = get_configs(model_dir)
@@ -130,5 +130,5 @@ def test_qwen(model_dir):
 
 
 if __name__=='__main__':
-    # test_encoder_model("E:/data/pretrain_ckpt/bert/google@bert-base-chinese")
+    # test_encoder_model("E:/data/pretrain_ckpt/google-bert/bert-base-chinese")
     test_qwen('E:/data/pretrain_ckpt/Qwen/Qwen-1_8B-Chat')

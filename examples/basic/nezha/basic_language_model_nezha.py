@@ -6,7 +6,7 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 
-root_model_path = "E:/data/pretrain_ckpt/nezha/huawei_noah@nezha-cn-base"
+root_model_path = "E:/data/pretrain_ckpt/sijunhe/nezha-cn-base"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'

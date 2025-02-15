@@ -8,14 +8,17 @@ from transformers import BertTokenizer, BertForMaskedLM
 import torch
 from torch.nn.functional import softmax
 
-root_model_path = "E:/data/pretrain_ckpt/bert/bert-base-multilingual-cased"
-config_path = root_model_path + "/config.json"
+# bert-base-multilingual-cased
+# bert_base_uncased
+# bert_base_cased
+root_model_path = "E:/data/pretrain_ckpt/google-bert/bert-base-multilingual-cased"
+config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
+text = "Hello I'm a [MASK] model."
 
 # ==========================transformer调用==========================
 tokenizer = BertTokenizer.from_pretrained(root_model_path)
 model = BertForMaskedLM.from_pretrained(root_model_path)
-text = "Hello I'm a [MASK] model."
 encoded_input = tokenizer(text, return_tensors='pt')
 mask_pos = encoded_input['input_ids'][0].tolist().index(103)
 outputs = model(**encoded_input)

@@ -6,9 +6,9 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-root_model_path = "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-97M-Chinese"
-# root_model_path = "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-320M-Chinese"
-# root_model_path = "E:/data/pretrain_ckpt/deberta/IDEA-CCNL@Erlangshen-DeBERTa-v2-710M-Chinese"
+root_model_path = "E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese"
+# root_model_path = "E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese"
+# root_model_path = "E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-710M-Chinese"
 
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"

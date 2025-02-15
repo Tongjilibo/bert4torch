@@ -33,7 +33,7 @@ class DeepSeek(Decoder):
         # 映射到权重格式
         mapping = {
             'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'LayerNormFinal.weight': 'model.norm.weight',
             }
 

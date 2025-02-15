@@ -13,7 +13,6 @@ class LLaMA(Decoder):
     3. feedForward不同, 三层全连接
     4. rotary相对位置编码
     '''
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, p_bias='rotary', **kwargs):
         kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
                        'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True, 
@@ -32,7 +31,7 @@ class LLaMA(Decoder):
         '''
         mapping = {
             'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
-            'lm_head.weight': 'lm_head.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'LayerNormFinal.weight': 'model.norm.weight',
             }
 
@@ -95,3 +94,8 @@ class MiniCPM(LLaMA):
         kwargs['layer_type'] = 'MiniCPMLayer'
         super().__init__(*args, **kwargs)
         self.logit_scale = 1 / (self.hidden_size / kwargs.get('dim_model_base'))
+
+    @property
+    def _layer_args(self):
+        args = super()._layer_args
+        return args + ['num_hidden_layers']

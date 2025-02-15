@@ -19,9 +19,9 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base/config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/roformer/sushen@roformer_v1_base/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

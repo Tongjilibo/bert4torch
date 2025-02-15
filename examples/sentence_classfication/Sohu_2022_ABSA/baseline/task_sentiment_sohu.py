@@ -32,9 +32,9 @@ fileid = args.fileid
 gpuid = args.gpuid
 
 # 配置设置
-config_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/roberta/hfl@chinese-roberta-wwm-ext-base/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
 data_dir = 'E:/Github/Sohu2022/Sohu2022_data/nlp_data'
 
 choice = 'train'

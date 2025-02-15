@@ -755,7 +755,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
     def __get_last_token_logits(self, logits, output_ids):
         '''获取最后一个token的logits'''
-        if not self.use_batch:
+        if not self.use_batch or logits.shape[1] == 1:
             return logits[:, -1, :]
         else:
             # 由于batch是padding过的, 因此要找到padding前的位置
@@ -768,10 +768,7 @@ class SeqGeneration(AutoRegressiveDecoder):
         :param inputs: 原始输入, 在整个预测过程中均不改变
         :param outputs_ids: 输出的ids, 随着预测进行, 逐步增长
         :param states: None/dict, 缓存参数
-        '''
-        if states is not None:
-            assert self.use_states is True, 'Args `use_states` must be True when return states is not None'
-        
+        '''        
         # 使用cache, 输入只能padding在左侧
         if self.use_states:
             if states is None:

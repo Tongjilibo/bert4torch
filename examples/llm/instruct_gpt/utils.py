@@ -9,12 +9,12 @@ import os
 def get_model_config(model):
     if model == 'bloom':
         model_type = 'bloom'
-        dir_path = 'E:/data/pretrain_ckpt/bloom/bloomz-560m'
+        dir_path = 'E:/data/pretrain_ckpt/bigscience/bloomz-560m'
         config_path = dir_path + '/bert4torch_config.json'
         checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
     elif model == 'llama2':
         model_type = 'llama'
-        dir_path = 'E:/data/pretrain_ckpt/llama/llama-2-7b-chat'
+        dir_path = 'E:/data/pretrain_ckpt/meta-llama/llama-2-7b-chat'
         config_path = dir_path + '/bert4torch_config.json'
         checkpoint_path = [os.path.join(dir_path, i) for i in os.listdir(dir_path) if i.endswith('.bin')]
     else:

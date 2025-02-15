@@ -4,8 +4,8 @@ from transformers import AutoTokenizer
 from bert4torch.models import build_transformer_model
 import torch
 
-model_dir = "E:/data/pretrain_ckpt/ModernBERT/answerdotai@ModernBERT-base"
-# model_dir = "E:/data/pretrain_ckpt/ModernBERT/answerdotai@ModernBERT-large"
+model_dir = "E:/data/pretrain_ckpt/answerdotai/ModernBERT-base"
+# model_dir = "E:/data/pretrain_ckpt/answerdotai/ModernBERT-large"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 text = "The capital of France is [MASK]."
 

@@ -5,7 +5,7 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import torch
 
-root_model_path = "E:/data/pretrain_ckpt/albert/brightmart@albert_base_zh"
+root_model_path = "E:/data/pretrain_ckpt/voidful/albert_chinese_base"
 
 # ==========================bert4torch调用==========================
 # 加载模型，请更换成自己的路径

@@ -28,7 +28,7 @@ def get_hf_model(model_dir):
 
 
 @pytest.mark.parametrize("model_dir", ['E:/data/pretrain_ckpt/bloom/bloom-560m',
-                                       'E:/data/pretrain_ckpt/bloom/bloomz-560m'])
+                                       'E:/data/pretrain_ckpt/bigscience/bloomz-560m'])
 @torch.inference_mode()
 def test_bloom(model_dir):
     query = '你好'

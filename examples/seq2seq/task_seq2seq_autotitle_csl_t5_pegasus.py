@@ -27,7 +27,7 @@ epochs = 50
 steps_per_epoch = None
 
 # bert配置
-pretrain_model = 'E:/data/pretrain_ckpt/t5/sushen@chinese_t5_pegasus_base_torch/'
+pretrain_model = 'E:/data/pretrain_ckpt/Tongjilibo/chinese_t5_pegasus_base/'
 config_path = pretrain_model + 'bert4torch_config.json'
 checkpoint_path = pretrain_model + 'pytorch_model.bin'
 dict_path = pretrain_model + 'vocab.txt'

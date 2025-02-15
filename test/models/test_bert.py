@@ -25,10 +25,10 @@ def get_hf_model(model_dir):
     return model.to(device), tokenizer
 
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/bert/google@bert-base-chinese",
-                                       "E:/data/pretrain_ckpt/bert/bert-base-multilingual-cased",
-                                       "E:/data/pretrain_ckpt/bert/hfl@macbert-base",
-                                       "E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/google-bert/bert-base-chinese",
+                                       "E:/data/pretrain_ckpt/google-bert/bert-base-multilingual-cased",
+                                       "E:/data/pretrain_ckpt/hfl/chinese-macbert-base",
+                                       "E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext"])
 @torch.inference_mode()
 def test_bert(model_dir):
     model = get_bert4torch_model(model_dir)
@@ -46,4 +46,4 @@ def test_bert(model_dir):
 
 
 if __name__=='__main__':
-    test_bert("E:/data/pretrain_ckpt/bert/hfl@chinese-bert-wwm-ext")
+    test_bert("E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext")

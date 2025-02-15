@@ -15,7 +15,7 @@ import platform
 import os
 
 model_name = 'falcon-rw-1b'  # falcon-rw-1b falcon-7b falcon-7b-instruct
-model_dir = f'E:/data/pretrain_ckpt/falcon/{model_name}'
+model_dir = f'E:/data/pretrain_ckpt/tiiuae/{model_name}'
 include_input = False if '-instruct' in model_dir else True
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

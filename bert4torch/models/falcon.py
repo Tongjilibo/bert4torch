@@ -12,7 +12,6 @@ class Falcon(Decoder):
     falcon-7b/falcon-7b-instruct: rotary, 除了layernorm其他都没有bias，其次使用了multi_query_attn
     '''
     _no_split_modules = ["BertLayer", "FalconParallelAttnLayer"]
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs.update({'weight': True, 'pre_layernorm': True, 'norm_mode': 'torch_buildin', 
                       'is_decoder': True, 'final_layernorm': True, 'attention_scale': False})
@@ -77,7 +76,7 @@ class Falcon(Decoder):
         """权重映射字典，格式为{model_key: ckpt_key}"""
         mapping = {
             'embeddings.word_embeddings.weight': 'transformer.word_embeddings.weight',
-            'lm_head.weight': 'lm_head.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
             'LayerNormFinal.weight': 'transformer.ln_f.weight',
             'LayerNormFinal.bias': 'transformer.ln_f.bias'
             }

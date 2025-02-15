@@ -24,9 +24,9 @@ batch_size = 16
 epochs = 10000
 
 # bert配置
-config_path = 'E:/data/pretrain_ckpt/roberta/ethanyt@guwenbert-base/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/roberta/ethanyt@guwenbert-base/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/roberta/ethanyt@guwenbert-base/vocab.txt'
+config_path = 'E:/data/pretrain_ckpt/ethanyt/guwenbert-base/bert4torch_config.json'
+checkpoint_path = 'E:/data/pretrain_ckpt/ethanyt/guwenbert-base/pytorch_model.bin'
+dict_path = 'E:/data/pretrain_ckpt/ethanyt/guwenbert-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)

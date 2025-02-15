@@ -7,7 +7,7 @@ from bert4torch.pipelines import ChatVL
 
 
 device = "cuda"
-model_dir = 'E:/data/pretrain_ckpt/glm/glm-4v-9b'
+model_dir = 'E:/data/pretrain_ckpt/THUDM/glm-4v-9b'
 url = "https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
 image = Image.open(requests.get(url, stream=True).raw).convert('RGB')
 tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)

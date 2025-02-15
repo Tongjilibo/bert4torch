@@ -17,16 +17,12 @@ import requests
 # InternVL2_5-2B
 # InternVL2_5-4B
 # InternVL2_5-8B
-model_dir = 'E:/data/pretrain_ckpt/internlm/InternVL2_5-1B'
+model_dir = 'E:/data/pretrain_ckpt/OpenGVLab/InternVL2_5-1B'
 image1 = Image.open(requests.get("https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg", stream=True).raw).convert('RGB')
 image2 = Image.open(requests.get("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg", stream=True).raw).convert('RGB')
 
-def chat_demo1():
-    device = 'cuda'
-    model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(device)
 
-
-def chat_demo2():
+def chat_demo():
     generation_config = {
         'top_p': 0.8, 
         'temperature': 1,
@@ -73,5 +69,4 @@ def chat_demo2():
     print(f'User: {question}\nAssistant: {response}')
 
 if __name__ == '__main__':
-    # chat_demo1()
-    chat_demo2()
+    chat_demo()

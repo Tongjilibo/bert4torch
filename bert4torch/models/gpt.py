@@ -11,7 +11,6 @@ class GPT(Decoder):
     1. 有segment, embedding是token、position、segment三者embedding之和
     2. embedding没有加LayerNormalization层
     """
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         super(GPT, self).__init__(*args, **kwargs)
@@ -107,7 +106,6 @@ class GPT2(Decoder):
     3. 使用pre_layernorm, bert的layernorm是在attn/ffc之后，OpenAi-gpt2是在之前。
     4. 有final_layernorm
     """
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         kwargs['pre_layernorm'] = kwargs.get('pre_layernorm', True)
@@ -200,7 +198,6 @@ class GPT2_ML(Decoder):
     2. 第二个跳跃链接的输入是在layernorm前，bert是在之后
     """
     _no_split_modules = ["Gpt2MlLayer"]
-    @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, **kwargs):
         kwargs['tie_word_embeddings'] = kwargs.get('tie_word_embeddings', True)
         kwargs['layer_type'] = "Gpt2MlLayer"

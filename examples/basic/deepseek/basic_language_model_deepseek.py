@@ -28,6 +28,8 @@ generation_config = {
 
 demo = Chat(model_dir, 
             system='You are a helpful assistant.',
+            # mode='openai',
+            # route_api='/v1/chat/completions',
             generation_config=generation_config,
             device_map='auto',
             # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}

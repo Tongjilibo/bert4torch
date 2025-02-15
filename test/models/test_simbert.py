@@ -77,10 +77,10 @@ def cal_sen_emb(model, tokenizer, text_list):
     return Z
     
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_tiny",
-                                       "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_small",
-                                       "E:/data/pretrain_ckpt/simbert/sushen@simbert_chinese_base",
-                                       "E:/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base"])
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_tiny",
+                                       "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_small",
+                                       "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base",
+                                       "E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base"])
 @torch.inference_mode()
 def test_simbert(model_dir):
     query = '我想去首都北京玩玩'
@@ -101,4 +101,4 @@ def test_simbert(model_dir):
 
 
 if __name__=='__main__':
-    test_simbert("E:/data/pretrain_ckpt/simbert/sushen@roformer_chinese_sim_char_base")
+    test_simbert("E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base")
