@@ -13,7 +13,7 @@
 
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
-from .llm import ChatBase, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
 from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.internvl.vision_process import fetch_image
@@ -24,6 +24,7 @@ from bert4torch.snippets import (
     log_info_once,
     log_warn, 
     log_error,
+    colorful,
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
@@ -220,6 +221,47 @@ class ChatVLBase(ChatBase):
     def stream_generate(self, *args, **kwargs):
         '''base模型使用, 单条样本stream输出预测的结果'''
         yield from self.model.stream_generate(*args, **self.generation_config, **kwargs)
+
+
+class ChatVLCli(ChatCli):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史，stop终止程序，image输入图片路径或url")
+
+    def run(self, functions:List[dict]=None, stream:bool=True):
+        import platform
+        os_name = platform.system()
+        history = []
+        clear_command = 'cls' if os_name == 'Windows' else 'clear'
+        print(self.init_str)
+        while True:
+            query = input(f"\n{colorful('User：', color='green')}")
+            if query.strip() == "stop":
+                break
+            if query.strip() == "clear":
+                history = []
+                if 'states' in self.generation_config:
+                    self.generation_config.pop('states')
+                cuda_empty_cache()
+                os.system(clear_command)
+                print(self.init_str)
+                continue
+            
+            images = input(f"\n{colorful('Image：', color='yellow')}")
+            input_kwargs = self.build_prompt(query, images, None, history, functions)
+            # history是human和assistant的聊天历史
+            # 格式如[{'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': '有什么可以帮您的？'}]
+            if stream:
+                for response in self.model.stream_generate(**input_kwargs, **self.generation_config):
+                    response = self.process_response_history(response, history)
+                    os.system(clear_command)
+                    print(self.build_cli_text(history), flush=True)
+            else:
+                response = self.model.generate(**input_kwargs, **self.generation_config)
+                response = self.process_response_history(response, history)
+                os.system(clear_command)
+                print(self.build_cli_text(history), flush=True)
+            cuda_empty_cache()
 
 
 class ChatVLWebGradio(ChatWebGradio):
@@ -918,13 +960,13 @@ class ChatVL:
                  offload_when_nocall:Literal['cpu', 'disk']=None, 
                  api_keys:List[str]=None,
                  # 模式
-                 mode:Literal['raw','gradio', 'streamlit', 'openai']='raw',
+                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw',
                  template: str=None,
                  **kwargs
                  ) -> None:
         pass
 
-    def __new__(cls, *args, mode:Literal['raw', 'gradio', 'streamlit', 'openai']='raw', **kwargs):
+    def __new__(cls, *args, mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw', **kwargs):
         # template指定使用的模板
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
@@ -938,7 +980,10 @@ class ChatVL:
             ChatTemplate = MAPPING[template]
             log_info_once(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
 
-        if mode == 'gradio':
+        if mode == 'cli':
+            @add_start_docstrings(CHAT_START_DOCSTRING)
+            class ChatDemo(ChatTemplate, ChatVLCli): pass
+        elif mode == 'gradio':
             @add_start_docstrings(CHAT_START_DOCSTRING)
             class ChatDemo(ChatTemplate, ChatVLWebGradio): pass
         elif mode == 'streamlit':
