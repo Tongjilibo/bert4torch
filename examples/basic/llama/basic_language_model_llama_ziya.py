@@ -20,6 +20,7 @@ generation_config = {'include_input': not with_prompt}
 
 cli_demo = Chat(
     dir_path, 
+    mode='cli',
     generation_config=generation_config,
     quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
     )

@@ -14,6 +14,7 @@ generation_config = {'max_length': 512}
 
 cli_demo = Chat(
     model_dir, 
+    mode='cli',
     generation_config=generation_config,
     )
 
