@@ -264,7 +264,7 @@ class RopePositionEncoding(nn.Module):
 
         return cos.to(dtype=dtype), sin.to(dtype=dtype)
     
-    def rotate_and_compute(self, x, cos, sin):
+    def rotate_and_compute(self, x, cos, sin, position_ids, unsqueeze_dim=1):
         # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中x是[btz, seq_len, head_size]
@@ -273,6 +273,8 @@ class RopePositionEncoding(nn.Module):
         elif self.rope_rank in {'updown', 'rotate_half'}:
             # 其实就是rotate_half，注意cat和stack+reshape是结果不同的
             x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
+        cos = cos.unsqueeze(unsqueeze_dim)
+        sin = sin.unsqueeze(unsqueeze_dim)
         return x * cos + x2 * sin
 
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor):
@@ -294,9 +296,9 @@ class RopePositionEncoding(nn.Module):
         cos, sin = self.compute_cos_sin(qk, position_ids)
 
         if isinstance(qk, list):
-            return [self.rotate_and_compute(x, cos, sin) for x in qk]
+            return [self.rotate_and_compute(x, cos, sin, position_ids) for x in qk]
         else:
-            return self.rotate_and_compute(qk, cos, sin)
+            return self.rotate_and_compute(qk, cos, sin, position_ids)
 
 
 class RopeLinearScalingPositionEncoding(RopePositionEncoding):
@@ -464,7 +466,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         self._mscale = float(self.yarn_get_mscale(self.scaling_factor, self.mscale) / self.yarn_get_mscale(self.scaling_factor, self.mscale_all_dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
-    def rotate_and_compute(self, x, cos, sin):
+    def rotate_and_compute(self, x, cos, sin, position_ids, unsqueeze_dim=1):
         b, h, s, d = x.shape
         x = x.view(b, h, s, d // 2, 2).transpose(4, 3).reshape(b, h, s, d)
         x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)  # rotate_half

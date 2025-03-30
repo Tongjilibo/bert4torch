@@ -2,7 +2,7 @@
 # llama系列的指令微调, 基于lora/qlora
 # peft和transformer包是耦合的，因此这里用法和hf的略有不同
 # 这里使用的数据集为 https://github.com/FlagAlpha/Llama2-Chinese/tree/main/data
-
+# TODO: 20250330发现batch_size > 1的时候，loss会nan，尚未定位到具体原因
 
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding, text_segmentate
@@ -97,7 +97,7 @@ dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev_sft.csv')), ba
 
 
 # ====================================建立模型====================================
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True).half()
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True)
 
 # 量化
 load_in_nbit = None
