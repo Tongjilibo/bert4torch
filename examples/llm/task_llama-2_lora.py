@@ -30,7 +30,7 @@ import os
 
 
 # ====================================基本参数====================================
-mode = 'eval'
+mode = 'train'
 max_source_length = 256
 max_target_length = 256
 lr = 5e-4
@@ -97,7 +97,7 @@ dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev_sft.csv')), ba
 
 
 # ====================================建立模型====================================
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True, max_position=64)
 
 # 量化
 load_in_nbit = None
