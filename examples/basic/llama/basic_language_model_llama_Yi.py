@@ -34,6 +34,7 @@ generation_config = {
 }
 
 demo = Chat(model_dir, 
+            mode='cli',
             generation_config=generation_config,
             )
 

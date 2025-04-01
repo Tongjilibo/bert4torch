@@ -252,6 +252,11 @@ class ChatBase(PipeLineBase):
         else:
             raise TypeError(f'`response` type={type(response)} which is not supported')
 
+    @staticmethod
+    def update_history(history:list, query:str):
+        history.append({"role": "user", "content": query})
+        return history
+    
     def chat(self, query:Union[str, List[str]], history:List[dict]=None, functions:List[dict]=None, 
              return_history:bool=False, **kwargs) -> Union[str, List[str]]:
         '''chat模型使用, 配合对话模板使用'''
@@ -1279,7 +1284,7 @@ class Glm3(ChatBase):
             input_ids = self.tokenizer.build_chat_input(query, history=history, role="user")['input_ids']
         else:
             input_ids += self.generation_config['states']['last_token']
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return input_ids
         
     def process_response_history(self, response:str, history:List[dict]):
@@ -1358,7 +1363,7 @@ class Glm4(ChatBase):
             history[0]['tools'] = functions
 
         # 由于tokenizer封装了部分逻辑，这里直接转成input_ids
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         if self.no_history_states():
             prompt = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=False)
         else:
@@ -1413,7 +1418,7 @@ class InternLM(ChatBase):
             prompt += self.generation_config['states']['last_token']
 
         prompt += f"""<|User|>:{query}\n<|Bot|>:"""
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return prompt
 
     def process_response_history(self, response, history=None):
@@ -1496,7 +1501,7 @@ class InternLM2(ChatBase):
             prompt += self.generation_config['states']['last_token']
 
         prompt += f"""<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"""
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return prompt
 
     def process_response_history(self, response, history=None):
@@ -1687,7 +1692,7 @@ class Qwen(ChatBase):
             raw_text += self.generation_config['states']['last_token']
 
         raw_text += f"\n{im_start}user\n{instruction_query}{im_end}\n{im_start}assistant\n"
-        history.append({"role": "user", "content": query})  # 在终端打印显示原始的
+        history = self.update_history(history, query)
         return raw_text
 
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
@@ -1914,7 +1919,7 @@ class Qwen2(ChatBase):
             history[0]['content'] += '\n\n' + tool_system
             history[0]['tools'] = tool_system  # 仅用于是否已经添加过functions的判断
 
-        history.append({"role": "user", "content": query})  # 在终端打印显示原始的
+        history = self.update_history(history, query)
         if self.no_history_states():
             prompt = self.tokenizer.apply_chat_template(history, add_generation_prompt=True, tokenize=False)
         else:
@@ -2040,7 +2045,7 @@ class LLaMA2(ChatBase):
             texts = self.generation_config['states']['last_token']
 
         texts += f'{query.strip()} [/INST]'
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return texts
 
 
@@ -2057,7 +2062,7 @@ class ApplyChatTemplate(ChatBase):
         if (self.system is not None) and ((len(history) == 0) or (history[0]["role"] != "system")):
             history.insert(0, {"role": "system", "content": self.system})
 
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         if self.no_history_states():
             # llama3.1支持function call
             tools = functions
@@ -2131,7 +2136,7 @@ class Ziya(ChatBase):
             prompt += self.generation_config['states']['last_token']
         
         prompt += f"<human>:{query.strip()}\n<bot>:"
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return prompt
 
 
@@ -2165,7 +2170,7 @@ class ChineseLlamaAlpaca(ChatBase):
         else:
             prompt += self.generation_config['states']['last_token'] + f"### Instruction:\n\n{query}\n\n### Response:\n\n"
         
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return prompt
 
 
@@ -2190,7 +2195,7 @@ class Belle(ChatBase):
         else:
             prompt += self.generation_config['states']['last_token']
         prompt += f"Human: {query} \n\nAssistant: "
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return prompt
 
 
@@ -2217,7 +2222,7 @@ class Baichuan(ChatBase):
             total_input += [self.generation_config['states']['last_token_id']]
         total_input += [self.user_token_id] + self.tokenizer.encode(query) + [self.assistant_token_id]
         
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return total_input
 
 
@@ -2244,7 +2249,7 @@ class PretrainedTextContinuation(ChatBase):
             total_input += [self.generation_config['states']['last_token_id']]
         total_input += query
         
-        history.append({"role": "user", "content": query})
+        history = self.update_history(history, query)
         return total_input
 
 
@@ -2344,7 +2349,7 @@ class Chat:
                  offload_when_nocall:Literal['cpu', 'disk', 'delete']=None, 
                  api_keys:List[str]=None,
                  # 模式
-                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='cli',
+                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw',
                  template: str=None,
                  **kwargs
                  ) -> None:

@@ -13,7 +13,7 @@
 
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
-from .llm import ChatBase, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
 from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.internvl.vision_process import fetch_image
@@ -24,6 +24,7 @@ from bert4torch.snippets import (
     log_info_once,
     log_warn, 
     log_error,
+    colorful,
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
@@ -220,6 +221,77 @@ class ChatVLBase(ChatBase):
     def stream_generate(self, *args, **kwargs):
         '''base模型使用, 单条样本stream输出预测的结果'''
         yield from self.model.stream_generate(*args, **self.generation_config, **kwargs)
+
+    @staticmethod
+    def update_history(history:List[Dict], query_list:List[str], image_list:Union[ImageType, List[ImageType]], images=None):
+        history.append({'role': 'user', 'content': query_list[0]})
+        if isinstance(image_list, List):
+            if all([i is not None for i in image_list]):
+                history[-1]['images'] = image_list
+        elif isinstance(image_list, ImageType):
+            history[-1]['images'] = image_list
+        if images is not None and isinstance(images, str):
+            history[-1]['raw_images'] = images
+        return history
+
+
+class ChatVLCli(ChatCli):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.init_str = kwargs.get('init_str', "输入内容进行对话，clear清空对话历史；stop终止程序；image输入图片路径或url，image为空表示不使用图片或使用上一次图片")
+
+    def build_cli_text(self, history:List[dict]) -> str:
+        '''构建命令行终端显示的text'''
+        prompt = self.init_str
+        for query_or_response in history:
+            # 现在的dict格式，形如{'role': 'user', 'content': '你好啊'}
+            if query_or_response['role'] == "user":
+                prompt += f"\n\n{colorful('User：', color='green')}{query_or_response['content']}"
+                if isinstance(query_or_response.get('raw_images', -1), str):
+                    prompt += f"\n{colorful('Image：', color='green')}" + query_or_response['raw_images']
+            elif query_or_response['role'] == "assistant":
+                response = query_or_response.get('raw_content', query_or_response['content'])
+                prompt += f"\n\n{colorful('Assistant：', color='red')}{response}"
+                # function_call主要用于content的结构化展示
+                if query_or_response.get('function_call'):
+                    prompt += f"\n\n{colorful('Function：', color='yellow')}{query_or_response['function_call']}"
+        return prompt
+    
+    def run(self, functions:List[dict]=None, stream:bool=True):
+        import platform
+        os_name = platform.system()
+        history = []
+        clear_command = 'cls' if os_name == 'Windows' else 'clear'
+        print(self.init_str)
+        while True:
+            query = input(f"\n{colorful('User：', color='green')}")
+            if query.strip() == "stop":
+                break
+            if query.strip() == "clear":
+                history = []
+                if 'states' in self.generation_config:
+                    self.generation_config.pop('states')
+                cuda_empty_cache()
+                os.system(clear_command)
+                print(self.init_str)
+                continue
+            
+            images = input(f"{colorful('Image：', color='green')}")
+            images = None if images.strip() == '' else images
+            input_kwargs = self.build_prompt(query, images, None, history, functions)
+            # history是human和assistant的聊天历史
+            # 格式如[{'role': 'user', 'content': '你好'}, {'role': 'assistant', 'content': '有什么可以帮您的？'}]
+            if stream:
+                for response in self.model.stream_generate(**input_kwargs, **self.generation_config):
+                    response = self.process_response_history(response, history)
+                    os.system(clear_command)
+                    print(self.build_cli_text(history), flush=True)
+            else:
+                response = self.model.generate(**input_kwargs, **self.generation_config)
+                response = self.process_response_history(response, history)
+                os.system(clear_command)
+                print(self.build_cli_text(history), flush=True)
+            cuda_empty_cache()
 
 
 class ChatVLWebGradio(ChatWebGradio):
@@ -505,7 +577,7 @@ class MiniCPMV(ChatVLBase):
 
     def build_prompt(
             self,
-            queries: Union[str, list], 
+            queries: Union[str, List[str]], 
             images: Union[Image.Image, List[Image.Image]]=None, 
             vedios=None, history: List[Dict]=None, 
             functions:List[dict]=None,
@@ -524,9 +596,9 @@ class MiniCPMV(ChatVLBase):
         |  List[str]  |     List[Image]    |  各自提问单张图片  |
         |  List[str]  |  List[List[Image]] |各自同时提问多张图片|
         '''
-        queries, images = trans_query_images_tolist(queries, images)
+        query_list, image_list = trans_query_images_tolist(queries, images)
 
-        assert len(queries) == len(images), "The batch dim of query and images should be the same."        
+        assert len(query_list) == len(image_list), "The batch dim of query and images should be the same."        
         assert self.model.config.query_num == self.processor.image_processor.image_feature_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         assert self.model.config.patch_size == self.processor.image_processor.patch_size, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
         # assert self.model.config.use_image_id == self.processor.image_processor.use_image_id, "These two values should be the same. Check `config.json` and `preprocessor_config.json`."
@@ -538,7 +610,7 @@ class MiniCPMV(ChatVLBase):
 
         prompts_lists = []
         input_images_lists = []
-        for q, image in zip(queries, images):
+        for q, image in zip(query_list, image_list):
             copy_msgs = copy.deepcopy(history_messages) if history else []
             if image is None:
                 image = []
@@ -577,9 +649,7 @@ class MiniCPMV(ChatVLBase):
             inputs['attention_mask'] = torch.ones_like(inputs['input_ids'], dtype=bool)
 
         inputs.pop("image_sizes")
-        history.append({'role': 'user', 'content': queries[0]})
-        if all([i is not None for i in images]):
-            history[-1]['images'] = images
+        history = self.update_history(history, query_list, image_list, images=images)
         return inputs
 
 
@@ -609,11 +679,11 @@ class Qwen2VL(ChatVLBase):
         ):
         if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
-        queries, images = trans_query_images_tolist(queries, images)
+        query_list, image_list = trans_query_images_tolist(queries, images)
         history_messages = self.trans_history_format(history)
 
         all_messages = []
-        for query, image in zip(queries, images):
+        for query, image in zip(query_list, image_list):
             messages = copy.deepcopy(history_messages) + [{"role": "user", "content": [{"type": "text", "text": query}]}]
             if image is None:
                 pass
@@ -635,9 +705,7 @@ class Qwen2VL(ChatVLBase):
             return_tensors="pt",
         ).to(self.device)
 
-        history.append({'role': 'user', 'content': queries[0]})
-        if all([i is not None for i in images]):
-            history[-1]['images'] = images
+        history = self.update_history(history, query_list, image_list, images=images)
         return inputs
 
 
@@ -653,11 +721,11 @@ class Mllama(ChatVLBase):
         ):
         if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
-        queries, images = trans_query_images_tolist(queries, images)
+        query_list, image_list = trans_query_images_tolist(queries, images)
         history_messages = self.trans_history_format(history)
 
         all_messages = []
-        for query, image in zip(queries, images):
+        for query, image in zip(query_list, image_list):
             messages = copy.deepcopy(history_messages) + [{"role": "user", "content": [{"type": "text", "text": query}]}]
             if image is None:
                 pass
@@ -675,9 +743,7 @@ class Mllama(ChatVLBase):
             return_tensors="pt"
         ).to(self.device)
 
-        history.append({'role': 'user', 'content': queries[0]})
-        if all([i is not None for i in images]):
-            history[-1]['images'] = images
+        history = self.update_history(history, query_list, image_list, images=images)
         return inputs
     
 
@@ -704,11 +770,11 @@ class GLM4V(ChatVLBase):
         # 整个message中只能只能允许一张图片
         if self.system is not None and not history:
             history.append({'role': 'system', 'content': self.system})
-        queries, images = trans_query_images_tolist(queries, images)
+        query_list, image_list = trans_query_images_tolist(queries, images)
         history_messages = self.trans_history_format(history)
 
         all_messages = []
-        for query, image in zip(queries, images):
+        for query, image in zip(query_list, image_list):
             messages = copy.deepcopy(history_messages) + [{"role": "user", "content": query}]
             if image is not None:
                 messages[-1]['image'] = image
@@ -735,9 +801,7 @@ class GLM4V(ChatVLBase):
         inputs: dict = self.tokenizer.apply_chat_template(all_messages, add_generation_prompt=True, tokenize=True, 
             return_tensors="pt", return_dict=True).to(self.device)
 
-        history.append({'role': 'user', 'content': queries[0]})
-        if all([i is not None for i in images]):
-            history[-1]['images'] = images
+        history = self.update_history(history, query_list, image_list, images=images)
         return inputs
 
 
@@ -790,12 +854,12 @@ class InternVL(ChatVLBase):
             functions:List[dict]=None,
             **kwargs
         ):
-        queries, images = trans_query_images_tolist(queries, images)
+        query_list, image_list = trans_query_images_tolist(queries, images)
         history_messages, history_pixel_values_list, history_num_patches_list = self.trans_history_format(history)
         
         query_input = []
         pixel_values_list = []
-        for query, image in zip(queries, images):
+        for query, image in zip(query_list, image_list):
             if image is not None:
                 query, pixel_values, num_patches_list = self.trans_image2pixel_values(image, query)
             else:
@@ -822,9 +886,7 @@ class InternVL(ChatVLBase):
             query_input.append(query)
             pixel_values_list.append(pixel_values)
 
-        history.append({'role': 'user', 'content': queries[0]})
-        if all([i is not None for i in images]):
-            history[-1]['images'] = images[0]
+        history = self.update_history(history, query, image_list[0], images=images)
         self.tokenizer.padding_side = 'left'
         inputs = self.tokenizer(query_input, return_tensors='pt', padding=True).to(self.device)
         if all([i is not None for i in pixel_values_list]):
@@ -918,13 +980,13 @@ class ChatVL:
                  offload_when_nocall:Literal['cpu', 'disk']=None, 
                  api_keys:List[str]=None,
                  # 模式
-                 mode:Literal['raw','gradio', 'streamlit', 'openai']='raw',
+                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw',
                  template: str=None,
                  **kwargs
                  ) -> None:
         pass
 
-    def __new__(cls, *args, mode:Literal['raw', 'gradio', 'streamlit', 'openai']='raw', **kwargs):
+    def __new__(cls, *args, mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw', **kwargs):
         # template指定使用的模板
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
@@ -938,7 +1000,10 @@ class ChatVL:
             ChatTemplate = MAPPING[template]
             log_info_once(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
 
-        if mode == 'gradio':
+        if mode == 'cli':
+            @add_start_docstrings(CHAT_START_DOCSTRING)
+            class ChatDemo(ChatTemplate, ChatVLCli): pass
+        elif mode == 'gradio':
             @add_start_docstrings(CHAT_START_DOCSTRING)
             class ChatDemo(ChatTemplate, ChatVLWebGradio): pass
         elif mode == 'streamlit':

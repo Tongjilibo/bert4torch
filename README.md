@@ -111,6 +111,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 ### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20250401| 0.5.6          | 0.2.9 |命令行支持图片输入, 修复rope在batch推理和超长时候的bug|
 |20250215| 0.5.5          | 0.2.8 |增加deepseek-r1, internvl, internlm3, glm4v, modernbert, mllama, qwen2vl, qwenvl|
 |20240928| 0.5.4          | 0.2.7 | 【新功能】增加deepseek系列、MiniCPM、MiniCPMV、llama3.2、Qwen2.5；支持device_map=auto;【修复】修复batch_generate和n>1的bug|
 |20240814| 0.5.3          | 0.2.6 | 【新功能】增加llama3.1/Yi1.5；自动选择从hfmirror下载；支持命令行参数`bert4torch-llm-server`|

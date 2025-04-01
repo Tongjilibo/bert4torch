@@ -28,7 +28,7 @@ generation_config = {
 
 demo = Chat(model_dir, 
             system='You are a helpful assistant.',
-            # mode='openai',
+            mode='cli',
             # route_api='/v1/chat/completions',
             generation_config=generation_config,
             device_map='auto',

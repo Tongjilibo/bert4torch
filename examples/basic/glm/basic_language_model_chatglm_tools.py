@@ -55,5 +55,5 @@ else:
 
 
 if __name__ == '__main__':
-    demo = Chat(model_dir)
+    demo = Chat(model_dir, mode='cli')
     demo.run(functions=tools)
