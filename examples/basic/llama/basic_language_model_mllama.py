@@ -7,7 +7,7 @@ from bert4torch.models import build_transformer_model
 import requests
 from PIL import Image
 from transformers import AutoProcessor
-from bert4torch.pipelines import ChatVL
+from bert4torch.pipelines import Chat
 
 
 model_dir = 'E:/data/pretrain_ckpt/meta-llama/Llama-3.2-11B-Vision-Instruct'
@@ -44,7 +44,7 @@ def chat_demo1():
 
 
 def chat_demo2():
-    demo = ChatVL(model_dir, 
+    demo = Chat(model_dir, 
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
                 mode='gradio'
                 )

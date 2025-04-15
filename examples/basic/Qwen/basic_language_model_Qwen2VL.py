@@ -3,7 +3,7 @@
 阿里云的通义千问: https://github.com/QwenLM/Qwen2-VL
 """
 
-from bert4torch.pipelines import ChatVL, ChatOpenaiClient
+from bert4torch.pipelines import Chat, ChatOpenaiClient
 from bert4torch.models import build_transformer_model
 from bert4torch.models.qwen2_vl import process_vision_info
 from transformers import AutoProcessor
@@ -72,9 +72,9 @@ def chat_demo1():
         print('\n')
 
 def chat_demo2():
-    demo = ChatVL(model_dir, 
+    demo = Chat(model_dir, 
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
-                mode='cli',
+                mode='gradio',
                 template='qwen2_vl'
                 )
     demo.run()

@@ -3,7 +3,7 @@ from PIL import Image
 from transformers import AutoTokenizer
 from bert4torch.models import build_transformer_model
 import requests
-from bert4torch.pipelines import ChatVL
+from bert4torch.pipelines import Chat
 
 
 device = "cuda"
@@ -31,7 +31,7 @@ def chat_demo1():
                 last_len = len(output_text)
 
 def chat_demo2():
-    demo = ChatVL(model_dir, 
+    demo = Chat(model_dir, 
                 quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8},
                 mode='gradio'
                 )

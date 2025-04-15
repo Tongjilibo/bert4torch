@@ -18,7 +18,9 @@ try:
     from transformers.modeling_utils import PreTrainedModel
     from transformers.configuration_utils import PretrainedConfig
 except:
-    pass
+    class PreTrainedModel: pass
+    class BaseModelOutput: pass
+    class BaseModelOutputWithPooling: pass
 
 
 try:

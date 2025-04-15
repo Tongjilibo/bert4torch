@@ -13,7 +13,7 @@
 
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
-from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
 from bert4torch.models.qwen2_vl import process_vision_info
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.internvl.vision_process import fetch_image
@@ -41,6 +41,7 @@ import numpy as np
 import os
 import base64
 from io import BytesIO
+from argparse import REMAINDER, ArgumentParser
 
 
 if is_fastapi_available():
@@ -71,7 +72,7 @@ __all__ = [
     'ChatVLBase',
     'MiniCPMV',
     'Qwen2VL',
-    "ChatVL"
+    "Chat"
     ]
 
 ImageType = Union[str, Image.Image, np.ndarray]
@@ -223,15 +224,19 @@ class ChatVLBase(ChatBase):
         yield from self.model.stream_generate(*args, **self.generation_config, **kwargs)
 
     @staticmethod
-    def update_history(history:List[Dict], query_list:List[str], image_list:Union[ImageType, List[ImageType]], images=None):
-        history.append({'role': 'user', 'content': query_list[0]})
-        if isinstance(image_list, List):
-            if all([i is not None for i in image_list]):
-                history[-1]['images'] = image_list
-        elif isinstance(image_list, ImageType):
-            history[-1]['images'] = image_list
-        if images is not None and isinstance(images, str):
-            history[-1]['raw_images'] = images
+    def update_history(history:List[Dict], query_list:List[str], image_list:Union[ImageType, List[ImageType]], raw_images=None):
+        '''更新history'''
+        for query, image in zip(query_list, image_list):
+            history.append({'role': 'user', 'content': query})
+            if image is None:
+                continue
+            elif isinstance(image, List):
+                if all([i is not None for i in image]):
+                    history[-1]['images'] = image
+            elif isinstance(image, ImageType):
+                history[-1]['images'] = image
+            if raw_images is not None and isinstance(raw_images, str):  # 记录原始图片
+                history[-1]['raw_images'] = raw_images
         return history
 
 
@@ -649,7 +654,7 @@ class MiniCPMV(ChatVLBase):
             inputs['attention_mask'] = torch.ones_like(inputs['input_ids'], dtype=bool)
 
         inputs.pop("image_sizes")
-        history = self.update_history(history, query_list, image_list, images=images)
+        history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
 
 
@@ -705,7 +710,7 @@ class Qwen2VL(ChatVLBase):
             return_tensors="pt",
         ).to(self.device)
 
-        history = self.update_history(history, query_list, image_list, images=images)
+        history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
 
 
@@ -743,7 +748,7 @@ class Mllama(ChatVLBase):
             return_tensors="pt"
         ).to(self.device)
 
-        history = self.update_history(history, query_list, image_list, images=images)
+        history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
     
 
@@ -801,7 +806,7 @@ class GLM4V(ChatVLBase):
         inputs: dict = self.tokenizer.apply_chat_template(all_messages, add_generation_prompt=True, tokenize=True, 
             return_tensors="pt", return_dict=True).to(self.device)
 
-        history = self.update_history(history, query_list, image_list, images=images)
+        history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
 
 
@@ -886,7 +891,7 @@ class InternVL(ChatVLBase):
             query_input.append(query)
             pixel_values_list.append(pixel_values)
 
-        history = self.update_history(history, query, image_list[0], images=images)
+        history = self.update_history(history, query_list, image_list, raw_images=images)
         self.tokenizer.padding_side = 'left'
         inputs = self.tokenizer(query_input, return_tensors='pt', padding=True).to(self.device)
         if all([i is not None for i in pixel_values_list]):
@@ -896,124 +901,10 @@ class InternVL(ChatVLBase):
         return inputs
     
 
-# ==========================================================================================
-# =======================                统一Chat入口             ==========================
-# ==========================================================================================
-MAPPING = {
+VLM_MAPPING = {
     'minicpmv': MiniCPMV,
     'qwen2_vl': Qwen2VL,
     'mllama': Mllama,
     'glm4v': GLM4V,
     'internvl2_5': InternVL
 }
-
-
-class ChatVL:
-    """
-    部署类似OpenAi的api server端
-
-    ### 基础参数
-    :param checkpoint_path: str, 模型所在的文件夹地址
-    :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
-    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
-    :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
-        - bos_token_id: int, 解码使用的起始token_id, 不同预训练模型设置可能不一样
-        - eos_token_id: int/tuple/list, 解码使用的结束token_id, 不同预训练模型设置可能不一样, 默认给的-1(真实场景中不存在, 表示输出到max_length)
-        - max_new_tokens: int, 最大解码长度
-        - min_new_tokens: int, 最小解码长度, 默认为1
-        - max_length: int, 最大文本长度
-        - pad_token_id: int, pad_id, 在batch解码时候使用
-        - padding_side: str, padding在前面还是后面, left或者right
-        - device: str, 默认为'cpu'
-        - n: int, random_sample时候表示生成的个数; beam_search时表示束宽
-        - top_k: int, 这里的topk是指仅保留topk的值 (仅在top_k上进行概率采样)
-        - top_p: float, 这里的topp是token的概率阈值设置(仅在头部top_p上进行概率采样)
-        - temperature: float, 温度参数, 默认为1, 越小结果越确定, 越大结果越多样
-        - repetition_penalty: float, 重复的惩罚系数, 越大结果越不重复
-        - min_ends: int, 最小的end_id的个数
-    :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
-    :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数
-
-    ### 模式
-    :param mode: 命令行, web, api服务模式, Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']
-    :param template: 使用的模板, 一般在bert4torch_config.json中无需单独设置, 可自行指定
-
-    ### openai api参数
-    :param name: str, 模型名称
-    :param route_api: str, api的路由
-    :param route_models: str, 模型列表的路由
-    :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
-    :param max_callapi_interval: int, 最长调用间隔
-    :param scheduler_interval: int, 定时任务的执行间隔
-    :param api_keys: List[str], api keys的list
-
-    ### Examples:
-    ```python
-    >>> from bert4torch.pipelines import Chat
-
-    >>> checkpoint_path = "E:/data/pretrain_ckpt/glm/chatglm2-6b"
-    >>> generation_config  = {'mode':'random_sample',
-    ...                     'max_length':2048, 
-    ...                     'default_rtype':'logits', 
-    ...                     'use_states':True
-    ...                     }
-    >>> chat = Chat(checkpoint_path, generation_config=generation_config, mode='cli')
-    >>> chat.run()
-    ```
-    """
-    def __init__(self, 
-                 # 基类使用
-                 checkpoint_path:str, 
-                 config_path:str=None,
-                 precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
-                 quantization_config:dict=None, 
-                 generation_config:dict=None, 
-                 create_model_at_startup:bool=True,
-                 # cli参数
-                 system:str=None,
-                 # openapi参数
-                 name:str='default', 
-                 route_api:str='/chat/completions', 
-                 route_models:str='/models', 
-                 max_callapi_interval:int=24*3600, 
-                 scheduler_interval:int=10*60, 
-                 offload_when_nocall:Literal['cpu', 'disk']=None, 
-                 api_keys:List[str]=None,
-                 # 模式
-                 mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw',
-                 template: str=None,
-                 **kwargs
-                 ) -> None:
-        pass
-
-    def __new__(cls, *args, mode:Literal['raw', 'cli', 'gradio', 'streamlit', 'openai']='raw', **kwargs):
-        # template指定使用的模板
-        if kwargs.get('template') is not None:
-            template = kwargs.pop('template')
-        else:
-            config_path = kwargs['config_path'] if kwargs.get('config_path') is not None else args[0]
-            config = json.load(open(get_config_path(config_path, allow_none=True), encoding='utf-8'))
-            template = config.get('template', config.get('model', config.get('model_type')))
-        if template is None:
-            raise ValueError('template/model/model_type not found in bert4torch_config.json')
-        else:
-            ChatTemplate = MAPPING[template]
-            log_info_once(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
-
-        if mode == 'cli':
-            @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVLCli): pass
-        elif mode == 'gradio':
-            @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVLWebGradio): pass
-        elif mode == 'streamlit':
-            @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVLWebStreamlit): pass
-        elif mode == 'openai':
-            @add_start_docstrings(OPENAI_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatVLOpenaiApi): pass
-        elif mode == 'raw':
-            ChatDemo = ChatTemplate
-        else:
-            raise ValueError(f'Unsupported mode={mode}')
-        return ChatDemo(*args, **kwargs)

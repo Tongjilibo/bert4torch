@@ -486,8 +486,8 @@ class RopeMropePositionEncoding(RopePositionEncoding):
     def compute_cos_sin(self, qk, position_ids):
         cos, sin =  super().compute_cos_sin(qk, position_ids)
         mrope_section = self.mrope_section * 2
-        cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
-        sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(1)
+        cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1)
+        sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1)
         return cos, sin
 
         
