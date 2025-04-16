@@ -1,7 +1,7 @@
 ## 更新历史
 
 - **20240928**：【新功能】增加deepseek系列、MiniCPM、MiniCPMV、llama3.2、Qwen2.5；支持device_map=auto;【修复】修复batch_generate和n>1的bug
-- **20240814**：【新功能】增加llama3.1/Yi1.5；自动选择从hfmirror下载；支持命令行参数`bert4torch-llm-server`|
+- **20240814**：【新功能】增加llama3.1/Yi1.5；自动选择从hfmirror下载；支持命令行参数`bert4torch serve`|
 - **20240801**：【新功能】chatglm/qwen系列支持function call调用, 增加internlm2系列；【小优化】简化pipeline中chat demo的调用，generate的终止token元素允许为列表, 统一rope_scaling参数名，增加rope衍生类；【bug】修复flash_attn2的推理bug, 修复bart的tie_word_embedding的bug
 - **20240619**：增加Qwen1.5, Qwen2, glm4; 增加SWA/convert_lm_logits_dtype；调整各个trainer(重点DPOTrainer), generation中segment_ids, repetition_penalty需带query
 - **20240426**：简化大模型调用demo, generation_config从config读取, 增加Qwen2和SWA, 修复RMSNorm中转类型bug

@@ -85,24 +85,24 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - 本地 / 联网加载
   ```shell
   # 联网下载全部文件
-  bert4torch-llm-server --checkpoint_path Qwen2-0.5B-Instruct
+  bert4torch serve --checkpoint_path Qwen2-0.5B-Instruct
 
   # 加载本地大模型，联网下载bert4torch_config.json
-  bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --config_path Qwen/Qwen2-0.5B-Instruct
+  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --config_path Qwen/Qwen2-0.5B-Instruct
 
   # 加载本地大模型，且bert4torch_config.json已经下载并放于同名目录下
-  bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct
+  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct
   ```
 - 命令行 / gradio网页 / openai_api
   ```shell
   # 命令行
-  bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode cli
+  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode cli
 
   # gradio网页
-  bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode gradio
+  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode gradio
 
   # openai_api
-  bert4torch-llm-server --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode openai
+  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode openai
   ```
 - 命令行聊天示例
   ![命令行聊天](./docs/pics/cli_chat.gif)
@@ -114,7 +114,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 |20250401| 0.5.6          | 0.2.9 |命令行支持图片输入, 修复rope在batch推理和超长时候的bug|
 |20250215| 0.5.5          | 0.2.8 |增加deepseek-r1, internvl, internlm3, glm4v, modernbert, mllama, qwen2vl, qwenvl|
 |20240928| 0.5.4          | 0.2.7 | 【新功能】增加deepseek系列、MiniCPM、MiniCPMV、llama3.2、Qwen2.5；支持device_map=auto;【修复】修复batch_generate和n>1的bug|
-|20240814| 0.5.3          | 0.2.6 | 【新功能】增加llama3.1/Yi1.5；自动选择从hfmirror下载；支持命令行参数`bert4torch-llm-server`|
+|20240814| 0.5.3          | 0.2.6 | 【新功能】增加llama3.1/Yi1.5；自动选择从hfmirror下载；支持命令行参数`bert4torch serve`|
 
 [更多版本](https://github.com/Tongjilibo/bert4torch/blob/master/docs/Update.md)
 

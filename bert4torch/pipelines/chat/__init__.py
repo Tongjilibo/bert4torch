@@ -1,5 +1,5 @@
 from .llm import CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING, ChatOpenaiClient, ChatOpenaiClientAsync, ChatOpenaiClientSseclient
-from .llm import LLM_MAPPING, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
+from .llm import LLM_MAPPING, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, PretrainedTextContinuation
 from .vlm import VLM_MAPPING, ChatVLCli, ChatVLWebGradio, ChatVLWebStreamlit, ChatVLOpenaiApi
 from argparse import REMAINDER, ArgumentParser
 from typing import List, Literal
@@ -194,8 +194,8 @@ def get_args_parser() -> ArgumentParser:
     return args
 
 
-def main():
-    '''命令行bert4torch-llm-server直接部署模型'''
+def run_llm_serve():
+    '''命令行bert4torch serve直接部署模型'''
     args = get_args_parser()
 
     demo = Chat(args.checkpoint_path, 

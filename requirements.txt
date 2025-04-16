@@ -1,0 +1,5 @@
+numpy
+tqdm
+torch>1.6
+torch4keras==0.2.9
+six
