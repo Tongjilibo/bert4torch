@@ -111,16 +111,16 @@ class Chat:
 
         if mode == 'cli':
             @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatCli if template in LLM_MAPPING else ChatVLCli): pass
+            class ChatDemo(ChatTemplate, ChatVLCli if template in VLM_MAPPING else ChatCli): pass
         elif mode == 'gradio':
             @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatWebGradio if template in LLM_MAPPING else ChatVLWebGradio): pass
+            class ChatDemo(ChatTemplate, ChatVLWebGradio if template in VLM_MAPPING else ChatWebGradio): pass
         elif mode == 'streamlit':
             @add_start_docstrings(CHAT_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatWebStreamlit if template in LLM_MAPPING else ChatVLWebStreamlit): pass
+            class ChatDemo(ChatTemplate, ChatVLWebStreamlit if template in VLM_MAPPING else ChatWebStreamlit): pass
         elif mode == 'openai':
             @add_start_docstrings(OPENAI_START_DOCSTRING)
-            class ChatDemo(ChatTemplate, ChatOpenaiApi if template in LLM_MAPPING else ChatVLOpenaiApi): pass
+            class ChatDemo(ChatTemplate, ChatVLOpenaiApi if template in VLM_MAPPING else ChatOpenaiApi): pass
         elif mode == 'raw':
             ChatDemo = ChatTemplate
         else:
