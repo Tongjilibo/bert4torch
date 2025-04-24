@@ -25,8 +25,13 @@ class SequenceClassificationModel(BaseModel):
         self.pad_token_id = kwargs.get('pad_token_id', 0)
         self.num_labels = num_labels
         self.pool_strategy = pool_strategy
-        self.dropout = nn.Dropout(classifier_dropout or self.config.hidden_dropout_prob)
-        self.classifier = nn.Linear(self.config.hidden_size, num_labels)
+        if classifier_dropout:
+            self.dropout = nn.Dropout(classifier_dropout)
+        elif hasattr(self.config, "hidden_dropout_prob"):
+            self.dropout = nn.Dropout(self.config.hidden_dropout_prob)
+        else:
+            self.dropout = lambda x: x
+        self.classifier = nn.Linear(self.config.hidden_size, num_labels, dtype=module.dtype)
 
     def forward(self, *args, **kwarg):
         output = self.model(*args, **kwarg)
