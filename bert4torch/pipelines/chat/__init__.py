@@ -96,18 +96,19 @@ class Chat:
 
         if template is None:
             raise ValueError('template/model/model_type not found in bert4torch_config.json')
-        elif template not in LLM_MAPPING and template not in VLM_MAPPING:
-            # 续写
-            log_info_once('PretrainedTextContinuation is used, only can continue your text.')
-            ChatTemplate = PretrainedTextContinuation
         elif template in LLM_MAPPING:
             # 大语言模型
             ChatTemplate = LLM_MAPPING[template]
-            log_info_once(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
         elif template in VLM_MAPPING:
             # 多模态模型
             ChatTemplate = VLM_MAPPING[template]
-            log_info_once(f'Chat pipeline use template=`{template}` and mode=`{mode}`')
+        else:
+            # 续写
+            template = 'pretrained_text_continuation'
+            ChatTemplate = PretrainedTextContinuation
+
+        if template == 'pretrained_text_continuation':
+            log_info_once('PretrainedTextContinuation is used, only can continue your text.')
 
         if mode == 'cli':
             @add_start_docstrings(CHAT_START_DOCSTRING)

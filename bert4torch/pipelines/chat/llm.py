@@ -49,6 +49,7 @@ import re
 import copy
 import asyncio
 from .conversation import Conversation
+import inspect
 
 
 class NoneObject:
@@ -135,7 +136,7 @@ class ChatBase(PipeLineBase):
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
         config_path_tmp = get_config_path(self.config_path, allow_none=True)
         if config_path_tmp is not None:
-            self.config = DottableDict(json.load(open(config_path_tmp, encoding='utf-8')))
+            self.config = JsonConfig(config_path_tmp)
             self.generation_config = self.config.get('generation_config', dict())
         else:
             self.config = DottableDict()
@@ -2053,9 +2054,17 @@ class ApplyChatTemplate(ChatBase):
     '''直接使用self.tokenizer.apply_chat_template来构建输入
     如果模型直接沿用这种方式，则无需做特殊的处理
     '''
-    def __init__(self, *args, system:str=None, **kwargs):
+    def __init__(self, *args, system:str=None, add_generation_prompt:bool=True, 
+                 tokenize:bool=False, tools_in_user_message:bool=False, 
+                 enable_thinking:bool=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.system = system
+        self.apply_chat_template_config = {
+            "add_generation_prompt": add_generation_prompt, 
+            "tokenize": tokenize,
+            "tools_in_user_message": tools_in_user_message,
+            "enable_thinking": enable_thinking
+        }
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if (self.system is not None) and ((len(history) == 0) or (history[0]["role"] != "system")):
@@ -2067,13 +2076,7 @@ class ApplyChatTemplate(ChatBase):
             tools = functions
             if (functions is not None) and (not isinstance(functions, list)):
                 tools = [functions]
-            texts = self.tokenizer.apply_chat_template(
-                history, 
-                tools = tools,
-                add_generation_prompt = True, 
-                tokenize = False,
-                tools_in_user_message = False
-                )
+            texts = self.tokenizer.apply_chat_template(history, tools = tools, **self.apply_chat_template_config)
         else:
             texts = self.generation_config['states']['last_token']
             texts += f'<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n'
@@ -2261,6 +2264,7 @@ LLM_MAPPING = {
     'internlm2': InternLM2,
     'qwen': Qwen,
     'qwen2': Qwen2,
+    'qwen3': ApplyChatTemplate,
     'llama2': LLaMA2,
     'llama3': LLaMA3,
     'ziya': Ziya,

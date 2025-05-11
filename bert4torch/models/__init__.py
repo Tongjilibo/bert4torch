@@ -23,7 +23,7 @@ from bert4torch.models.transformer_xl import Transformer_XL
 from bert4torch.models.xlnet import XLNET
 from bert4torch.models.uie import UIE
 from bert4torch.models.bloom import Bloom
-from bert4torch.models.qwen import Qwen, Qwen2
+from bert4torch.models.qwen import Qwen, Qwen2, Qwen3
 from bert4torch.models.qwen2_vl import Qwen2VL
 from bert4torch.models.internlm import InternLM, InternLM2
 from bert4torch.models.internvl import InternVL
@@ -179,6 +179,7 @@ def build_transformer_model(
         'bloom': Bloom,
         'qwen': Qwen,
         'qwen2': Qwen2,
+        'qwen3': Qwen3,
         'qwen2_vl': Qwen2VL,
         'internlm': InternLM,
         'internlm2': InternLM2,

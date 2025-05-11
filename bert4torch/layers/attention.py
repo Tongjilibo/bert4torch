@@ -85,8 +85,8 @@ class MultiHeadAttention(nn.Module):
         self.max_position = kwargs.get('max_position')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
-        self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))
-        self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)
+        self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))  # Attention中V的head_size
+        self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)  # Attention中Q,K的head_size
         self.scaling = self.attention_head_size ** (-0.5)
         q_inner_dim = self.attention_key_size * num_attention_heads
         k_inner_dim = q_inner_dim
@@ -657,6 +657,23 @@ class RopeAttention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
 
 
+class Qwen3Attention(RopeAttention):
+    '''qwen3的注意力机制
+        - 有q_norm和k_norm
+    '''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        layer_norm_eps = kwargs.get('layer_norm_eps', 1e-6)
+        self.q_norm = LayerNorm(self.attention_head_size, norm_mode='rmsnorm', eps=layer_norm_eps, bias=self.bias)
+        self.k_norm = LayerNorm(self.attention_key_size, norm_mode='rmsnorm', eps=layer_norm_eps, bias=self.bias)
+
+    def transpose_for_q_scores(self, x):
+        return self.q_norm(super().transpose_for_q_scores(x))
+
+    def transpose_for_k_scores(self, x):
+        return self.k_norm(super().transpose_for_k_scores(x))
+    
+
 class GatedAttention(nn.Module):
     '''门控注意力单元
     链接：https://arxiv.org/abs/2202.10447
@@ -1031,6 +1048,7 @@ ATTENTION_MAP = {
     'AlibiAttention': AlibiAttention,
     'NezhaTypicalRelativeAttention': NezhaTypicalRelativeAttention,
     'RopeAttention': RopeAttention,
+    'Qwen3Attention': Qwen3Attention,
     'T5Attention': T5Attention,
     'MllamaTextCrossAttention': MllamaTextCrossAttention,
     'ModernBertAttention': ModernBertAttention,

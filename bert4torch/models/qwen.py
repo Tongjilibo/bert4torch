@@ -1,18 +1,69 @@
-from bert4torch.models.internlm import InternLM
+from bert4torch.models.transformer import Decoder
+from bert4torch.layers import LlamaFeedForward
 import torch
 
 
-class Qwen(InternLM):
-    '''通义千问: https://github.com/QwenLM/Qwen-7B
+class Qwen2(Decoder):
+    '''通义千问: https://github.com/QwenLM/Qwen3
     1) FeedForward和Llama一致, 三个dense层
     2) 除了qkv有bias, 其余均没有bias
     3) 和InternLM基本一致, 唯一的差别是InternLM的multiHeadAttention.o有bias
     '''
+    def __init__(self, *args, p_bias='rotary', **kwargs):
+        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': True, 'norm_mode': 'rmsnorm', 
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True,
+                       'mlp_type': 'LlamaFeedForward'})
+        super().__init__(*args, **kwargs)
+        self.model_type = 'qwen2'
+        del self.embeddings.layerNorm
+
+        # 修改网络结构
+        kwargs.pop('bias')
+        for layer in self.decoderLayer:
+            layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
+            layer.attnLayerNorm.register_parameter('bias', None)
+            layer.ffnLayerNorm.register_parameter('bias', None)
+            layer.multiHeadAttention.o.register_parameter('bias', None)
+        self.LayerNormFinal.register_parameter('bias', None)
+
+    def variable_mapping(self):
+        # 映射到权重格式
+        mapping = {
+            'embeddings.word_embeddings.weight': 'model.embed_tokens.weight',
+            'lm_head.weight': 'lm_head.weight' if self.with_lm and not self.tie_word_embeddings else 'model.embed_tokens.weight',
+            'LayerNormFinal.weight': 'model.norm.weight',
+            }
+
+        for i in range(self.num_hidden_layers):
+            mapping.update( 
+            {
+            f'decoderLayer.{i}.multiHeadAttention.q.weight': f'model.layers.{i}.self_attn.q_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.q.bias': f'model.layers.{i}.self_attn.q_proj.bias',
+            f'decoderLayer.{i}.multiHeadAttention.k.weight': f'model.layers.{i}.self_attn.k_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.k.bias': f'model.layers.{i}.self_attn.k_proj.bias',
+            f'decoderLayer.{i}.multiHeadAttention.v.weight': f'model.layers.{i}.self_attn.v_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.v.bias': f'model.layers.{i}.self_attn.v_proj.bias',
+            f'decoderLayer.{i}.multiHeadAttention.o.weight': f'model.layers.{i}.self_attn.o_proj.weight',
+            f'decoderLayer.{i}.multiHeadAttention.o.bias': f'model.layers.{i}.self_attn.o_proj.bias',
+            f'decoderLayer.{i}.attnLayerNorm.weight': f'model.layers.{i}.input_layernorm.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.layers.{i}.mlp.gate_proj.weight',
+            f'decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.layers.{i}.mlp.up_proj.weight',
+            f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
+            f'decoderLayer.{i}.ffnLayerNorm.weight': f'model.layers.{i}.post_attention_layernorm.weight'
+            })
+        return mapping
+
+
+class Qwen(Qwen2):
+    '''通义千问: https://github.com/QwenLM/Qwen
+    1) FeedForward和Llama一致, 三个dense层
+    2) 除了qkv有bias, 其余均没有bias
+    3) 和InternLM基本一致, 唯一的差别是InternLM的multiHeadAttention.o有bias
+    4) Qwen2的qkv是分开的，Qwen的qkv是合在一起的
+    '''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.model_type = 'qwen'
-        for layer in self.decoderLayer:
-            layer.multiHeadAttention.o.register_parameter('bias', None)
 
     def load_trans_ckpt(self, checkpoint):
         '''原始权重中qkv是一个全连接, 需要拆分成q,k,v'''
@@ -68,12 +119,24 @@ class Qwen(InternLM):
         return mapping
 
 
-
-class Qwen2(InternLM):
-    '''通义千问: https://github.com/QwenLM/Qwen1.5
+class Qwen3(Qwen2):
+    '''通义千问: https://github.com/QwenLM/Qwen3
+    1) 没有bias, 和llama一致
+    2) q和k有q_norm和k_norm
     '''
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.model_type = 'qwen2'
-        for layer in self.decoderLayer:
-            layer.multiHeadAttention.o.register_parameter('bias', None)
+    def __init__(self, *args, p_bias='rotary', **kwargs):
+        kwargs.update({'p_bias': p_bias, 'weight': True, 'bias': False, 'norm_mode': 'rmsnorm', 
+                       'is_decoder': True, 'final_layernorm': True, 'pre_layernorm': True,
+                       'mlp_type': 'LlamaFeedForward', 'attn_type': 'Qwen3Attention'})
+        Decoder.__init__(self, *args, **kwargs)
+        self.model_type = 'qwen3'
+        del self.embeddings.layerNorm
+    
+    def variable_mapping(self):
+        mapping = super().variable_mapping()
+        for i in range(self.num_hidden_layers):
+            mapping.update({
+                f'decoderLayer.{i}.multiHeadAttention.q_norm.weight': f'model.layers.{i}.self_attn.q_norm.weight',
+                f'decoderLayer.{i}.multiHeadAttention.k_norm.weight': f'model.layers.{i}.self_attn.k_norm.weight',
+            })
+        return mapping

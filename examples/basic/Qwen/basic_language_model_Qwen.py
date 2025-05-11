@@ -41,11 +41,21 @@ def call_sseclient():
 
 
 def main():
-    # Qwen-1_8B  Qwen-1_8B-Chat  Qwen-7B  Qwen-7B-Chat  Qwen-14B  Qwen-14B-Chat
-    # Qwen1.5-0.5B  Qwen1.5-0.5B-Chat  Qwen1.5-1.8B  Qwen1.5-1.8B-Chat  Qwen1.5-7B  Qwen1.5-7B-Chat  Qwen1.5-14B  Qwen1.5-14B-Chat
-    # Qwen2-0.5B  Qwen2-0.5B-Instruct  Qwen2-1.5B  Qwen2-1.5B-Instruct  Qwen2-7B  Qwen2-7B-Instruct
-    # Qwen2.5-0.5B  Qwen2.5-0.5B-Instruct  Qwen2.5-1.5B  Qwen2.5-1.5B-Instruct  Qwen2.5-3B  Qwen2.5-3B-Instruct Qwen2.5-7B  Qwen2.5-7B-Instruct Qwen2.5-14B  Qwen2.5-14B-Instruct
-    model_dir = f'E:/data/pretrain_ckpt/Qwen/Qwen2.5-0.5B-Instruct'
+    # Qwen-1_8B       Qwen-7B       Qwen-14B
+    # Qwen-1_8B-Chat  Qwen-7B-Chat  Qwen-14B-Chat
+
+    # Qwen1.5-0.5B       Qwen1.5-1.8B       Qwen1.5-7B       Qwen1.5-14B
+    # Qwen1.5-0.5B-Chat  Qwen1.5-1.8B-Chat  Qwen1.5-7B-Chat  Qwen1.5-14B-Chat
+
+    # Qwen2-0.5B           Qwen2-1.5B           Qwen2-7B
+    # Qwen2-0.5B-Instruct  Qwen2-1.5B-Instruct  Qwen2-7B-Instruct
+
+    # Qwen2.5-0.5B           Qwen2.5-1.5B           Qwen2.5-3B           Qwen2.5-7B           Qwen2.5-14B
+    # Qwen2.5-0.5B-Instruct  Qwen2.5-1.5B-Instruct  Qwen2.5-3B-Instruct  Qwen2.5-7B-Instruct  Qwen2.5-14B-Instruct
+    
+    # Qwen3-0.6B-Base  Qwen3-1.7B-Base  Qwen3-4B-Base  Qwen3-8B-Base  Qwen3-14B-Base
+    # Qwen3-0.6B       Qwen3-1.7B       Qwen3-4B       Qwen3-8B       Qwen3-14B        Qwen3-32B
+    model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-0.6B'
 
     # batch: 同时infer多条query
     # gen_1toN: 为一条query同时生成N条response
@@ -62,12 +72,13 @@ def main():
                          }
     demo = Chat(model_dir, 
                 mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
-                system='You are a helpful assistant.', 
+                # system='You are a helpful assistant.', 
                 generation_config=generation_config,
                 # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8},
                 # offload_when_nocall='disk',  # offload到哪里
                 # offload_max_callapi_interval=30,  # 超出该时间段无调用则offload
                 # offload_scheduler_interval=3,  # 检查的间隔
+                # enable_thinking=False
                 )
 
     if choice == 'batch':

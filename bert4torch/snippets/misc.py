@@ -108,8 +108,8 @@ def set_default_torch_dtype(dtype: Union[str, torch.dtype], model_name:str='mode
         raise ValueError(f"Can't instantiate {model_name} under dtype={dtype} since it is not a floating point dtype")
     dtype_orig = torch.get_default_dtype()
     torch.set_default_dtype(dtype)
-    if dtype_orig != dtype:
-        log_info(f"Instantiating {model_name} under default dtype {dtype}.")
+    # if dtype_orig != dtype:
+    #     log_info(f"Instantiating {model_name} under default dtype {dtype}.")
     return dtype, dtype_orig
 
 
@@ -148,7 +148,12 @@ def load_state_dict_into_meta_model(
         else:
             # For backward compatibility with older versions of `accelerate` and for non-quantized params
             set_module_kwargs["dtype"] = dtype or param.dtype
-            set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+            try:
+                set_module_tensor_to_device(model, param_name, param_device, **set_module_kwargs)
+            except ValueError as e:
+                # 如果报错，加上参数名称，方便debug
+                e.args = (f'Parameter `{param_name}`: ' + e.args[-1], )
+                raise e
 
 
 def get_device_map(pretrained_model, device_map, torch_dtype, **kwargs):

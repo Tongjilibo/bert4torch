@@ -28,8 +28,6 @@ class BERT(PreTrainedModel):
             dropout_rate:float=None,  # Dropout比例
             attention_probs_dropout_prob:float=None,  # Attention矩阵的Dropout比例
             embedding_size:int=None,  # 指定embedding_size, 不指定则使用config文件的参数
-            attention_head_size:int=None,  # Attention中V的head_size
-            attention_key_size:int=None,  # Attention中Q,K的head_size
             keep_hidden_layers:List[int]=None, # 保留的hidden_layer层的id
             residual_attention_scores:bool=False,  # Attention矩阵加残差
             hierarchical_position:Union[bool, float]=None,  # 是否层次分解位置编码
@@ -61,8 +59,6 @@ class BERT(PreTrainedModel):
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
-        self.attention_head_size = attention_head_size or self.hidden_size // self.num_attention_heads
-        self.attention_key_size = attention_key_size or self.attention_head_size
         self.intermediate_size = intermediate_size
         self.dropout_rate = dropout_rate or 0
         self.attention_probs_dropout_prob = attention_probs_dropout_prob or 0
