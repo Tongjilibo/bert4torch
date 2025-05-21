@@ -1,3 +1,7 @@
+#! -*- coding: utf-8 -*-
+'''工具函数处理模块
+'''
+
 import unicodedata
 import six
 import numpy as np
@@ -541,24 +545,6 @@ def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 
-def entity_extract_rule_placeholder(text, **pat_config):
-    ''' 按照预设的正则规则来解析实体, 允许占位符
-    '''
-    placeholder = pat_config.get('placeholder')
-    result = []
-    if placeholder is not None:
-        pattern:str = pat_config.pop('pattern')
-        for ph, pv in placeholder.items():
-            if isinstance(pv, str):
-                result.extend(entity_extract_rule(text, pattern.replace(ph, pv), **pat_config))
-            elif isinstance(pv, (tuple,list)):
-                for pv_i in pv:
-                    result.extend(entity_extract_rule(text, pattern.replace(ph, pv_i), **pat_config))
-    else:
-        result.extend(entity_extract_rule(text, **pat_config))
-    return result
-
-
 def entity_extract_rule(
         text: str,
         pattern: str = None,
@@ -570,6 +556,7 @@ def entity_extract_rule(
         extract_pattern: Optional[Union[str, list]] = None,
         min_entity_len: int = None,
         max_entity_len: int = None,
+        ignore_chars:Union[str, list, tuple]=None,
         exist_subword: Union[list, str, tuple] = None,
         noexist_subword: Union[list, str, tuple] = None,
         prefix_exist_subword: List[Tuple[str, int]] = None,
@@ -588,6 +575,7 @@ def entity_extract_rule(
     :param extract_pattern: 对正则识别出来的结果二次修正, 比如仅保留其中部分要素
     :param min_entity_len: 最短长度，低于长度（含）则不认为是有效实体
     :param max_entity_len: 最长长度，超过长度（含）则不认为是有效实体
+    :param ignore_chars: text中需要忽略的字符，比如空格、换行等
     :param exist_subword: 必须包含的subword
     :param noexist_subword: 必须不含的subword
     :param prefix_exist_subword: 必须包含的prefix subword, 格式为[('subword', distance)]
@@ -613,8 +601,32 @@ def entity_extract_rule(
             end = start + len(new_context)
             return new_context, start, end
         else:
-            log_warn(f'{new_context} <------- not in -------> {context}')
-            return context, start, start+len(context)
+            print(f'[WARNING] {new_context} <------- not in -------> {context}')
+            return context, start, start + len(context)
+
+    def preprocess_text(text):
+        # 替换空格和换行，并记录位置
+        offset_map = []
+        processed_text = []
+        i = 0  # 映射是processed_text中的未知以及对应的offset
+        for char in text:
+            if char in ignore_chars:
+                offset_map.append((i, 1))
+            else:
+                processed_text.append(char)
+                i += 1
+        return ''.join(processed_text), offset_map
+
+    def restore_position(start, end, offset_map):
+        # 根据offset_map恢复原始位置
+        original_start = start
+        original_end = end
+        for pos, offset in offset_map:
+            if pos <= start:
+                original_start += offset
+            if pos < end:  # 这里不包含等号
+                original_end += offset
+        return original_start, original_end
 
     # 截取一下
     if start != 0:
@@ -622,52 +634,55 @@ def entity_extract_rule(
     if end != -1:
         text = text[:end]
 
-    if dotall:
-        # 中间可以匹配换行符
-        iters = re.finditer(pattern, text, re.DOTALL)
+    # 预处理文本
+    if ignore_chars is not None:
+        processed_text, offset_map = preprocess_text(text)
     else:
-        # 中间不可匹配换行
-        iters = re.finditer(pattern, text)
+        processed_text, offset_map = text, []
+
+    # 中间.*可以匹配换行符
+    iters = re.finditer(pattern, processed_text, re.DOTALL if dotall else 0)
 
     result = []
     for iter in iters:
-        context = raw_context = iter.group()
+        entity = raw_entity = iter.group()
         start, end = iter.start(), iter.end()
+        original_raw_start, original_raw_end = restore_position(start, end, offset_map)
 
         # 提取的pattern
         if extract_pattern is not None:
             if isinstance(extract_pattern, str):
                 extract_pattern = [extract_pattern]
             for pat in extract_pattern:
-                if re.search(pat, context):
-                    new_context = next(re.finditer(pat, context)).group()
-                    context, start, end = adjust_start_end(context, new_context, start)
+                if re.search(pat, entity):
+                    new_context = next(re.finditer(pat, entity)).group()
+                    entity, start, end = adjust_start_end(entity, new_context, start)
 
         # 删除的pattern
         if replace_pattern is not None:
             if isinstance(replace_pattern, str):
                 replace_pattern = [replace_pattern]
             for rep_pat in replace_pattern:
-                if re.search(rep_pat, context):
-                    new_context = re.sub(rep_pat, '', context)
-                    context, start, end = adjust_start_end(context, new_context, start)
+                if re.search(rep_pat, entity):
+                    new_context = re.sub(rep_pat, '', entity)
+                    entity, start, end = adjust_start_end(entity, new_context, start)
 
         # 太短
-        if (min_entity_len is not None) and (len(context) <= min_entity_len):
+        if (min_entity_len is not None) and (len(entity) <= min_entity_len):
             continue
         
         # 超长
-        if (max_entity_len is not None) and (len(context) >= max_entity_len):
+        if (max_entity_len is not None) and (len(entity) >= max_entity_len):
             continue
         
         # exist_subword: 必须存在的subword
         if exist_subword is not None:
-            if isinstance(exist_subword, str) and (not re.search(exist_subword, context)):
+            if isinstance(exist_subword, str) and (not re.search(exist_subword, entity)):
                 continue
             elif isinstance(exist_subword, (tuple, list)):
-                continue_tag= False
+                continue_tag = False
                 for item in exist_subword:
-                    if not re.search(item, context):
+                    if not re.search(item, entity):
                         continue_tag = True
                         break
                 if continue_tag:
@@ -675,12 +690,12 @@ def entity_extract_rule(
 
         # noexist_subword: 必须不存在的subword
         if noexist_subword is not None:
-            if isinstance(noexist_subword, str) and re.search(noexist_subword, context):
+            if isinstance(noexist_subword, str) and re.search(noexist_subword, entity):
                 continue
             elif isinstance(noexist_subword, (tuple, list)):
-                continue_tag= False
+                continue_tag = False
                 for item in noexist_subword:
-                    if re.search(item, context):
+                    if re.search(item, entity):
                         continue_tag = True
                         break
                 if continue_tag:
@@ -690,9 +705,9 @@ def entity_extract_rule(
         if prefix_exist_subword is not None:
             assert isinstance(prefix_exist_subword, (tuple, list)), 'prefix_exist_subword only accept tuple/list format'
             prefix_exist_subword = [prefix_exist_subword] if isinstance(prefix_exist_subword[0], str) else prefix_exist_subword
-            continue_tag= False
+            continue_tag = False
             for item, offset in prefix_exist_subword:
-                if not re.search(item, text[start-offset:start]):
+                if not re.search(item, processed_text[max(0, start-offset):start]):
                     continue_tag = True
                     break
             if continue_tag:
@@ -702,9 +717,9 @@ def entity_extract_rule(
         if prefix_noexist_subword is not None:
             assert isinstance(prefix_noexist_subword, (tuple, list)), 'prefix_noexist_subword only accept tuple/list format'
             prefix_noexist_subword = [prefix_noexist_subword] if isinstance(prefix_noexist_subword[0], str) else prefix_noexist_subword
-            continue_tag= False
+            continue_tag = False
             for item, offset in prefix_noexist_subword:
-                if re.search(item, text[start-offset:start]):
+                if re.search(item, processed_text[max(0, start-offset):start]):
                     continue_tag = True
                     break
             if continue_tag:
@@ -714,9 +729,9 @@ def entity_extract_rule(
         if postfix_exist_subword is not None:
             assert isinstance(postfix_exist_subword, (tuple, list)), 'postfix_exist_subword only accept tuple/list format'
             postfix_exist_subword = [postfix_exist_subword] if isinstance(postfix_exist_subword[0], str) else postfix_exist_subword
-            continue_tag= False
+            continue_tag = False
             for item, offset in postfix_exist_subword:
-                if not re.search(item, text[end:end+offset]):
+                if not re.search(item, processed_text[end:end+offset]):
                     continue_tag = True
                     break
             if continue_tag:
@@ -726,19 +741,30 @@ def entity_extract_rule(
         if postfix_noexist_subword is not None:
             assert isinstance(postfix_noexist_subword, (tuple, list)), 'postfix_noexist_subword only accept tuple/list format'
             postfix_noexist_subword = [postfix_noexist_subword] if isinstance(postfix_noexist_subword[0], str) else postfix_noexist_subword
-            continue_tag= False
+            continue_tag = False
             for item, offset in postfix_noexist_subword:
-                if re.search(item, text[end:end+offset]):
+                if re.search(item, processed_text[end:end+offset]):
                     continue_tag = True
                     break
             if continue_tag:
                 continue
         
-        assert context == text[start:end]
-        result.append({'context': context, 
-                        'raw_context': raw_context,
-                        'start': start, 
-                        'end': end, 
-                        'label': label,
-                        **kwargs})
+        # 恢复原始位置
+        original_start, original_end = restore_position(start, end, offset_map)
+        
+        # 从原始文本中提取context和raw_context
+        entity = text[original_start:original_end]
+        raw_entity = text[original_raw_start:original_raw_end]
+        if ignore_chars is not None:
+            assert re.sub('|'.join(ignore_chars), '', entity) == processed_text[start:end]
+
+        result.append(
+            {
+                'entity': entity, 
+                'raw_entity': raw_entity,
+                'start': original_start, 
+                'end': original_end, 
+                'label': label,
+                **kwargs
+            })
     return result

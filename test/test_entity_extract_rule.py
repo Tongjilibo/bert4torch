@@ -11,7 +11,7 @@ def test():
 
     res = entity_extract_rule(text, **config)
     pprint(res)
-    assert res == [{'context': '中国工商银行 ', 'raw_context': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
+    assert res == [{'entity': '中国工商银行 ', 'raw_entity': '甲方：中国工商银行 乙方', 'start': 3, 'end': 10, 'label': '甲方'}]
 
 
 if __name__ == '__main__':
