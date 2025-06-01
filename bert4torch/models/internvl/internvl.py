@@ -4,7 +4,6 @@ from bert4torch.models.llama import LLaMA
 from bert4torch.models.transformer import PreTrainedModelForDecoder
 from bert4torch.snippets import DottableDict, inference_mode, log_warn_once
 import torch
-from .modeling_intern_vit import InternVisionModel, has_flash_attn
 from torch import nn
 
 
@@ -23,6 +22,7 @@ class InternVL(PreTrainedModelForDecoder):
         self.img_context_token_id = self.config.img_context_token_id
 
         # 模型结构
+        from .modeling_intern_vit import InternVisionModel, has_flash_attn
         self.vision_model = InternVisionModel(self.config.vision_config)
         if self.config.model_llm == 'llama':
             self.language_model = LLaMA(**self.config)

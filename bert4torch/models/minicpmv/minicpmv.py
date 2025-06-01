@@ -1,7 +1,6 @@
 import math
 from typing import List, Optional, Union
 import torch
-from .modeling_navit_siglip import SiglipVisionTransformer
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
@@ -29,6 +28,8 @@ class MiniCPMV(PreTrainedModelForDecoder):
         self.llm.passed_kwargs = MiniCPMV.passed_kwargs
 
     def init_vision_module(self):
+        from .modeling_navit_siglip import SiglipVisionTransformer
+
         # same as HuggingFaceM4/siglip-so400m-14-980-flash-attn2-navit add tgt_sizes
         if self.config._attn_implementation == 'flash_attention_2':
             self.config.vision_config._attn_implementation = 'flash_attention_2'
