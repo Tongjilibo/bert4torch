@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese/config.json'
+config_path = 'E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/IDEA-CCNL/Erlangshen-DeBERTa-v2-97M-Chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

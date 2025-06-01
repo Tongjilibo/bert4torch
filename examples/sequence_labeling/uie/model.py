@@ -5,7 +5,7 @@ from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BERT
 
 
-config_path = 'E:/data/pretrain_ckpt/Tongjilibo/uie-base/config.json'
+config_path = 'E:/data/pretrain_ckpt/Tongjilibo/uie-base/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/Tongjilibo/uie-base/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/uie-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

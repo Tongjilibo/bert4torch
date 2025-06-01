@@ -237,9 +237,12 @@ def snapshot_download(
 
 def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwargs) -> str:
     '''获取local文件夹下的config文件路径
-    1. model_name: 从hf下载
-    2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
-    3. local_dir且config_path为None: 重新在local_dir找对应的config_path
+    
+    :param pretrained_model_name_or_path: str, 预训练权重的本地路径，或者是model_name
+        1. model_name: 从hf下载
+        2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
+        3. local_dir且config_path为None: 重新在local_dir找对应的config_path
+    :param allow_none: bool, 是否允许本地找不到config文件
     '''
     if pretrained_model_name_or_path is None:
         return pretrained_model_name_or_path
@@ -248,21 +251,19 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
 
     config_path = None       
     # 本地文件存在
-    if os.path.isfile(pretrained_model_name_or_path) and pretrained_model_name_or_path.endswith('.json'):
-        # 本地存在bert4torch_config.json或config.json文件
-        return pretrained_model_name_or_path
-    elif os.path.isfile(pretrained_model_name_or_path) or pretrained_model_name_or_path.endswith('.json'):
-        # 本地文件存在，或者.json结尾的不存在的本地路径
-        pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
+    if os.path.isfile(pretrained_model_name_or_path):
+        if pretrained_model_name_or_path.endswith('bert4torch_config.json'):
+            # 本地存在bert4torch_config.json
+            return pretrained_model_name_or_path
+        else:
+            # 本地文件存在，但是不是bert4torch_config.json，则在其根目录下寻找
+            pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
 
     # 本地文件夹存在
     if os.path.isdir(pretrained_model_name_or_path):
-        if os.path.exists(tmp := os.path.join(pretrained_model_name_or_path, 'bert4torch_config.json')):
-            # bert4torch_config存在
+        if os.path.isfile(tmp := os.path.join(pretrained_model_name_or_path, 'bert4torch_config.json')):
+            # bert4torch_config.json存在
             config_path = tmp
-        elif os.path.exists(tmp := os.path.join(pretrained_model_name_or_path, 'config.json')):
-            config_path = tmp
-            log_warn(f'`bert4torch_config.json` not found in {pretrained_model_name_or_path}, use `config.json` instead')
         
         if (not allow_none) and (config_path is None):
             raise FileNotFoundError('bert4torch_config.json or config.json not found')
@@ -282,9 +283,10 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
 
 def get_checkpoint_path(pretrained_model_name_or_path:Union[str,list], **kwargs) -> Union[str,list]:
     '''获取该local文件夹下的ckpt文件、文件列表
-    1. model_name: 从hf下载
-    2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
-    3. local_dir且config_path为None: 重新在local_dir找对应的config_path
+    :param pretrained_model_name_or_path: str, 预训练权重的本地路径，或者是model_name
+        1. model_name: 从hf下载
+        2. local_file且config_path为None: 重新在local_file所在目录找对应的config_path
+        3. local_dir且config_path为None: 重新在local_dir找对应的config_path
     '''
     if pretrained_model_name_or_path is None:
         return pretrained_model_name_or_path

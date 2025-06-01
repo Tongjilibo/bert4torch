@@ -31,7 +31,7 @@ model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_tiny"  # simbert_t
 
 # 加载simbert权重或roformer_v2
 dict_path = model_dir + "/vocab.txt"
-config_path = model_dir + "/config.json"
+config_path = model_dir + "/bert4torch_config.json"
 checkpoint_path = model_dir + '/pytorch_model.bin'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

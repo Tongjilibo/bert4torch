@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/config.json'
+config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

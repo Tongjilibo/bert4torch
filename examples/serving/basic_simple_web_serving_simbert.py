@@ -23,7 +23,7 @@ else:
 # 加载simbert权重或simbert_v2
 root_model_path = args_model_path
 dict_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/config.json"
+config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

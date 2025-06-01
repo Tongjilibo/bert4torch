@@ -19,7 +19,7 @@ import torch.nn as nn
 
 maxlen = 256
 batch_size = 8
-config_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/config.json'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-bert-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

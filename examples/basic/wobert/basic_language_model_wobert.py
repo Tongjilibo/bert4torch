@@ -10,7 +10,7 @@ import jieba
 # root_model_path = "E:/data/pretrain_ckpt/junnyu/wobert_chinese_base"
 root_model_path = "E:/data/pretrain_ckpt/junnyu/wobert_chinese_plus_base"
 vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/config.json"
+config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 

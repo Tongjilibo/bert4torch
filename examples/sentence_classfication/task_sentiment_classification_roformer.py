@@ -19,7 +19,7 @@ import numpy as np
 
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/config.json'
+config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base/vocab.txt'
 

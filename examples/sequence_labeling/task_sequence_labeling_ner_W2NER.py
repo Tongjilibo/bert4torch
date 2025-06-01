@@ -50,7 +50,7 @@ out_dropout = 0.33
 
 # 路径设置
 data_dir = 'F:/data/corpus/ner/china-people-daily-ner-corpus/'
-config_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/config.json'
+config_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

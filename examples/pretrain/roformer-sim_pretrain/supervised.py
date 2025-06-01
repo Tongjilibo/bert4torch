@@ -20,7 +20,7 @@ batch_size = 12
 labels = ['contradiction', 'entailment', 'neutral']
 
 # bert配置，需要加载stage2训练后的权重，这里直接加载官方最终的权重以示例
-config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base/config.json'
+config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

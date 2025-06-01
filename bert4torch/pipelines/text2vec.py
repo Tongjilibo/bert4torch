@@ -32,17 +32,17 @@ class Text2Vec(PipeLineBase):
         
     @torch.inference_mode()
     def encode(
-            self,
-            sentences: Union[str, List[str]],
-            batch_size: int = 8,
-            show_progress_bar: bool = False,
-            pool_strategy=None,
-            custom_layer=None,
-            convert_to_numpy: bool = True,
-            convert_to_tensor: bool = False,
-            normalize_embeddings: bool = False,
-            max_seq_length: int = None
-            ):
+        self,
+        sentences: Union[str, List[str]],
+        batch_size: int = 8,
+        show_progress_bar: bool = False,
+        convert_to_numpy: bool = True,
+        convert_to_tensor: bool = False,
+        normalize_embeddings: bool = False,
+        pool_strategy=None,
+        custom_layer=None,
+        max_seq_length: int = None
+    ) -> Union[List[torch.Tensor], np.ndarray, torch.Tensor]:
         
         if convert_to_tensor:
             convert_to_numpy = False

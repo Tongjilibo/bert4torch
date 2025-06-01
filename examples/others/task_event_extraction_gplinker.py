@@ -21,7 +21,7 @@ from tensorboardX import SummaryWriter
 maxlen = 128
 batch_size = 16
 epochs = 200
-config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/config.json'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
 model_name = 'Chinese_roberta_wwm_ext'

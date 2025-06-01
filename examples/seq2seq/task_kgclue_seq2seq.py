@@ -145,7 +145,7 @@ batch_size = 32
 epochs = 10
 
 # 模型路径
-config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_ft_base/config.json'
+config_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_ft_base/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_ft_base/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_ft_base/vocab.txt'
 device =  'cuda' if torch.cuda.is_available() else 'cpu'

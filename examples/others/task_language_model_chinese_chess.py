@@ -22,7 +22,7 @@ epochs = 10000
 batch_size = 16
 
 # bert配置
-config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/config.json'
+config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/bert4torch_config.json'
 checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
 dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'

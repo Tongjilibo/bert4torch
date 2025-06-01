@@ -53,7 +53,7 @@ model_dir = {
     'SimBERT': 'E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base',
 }[model_type]
 
-config_path = f'{model_dir}/bert4torch_config.json' if model_type == 'BERT' else f'{model_dir}/config.json'
+config_path = f'{model_dir}/bert4torch_config.json'
 checkpoint_path = f'{model_dir}/pytorch_model.bin'
 dict_path = f'{model_dir}/vocab.txt'
 data_path = 'F:/data/corpus/sentence_embedding/'
