@@ -266,7 +266,7 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
             config_path = tmp
         
         if (not allow_none) and (config_path is None):
-            raise FileNotFoundError('bert4torch_config.json or config.json not found')
+            raise FileNotFoundError('bert4torch_config.json not found')
 
     # model_name: 从hf下载bert4torch_config.json文件
     else:

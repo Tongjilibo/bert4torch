@@ -485,7 +485,7 @@ def parallel_apply_concurrent(func:Callable, iterable:Iterable, workers:int, max
 
 
 def get_pool_emb(hidden_state:Union[list, tuple, torch.Tensor]=None, pooled_output:torch.Tensor=None, attention_mask:torch.Tensor=None, 
-                 pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom']='cls', 
+                 pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'last-token', 'custom']='cls', 
                  custom_layer:Union[int, List[int]]=None):
     ''' 获取句向量
 
@@ -493,36 +493,77 @@ def get_pool_emb(hidden_state:Union[list, tuple, torch.Tensor]=None, pooled_outp
     :param pooled_output: torch.Tensor, bert的pool_output输出
     :param attention_mask: torch.Tensor
     :param pool_strategy: str, ('pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'custom')
+        pooler: 使用bert的pooler输出
+        cls: 使用[CLS]的输出
+        last-avg/mean: 最后一层的输出做average pooling
+        last-max/max: 最后一层的输出做max pooling
+        first-last-avg: 第一层和最后一层输出做average pooling
+        last-token: 使用最后一个token的输出
+        custom: 自定义的层数做average pooling
     :param custom_layer: int/List[int], 指定对某几层做average pooling
     '''
     if pool_strategy == 'pooler':
+        # 使用bert的pooler输出
         if pooled_output is None:
             log_warn('Args `pooled_output` is None')
         return pooled_output
+    
     elif pool_strategy == 'cls':
+        # 使用[CLS]的输出
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
         assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pool_strategy request tensor hidden_state'
         return hidden_state[:, 0]
+    
     elif pool_strategy in {'last-avg', 'mean'}:
+        # 最后一层的输出做average pooling
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
         assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pool_strategy request tensor hidden_state'
         hid = torch.sum(hidden_state * attention_mask[:, :, None], dim=1)
         attention_mask = torch.sum(attention_mask, dim=1)[:, None]
         return hid / attention_mask
+    
     elif pool_strategy in {'last-max', 'max'}:
+        # 最后一层的输出做max pooling
         if isinstance(hidden_state, (list, tuple)):
             hidden_state = hidden_state[-1]
         assert isinstance(hidden_state, torch.Tensor), f'{pool_strategy} pool_strategy request tensor hidden_state'
         hid = torch.masked_fill(hidden_state, (1-attention_mask[:, :, None]).bool(), torch.finfo(hidden_state.dtype).min)
         return torch.max(hid, dim=1).values
+    
     elif pool_strategy == 'first-last-avg':
+        # 第一层和最后一层输出做average pooling
         assert isinstance(hidden_state, list), f'{pool_strategy} pool_strategy request list hidden_state'
         hid = torch.sum(hidden_state[1] * attention_mask[:, :, None], dim=1) # 这里不取0
         hid += torch.sum(hidden_state[-1] * attention_mask[:, :, None], dim=1)
         attention_mask = torch.sum(attention_mask, dim=1)[:, None]
         return hid / (2 * attention_mask)
+
+    elif pool_strategy == 'last-token':
+        # 使用最后一个token的输出
+        if isinstance(hidden_state, (list, tuple)):
+            hidden_state = hidden_state[-1]
+        bs, seq_len, hidden_dim = hidden_state.shape
+        values, indices = attention_mask.flip(1).max(1)
+        indices = torch.where(values == 0, seq_len - 1, indices)
+        gather_indices = seq_len - indices - 1
+
+        # Turn indices from shape [bs] --> [bs, 1, hidden_dim]
+        gather_indices = gather_indices.unsqueeze(-1).repeat(1, hidden_dim)
+        gather_indices = gather_indices.unsqueeze(1)
+        assert gather_indices.shape == (bs, 1, hidden_dim)
+
+        # Gather along the 1st dim (seq_len) (bs, seq_len, hidden_dim -> bs, hidden_dim)
+        # Actually no need for the attention mask as we gather the last token where attn_mask = 1
+        # but as we set some indices (which shouldn't be attended to) to 0 with clamp, we
+        # use the attention mask to ignore them again
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(hidden_state.size()).to(hidden_state.dtype)
+        )
+        embedding = torch.gather(hidden_state * input_mask_expanded, 1, gather_indices).squeeze(dim=1)
+        return embedding
+    
     elif pool_strategy == 'custom':
         # 取指定层
         assert isinstance(hidden_state, list), f'{pool_strategy} pool_strategy request list hidden_state'
