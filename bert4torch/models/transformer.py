@@ -91,13 +91,13 @@ class PreTrainedModelForDecoder(PreTrainedModel):
 class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
     '''所有decoder模型的基类(含大模型)
 
-    :param logit_scale: bool, 是否对lm_logits进行缩放
+    :param logit_scale: bool, 是否对logits进行缩放
     :param final_layernorm: bool, 对last_hidden_state是否进行层归一化
-    :param convert_lm_logits_dtype: bool, 是否对lm_logits进行dtype转换
+    :param convert_logits_dtype: bool, 是否对logits进行dtype转换
     '''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
-    def __init__(self, *args, logit_scale:bool=False, final_layernorm:bool=False, convert_lm_logits_dtype:Literal['float16', 'float32', 'float64', 'bfloat16', None]=None, **kwargs):
+    def __init__(self, *args, logit_scale:bool=False, final_layernorm:bool=False, convert_logits_dtype:Literal['float16', 'float32', 'float64', 'bfloat16', None]=None, **kwargs):
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
@@ -107,7 +107,7 @@ class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
         del self.encoderLayer
         self.final_layernorm = final_layernorm
         mapping = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32, 'float64': torch.float64}
-        self.convert_lm_logits_dtype = mapping[convert_lm_logits_dtype] if convert_lm_logits_dtype is not None else None
+        self.convert_logits_dtype = mapping[convert_logits_dtype] if convert_logits_dtype is not None else None
         self.num_logits_to_keep = kwargs.get('num_logits_to_keep', 0)
 
         # 从hidden_states映射到logit
@@ -160,12 +160,12 @@ class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
             last_hidden_state = self.LayerNormFinal(last_hidden_state)
         
         if self.with_lm:
-            lm_logits = self.lm_head(last_hidden_state[:, -self.num_logits_to_keep:, :])  # [btz, seq_len, vocab_size]
-            lm_logits = lm_logits * self.logit_scale if hasattr(self, 'logit_scale') else lm_logits
-            lm_logits = self.final_activation(lm_logits)
-            if self.convert_lm_logits_dtype is not None:
-                lm_logits = lm_logits.to(self.convert_lm_logits_dtype)
-            return self.gen_outputs(locals(), last_hidden_state, lm_logits) if self.return_dict else lm_logits
+            logits = self.lm_head(last_hidden_state[:, -self.num_logits_to_keep:, :])  # [btz, seq_len, vocab_size]
+            logits = logits * self.logit_scale if hasattr(self, 'logit_scale') else logits
+            logits = self.final_activation(logits)
+            if self.convert_logits_dtype is not None:
+                logits = logits.to(self.convert_logits_dtype)
+            return self.gen_outputs(locals(), last_hidden_state, logits) if self.return_dict else logits
         elif not self.return_dict:
             return last_hidden_state
         else:

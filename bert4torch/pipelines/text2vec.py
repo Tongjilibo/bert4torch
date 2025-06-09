@@ -4,7 +4,7 @@
 from typing import List, Union, Dict
 import numpy as np
 import torch
-from bert4torch.snippets import get_pool_emb, log_warn
+from bert4torch.snippets import get_pool_emb, PoolStrategy, log_warn
 from tqdm.autonotebook import trange
 from .base import PipeLineBase
 
@@ -47,8 +47,9 @@ class Text2Vec(PipeLineBase):
         normalize_embeddings: bool = False,
 
         # 独有参数
-        pool_strategy=None,
-        custom_layer=None,
+        truncate_dim:int = None,
+        pool_strategy: PoolStrategy = None,
+        custom_layer: Union[int, List[int]] = None,
         max_seq_length: int = None
     ) -> Union[List[torch.Tensor], np.ndarray, torch.Tensor]:
         '''
@@ -123,11 +124,13 @@ class Text2Vec(PipeLineBase):
             pool_strategy = pool_strategy or self.pool_strategy
             embs = get_pool_emb(last_hidden_state, pooler, attention_mask, pool_strategy, custom_layer)
             
-            # 后处理: 归一化等等
+            # 后处理
+            if truncate_dim is not None:
+                embs = embs[:, :truncate_dim]  # 截断维度
             if normalize_embeddings:
-                embs = torch.nn.functional.normalize(embs, p=2, dim=1)
+                embs = torch.nn.functional.normalize(embs, p=2, dim=1)  # 归一化
             if convert_to_numpy:
-                embs = embs.cpu()
+                embs = embs.cpu()  # 转为numpy
             all_embeddings.extend(embs)
 
         all_embeddings = [all_embeddings[idx] for idx in np.argsort(length_sorted_idx)]

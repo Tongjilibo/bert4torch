@@ -61,9 +61,9 @@ class PPOTrainer(PPOTrainerTrl, Trainer):
             def forward(self, *args, **kwargs):
                 self.module.with_lm = False
                 hidden_states = self.module(kwargs['input_ids'])
-                lm_logits = self.module.lm_head(hidden_states)
+                logits = self.module.lm_head(hidden_states)
                 value = self.v_head(hidden_states).squeeze(-1)
-                return lm_logits, None, value
+                return logits, None, value
         return ActorModel(model)
     
     def train_step(self, train_X, _):
@@ -76,7 +76,7 @@ class PPOTrainer(PPOTrainerTrl, Trainer):
         
         # actor生成得到推理结果
         responses = []
-        self.generation.decoder.with_lm = True  # 输出lm_logits
+        self.generation.decoder.with_lm = True  # 输出logits
         response_tensors = self.generation.generate(question_tensors, **self.generation_kwargs)
         self.generation.decoder.with_lm = False
         for response_tensor in response_tensors:

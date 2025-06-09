@@ -483,10 +483,9 @@ def parallel_apply_concurrent(func:Callable, iterable:Iterable, workers:int, max
     
     return results
 
-
+PoolStrategy = Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'last-token', 'custom']
 def get_pool_emb(hidden_state:Union[list, tuple, torch.Tensor]=None, pooled_output:torch.Tensor=None, attention_mask:torch.Tensor=None, 
-                 pool_strategy:Literal['pooler', 'cls', 'last-avg', 'mean', 'last-max', 'max', 'first-last-avg', 'last-token', 'custom']='cls', 
-                 custom_layer:Union[int, List[int]]=None):
+                 pool_strategy:PoolStrategy='cls', custom_layer:Union[int, List[int]]=None):
     ''' 获取句向量
 
     :param hidden_state: torch.Tensor/List(torch.Tensor)，last_hidden_state/all_encoded_layers
@@ -578,11 +577,11 @@ def get_pool_emb(hidden_state:Union[list, tuple, torch.Tensor]=None, pooled_outp
         raise ValueError(f'Args `pool_strategy`={pool_strategy} not supported')
 
 
-def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values_length=0, start_padding_idx=True):
+def create_position_ids_start_at_padding(input_ids, padding_idx, past_key_values_length=0, start_padding_idx=False):
     """生成padding_ids, 从padding_idx+1开始。忽略填充符号"""
     # The series of casts and type-conversions here are carefully balanced to both work with ONNX export and XLA.
     mask = input_ids.ne(padding_idx).int()
-    incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask    
+    incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) - 1 + past_key_values_length) * mask
     return incremental_indices.long() + (padding_idx if start_padding_idx else 0)
 
 

@@ -47,8 +47,8 @@ class XLNET(Transformer_XL):
         last_hidden_state = outputs['last_hidden_state'] if self.return_dict else outputs
 
         if self.with_lm:
-            lm_logits = self.lm_head(last_hidden_state)
-            return self.gen_outputs(locals(), last_hidden_state, lm_logits) if self.return_dict else [last_hidden_state, lm_logits]
+            logits = self.lm_head(last_hidden_state)
+            return self.gen_outputs(locals(), last_hidden_state, logits) if self.return_dict else [last_hidden_state, logits]
         elif not self.return_dict:
             return last_hidden_state
         else:
