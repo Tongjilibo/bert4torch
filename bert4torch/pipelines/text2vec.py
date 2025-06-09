@@ -29,7 +29,7 @@ class Text2Vec(PipeLineBase):
     def __init__(self, checkpoint_path:str, config_path:str=None, device:str=None, **kwargs) -> None:
         super().__init__(checkpoint_path, config_path=config_path, device=device, **kwargs)
         pooling = self.config.get('pooling', {})
-        self.pool_strategy = pooling.get('pool_strategy', 'cls')
+        self.pool_strategy = self.config.get('pool_strategy', pooling.get('pool_strategy', 'cls'))  # 兼容老版本
         self.prompts = pooling.get('prompts', {})
         self.default_prompt_name = pooling.get('default_prompt_name')
         
