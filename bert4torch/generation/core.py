@@ -784,7 +784,7 @@ class SeqGeneration(AutoRegressiveDecoder):
                 if 'position_ids' not in states and self.use_batch and (self.padding_side == 'left'):
                     # tensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                     #         [0, 0, 0, 0, 0, 1, 2, 3, 4, 5]])
-                    states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=0, start_padding_idx=False)
+                    states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
 
             elif self.step >= 1:
                 # next_inputs：>=1时候输入last_token
@@ -838,7 +838,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
             # 如果use_states=False且padding_side='left', 则需要自定义position_ids, 否则position_ids不正确, 但这么使用很少
             if 'position_ids' not in states and self.padding_side == 'left':
-                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=0, start_padding_idx=False)
+                states['position_ids'] = create_position_ids_start_at_padding(next_inputs[0], self.pad_token_id, past_key_values_length=-1, start_padding_idx=False)
             logits = self.decoder.predict(next_inputs, **states)
             logits = logits[-1] if isinstance(logits, (tuple,list)) else logits  # 兼顾seq2seq
             return self.__get_last_token_logits(logits, output_ids)

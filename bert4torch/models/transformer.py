@@ -89,15 +89,16 @@ class PreTrainedModelForDecoder(PreTrainedModel):
 
 
 class Decoder(LM_Mask, BERT, PreTrainedModelForDecoder):
-    '''所有decoder模型的基类(含大模型)
-
-    :param logit_scale: bool, 是否对logits进行缩放
-    :param final_layernorm: bool, 对last_hidden_state是否进行层归一化
-    :param convert_logits_dtype: bool, 是否对logits进行dtype转换
-    '''
+    '''所有decoder模型的基类(含大模型)'''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
-    def __init__(self, *args, logit_scale:bool=False, final_layernorm:bool=False, convert_logits_dtype:Literal['float16', 'float32', 'float64', 'bfloat16', None]=None, **kwargs):
+    def __init__(self, *args, logit_scale:bool=False, final_layernorm:bool=False, 
+                 convert_logits_dtype:Literal['float16', 'float32', 'float64', 'bfloat16', None]=None, **kwargs):
+        '''
+        :param logit_scale: bool, 是否对logits进行缩放
+        :param final_layernorm: bool, 对last_hidden_state是否进行层归一化
+        :param convert_logits_dtype: bool, 是否对logits进行dtype转换
+        '''
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
         super().__init__(*args, **kwargs)
