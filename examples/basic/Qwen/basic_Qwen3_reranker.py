@@ -1,14 +1,18 @@
 # Requires transformers>=4.51.0
 import torch
-from transformers import AutoModel, AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from bert4torch.models import build_transformer_model
 
 
 # Qwen3-Reranker-0.6B, Qwen3-Reranker-4B, Qwen3-Reranker-8B
 root_model_path = "E:/data/pretrain_ckpt/Qwen/Qwen3-Reranker-0.6B"
 tokenizer = AutoTokenizer.from_pretrained(root_model_path, padding_side='left')
+
+# transformers
 # model = AutoModelForCausalLM.from_pretrained(root_model_path).eval()
-model = build_transformer_model(checkpoint_path=root_model_path, return_dict=True, custom_position_ids='start_at_padding').float().eval()
+
+# bert4torch
+model = build_transformer_model(checkpoint_path=root_model_path, return_dict=True).float().eval()
 
 def format_instruction(instruction, query, doc):
     if instruction is None:

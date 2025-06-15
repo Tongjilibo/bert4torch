@@ -129,6 +129,8 @@ class AutoRegressiveDecoder(object):
         processors = LogitsProcessorList()
         processors.append(RepetitionPenaltyLogitsProcessor(penalty=self.repetition_penalty))
         
+        if self.temperature == 0.0:
+            self.top_k = 1  # greedy search
         processors.append(TemperatureLogitsWarper(self.temperature))
         processors.append(TopKLogitsWarper(top_k=self.top_k))
         processors.append(TopPLogitsWarper(top_p=self.top_p))

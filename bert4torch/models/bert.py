@@ -40,11 +40,13 @@ class BERT(PreTrainedModel):
             with_pool:bool=False,  # 是否包含Pool部分
             with_nsp:bool=False,  # 是否包含NSP部分
             with_mlm:bool=False,  # 是否包含MLM部分
-            custom_position_ids:Literal[True, False, 'start_at_padding']=False,  # 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
+            # 是否自行传入位置id, True表示传入，False表示不传入，'start_at_padding'表示从padding_idx+1开始
+            custom_position_ids:Literal[True, False, 'start_at_padding', 'padding_on_left']=False,
             custom_attention_mask:bool=False, # 是否自行传入attention_mask
             shared_segment_embeddings:bool=False,  # 若True，则segment跟token共用embedding
             conditional_size:Union[bool, int]=None,  # conditional layer_norm
-            additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False, # additional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
+            # additional_embeddng, 是否有额外的embedding, 比如加入词性，音调，word粒度的自定义embedding
+            additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False,
             is_dropout:bool=False,
             pad_token_id:int=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
             layer_type:str='BertLayer',
@@ -59,6 +61,7 @@ class BERT(PreTrainedModel):
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
+        self.attention_head_size = kwargs.get('attention_head_size') or self.hidden_size // self.num_attention_heads
         self.intermediate_size = intermediate_size
         self.dropout_rate = dropout_rate or 0
         self.attention_probs_dropout_prob = attention_probs_dropout_prob or 0
@@ -181,14 +184,18 @@ class BERT(PreTrainedModel):
             past_key_values_length = model_kwargs.get('past_key_values')[0][0].shape[2]
             
         # [btz, seq_len]
+        pad_token_id = model_kwargs.get('pad_token_id', self.pad_token_id)
         if model_kwargs.get('position_ids') is not None:
             position_ids = model_kwargs['position_ids']
         elif self.custom_position_ids is True:  # 自定义position_ids
             position_ids = inputs[index_]
             index_ += 1
         elif self.custom_position_ids == 'start_at_padding':
-            # 从padding位置开始
-            position_ids = create_position_ids_start_at_padding(token_ids, self.pad_token_id, past_key_values_length)
+            # 从padding位置开始, 目前使用到的是ethanyt/guwenbert-base和FacebookAI/roberta-base
+            position_ids = create_position_ids_start_at_padding(token_ids, pad_token_id, past_key_values_length)
+        elif self.custom_position_ids == 'padding_on_left':
+            # decoder模型padding在左侧
+            position_ids = create_position_ids_start_at_padding(token_ids, pad_token_id, past_key_values_length=-1, start_padding_idx=False)
         else:
             position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0) + past_key_values_length
         model_kwargs['position_ids'] = position_ids
@@ -202,8 +209,8 @@ class BERT(PreTrainedModel):
             attention_mask = inputs[index_].long()
             index_ += 1
         elif (not token_ids.requires_grad) and (token_ids.dtype in {torch.long, torch.int}): # 正常的token_ids
-            attention_mask = (token_ids != self.pad_token_id).long()  # 默认0为mask_value
-            if self.pad_token_id < 0:
+            attention_mask = (token_ids != pad_token_id).long()  # 默认0为mask_value
+            if pad_token_id < 0:
                 token_ids = token_ids * attention_mask
         else:  # 自定义word_embedding，目前仅有VAT中使用
             attention_mask = self.attention_mask_cache
@@ -256,17 +263,17 @@ class BERT(PreTrainedModel):
         # 解析encoder_hidden_state, encoder_attention_mask
         if len(inputs[index_:]) >=2:
             model_kwargs['encoder_hidden_states'], model_kwargs['encoder_attention_mask'] = inputs[index_], inputs[index_+1]
-        return token_ids, segment_ids, position_ids, conditional_emb, additional_embs, attention_mask, model_kwargs
+        return token_ids, segment_ids, position_ids, attention_mask, conditional_emb, additional_embs, model_kwargs
 
     def apply_embeddings(self, *inputs:Union[tuple, list], **model_kwargs):
         """BERT的embedding，可接受"位置参数/关键字参数"形式
 
-        :param inputs: List[torch.Tensor], 默认顺序是[input_ids, segment_ids(若有), position_ids(若有), custom_attention_mask(若有), conditional_input(若有), additional_input(若有)]
+        :param inputs: List[torch.Tensor], 默认顺序是[input_ids, segment_ids(若有), position_ids(若有), attention_mask(若有), conditional_emb(若有), additional_embs(若有)]
         :param model_kwargs: Dict[torch.Tensor], 字典输入项，和inputs是二选一的
         :return: Dict[torch.Tensor], [hidden_states, attention_mask, conditional_emb, ...]
         """        
         # 准备进embedding层的一些输入
-        input_ids, segment_ids, position_ids, conditional_emb, additional_embs, attention_mask, model_kwargs = \
+        input_ids, segment_ids, position_ids, attention_mask, conditional_emb, additional_embs, model_kwargs = \
             self.preprare_embeddings_inputs(*inputs, **model_kwargs)
         
         # 进入embedding层

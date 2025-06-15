@@ -1,6 +1,6 @@
 from bert4torch.models.transformer_xl import Transformer_XL
 import torch
-import re
+from torch4keras.snippets import safe_torch_load
 
 
 class XLNET(Transformer_XL):
@@ -62,7 +62,7 @@ class XLNET(Transformer_XL):
             return variable
 
     def load_trans_ckpt(self, checkpoint):
-        state_dict = torch.load(checkpoint, map_location='cpu')
+        state_dict = safe_torch_load(checkpoint, map_location='cpu')
         for i in range(self.num_hidden_layers):
             prefix_i = f'transformer.layer.%d.' % i
             mapping = {

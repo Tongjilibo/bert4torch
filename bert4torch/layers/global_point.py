@@ -76,7 +76,7 @@ class EfficientGlobalPointer(nn.Module):
         if self.RoPE:
             self.position_embedding = RopePositionEncoding(head_size)
 
-    def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None):
+    def forward(self, inputs:torch.Tensor, mask:torch.Tensor=None, position_ids:torch.Tensor=None):
         ''' 
         :param inputs: shape=[..., hdsz]
         :param mask: shape=[btz, seq_len], padding部分为0
@@ -86,8 +86,11 @@ class EfficientGlobalPointer(nn.Module):
 
         # ROPE编码
         if self.RoPE:
-            qw = self.position_embedding(qw)
-            kw = self.position_embedding(kw)
+            if position_ids is None:
+                seq_len = qw.shape[1]
+                position_ids = torch.arange(0, seq_len, dtype=torch.float, device=qw.device).unsqueeze(0)
+            qw = self.position_embedding(qw, position_ids)
+            kw = self.position_embedding(kw, position_ids)
 
         # 计算内积
         logits = torch.einsum('bmd,bnd->bmn', qw, kw) / self.head_size**0.5  # [btz, seq_len, seq_len], 是否是实体的打分

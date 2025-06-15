@@ -264,7 +264,7 @@ class RopePositionEncoding(nn.Module):
 
         return cos.to(dtype=dtype), sin.to(dtype=dtype)
     
-    def rotate_and_compute(self, x, cos, sin, position_ids, unsqueeze_dim=1):
+    def rotate_and_compute(self, x:torch.Tensor, cos:torch.Tensor, sin:torch.Tensor, position_ids:torch.Tensor, unsqueeze_dim:int=1):
         # MultiHeadAttention中x是[btz, n_heads, seq_len, head_size]
         # GlobalPointer中*转置*后x是[btz, n_heads, seq_len, head_size]
         # EfficientGlobalPointer中x是[btz, seq_len, head_size]
@@ -273,8 +273,9 @@ class RopePositionEncoding(nn.Module):
         elif self.rope_rank in {'updown', 'rotate_half'}:
             # 其实就是rotate_half，注意cat和stack+reshape是结果不同的
             x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
-        cos = cos.unsqueeze(unsqueeze_dim)
-        sin = sin.unsqueeze(unsqueeze_dim)
+        if cos.dim() < x.dim():
+            cos = cos.unsqueeze(unsqueeze_dim)
+            sin = sin.unsqueeze(unsqueeze_dim)
         return x * cos + x2 * sin
 
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor):
@@ -318,6 +319,7 @@ class RopeGlmPositionEncoding(RopePositionEncoding):
         # glm的embedding_size不同
         super().__init__(embedding_size // 2, max_position, rope_rank, scaling_factor, rope_theta, device, **kwargs)
     
+    @torch.no_grad()
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None):
         query_states, key_states = qk
         

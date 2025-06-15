@@ -5,8 +5,7 @@ url: https://github.com/huggingface/transformers/blob/main/src/transformers/gene
 - 做了部分简化，没有区分LogitsProcessor和LogitsWarper
 """
 import torch
-from bert4torch.snippets import add_start_docstrings
-import inspect
+from bert4torch.snippets import add_start_docstrings, log_warn_once
 from typing import Union
 
 
@@ -150,20 +149,15 @@ class TemperatureLogitsWarper(LogitsProcessor):
     """Temperature
     """
     def __init__(self, temperature: Union[float, int]):
-        if not isinstance(temperature, (float, int)) or not (temperature > 0):
-            except_msg = (
-                f"`temperature` (={temperature}) has to be a strictly positive float, otherwise your next token "
-                "scores will be invalid."
-            )
-            if isinstance(temperature, (float, int)) and temperature == 0.0:
-                except_msg += " If you're looking for greedy decoding strategies, set `do_sample=False`."
-            raise ValueError(except_msg)
-
+        if not isinstance(temperature, (float, int)) or temperature < 0:
+            raise ValueError(f"`temperature` (={temperature}) has to be a strictly positive or zero float")
+        if isinstance(temperature, (float, int)) and temperature == 0.0:
+            log_warn_once("`temperature` == 0 means greedy decoding strategies")
         self.temperature = temperature
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
-        if self.temperature == 1:
+        if self.temperature == 1 or self.temperature == 0:
             return scores
         scores_processed = scores / self.temperature
         return scores_processed

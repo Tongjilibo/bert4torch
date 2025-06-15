@@ -101,7 +101,7 @@ class VAT():
     def forward_(self, train_X, new_embed):
         # 把原来的train_X中的token_ids换成embedding形式
         if isinstance(train_X, (tuple, list)):
-            new_train_X = [new_embed] + train_X[1:]
+            new_train_X = [new_embed] + train_X[1:]  # 抛弃原有的train_X[0]，即token_ids
             adv_output = self.model.forward(*new_train_X)
         elif isinstance(train_X, torch.Tensor):
             adv_output = self.model.forward(new_embed)

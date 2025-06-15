@@ -65,12 +65,15 @@ def main():
     # streamlit: web demo  [启动命令]: streamlit run app.py --server.address 0.0.0.0 --server.port 8001
     choice = 'cli'
 
-    generation_config = {'repetition_penalty': 1.1, 
-                         'temperature':0.8,
-                         'top_k': 40,
-                         'top_p': 0.8,
-                         }
+    generation_config = {
+        'repetition_penalty': 1.1, 
+        'temperature':0.8,
+        'top_k': 40,
+        'top_p': 0.8,
+        'max_new_tokens': 512,
+        }
     demo = Chat(model_dir, 
+                system='',
                 mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
                 # system='You are a helpful assistant.', 
                 generation_config=generation_config,
@@ -83,7 +86,7 @@ def main():
 
     if choice == 'batch':
         # chat模型，batch_generate的示例
-        res = demo.chat(['你好', '你是谁'])
+        res = demo.chat(['你好', '上海的天气怎么样'])
         print(res)
 
     elif choice == 'gen_1toN':

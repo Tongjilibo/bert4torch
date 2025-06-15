@@ -64,7 +64,7 @@ class Qwen2VL(PreTrainedModelForDecoder):
         position_ids在之前已经准备好
         '''
         inputs = self.args_segmentate(inputs, **model_kwargs)
-        input_ids, _, _, _, _, model_kwargs['attention_mask'], model_kwargs = self.model.preprare_embeddings_inputs(*inputs, **model_kwargs)
+        input_ids, _, _, model_kwargs['attention_mask'], _, _, model_kwargs = self.model.preprare_embeddings_inputs(*inputs, **model_kwargs)
         inputs_embeds, model_kwargs['attention_mask'] = self.get_vllm_embedding(input_ids=input_ids, **model_kwargs)
         
         return self.model(input_ids=inputs_embeds, **model_kwargs)

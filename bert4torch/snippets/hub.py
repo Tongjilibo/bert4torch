@@ -6,6 +6,7 @@ import os
 import json
 from pathlib import Path
 from typing import Union, Optional, Dict
+import re
 from torch4keras.snippets import (
     log_error_once, 
     log_error, 
@@ -250,26 +251,25 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
         pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path[0])
 
     config_path = None       
-    # 本地文件存在
-    if os.path.isfile(pretrained_model_name_or_path):
-        if pretrained_model_name_or_path.endswith('bert4torch_config.json'):
+    # 传入bert4torch_config路径
+    if pretrained_model_name_or_path.endswith('bert4torch_config.json'):
+        if os.path.isfile(pretrained_model_name_or_path):
             # 本地存在bert4torch_config.json
-            return pretrained_model_name_or_path
-        else:
-            # 本地文件存在，但是不是bert4torch_config.json，则在其根目录下寻找
-            pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path)
+            config_path = pretrained_model_name_or_path
+        elif not allow_none:
+            raise FileNotFoundError(f'{pretrained_model_name_or_path} not exists, please check your local path or model_name.')
 
-    # 本地文件夹存在
-    if os.path.isdir(pretrained_model_name_or_path):
-        if os.path.isfile(tmp := os.path.join(pretrained_model_name_or_path, 'bert4torch_config.json')):
+    # 传入文件夹路径
+    elif os.path.isdir(pretrained_model_name_or_path):
+        config_path_tmp = os.path.join(pretrained_model_name_or_path, 'bert4torch_config.json')
+        if os.path.isfile(config_path_tmp):
             # bert4torch_config.json存在
-            config_path = tmp
-        
-        if (not allow_none) and (config_path is None):
-            raise FileNotFoundError('bert4torch_config.json not found')
+            config_path = config_path_tmp
+        elif not allow_none:
+            raise FileNotFoundError(f'{config_path_tmp} not exists, please check your local path or model_name.')
 
     # model_name: 从hf下载bert4torch_config.json文件
-    else:
+    elif len(re.findall('/', pretrained_model_name_or_path)) <= 1 and not not re.search(r'\\', pretrained_model_name_or_path):
         if pretrained_model_name_or_path.startswith('Tongjilibo/'):
             # 独立的repo
             config_path = snapshot_download(pretrained_model_name_or_path, filename='bert4torch_config.json', **kwargs)
