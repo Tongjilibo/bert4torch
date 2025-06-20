@@ -111,6 +111,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 ### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
+|20250621| 0.5.8          | 0.3.0 |增加`Qwen3-Embedding`和`Qwen3-Reranker`, 支持`temperature`设置为0, 修复`sdpa`和`global_point`的bug, 拆分`attention_utils`|
 |20250511| 0.5.7          | 0.2.9.post2 |命令行参数修改为`bert4torch serve`, 增加`Qwen3`|
 |20250401| 0.5.6          | 0.2.9 |命令行支持图片输入, 修复rope在batch推理和超长时候的bug|
 |20250215| 0.5.5          | 0.2.8 |增加`deepseek-r1`, `internvl`, `internlm3`, `glm4v`, `modernbert`, `mllama`, `qwen2vl`, `qwenvl`|

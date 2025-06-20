@@ -128,9 +128,6 @@ class AutoRegressiveDecoder(object):
     def _get_logits_processor(self):
         processors = LogitsProcessorList()
         processors.append(RepetitionPenaltyLogitsProcessor(penalty=self.repetition_penalty))
-        
-        if self.temperature == 0.0:
-            self.top_k = 1  # greedy search
         processors.append(TemperatureLogitsWarper(self.temperature))
         processors.append(TopKLogitsWarper(top_k=self.top_k))
         processors.append(TopPLogitsWarper(top_p=self.top_p))
@@ -499,7 +496,10 @@ class AutoRegressiveDecoder(object):
             output_ids = output_ids.repeat([self.n]+[1]*(len(output_ids.shape)-1))
             self.input_seqlen = self.input_seqlen.repeat([self.n, 1])
         
-        sample_func = lambda p: torch.multinomial(p, 1)  # 按概率采样函数
+        if self.temperature == 0:  # greed输出，和vllm一致，transformers不支持设置，而是采用do_sample=False
+            sample_func = lambda p: torch.argmax(p, dim=-1)
+        else:
+            sample_func = lambda p: torch.multinomial(p, 1)  # 按概率采样函数
         sample_ids = torch.stack([sample_func(p) for p in probas])
         sample_ids = sample_ids.reshape((-1, 1))  # 对齐形状
 
