@@ -1,5 +1,4 @@
 from bert4torch.models.transformer import Decoder
-from bert4torch.layers import LlamaFeedForward
 import torch
 
 
@@ -18,9 +17,10 @@ class Qwen2(Decoder):
         del self.embeddings.layerNorm
 
         # 修改网络结构
-        kwargs.pop('bias')
         for layer in self.decoderLayer:
-            layer.feedForward = LlamaFeedForward(self.hidden_size, **kwargs)
+            layer.feedForward.intermediateDense.register_parameter('bias', None)
+            layer.feedForward.outputDense.register_parameter('bias', None)
+            layer.feedForward.intermediateDense2.register_parameter('bias', None)
             layer.attnLayerNorm.register_parameter('bias', None)
             layer.ffnLayerNorm.register_parameter('bias', None)
             layer.multiHeadAttention.o.register_parameter('bias', None)

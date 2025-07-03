@@ -6,7 +6,8 @@ from bert4torch.models.base import PreTrainedModel, extend_with_base_model, exte
 from bert4torch.models.bert import BERT
 from bert4torch.models.deberta import DebertaV2
 from bert4torch.models.electra import ELECTRA
-from bert4torch.models.ernie import ERNIE
+from bert4torch.models.ernie import Ernie
+from bert4torch.models.ernied4_5 import Ernied4_5
 from bert4torch.models.gau_alpha import GAU_alpha
 from bert4torch.models.modernbert import ModernBert
 from bert4torch.models.glm import GLM, GLM2
@@ -143,7 +144,8 @@ def build_transformer_model(
         'roformer_v2': RoFormerV2,
         'gau_alpha': GAU_alpha,
         'electra': ELECTRA,
-        'ernie': ERNIE,
+        'ernie': Ernie,
+        'ernie4_5': Ernied4_5,
         'deberta_v2': DebertaV2,
         'modernbert': ModernBert,
         'uie': UIE,

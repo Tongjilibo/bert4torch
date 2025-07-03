@@ -77,8 +77,7 @@ class MultiHeadAttention(nn.Module):
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))  # Attention中V的head_size
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)  # Attention中Q,K的head_size
         self.scaling = self.attention_head_size ** (-0.5)
-        q_inner_dim = self.attention_key_size * num_attention_heads
-        k_inner_dim = q_inner_dim
+        q_inner_dim = k_inner_dim = self.attention_key_size * num_attention_heads
         v_inner_dim = self.attention_head_size * num_attention_heads
 
         # multi query attention: chatglm中叫num_key_value_heads

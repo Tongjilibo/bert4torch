@@ -4,16 +4,16 @@ from torch import nn
 import torch
 
 
-class ERNIE(BERT):
+class Ernie(BERT):
     """百度文心 https://github.com/PaddlePaddle/ERNIE"""
     def __init__(self, *args, **kwargs):
-        super(ERNIE, self).__init__(*args, **kwargs)
+        super(Ernie, self).__init__(*args, **kwargs)
         self.use_task_id = kwargs.get('use_task_id')
         self.embeddings = self.ErnieEmbeddings(**self.get_kw(*self._embedding_args, **kwargs))
         self.model_type = 'ernie'
 
     def variable_mapping(self):
-        mapping = super(ERNIE, self).variable_mapping(prefix='ernie')
+        mapping = super(Ernie, self).variable_mapping(prefix='ernie')
         mapping.update({'mlmDecoder.weight': 'ernie.embeddings.word_embeddings.weight',
                         'mlmDecoder.bias': 'cls.predictions.bias'})
         for k, v in mapping.items():

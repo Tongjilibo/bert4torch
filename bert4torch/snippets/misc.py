@@ -7,7 +7,7 @@ from torch import nn
 import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
-from torch4keras.snippets import log_info, log_warn, TimeitContextManager, is_accelerate_available, find_tied_parameters, log_warn_once
+from torch4keras.snippets import log_info, log_warn, log_error, TimeitContextManager, is_accelerate_available, find_tied_parameters, log_warn_once
 from typing import Union
 import re
 from packaging import version
