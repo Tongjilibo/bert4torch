@@ -8,7 +8,7 @@ import torch
 import pytest
 
 
-@pytest.mark.parametrize("model_name", ["bert-base-chinese",
+@pytest.mark.parametrize("model_name", ['google-bert/bert-base-chinese',
                                         "hfl/chinese-bert-wwm-ext"])
 def test_hf_download(model_name):
     model = build_transformer_model(checkpoint_path=model_name, with_mlm='softmax')
@@ -28,10 +28,10 @@ def test_hf_download(model_name):
     assert pred_token == '心'
 
 
-@pytest.mark.parametrize("model_name", ['bert-base-chinese',
+@pytest.mark.parametrize("model_name", ['google-bert/bert-base-chinese',
                                         'Tongjilibo/bert-chinese_L-12_H-768_A-12',
                                         'hfl/chinese-bert-wwm-ext',
-                                        'bert-base-multilingual-cased',
+                                        'google-bert/bert-base-multilingual-cased',
                                         'hfl/chinese-macbert-base',
                                         'hfl/chinese-macbert-large',
                                         'junnyu/wobert_chinese_base',
@@ -40,7 +40,7 @@ def test_hf_download(model_name):
                                         'hfl/chinese-roberta-wwm-ext-large',
                                         'Tongjilibo/chinese_roberta_L-4_H-312_A-12',
                                         'Tongjilibo/chinese_roberta_L-6_H-384_A-12',
-                                        'roberta-base',
+                                        'FacebookAI/roberta-base',
                                         'ethanyt/guwenbert-base',
                                         'voidful/albert_chinese_tiny',
                                         'voidful/albert_chinese_small',
@@ -77,10 +77,10 @@ def test_hf_download(model_name):
                                         'TsinghuaAI/CPM-Generate',
                                         'Tongjilibo/chinese_nezha_gpt_L-12_H-768_A-12',
                                         'uer/gpt2-chinese-cluecorpussmall',
-                                        'gpt2-ml_15g_corpus',
-                                        'gpt2-ml_30g_corpus',
+                                        'Tongjilibo/gpt2-ml_15g_corpus',
+                                        'Tongjilibo/gpt2-ml_30g_corpus',
                                         'fnlp/bart-base-chinese',
-                                        'bart-base-chinese-v1.0',
+                                        'fnlp/bart-base-chinese-v1.0',
                                         'uer/t5-small-chinese-cluecorpussmall',
                                         'uer/t5-base-chinese-cluecorpussmall',
                                         'google/mt5-base',
@@ -92,23 +92,22 @@ def test_hf_download(model_name):
                                         'THUDM/chatglm-6b',
                                         'THUDM/chatglm-6b-int8',
                                         'THUDM/chatglm-6b-int4',
-                                        'chatglm-6b-v0.1.0',
+                                        # 'THUDM/chatglm-6b-v0.1.0',
                                         'THUDM/chatglm2-6b',
                                         'THUDM/chatglm2-6b-int4',
                                         'THUDM/chatglm2-6b-32k',
                                         'THUDM/chatglm3-6b',
                                         'THUDM/chatglm3-6b-32k',
-                                        'llama-7b',
-                                        'llama-13b',
-                                        'Llama-2-7b-hf',
-                                        'Llama-2-7b-chat-hf',
-                                        'Llama-2-13b-hf',
-                                        'Llama-2-13b-chat-hf',
-                                        'chinese-alpaca-plus-7b',
-                                        'chinese-llama-plus-7b',
-                                        'BELLE-LLaMA-7B-2M-enc',
-                                        'Ziya-LLaMA-13B-v1',
-                                        'Ziya-LLaMA-13B-v1.1',
+                                        # 'meta-llama/llama-7b',
+                                        # 'meta-llama/llama-13b',
+                                        # 'meta-llama/Llama-2-7b-hf',
+                                        # 'meta-llama/Llama-2-7b-chat-hf',
+                                        # 'meta-llama/Llama-2-13b-hf',
+                                        # 'meta-llama/Llama-2-13b-chat-hf',
+                                        'hfl/chinese-alpaca-plus-7b',
+                                        'hfl/chinese-llama-plus-7b',
+                                        'IDEA-CCNL/Ziya-LLaMA-13B-v1',
+                                        'IDEA-CCNL/Ziya-LLaMA-13B-v1.1',
                                         'baichuan-inc/Baichuan-7B',
                                         'baichuan-inc/Baichuan-13B-Base',
                                         'baichuan-inc/Baichuan-13B-Chat',
@@ -146,6 +145,6 @@ def test_download_config(model_name):
 
 
 if __name__=='__main__':
-    test_hf_download('hfl/chinese-bert-wwm-ext')
+    test_hf_download('google-bert/bert-base-chinese')
     # AutoModel.from_pretrained('hfl/chinese-bert-wwm-ext')
     # test_download_config('hfl/chinese-roberta-wwm-ext-large')

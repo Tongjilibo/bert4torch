@@ -269,7 +269,7 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
             raise FileNotFoundError(f'{config_path_tmp} not exists, please check your local path or model_name.')
 
     # model_name: 从hf下载bert4torch_config.json文件
-    elif len(re.findall('/', pretrained_model_name_or_path)) <= 1 and not not re.search(r'\\', pretrained_model_name_or_path):
+    elif len(re.findall('/', pretrained_model_name_or_path)) <= 1 and not re.search(r'\\', pretrained_model_name_or_path):
         if pretrained_model_name_or_path.startswith('Tongjilibo/'):
             # 独立的repo
             config_path = snapshot_download(pretrained_model_name_or_path, filename='bert4torch_config.json', **kwargs)

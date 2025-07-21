@@ -24,9 +24,9 @@ from bert4torch.tokenizers import Tokenizer, load_vocab
 
 # 基本信息
 maxlen = 32
-model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_tiny"  # simbert_tiny
-# model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_small"  # simbert_small
-# model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base"  # simbert_base
+model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-tiny"  # simbert_tiny
+# model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-small"  # simbert_small
+# model_dir = "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base"  # simbert_base
 # model_dir = "E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base"  # simbert_v2
 
 # 加载simbert权重或roformer_v2

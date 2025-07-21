@@ -77,9 +77,9 @@ def cal_sen_emb(model, tokenizer, text_list):
     return Z
     
 
-@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_tiny",
-                                       "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_small",
-                                       "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base",
+@pytest.mark.parametrize("model_dir", ["E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-tiny",
+                                       "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-small",
+                                       "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base",
                                        "E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base"])
 @torch.inference_mode()
 def test_simbert(model_dir):

@@ -76,9 +76,9 @@ def masked_encode(text):
 
 # ========== 蒸馏用：开始 ==========
 # simbert配置
-sim_config_path = 'E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base/bert4torch_config.json'
-sim_checkpoint_path = 'E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base/pytorch_model.bin'
-sim_dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base/vocab.txt'
+sim_config_path = 'E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base/bert4torch_config.json'
+sim_checkpoint_path = 'E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base/pytorch_model.bin'
+sim_dict_path = 'E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base/vocab.txt'
 
 # 建立分词器
 sim_tokenizer = Tokenizer(sim_dict_path, do_lower_case=True)  # 建立分词器

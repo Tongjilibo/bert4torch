@@ -4,9 +4,9 @@ import pytest
 from sentence_transformers import SentenceTransformer
 from bert4torch.pipelines import Text2Vec
 
-# model_path = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_tiny"
-# model_path = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_small"
-# model_path = "E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base"
+# model_path = "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-tiny"
+# model_path = "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-small"
+# model_path = "E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base"
 # model_path = "E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base"
 # model_path = "E:/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_ft_base"
 

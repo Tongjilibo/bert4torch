@@ -6,9 +6,10 @@ bert4torch_config.json见readme
 - [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
 """
 from bert4torch.pipelines import Chat
-from bert4torch.pipelines import ChatOpenaiClient, ChatOpenaiClientSseclient
+from bert4torch.snippets.openai_client import OpenaiClient, OpenaiClientSseclient
 
 
+model_name = 'default'
 messages = [
         {"content": "你好", "role": "user"},
         {"content": "你好，我是法律大模型", "role": "assistant"},
@@ -18,25 +19,25 @@ messages = [
 def call_openai(stream=True):
     url = 'http://127.0.0.1:8000'
 
-    client = ChatOpenaiClient(url)
+    client = OpenaiClient(url)
     if stream:
-        for token in client.stream_chat(messages):
+        for token in client.stream_chat(messages, model=model_name):
             print(token, end='', flush=True)
     else:
-        print(client.chat(messages))
+        print(client.chat(messages, model=model_name))
 
 
 def call_sseclient():
     url = 'http://127.0.0.1:8000/chat/completions'
 
-    client = ChatOpenaiClientSseclient(url)
+    client = OpenaiClientSseclient(url)
 
     # 测试打印
-    client.stream_chat_cli(messages)
+    client.stream_chat_cli(messages, model=model_name)
 
     # 测试返回
     print('\n-------------------------------------------')
-    for token in client.stream_chat(messages):
+    for token in client.stream_chat(messages, model=model_name):
         print(token, end='', flush=True)
 
 

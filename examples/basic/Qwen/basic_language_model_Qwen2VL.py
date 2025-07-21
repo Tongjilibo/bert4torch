@@ -3,7 +3,8 @@
 阿里云的通义千问: https://github.com/QwenLM/Qwen2-VL
 """
 
-from bert4torch.pipelines import Chat, ChatOpenaiClient
+from bert4torch.pipelines import Chat
+from bert4torch.snippets.openai_client import OpenaiClient
 from bert4torch.models import build_transformer_model
 from bert4torch.models.qwen2_vl import process_vision_info
 from transformers import AutoProcessor
@@ -105,13 +106,13 @@ def call_openai():
     #              {"content": "你可以做什么？", "role": "user"}
     #              ]
 
-    client = ChatOpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
-    for token in client.stream_chat(messages):
+    client = OpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
+    for token in client.stream_chat(messages, model='default'):
         print(token, end='', flush=True)
     
     # 非流式
     print()
-    print(client.chat(messages))
+    print(client.chat(messages, model='default'))
 
 
 if __name__ == '__main__':

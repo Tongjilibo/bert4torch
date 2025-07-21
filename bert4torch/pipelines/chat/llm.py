@@ -28,7 +28,6 @@ from bert4torch.snippets import (
     cuda_empty_cache,
     is_fastapi_available, 
     is_pydantic_available, 
-    is_sseclient_available, 
     is_streamlit_available,
     is_package_available,
     has_chinese_char,
@@ -42,14 +41,11 @@ from packaging import version
 import gc
 import time
 import json
-import requests
 from contextlib import asynccontextmanager
 import threading
 import re
 import copy
-import asyncio
 from .conversation import Conversation
-import inspect
 
 
 class NoneObject:
@@ -81,9 +77,6 @@ else:
 
 __all__ = [
     'Chat',
-    'ChatOpenaiClient',
-    'ChatOpenaiClientAsync',
-    'ChatOpenaiClientSseclient',
     'Glm',
     'Glm2',
     'Glm3',
@@ -654,7 +647,7 @@ OPENAI_START_DOCSTRING = r"""
 
     #
     :param checkpoint_path: str, 模型所在的文件夹地址
-    :param name: str, 模型名称
+    :param model_name: str, 模型名称
     :param generation_config: dict, 模型generate的参数设置
 
     # openai api参数
@@ -674,7 +667,7 @@ class ChatOpenaiApi(ChatBase):
     2. 【已修复】偶然会发生调用的时候，主线程和定时线程打架，导致device不一致的错误，因为forward过程时候发生offload
     3. cpu和delete测试通过，但是如何offload到disk上，不占用内存和显存
     """
-    def __init__(self, checkpoint_path:str, name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
+    def __init__(self, checkpoint_path:str, model_name:str='default', route_api:str='/chat/completions', route_models:str='/models', 
                  offload_max_callapi_interval:int=24*3600, offload_scheduler_interval:int=10*60, offload_when_nocall:Literal['cpu', 'disk', 'delete']=None, 
                  api_keys:List[str]=None, **kwargs):
         assert kwargs.get('system') is None, "Args `system` is used in request key `message`"
@@ -692,7 +685,7 @@ class ChatOpenaiApi(ChatBase):
         self.offload_scheduler_interval = offload_scheduler_interval
         self.api_keys = api_keys
         self.EventSourceResponse = EventSourceResponse
-        self.name = name
+        self.model_name = model_name
         self.role_user = 'user'
         self.role_assistant = 'assistant'
 
@@ -752,7 +745,7 @@ class ChatOpenaiApi(ChatBase):
             scheduler.shutdown()
 
     async def list_models(self):
-        model_card = ModelCard(id=self.name)
+        model_card = ModelCard(id=self.model_name)
         return ModelList(data=[model_card])
 
     def prepare_build_prompt_args(self, request):
@@ -763,8 +756,8 @@ class ChatOpenaiApi(ChatBase):
         return input_args_or_kwargs, history
 
     async def create_chat_completion(self, request: ChatCompletionRequest):
-        if request.model != self.name:
-            raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.name:{self.name}")
+        if request.model != self.model_name:
+            raise HTTPException(status_code=404, detail=f"Invalid model: request.model:{request.model} != self.model_name:{self.model_name}")
         if request.messages[-1].role != self.role_user:  # 最后一条msg的role必须是user
             raise HTTPException(status_code=400, detail=f"Invalid request: messages last role shold be {self.role_user}")
 
@@ -878,280 +871,6 @@ class ChatOpenaiApi(ChatBase):
         '''主程序入口'''
         import uvicorn
         uvicorn.run(app or self.app, host=host, port=port, **kwargs)
-
-
-class ChatOpenaiClient:
-    '''使用openai来调用
-    
-    Examples:
-    ```python
-    >>> messages = [
-    ...         {"content": "你好", "role": "user"},
-    ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
-    ...         {"content": "你可以做什么？", "role": "user"}
-    ...         ]
-    >>> client = ChatOpenaiClient('http://127.0.0.1:8000')
-
-    >>> # 流式
-    >>> for token in client.stream_chat(messages):
-    ...     print(token, end='', flush=True)
-
-    >>> # 非流式
-    >>> print(client.chat(messages))
-    ```
-    '''
-    def __init__(self, base_url:str, api_key:str=None, **kwargs) -> None:
-        from openai import OpenAI
-        self.client = OpenAI(base_url=base_url, api_key=api_key, **kwargs)
-    
-    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
-        '''流式返回'''
-        response = self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            functions=functions,
-            stream=True,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            **kwargs
-            )
-
-        for chunk in response:
-            content = chunk.choices[0].delta.content
-            if content is not None:
-                yield content
-
-    def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
-        '''一次性返回'''
-        response = self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            functions=functions,
-            stream=False,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            **kwargs
-            )
-        content = response.choices[0].message.content
-        return content
-    
-    def stream_chat_cli(self, *args, **kwargs):
-        for token in self.stream_chat(*args, **kwargs):
-            print(token, end='', flush=True)
-
-
-class ChatOpenaiClientAsync:
-    '''使用openai来调用
-    
-    Examples:
-    ```python
-    >>> messages = [
-    ...         {"content": "你好", "role": "user"},
-    ...         {"content": "你好，我是AI大模型，有什么可以帮助您的？", "role": "assistant"},
-    ...         {"content": "你可以做什么？", "role": "user"}
-    ...         ]
-    >>> client = ChatOpenaiClient('http://127.0.0.1:8000', api_key='EMPTY')
-
-    >>> # 流式
-    >>> for token in client.stream_chat(messages):
-    ...     print(token, end='', flush=True)
-
-    >>> # 非流式
-    >>> print(client.chat(messages))
-    ```
-    '''
-    def __init__(self, base_url:str, api_key:str=None, **kwargs) -> None:
-        from openai import AsyncOpenAI
-        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key, **kwargs)
-    
-    async def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
-        '''流式返回'''
-        response = await self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            functions=functions,
-            stream=True,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            **kwargs
-            )
-
-        async for chunk in response:
-            content = chunk.choices[0].delta.content
-            if content is not None:
-                yield content
-
-    async def chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
-        '''一次性返回'''
-        response = await self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            functions=functions,
-            stream=False,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            **kwargs
-            )
-        content = response.choices[0].message.content
-        return content
-    
-    async def stream_chat_cli(self, *args, **kwargs):
-        async for token in self.stream_chat(*args, **kwargs):
-            print(token, end='', flush=True)
-
-    async def batch_chat(
-            self,
-            messages_list:list, 
-            model:str='default', 
-            functions:list=None,
-            max_tokens:int=1024, 
-            temperature:float=None, 
-            top_p:float=None, 
-            batch_size:int=5, 
-            verbose:bool=False,
-            **kwargs
-        ):
-        """并发调用"""
-        async def generate_text(messages_batch, client):
-            responses = await asyncio.gather(*[client.chat.completions.create(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                functions=functions,
-                **kwargs
-            ) for messages in messages_batch])
-            if functions is None:
-                return [response.choices[0].message.content for response in responses]
-            else:
-                return [response.choices[0].message.function_call for response in responses]
-
-        assert isinstance(messages_list, list), f'Args `messages_list` must be a list, not {type(messages_list)}'
-        assert isinstance(messages_list[0], list), f'Args `messages_list` must be a List[List], not List[{type(messages_list[0])}]'
-
-        async with self.client as client:
-            results = []
-            for i in range(0, len(messages_list), batch_size):
-                batch = messages_list[i:i+batch_size]
-                batch_results = await generate_text(batch, client)
-                results.extend(batch_results)
-
-        if verbose: 
-            for messages, result in zip(messages_list, results):
-                print(f"Prompt: {messages}\nResponse: {result}\n")
-        return results
-
-    async def concurrent_chat(
-        self,
-        messages_list:list, 
-        model:str='default', 
-        functions:list=None,
-        max_tokens:int=1024, 
-        temperature:float=None, 
-        top_p:float=None, 
-        workers:int=5, 
-        verbose:bool=False,
-        **kwargs
-    ):
-        """并发调用"""
-        async def generate_text(messages, client, semaphore):
-            async with semaphore:
-                response = await client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    functions=functions,
-                    **kwargs
-                )
-                if functions is None:
-                    return response.choices[0].message.content
-                else:
-                    return response.choices[0].message.function_call
-
-        assert isinstance(messages_list, list), f'Args `messages_list` must be a list, not {type(messages_list)}'
-        assert isinstance(messages_list[0], list), f'Args `messages_list` must be a List[List], not List[{type(messages_list[0])}]'
-
-        semaphore = asyncio.Semaphore(workers)
-        async with self.client as client:
-            tasks = [generate_text(messages, client, semaphore) for messages in messages_list]
-            results = await asyncio.gather(*tasks)
-        
-        if verbose: 
-            for messages, result in zip(messages_list, results):
-                print(f"Prompt: {messages}\nResponse: {result}\n")
-        return results
-
-
-class ChatOpenaiClientSseclient:
-    '''调用openai接口的client, 流式请求
-
-    Examples:
-    ```python
-    >>> # 注意事项：部分调用时候有额外参数传入，如下：
-    >>> client = ChatOpenaiClientSseclient(url='https://chatpet.openai.azure.com/openai/deployments/chatGPT-turbo16K/chat/completions', 
-    ...                                 header={'api-key': "填写对应的api-key"},
-    ...                                 params={'api-version': '2023-03-15-preview'})
-
-    >>> body = {
-    ...         "messages": [
-    ...             {"content": "你好", "role": "user"},
-    ...             {"content": "你好，我是法律大模型", "role": "assistant"},
-    ...             {"content": "基金从业可以购买股票吗", "role": "user"}],
-    ...         "model": "default",
-    ...         "stream": True
-    ...     }
-
-    >>> client = ChatOpenaiClientSseclient('http://127.0.0.1:8000')
-    >>> # 测试打印
-    >>> client.stream_chat_cli(body)
-
-    >>> # 流式
-    >>> for token in client.stream_chat(body):
-    ...     print(token, end='', flush=True)
-    ```
-    '''
-    def __init__(self, base_url:str, api_key:str=None, header:dict=None, params:dict=None) -> None:
-        self.base_url = base_url
-        self.api_key = api_key
-        self.header = header
-        self.params = params
-
-        if is_sseclient_available():
-            import sseclient
-        else:
-            raise ModuleNotFoundError('No module found, you may `pip install sseclient-py`')
-        
-        self.sseclient = sseclient
-   
-    def stream_chat(self, messages:List[Dict], model:str='default', functions:list=None, max_tokens:int=None, temperature:float=None, top_p:float=None, **kwargs):
-        '''接口调用'''
-        reqHeaders = {'Accept': 'text/event-stream'}
-        if self.api_key is not None:
-            reqHeaders["Authorization"] = f"Bearer {self.api_key}"
-
-        if self.header is not None:
-            reqHeaders.update(self.header)
-        
-        body = {'messages': messages, 'model': model, 'stream': True}
-        request = requests.post(self.base_url, stream=True, headers=reqHeaders, json=body, params=self.params, **kwargs)
-        client = self.sseclient.SSEClient(request)
-        for event in client.events():
-            if event.data != '[DONE]':
-                data = json.loads(event.data)['choices'][0]['delta']
-                if 'content' in data:
-                    yield data['content']
-
-    def stream_chat_cli(self, messages:List[Dict], **kwargs):
-        '''简单测试在命令行打印'''
-        for token in self.stream_chat(messages, **kwargs):
-            print(token, end='', flush=True)
 
 
 # ==========================================================================================

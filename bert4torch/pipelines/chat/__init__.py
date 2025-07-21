@@ -1,4 +1,4 @@
-from .llm import CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING, ChatOpenaiClient, ChatOpenaiClientAsync, ChatOpenaiClientSseclient
+from .llm import CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
 from .llm import LLM_MAPPING, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, PretrainedTextContinuation
 from .vlm import VLM_MAPPING, ChatVLCli, ChatVLWebGradio, ChatVLWebStreamlit, ChatVLOpenaiApi
 from argparse import REMAINDER, ArgumentParser
@@ -38,7 +38,7 @@ class Chat:
     :param template: 使用的模板, 一般在bert4torch_config.json中无需单独设置, 可自行指定
 
     ### openai api参数
-    :param name: str, 模型名称
+    :param model_name: str, 模型名称
     :param route_api: str, api的路由
     :param route_models: str, 模型列表的路由
     :param offload_when_nocall: str, 是否在一定时长内无调用就卸载模型，可以卸载到内存和disk两种
@@ -71,7 +71,7 @@ class Chat:
                  # cli参数
                  system:str=None,
                  # openapi参数
-                 name:str='default', 
+                 model_name:str='default', 
                  route_api:str='/chat/completions', 
                  route_models:str='/models', 
                  offload_max_callapi_interval:int=24*3600, 
@@ -164,7 +164,7 @@ def get_args_parser() -> ArgumentParser:
 
     # openai参数
     parser.add_argument("--create_model_at_startup", type=bool, default=True, help="openai api args: whether create model at startup")
-    parser.add_argument("--name", type=str, default='default', help="openai api args: model name")
+    parser.add_argument("--model_name", type=str, default='default', help="openai api args: model name")
     parser.add_argument("--route_api", type=str, default='/chat/completions', help="openai api args: `/chat/completions` route url")
     parser.add_argument("--route_models", type=str, default='/models', help="openai api args: `/models` route url")
     parser.add_argument("--api_keys", type=List[str], default=None, help="openai api args: authorized api keys list")
@@ -205,6 +205,7 @@ def run_llm_serve():
                 config_path = getattr(args, 'config_path', None),
                 generation_config = args.generation_config,
                 quantization_config = getattr(args, 'quantization_config', None),
+                model_name=args.model_name,
                 create_model_at_startup = args.create_model_at_startup,
                 offload_when_nocall = args.offload_when_nocall,
                 offload_max_callapi_interval = args.offload_max_callapi_interval,

@@ -57,7 +57,7 @@ model_dir = {
     'RoBERTa': 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext',
     'NEZHA': 'E:/data/pretrain_ckpt/sijunhe/nezha-cn-base',
     'RoFormer': 'E:/data/pretrain_ckpt/junnyu/roformer_chinese_base',
-    'SimBERT': 'E:/data/pretrain_ckpt/Tongjilibo/simbert_chinese_base',
+    'SimBERT': 'E:/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base',
 }[model_type]
 
 config_path = f'{model_dir}/bert4torch_config.json'
