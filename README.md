@@ -111,7 +111,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 ### 4.1 版本历史
 |更新日期| bert4torch | torch4keras | 版本说明 |
 |------| ---------------- | ----------------- |----------- |
-|20250721| 0.5.9          | 0.3.1 |增加`Ernie4_5`, 修复hub下载bug, 拆分出`openai_client`|
+|20250721| 0.5.9.post2    | 0.3.1 |增加`Ernie4_5`, 修复hub下载bug, 拆分出`openai_client`|
 |20250621| 0.5.8          | 0.3.0 |增加`Qwen3-Embedding`和`Qwen3-Reranker`, 支持`temperature`设置为0, 修复`sdpa`和`global_point`的bug, 拆分`attention_utils`|
 |20250511| 0.5.7          | 0.2.9.post2 |命令行参数修改为`bert4torch serve`, 增加`Qwen3`|
 |20250401| 0.5.6          | 0.2.9 |命令行支持图片输入, 修复rope在batch推理和超长时候的bug|
