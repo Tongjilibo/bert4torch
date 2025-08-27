@@ -160,13 +160,14 @@ class Qwen3Moe(Qwen3):
     
     def variable_mapping(self):
         mapping = super().variable_mapping()
-        mapping = {k:v for k,v in mapping.items() if not re.search(k, 'decoderLayer\.[0-9]+\.feedForward')}
+        mapping = {k:v for k,v in mapping.items() if not re.search('decoderLayer\\.[0-9]+\\.feedForward', k)}
 
         for i in range(self.num_hidden_layers):
             if (i not in self.mlp_only_layers) and (
                 self.num_experts > 0 and (i + 1) % self.decoder_sparse_step == 0
             ):
-                for j in self.num_experts:
+                mapping[f'decoderLayer.{i}.feedForward.gate.weight'] = f"model.layers.{i}.mlp.gate.weight"
+                for j in range(self.num_experts):
                     mapping.update({
                     f'decoderLayer.{i}.feedForward.experts.{j}.intermediateDense.weight': f'model.layers.{i}.mlp.experts.{j}.gate_proj.weight',
                     f'decoderLayer.{i}.feedForward.experts.{j}.intermediateDense2.weight': f'model.layers.{i}.mlp.experts.{j}.up_proj.weight',

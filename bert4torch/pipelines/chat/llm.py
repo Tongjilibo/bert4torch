@@ -1984,6 +1984,7 @@ LLM_MAPPING = {
     'qwen': Qwen,
     'qwen2': Qwen2,
     'qwen3': ApplyChatTemplate,
+    'qwen3_moe': ApplyChatTemplate,
     'llama2': LLaMA2,
     'llama3': LLaMA3,
     'ziya': Ziya,

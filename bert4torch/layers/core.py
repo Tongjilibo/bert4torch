@@ -507,7 +507,7 @@ class Qwen3MoeSparseFeedForward(nn.Module):
         # gating
         self.gate = nn.Linear(config.hidden_size, config.num_experts, bias=False)
         self.experts = nn.ModuleList(
-            [LlamaFeedForward(config, intermediate_size=config.moe_intermediate_size) for _ in range(self.num_experts)]
+            [LlamaFeedForward(config.hidden_size, intermediate_size=config.moe_intermediate_size) for _ in range(self.num_experts)]
         )
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
@@ -547,7 +547,7 @@ class Qwen3MoeSparseFeedForward(nn.Module):
             # the `top_x` tensor here.
             final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
         final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
-        return final_hidden_states, router_logits
+        return final_hidden_states
     
     
 
