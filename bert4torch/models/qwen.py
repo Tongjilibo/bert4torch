@@ -1,5 +1,7 @@
 from bert4torch.models.transformer import Decoder
+from bert4torch.layers.core import Qwen3MoeSparseFeedForward
 import torch
+import re
 
 
 class Qwen2(Decoder):
@@ -139,4 +141,35 @@ class Qwen3(Qwen2):
                 f'decoderLayer.{i}.multiHeadAttention.q_norm.weight': f'model.layers.{i}.self_attn.q_norm.weight',
                 f'decoderLayer.{i}.multiHeadAttention.k_norm.weight': f'model.layers.{i}.self_attn.k_norm.weight',
             })
+        return mapping
+
+
+class Qwen3Moe(Qwen3):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.model_type = 'qwen3_moe'
+        self.mlp_only_layers = kwargs.get('mlp_only_layers')
+        self.num_experts = kwargs.get('num_experts')
+        self.decoder_sparse_step = kwargs.get('decoder_sparse_step')
+        self.num_experts = kwargs.get('num_experts')
+        for layer_idx, layer in enumerate(self.decoderLayer):
+            if (layer_idx not in self.mlp_only_layers) and (
+                self.num_experts > 0 and (layer_idx + 1) % self.decoder_sparse_step == 0
+            ):
+                layer.feedForward = Qwen3MoeSparseFeedForward(**kwargs)
+    
+    def variable_mapping(self):
+        mapping = super().variable_mapping()
+        mapping = {k:v for k,v in mapping.items() if not re.search(k, 'decoderLayer\.[0-9]+\.feedForward')}
+
+        for i in range(self.num_hidden_layers):
+            if (i not in self.mlp_only_layers) and (
+                self.num_experts > 0 and (i + 1) % self.decoder_sparse_step == 0
+            ):
+                for j in self.num_experts:
+                    mapping.update({
+                    f'decoderLayer.{i}.feedForward.experts.{j}.intermediateDense.weight': f'model.layers.{i}.mlp.experts.{j}.gate_proj.weight',
+                    f'decoderLayer.{i}.feedForward.experts.{j}.intermediateDense2.weight': f'model.layers.{i}.mlp.experts.{j}.up_proj.weight',
+                    f'decoderLayer.{i}.feedForward.experts.{j}.outputDense.weight': f'model.layers.{i}.mlp.experts.{j}.down_proj.weight',
+                    })
         return mapping

@@ -1,5 +1,5 @@
-from bert4torch.layers import DeepseekMoE
 from bert4torch.models.transformer import Decoder
+from bert4torch.layers.core import DeepseekMoeFeedForward
 
 
 class DeepSeek(Decoder):
@@ -25,7 +25,7 @@ class DeepSeek(Decoder):
         for layer_idx, layer in enumerate(self.decoderLayer):
             if self.n_routed_experts is not None and layer_idx >= self.first_k_dense_replace \
                 and layer_idx % self.moe_layer_freq == 0:
-                layer.feedForward = DeepseekMoE(**kwargs)
+                layer.feedForward = DeepseekMoeFeedForward(**kwargs)
 
         # self.LayerNormFinal.register_parameter('bias', None)
 
@@ -80,4 +80,3 @@ class DeepSeek(Decoder):
                     f'decoderLayer.{i}.feedForward.outputDense.weight': f'model.layers.{i}.mlp.down_proj.weight',
                 })
         return mapping
-

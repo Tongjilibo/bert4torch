@@ -48,4 +48,3 @@ from bert4torch.layers.transformer_block import (
     GAULayer,
     MllamaCrossAttentionDecoderLayer
 )
-from bert4torch.layers.moe import DeepseekMoE, MoEGate, AddAuxiliaryLoss

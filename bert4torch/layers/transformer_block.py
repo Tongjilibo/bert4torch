@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from bert4torch.layers.core import LayerNorm, PositionWiseFeedForward, LlamaFeedForward, T5PositionWiseFeedForward
+from bert4torch.layers.core import LayerNorm, MLP_MAP, T5PositionWiseFeedForward
 from bert4torch.layers.attention import ATTENTION_MAP, GatedAttention, TransformerxlMultiHeadAttn
 from typing import Union, Optional, Tuple
 
@@ -55,12 +55,9 @@ class BertLayer(nn.Module):
         self.attnLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
         # feedforward
-        if self.mlp_type == 'PositionWiseFeedForward':
-            self.feedForward = PositionWiseFeedForward(hidden_size, intermediate_size, dropout_rate, hidden_act, is_dropout=is_dropout, **kwargs)
-        elif self.mlp_type == 'LlamaFeedForward':
-            self.feedForward = LlamaFeedForward(hidden_size, intermediate_size, hidden_act, kwargs.get('bias', False))
-        else:
-            raise ValueError(f'mlp_type={self.mlp_type} not supported')
+        kwargs['bias'] = kwargs.get('bias', False)
+        self.feedForward = MLP_MAP[self.mlp_type](hidden_size, intermediate_size, dropout_rate=dropout_rate, 
+                                                  hidden_act=hidden_act, is_dropout=is_dropout, **kwargs)
         self.ffnLayerNorm = LayerNorm(hidden_size, eps=layer_norm_eps, conditional_size=conditional_size, **kwargs)
 
         # cross attention
@@ -305,6 +302,7 @@ class GAULayer(nn.Module):
         self.gau = GatedAttention(**kwargs)
         self.dropout_rate = kwargs.get('dropout_rate')
         self.attnLayerNorm = LayerNorm(**kwargs)
+
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, position_ids=None, **model_kwargs):
         gau_hidden_states = self.gau(hidden_states, attention_mask, position_ids)
         hidden_states = hidden_states + F.dropout(gau_hidden_states, p=self.dropout_rate, training=self.training)
