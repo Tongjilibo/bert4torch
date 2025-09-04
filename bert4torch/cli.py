@@ -20,26 +20,30 @@ from enum import Enum, unique
 VERSION = "v0.5.9.post2"
 
 
-USAGE = (
-    "-" * 70
-    + "\n"
-    + "| Usage:                                                             |\n"
-    + "|   bert4torch serve: launch an llm server                           |\n"
-    + "|   bert4torch version: show version info                            |\n"
-    + "-" * 70
-)
+line_length = 70
 
-WELCOME = (
-    "-" * 58
-    + "\n"
-    + f"| Welcome to bert4torch, version {VERSION}"
-    + " " * (24 - len(VERSION))
-    + "|\n|"
-    + " " * 56
-    + "|\n"
-    + "| Project page: https://github.com/Tongjilibo/bert4torch |\n"
-    + "-" * 58
-)
+def create_bordered_text(lines, total_length):
+    total_length = max(total_length, max(len(line) for line in lines) + 4)
+    border = "-" * total_length
+    # 每行格式：| + 内容左对齐 + 空格填充 + |
+    formatted_lines = [f"| {line.ljust(total_length - 4)} |" for line in lines]
+    return f"{border}\n" + "\n".join(formatted_lines) + f"\n{border}"
+
+# 定义内容行（无需关心空格，只需写核心内容）
+usage_lines = [
+    "Usage:",
+    "  bert4torch serve: launch an llm server",
+    "  bert4torch version: show version info"
+]
+USAGE = create_bordered_text(usage_lines, line_length)
+
+# WELCOME单独处理（总长度58）
+welcome_lines = [
+    f"Welcome to bert4torch, version {VERSION}",
+    "",  # 空行
+    "Project page: https://github.com/Tongjilibo/bert4torch"
+]
+WELCOME = create_bordered_text(welcome_lines, line_length)
 
 
 @unique

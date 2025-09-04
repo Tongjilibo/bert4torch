@@ -168,7 +168,7 @@ def get_args_parser() -> ArgumentParser:
     parser.add_argument("--route_api", type=str, default='/chat/completions', help="openai api args: `/chat/completions` route url")
     parser.add_argument("--route_models", type=str, default='/models', help="openai api args: `/models` route url")
     parser.add_argument("--api_keys", type=List[str], default=None, help="openai api args: authorized api keys list")
-    parser.add_argument("--offload_when_nocall", type=Literal['cpu', 'disk', 'delete'], default=None, help="openai api args: ")
+    parser.add_argument("--offload_when_nocall", type=str, choices=['cpu', 'disk', 'delete'], default=None, help="openai api args: ")
     parser.add_argument("--offload_max_callapi_interval", type=int, default=24*3600, help="openai api args: ")
     parser.add_argument("--offload_scheduler_interval", type=int, default=10*60, help="openai api args: ")
     
