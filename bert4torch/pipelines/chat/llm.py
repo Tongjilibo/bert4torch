@@ -985,7 +985,7 @@ class Glm3(ChatBase):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> list:
         if (len(history) == 0) or (history[0]["role"] != "system"):
             # 增加system信息
-            if self.system is not None:
+            if self.system:
                 history.insert(0, {"role": "system", "content": self.system})
             elif functions is not None:
                 history.insert(0, {
@@ -1072,7 +1072,7 @@ class Glm4(ChatBase):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None):
         if (len(history) == 0) or (history[0]["role"] != "system"):
             # 增加system信息
-            if self.system is not None:
+            if self.system:
                 history.insert(0, {"role": "system", "content": self.system})
             elif functions is not None:
                 history.insert(0, {"role": "system", "tools": functions, "content": ""})
@@ -1786,7 +1786,7 @@ class ApplyChatTemplate(ChatBase):
         }
 
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
-        if (self.system is not None) and ((len(history) == 0) or (history[0]["role"] != "system")):
+        if self.system and ((len(history) == 0) or (history[0]["role"] != "system")):
             history.insert(0, {"role": "system", "content": self.system})
 
         history = self.update_history(history, query)

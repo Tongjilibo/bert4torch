@@ -56,7 +56,7 @@ def main():
     
     # Qwen3-0.6B-Base  Qwen3-1.7B-Base  Qwen3-4B-Base  Qwen3-8B-Base  Qwen3-14B-Base
     # Qwen3-0.6B       Qwen3-1.7B       Qwen3-4B       Qwen3-8B       Qwen3-14B        Qwen3-32B
-    # Qwen3-4B-Instruct-2507  Qwen3-4B-Thinking-2507
+    # Qwen3-4B-Instruct-2507  Qwen3-4B-Thinking-2507  Qwen3-30B-A3B-Instruct-2507  Qwen3-30B-A3B-Thinking-2507
     model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-0.6B'
 
     # batch: 同时infer多条query
@@ -75,7 +75,7 @@ def main():
         'max_new_tokens': 512,
         }
     demo = Chat(model_dir, 
-                system='',
+                system=None,
                 mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
                 # system='You are a helpful assistant.', 
                 generation_config=generation_config,
