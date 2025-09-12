@@ -22,7 +22,7 @@ cli_demo = Chat(
     dir_path, 
     mode='cli',
     generation_config=generation_config,
-    quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8}
+    quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8}
     )
 
 if __name__ == '__main__':

@@ -14,7 +14,7 @@ class Chat:
     ### 基础参数
     :param checkpoint_path: str, 模型所在的文件夹地址
     :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
-    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
+    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quant_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
         - bos_token_id: int, 解码使用的起始token_id, 不同预训练模型设置可能不一样
         - eos_token_id: int/tuple/list, 解码使用的结束token_id, 不同预训练模型设置可能不一样, 默认给的-1(真实场景中不存在, 表示输出到max_length)
@@ -158,8 +158,8 @@ def get_args_parser() -> ArgumentParser:
     parser.add_argument("--max_length", type=int, default=None, help="generation_config: max_length")
 
     # quantization_config: 量化参数，显存不够时候可使用
-    parser.add_argument("--quantization_method", type=str, default=None, choices=['cpm_kernels', 'load_in_8bit', 'load_in_4bit'], 
-                        help="quantization_config: quantization_method")
+    parser.add_argument("--quant_method", type=str, default=None, choices=['cpm_kernels', 'load_in_8bit', 'load_in_4bit'], 
+                        help="quantization_config: quant_method")
     parser.add_argument("--quantization_config_others", type=dict, default=None, help="quantization_config: quantization_config_others")
 
     # openai参数
@@ -187,8 +187,8 @@ def get_args_parser() -> ArgumentParser:
         }
     args.generation_config = {k: v for k, v in generation_config.items() if v is not None}
 
-    if args.quantization_method is not None:
-        quantization_config = {"quantization_method": args.quantization_method}
+    if args.quant_method is not None:
+        quantization_config = {"quant_method": args.quant_method}
         if args.quantization_config_others is not None and isinstance(args.quantization_config_others, dict):
             quantization_config.update(args.quantization_config_others)
         args.quantization_config = quantization_config

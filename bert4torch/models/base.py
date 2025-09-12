@@ -18,7 +18,8 @@ from bert4torch.snippets import (
     log_info, 
     log_warn,
     log_warn_once,
-    is_accelerate_available
+    is_accelerate_available,
+    DottableDict
 )
 from torch4keras.model import BaseModel, add_trainer
 import warnings
@@ -28,7 +29,6 @@ import gc
 import copy
 import re
 import os
-import inspect
 
 
 if is_accelerate_available():
@@ -180,7 +180,7 @@ class PreTrainedModel(nn.Module):
         """
         return load_checkpoint(checkpoint)
 
-    def from_pretrained_single(self, checkpoint:Union[str, os.PathLike]=None, mapping:Union[dict,Callable]=None, skip_init:bool=False, 
+    def from_pretrained_single(self, checkpoint:Union[str, os.PathLike]=None, mapping:Union[dict,Callable]=None,
                                device_map:dict=None, torch_dtype=None, verbose=1):
         """加载预训练模型(单个权重文件)，根据mapping从checkpoint加载权重"""
         # 加载模型文件, 并可专业些转换
@@ -238,11 +238,11 @@ class PreTrainedModel(nn.Module):
         self._print_mismatch_keys(missing_keys, over_keys, verbose)  # 打印mixmatch keys
 
         # 将ckpt的权重load到模型结构中
-        if not skip_init:
-            self.load_state_dict(state_dict_new, strict=False)
-        else:
+        if str(next(self.parameters()).device) == 'meta':
             load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, dtype=torch_dtype, 
                                             is_safetensors=checkpoint.endswith(".safetensors"))
+        else:
+            self.load_state_dict(state_dict_new, strict=False)
             
         del state_dict_new
         gc.collect()
@@ -252,7 +252,6 @@ class PreTrainedModel(nn.Module):
             self, 
             checkpoints:Union[str, os.PathLike, list], 
             mapping:Union[dict, Callable]=None, 
-            skip_init:bool=False, 
             device_map:dict=None, 
             torch_dtype=None, 
             verbose=1,
@@ -263,11 +262,9 @@ class PreTrainedModel(nn.Module):
         
         # 单个权重文件
         if isinstance(checkpoints, str):
-            self.from_pretrained_single(checkpoints, mapping=mapping, skip_init=skip_init, 
-                                        device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+            self.from_pretrained_single(checkpoints, mapping=mapping, device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         elif isinstance(checkpoints, (tuple, list)) and len(checkpoints)==1:
-            self.from_pretrained_single(checkpoints[0], mapping=mapping, skip_init=skip_init, 
-                                        device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
+            self.from_pretrained_single(checkpoints[0], mapping=mapping, device_map=device_map, torch_dtype=torch_dtype, verbose=verbose)
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
             all_needed_keys, all_missing_keys, all_over_keys = [], [], []
@@ -275,8 +272,7 @@ class PreTrainedModel(nn.Module):
             for checkpoint in tqdm_checkpoints:
                 tqdm_checkpoints.set_description(f'Loading {os.path.basename(checkpoint)}')
                 missing_keys, over_keys, needed_keys = \
-                    self.from_pretrained_single(checkpoint, mapping=mapping, skip_init=skip_init, 
-                                                device_map=device_map, torch_dtype=torch_dtype, verbose=0)
+                    self.from_pretrained_single(checkpoint, mapping=mapping, device_map=device_map, torch_dtype=torch_dtype, verbose=0)
                 all_needed_keys.extend(needed_keys)
                 all_missing_keys.extend(missing_keys)
                 all_over_keys.extend(over_keys)
@@ -453,13 +449,13 @@ class PreTrainedModel(nn.Module):
         else:
             self.output = outputs[0]
 
-    def quantize(self, quantization_method:Literal['cpm_kernels', 'load_in_8bit', 'load_in_4bit'], **kwargs):
+    def quantize(self, quant_method:Literal['cpm_kernels', 'load_in_8bit', 'load_in_4bit', 'gptq', 'awq'], **kwargs):
         '''量化
         
         Examples:
         ```python
         >>> # 1. bitsandbytes的load_in_8bit量化
-        >>> model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
+        >>> model = model.quantize(quant_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
         
         >>> # 2. bitsandbytes的load_in_4bit量化
         >>> from transformers import BitsAndBytesConfig
@@ -469,35 +465,38 @@ class PreTrainedModel(nn.Module):
         ...                             bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
         ...                             llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
         ...                             )
-        >>> model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
+        >>> model = model.quantize(quant_method='load_in_4bit', quantization_config=q_config)
         
         >>> # 3. cpm_kernels量化
-        >>> model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8)
+        >>> model = model.quantize(quant_method='cpm_kernels', quantization_bit=8)
         ```
         '''
         if self.quantized:
             print("Already quantized.")
             return self
         
-        new_kwargs = copy.deepcopy(kwargs)
-        if 'model' in new_kwargs:
-            new_kwargs.pop('model')
+        config = DottableDict(copy.deepcopy(kwargs))
+        if 'model' in config:
+            config.pop('model')
+        
+        from bert4torch.quantizers.auto import AUTO_QUANTIZER_MAPPING
+        config['quant_method'] = quant_method
+        torch_dtype = config.pop('torch_dtype', 'auto')
+        device_map = config.pop('device_map', 'auto') or 'auto'
+        quantizer = AUTO_QUANTIZER_MAPPING[quant_method](quantization_config=config)
+        quantizer.validate_environment(
+            torch_dtype=torch_dtype,
+            device_map=device_map,
+            weights_only=True,
+        )
+        torch_dtype = quantizer.update_torch_dtype(torch_dtype)
+        device_map = quantizer.update_device_map(device_map)
+        config = quantizer.update_tp_plan(config)
 
-        # chatglm的量化方式
-        if quantization_method == 'cpm_kernels':
-            from bert4torch.quantization import quantize_cpm_kernels
-            self.half()
-            self = quantize_cpm_kernels(self, **new_kwargs)
-        # load_in_8bit, load_in_4bit
-        elif quantization_method in {'load_in_8bit', 'load_in_4bit'}:
-            from bert4torch.quantization import quantize_load_in_kbit
-            load_in_8bit = True if quantization_method == 'load_in_8bit' else False
-            load_in_4bit = True if quantization_method == 'load_in_4bit' else False
-            self = quantize_load_in_kbit(self, load_in_8bit=load_in_8bit, load_in_4bit=load_in_4bit, **new_kwargs)
-        else:
-            raise ValueError('Please check args `quantization_method`')
+        quantizer.preprocess_model(model=self, device_map=device_map, quantization_config=config)
 
         self.quantized = True
+        self.quantizer = quantizer
         torch.cuda.empty_cache()
         return self
 

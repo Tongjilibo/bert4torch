@@ -236,11 +236,10 @@ def build_transformer_model(
         transformer.apply(transformer.init_model_weights)  # 初始化权重
 
     # 预训练模型是否已量化, 加载量化后的权重使用, 如果是加载原权重再自行量化这里不需要设置
-    if config.get('quantization_method') is not None:
-        if skip_init:  # 把meta权重to_empty(device='cpu'), 执行后就不是meta了
-            transformer.apply(transformer.init_meta_weights)
-        transformer = transformer.half().quantize(**config)
-        skip_init = False
+    pre_quantized = hasattr(config, "quantization_config")
+    if pre_quantized:
+        transformer = transformer.quantize(device_map=device_map, torch_dtype=torch_dtype, 
+                                           **config['quantization_config'])
 
     # 恢复默认权重类型
     if dtype_orig is not None:
@@ -251,7 +250,7 @@ def build_transformer_model(
     if checkpoint_path is not None:
         # 根据模型尺寸和硬件(gpu, cpu)的大小来确定device_map
         device_map = get_device_map(transformer, device_map, torch_dtype, **config)
-        transformer.from_pretrained(checkpoint_path, mapping=config.pop('mapping', None), skip_init=skip_init, 
+        transformer.from_pretrained(checkpoint_path, mapping=config.pop('mapping', None), 
                                     device_map=device_map, torch_dtype=torch_dtype, verbose=verbose, **config)
     
     # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
@@ -267,6 +266,9 @@ def build_transformer_model(
         if len(meta_names) > 0:
             log_error(f'Meta device not allowed: {meta_names}')
     
+    if hasattr(transformer, 'quantizer'):
+        transformer.quantizer.postprocess_model(transformer, config=config)
+
     return transformer
 
 

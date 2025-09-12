@@ -57,7 +57,7 @@ def main():
     # Qwen3-0.6B-Base  Qwen3-1.7B-Base  Qwen3-4B-Base  Qwen3-8B-Base  Qwen3-14B-Base
     # Qwen3-0.6B       Qwen3-1.7B       Qwen3-4B       Qwen3-8B       Qwen3-14B        Qwen3-32B
     # Qwen3-4B-Instruct-2507  Qwen3-4B-Thinking-2507  Qwen3-30B-A3B-Instruct-2507  Qwen3-30B-A3B-Thinking-2507
-    model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-0.6B'
+    model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-0.6B-GPTQ-Int8'
 
     # batch: 同时infer多条query
     # gen_1toN: 为一条query同时生成N条response
@@ -74,17 +74,17 @@ def main():
         'top_p': 0.8,
         'max_new_tokens': 512,
         }
-    demo = Chat(model_dir, 
-                system=None,
-                mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
-                # system='You are a helpful assistant.', 
-                generation_config=generation_config,
-                # quantization_config={'quantization_method': 'cpm_kernels', 'quantization_bit':8},
-                # offload_when_nocall='disk',  # offload到哪里
-                # offload_max_callapi_interval=30,  # 超出该时间段无调用则offload
-                # offload_scheduler_interval=3,  # 检查的间隔
-                # enable_thinking=False
-                )
+    demo = Chat(
+        model_dir, 
+        system=None,
+        mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
+        generation_config=generation_config,
+        # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8},
+        # offload_when_nocall='disk',  # offload到哪里
+        # offload_max_callapi_interval=30,  # 超出该时间段无调用则offload
+        # offload_scheduler_interval=3,  # 检查的间隔
+        # enable_thinking=False
+    )
 
     if choice == 'batch':
         # chat模型，batch_generate的示例

@@ -13,8 +13,8 @@ from typing import List, Union, Dict
 import re
 from tqdm import tqdm
 from functools import partial
-import inspect
 from bert4torch.snippets import is_package_available
+from .base import QuantizerBase
 
 try:
     from cpm_kernels.kernels.base import LazyKernelCModule, KernelFunction, round_up
@@ -222,112 +222,79 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
         return output
 
 
-def quantize_cpm_kernels(model:nn.Module, quantization_bit:int=8, use_quantization_cache:bool=False, 
-                         empty_init:bool=False, target_modules:Union[str, List]=None, **kwargs):
-    """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
-    源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
-    
-    Replace fp16 linear with quantized linear
-    这里修改了hard code, 可以适配其他模型
-    target_modules: str/list, 指定对某些层做量化
-    """
-    if not is_package_available('cpm_kernels'):
-        raise ModuleNotFoundError('Module `cpm_kernels` not found, you may use `pip install cpm_kernels`')
-
-    modules_trans = {}
-    for name, module in model.named_modules():
-        # target_modules=None, 表示对所有Linear层替换
-        if (target_modules is None) and isinstance(module, Linear):
-            modules_trans[name] = module
-        elif (target_modules is not None) and isinstance(module, Linear):
-            if isinstance(target_modules, str):
-                target_module_found = re.fullmatch(target_modules, name)
-            else:
-                target_module_found = any(name.endswith(target_key) for target_key in target_modules)
-            if target_module_found:
-                modules_trans[name] = module
-    
-    # TODO: 暂时只支持cuda
-    current_device = torch.cuda.current_device()
-    dtype = torch.half
-
-    QuantizedLinearWithPara = partial(
-        QuantizedLinear,
-        weight_bit_width=quantization_bit,
-        bias=True,
-        dtype=dtype,
-        empty_init=empty_init
-    )
+class CpmKernelQuantizer(QuantizerBase):
+    def _process_model_before_weight_loading(
+            model:nn.Module, 
+            quantization_bit:int=8, 
+            use_quantization_cache:bool=False, 
+            empty_init:bool=False, 
+            target_modules:Union[str, List]=None, 
+            **kwargs
+        ):
+        """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
+        源链接：https://huggingface.co/THUDM/chatglm-6b/blob/main/quantization.py
         
-    cache = dict()
-    for name, module in tqdm(modules_trans.items(), desc='Quantize linear layers'):
-        cache_name = re.sub(r'\.[0-9]+\.', '.', name)
-        if use_quantization_cache and (cache_name not in cache):
-            n, m = module.weight.size(0), module.weight.size(1)
-            cache[cache_name] = CacheTensor(n, m, dtype=dtype, device=current_device, requires_grad=False)
+        Replace fp16 linear with quantized linear
+        这里修改了hard code, 可以适配其他模型
+        target_modules: str/list, 指定对某些层做量化
+        """
+        if not is_package_available('cpm_kernels'):
+            raise ModuleNotFoundError('Module `cpm_kernels` not found, you may use `pip install cpm_kernels`')
 
-        module_quant = QuantizedLinearWithPara(
-                weight_tensor=module.weight.to(current_device),
-                bias_tensor=module.bias,
-                in_features=module.in_features,
-                out_features=module.out_features,
-                device=module.weight.device,
-                quantization_cache=cache.get(cache_name)
-            )
-        del module
-        # 赋值
-        name_new = list(name)
-        for iter_ in re.finditer(r'\.[0-9]+\.', name):
-            iter_str = name[iter_.start():iter_.end()]
-            name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
-            name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
-        exec('model.' + ''.join(name_new) + ' = module_quant')
-    return model
+        # 把meta权重to_empty(device='cpu'), 执行后就不是meta了
+        if str(next(model.parameters()).device) == 'meta':
+            model.apply(model.init_meta_weights)
 
+        model.half()  # 确保模型是fp16
+        modules_trans = {}
+        for name, module in model.named_modules():
+            # target_modules=None, 表示对所有Linear层替换
+            if (target_modules is None) and isinstance(module, Linear):
+                modules_trans[name] = module
+            elif (target_modules is not None) and isinstance(module, Linear):
+                if isinstance(target_modules, str):
+                    target_module_found = re.fullmatch(target_modules, name)
+                else:
+                    target_module_found = any(name.endswith(target_key) for target_key in target_modules)
+                if target_module_found:
+                    modules_trans[name] = module
+        
+        # TODO: 暂时只支持cuda
+        current_device = torch.cuda.current_device()
+        dtype = torch.half
 
-def quantize_load_in_kbit(model:nn.Module, load_in_8bit:bool=False, load_in_4bit:bool=False, keep_in_fp32_modules:List=None, 
-                          llm_int8_skip_modules:List=None, quantization_config:Dict=None, **kwargs):
-    '''transformer的load_in_8bit, 源自transformer源代码'''
-    # 兼容transformers新旧版本
-    try:
-        from transformers.integrations import replace_with_bnb_linear, set_module_quantized_tensor_to_device
-    except:
-        from transformers.utils.bitsandbytes import replace_with_bnb_linear, set_module_quantized_tensor_to_device
-    from transformers.utils.quantization_config import BitsAndBytesConfig
-    if quantization_config is None:
-        quantization_config, kwargs = BitsAndBytesConfig.from_dict(
-            config_dict={"load_in_8bit": load_in_8bit, "load_in_4bit": load_in_4bit}, return_unused_kwargs=True, **kwargs
+        QuantizedLinearWithPara = partial(
+            QuantizedLinear,
+            weight_bit_width=quantization_bit,
+            bias=True,
+            dtype=dtype,
+            empty_init=empty_init
         )
-    elif quantization_config is not None:
-        load_in_8bit = quantization_config.load_in_8bit
-        load_in_4bit = quantization_config.load_in_4bit
-        quantization_config_kwargs = {
-            k: v for k, v in kwargs.items() if k in inspect.signature(BitsAndBytesConfig).parameters
-        }
+            
+        cache = dict()
+        for name, module in tqdm(modules_trans.items(), desc='Quantize linear layers'):
+            cache_name = re.sub(r'\.[0-9]+\.', '.', name)
+            if use_quantization_cache and (cache_name not in cache):
+                n, m = module.weight.size(0), module.weight.size(1)
+                cache[cache_name] = CacheTensor(n, m, dtype=dtype, device=current_device, requires_grad=False)
 
-        if len(quantization_config_kwargs) > 0:
-            raise ValueError(
-                "You can't pass `load_in_8bit` or any other `BitsAndBytesConfig` argument as a kwarg when passing "
-                "`quantization_config` argument at the same time."
-            )
+            module_quant = QuantizedLinearWithPara(
+                    weight_tensor=module.weight.to(current_device),
+                    bias_tensor=module.bias,
+                    in_features=module.in_features,
+                    out_features=module.out_features,
+                    device=module.weight.device,
+                    quantization_cache=cache.get(cache_name)
+                )
+            del module
+            # 赋值
+            name_new = list(name)
+            for iter_ in re.finditer(r'\.[0-9]+\.', name):
+                iter_str = name[iter_.start():iter_.end()]
+                name_new[iter_.start():iter_.end()] = [''] * (iter_.end()-iter_.start())
+                name_new[iter_.start()] = '[' + iter_str[1:-1] + '].'
+            exec('model.' + ''.join(name_new) + ' = module_quant')
+        return model
 
-    load_in_8bit_skip_modules = quantization_config.llm_int8_skip_modules or []
 
-    # We keep some modules such as the lm_head in their original dtype for numerical stability reasons
-    modules_to_not_convert = load_in_8bit_skip_modules
-    if not isinstance(modules_to_not_convert, list):
-        modules_to_not_convert = [modules_to_not_convert]
 
-    modules_to_not_convert.extend([] if keep_in_fp32_modules is None else keep_in_fp32_modules)
-    modules_to_not_convert.extend([] if llm_int8_skip_modules is None else llm_int8_skip_modules)
-
-    state_dict = model.state_dict()
-    model = replace_with_bnb_linear(model, modules_to_not_convert=modules_to_not_convert, quantization_config=quantization_config)
-
-    for key, param in model.named_parameters():
-        if param.device == torch.device("meta"):
-            set_module_quantized_tensor_to_device(model, key, 'cpu', value=state_dict[key])
-
-    model.is_loaded_in_8bit = load_in_8bit
-    model.is_loaded_in_4bit = load_in_4bit
-    return model

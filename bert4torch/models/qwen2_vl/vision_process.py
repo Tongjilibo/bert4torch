@@ -8,12 +8,15 @@ import time
 import warnings
 from functools import lru_cache
 import torch
-import torchvision
 from packaging import version
-from PIL import Image
-from torchvision import io, transforms
-from torchvision.transforms import InterpolationMode
 from bert4torch.snippets import load_image
+try:
+    from PIL import Image
+    import torchvision
+    from torchvision import io, transforms
+    from torchvision.transforms import InterpolationMode
+except:
+    pass
 
 
 logger = logging.getLogger(__name__)

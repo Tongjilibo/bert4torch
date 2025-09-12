@@ -37,7 +37,7 @@ tokenizer.padding_side = 'left'
 # 建立模型，加载权重
 if choice in {'default', 'v1.1.0'}:
     model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).half()
-    model = model.quantize(quantization_method='cpm_kernels', quantization_bit=8).to(device)
+    model = model.quantize(quant_method='cpm_kernels', quantization_bit=8).to(device)
 else:
     # 在config中已经写入了量化的配置参数
     model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)

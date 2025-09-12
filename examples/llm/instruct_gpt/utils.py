@@ -31,7 +31,7 @@ def get_nbit_lora_model(model, load_in_nbit=Literal[8, 4], use_lora=False):
         class CastOutputToFloat(nn.Sequential):
             def forward(self, x):
                 return super().forward(x).to(torch.float32)
-        model = model.quantize(quantization_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
+        model = model.quantize(quant_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
         model.lm_head = CastOutputToFloat(model.lm_head)
         
     elif load_in_nbit == 4:
@@ -43,7 +43,7 @@ def get_nbit_lora_model(model, load_in_nbit=Literal[8, 4], use_lora=False):
                                     bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
                                     llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
                                     )
-        model = model.quantize(quantization_method='load_in_4bit', quantization_config=q_config)
+        model = model.quantize(quant_method='load_in_4bit', quantization_config=q_config)
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
     # lora

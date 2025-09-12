@@ -7,7 +7,7 @@ import platform
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 import os
-from bert4torch.quantization import quantize_cpm_kernels
+from bert4torch.quantizers.quantizer_cpm_kernels import quantize_cpm_kernels
 
 ckpt_path = 'E:/data/pretrain_ckpt/moss/moss-moon-003-sft'
 tokenizer = AutoTokenizer.from_pretrained(ckpt_path, trust_remote_code=True)

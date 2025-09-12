@@ -108,7 +108,7 @@ If a question does not make any sense, or is not factually coherent, explain why
 CHAT_START_DOCSTRING = r"""
     :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
     :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
-    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quantization_method':'cpm_kernels', 'quantization_bit':8}
+    :param quantization_config: dict, 模型量化使用到的参数, eg. {'quant_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
     :param system: Optional[str]=None, 模型使用的system信息, 仅部分模型可用, 且openai api格式的不需要设置该参数

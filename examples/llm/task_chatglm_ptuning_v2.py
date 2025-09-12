@@ -156,7 +156,7 @@ dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev.json')), batch
 # ====================================建立模型====================================
 if model_name in {'chatglm-6b', 'chatglm2-6b'}:
     encoder = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).half()
-    encoder = encoder.quantize(quantization_method='cpm_kernels', quantization_bit=4, 
+    encoder = encoder.quantize(quant_method='cpm_kernels', quantization_bit=4, 
                                target_modules=['q', 'k', 'v', 'o', 'intermediateDense', 'outputDense']).to(device)
 else:
     # 在config中已经写入了量化的配置参数

@@ -8,7 +8,7 @@ import gc
 import inspect
 from torch.utils.checkpoint import CheckpointFunction
 from torch4keras.snippets import log_info, log_warn, log_error, TimeitContextManager, is_accelerate_available, find_tied_parameters, log_warn_once
-from typing import Union
+from typing import Union, Optional
 import re
 from packaging import version
 from io import BytesIO
@@ -392,6 +392,35 @@ def load_image(image: Union[Image.Image, np.ndarray, str]) -> Image.Image:
         raise ValueError(f"Unrecognized image input, support local path, http url, base64, np.ndarray and PIL.Image, got {image}")
     image = image_obj.convert("RGB")
     return image
+
+
+def get_layers(module: nn.Module, layers=[nn.Conv2d, nn.Linear], prefix: Optional[str] = None, name: str = ""):
+    """
+    Get all the layers with a specific prefix in the module
+    Args:
+        module (`nn.Module`):
+            The module that contains our layers
+        layers (`list`, defaults to `[Conv1D, nn.Conv2d, nn.Linear]`):
+            Type of the layers that we want to get
+        prefix (`Optional[str]`, defaults to `None`):
+            Prefix of layers
+        name (`str`, defaults to `""`):
+            Used for recursion. Don't modify
+
+    Returns:
+        `Dict[str,Union[Conv1D, nn.Conv2d, nn.Linear]]`: Mapping of the name of the layer and the actual layer
+    """
+    for layer in layers:
+        if isinstance(module, layer):
+            if prefix is not None:
+                if name.startswith(prefix):
+                    return {name: module}
+            else:
+                return {name: module}
+    res = {}
+    for name1, child in module.named_children():
+        res.update(get_layers(child, layers=layers, prefix=prefix, name=name + "." + name1 if name != "" else name1))
+    return res
 
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):

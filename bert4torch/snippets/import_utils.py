@@ -1,7 +1,7 @@
 import importlib.util
 import torch
 from packaging import version
-from torch4keras.snippets.import_utils import is_package_available
+from torch4keras.snippets.import_utils import *
 from importlib.util import find_spec
 import sys
 if sys.version_info < (3, 8):
@@ -53,3 +53,19 @@ def is_torch_sdpa_available() -> bool:
 
 def is_transformers_available(return_version:bool=False) -> bool:
     return is_package_available('transformers', return_version)
+
+
+def is_auto_gptq_available() -> bool:
+    return is_package_available("auto_gptq")
+
+
+def is_gptqmodel_available() -> bool:
+    return is_package_available("gptqmodel")
+
+
+def is_optimum_available() -> bool:
+    return is_package_available("optimum")
+
+
+def is_auto_awq_available() -> bool:
+    return importlib.util.find_spec("awq") is not None
