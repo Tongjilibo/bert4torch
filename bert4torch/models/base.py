@@ -5,10 +5,10 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
+from bert4torch.models.modeling_utils import load_state_dict_into_meta_model
 from bert4torch.snippets import (
     JsonConfig, 
     log_warn, 
-    load_state_dict_into_meta_model, 
     find_tied_parameters, 
     print_trainable_parameters,
     get_parameter_device, 
@@ -33,12 +33,6 @@ import os
 
 if is_accelerate_available():
     from accelerate import dispatch_model
-    from accelerate.utils.modeling import (
-        infer_auto_device_map, 
-        get_balanced_memory, 
-        check_tied_parameters_on_same_device, 
-        get_max_memory
-    )
 
 
 class PreTrainedModel(nn.Module):
@@ -480,10 +474,11 @@ class PreTrainedModel(nn.Module):
             config.pop('model')
         
         from bert4torch.quantizers.auto import AUTO_QUANTIZER_MAPPING
+        from bert4torch.quantizers.base import QuantizerBase
         config['quant_method'] = quant_method
-        torch_dtype = config.pop('torch_dtype', 'auto')
-        device_map = config.pop('device_map', 'auto') or 'auto'
-        quantizer = AUTO_QUANTIZER_MAPPING[quant_method](quantization_config=config)
+        torch_dtype = config.pop('torch_dtype', None)
+        device_map = config.pop('device_map', None)
+        quantizer:QuantizerBase = AUTO_QUANTIZER_MAPPING[quant_method](quantization_config=config)
         quantizer.validate_environment(
             torch_dtype=torch_dtype,
             device_map=device_map,

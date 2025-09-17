@@ -10,7 +10,8 @@ import inspect
 from torch.nn.modules import Module
 from torch4keras.trainer import AutoTrainer, Trainer
 from bert4torch.models import BaseModel, build_transformer_model
-from bert4torch.snippets import is_peft_available, disable_dropout_in_model, peft_module_casting_to_bf16
+from bert4torch.models.modeling_utils import disable_dropout_in_model, peft_module_casting_to_bf16
+from bert4torch.snippets import is_peft_available
 from bert4torch.snippets import DottableDict, print_trainable_parameters
 if is_peft_available():
     from peft import PeftModel, get_peft_model, prepare_model_for_kbit_training

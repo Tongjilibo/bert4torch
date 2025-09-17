@@ -42,21 +42,21 @@ def call_sseclient():
 
 
 def main():
-    # Qwen-1_8B       Qwen-7B       Qwen-14B
-    # Qwen-1_8B-Chat  Qwen-7B-Chat  Qwen-14B-Chat
-
-    # Qwen1.5-0.5B       Qwen1.5-1.8B       Qwen1.5-7B       Qwen1.5-14B
-    # Qwen1.5-0.5B-Chat  Qwen1.5-1.8B-Chat  Qwen1.5-7B-Chat  Qwen1.5-14B-Chat
-
-    # Qwen2-0.5B           Qwen2-1.5B           Qwen2-7B
-    # Qwen2-0.5B-Instruct  Qwen2-1.5B-Instruct  Qwen2-7B-Instruct
-
-    # Qwen2.5-0.5B           Qwen2.5-1.5B           Qwen2.5-3B           Qwen2.5-7B           Qwen2.5-14B
-    # Qwen2.5-0.5B-Instruct  Qwen2.5-1.5B-Instruct  Qwen2.5-3B-Instruct  Qwen2.5-7B-Instruct  Qwen2.5-14B-Instruct
-    
-    # Qwen3-0.6B-Base  Qwen3-1.7B-Base  Qwen3-4B-Base  Qwen3-8B-Base  Qwen3-14B-Base
-    # Qwen3-0.6B       Qwen3-1.7B       Qwen3-4B       Qwen3-8B       Qwen3-14B        Qwen3-32B
-    # Qwen3-4B-Instruct-2507  Qwen3-4B-Thinking-2507  Qwen3-30B-A3B-Instruct-2507  Qwen3-30B-A3B-Thinking-2507
+    # Qwen-1_8B	Qwen-7B	Qwen-14B
+    # Qwen-1_8B-Chat	Qwen-7B-Chat	Qwen-14B-Chat
+        
+    # Qwen1.5-0.5B	Qwen1.5-1.8B	Qwen1.5-7B	Qwen1.5-14B
+    # Qwen1.5-0.5B-Chat	Qwen1.5-1.8B-Chat	Qwen1.5-7B-Chat	Qwen1.5-14B-Chat
+        
+    # Qwen2-0.5B	Qwen2-1.5B	Qwen2-7B
+    # Qwen2-0.5B-Instruct	Qwen2-1.5B-Instruct	Qwen2-7B-Instruct
+        
+    # Qwen2.5-0.5B	Qwen2.5-1.5B	Qwen2.5-3B	Qwen2.5-7B	Qwen2.5-14B
+    # Qwen2.5-0.5B-Instruct	Qwen2.5-1.5B-Instruct	Qwen2.5-3B-Instruct	Qwen2.5-7B-Instruct	Qwen2.5-14B-Instruct
+        
+    # Qwen3-0.6B-Base	Qwen3-1.7B-Base	Qwen3-4B-Base	Qwen3-8B-Base	Qwen3-14B-Base
+    # Qwen3-0.6B	Qwen3-0.6B-GPTQ-Int8	Qwen3-1.7B	Qwen3-4B	Qwen3-8B	Qwen3-14B	Qwen3-32B
+    # Qwen3-4B-Instruct-2507	Qwen3-4B-Thinking-2507	Qwen3-30B-A3B-Instruct-2507	Qwen3-30B-A3B-Thinking-2507
     model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-0.6B-GPTQ-Int8'
 
     # batch: 同时infer多条query
@@ -76,14 +76,15 @@ def main():
         }
     demo = Chat(
         model_dir, 
-        system=None,
+        system = None,
         mode = 'cli' if choice in {'batch', 'gen_1toN'} else choice,
-        generation_config=generation_config,
+        generation_config = generation_config,
         # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8},
         # offload_when_nocall='disk',  # offload到哪里
         # offload_max_callapi_interval=30,  # 超出该时间段无调用则offload
         # offload_scheduler_interval=3,  # 检查的间隔
-        # enable_thinking=False
+        # enable_thinking=False,
+        device_map='auto'
     )
 
     if choice == 'batch':

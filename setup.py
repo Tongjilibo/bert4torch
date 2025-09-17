@@ -2,7 +2,7 @@
 import os
 from setuptools import setup, find_packages
 import re
-
+from typing import List
 
 with open("README.md", "r", encoding='utf-8') as fh:
     long_description = fh.read()
@@ -16,14 +16,14 @@ def get_version() -> str:
         return version
 
 
-def get_requires() -> list[str]:
+def get_requires() -> List[str]:
     with open("requirements.txt", encoding="utf-8") as f:
         file_content = f.read()
         lines = [line.strip() for line in file_content.strip().split("\n") if not line.startswith("#")]
         return lines
 
 
-def get_console_scripts() -> list[str]:
+def get_console_scripts() -> List[str]:
     console_scripts = [
         "bert4torch = bert4torch.cli:main",
         "b4t = bert4torch.cli:main"

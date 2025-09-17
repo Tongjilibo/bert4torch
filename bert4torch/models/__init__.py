@@ -34,6 +34,7 @@ from typing import Union, Literal
 import json
 import os
 import torch
+from bert4torch.models.modeling_utils import set_default_torch_dtype, get_device_map
 from bert4torch.snippets import (
     log_warn_once, 
     log_error,
@@ -41,10 +42,8 @@ from bert4torch.snippets import (
     is_xformers_available, 
     is_torch_sdpa_available,
     is_accelerate_available,
-    set_default_torch_dtype, 
     get_checkpoint_path, 
     get_config_path,
-    get_device_map,
     DottableDict
 )
 
@@ -239,7 +238,7 @@ def build_transformer_model(
     pre_quantized = hasattr(config, "quantization_config")
     if pre_quantized:
         transformer = transformer.quantize(device_map=device_map, torch_dtype=torch_dtype, 
-                                           **config['quantization_config'])
+                                           **config.pop('quantization_config'))
 
     # 恢复默认权重类型
     if dtype_orig is not None:

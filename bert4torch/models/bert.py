@@ -2,9 +2,10 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 from bert4torch.models.base import PreTrainedModel
+from bert4torch.models.modeling_utils import old_checkpoint
 from bert4torch.layers import LayerNorm, BertEmbeddings, TRANSFORMER_BLOCKS
 from bert4torch.layers import LayerNorm, BertEmbeddings, BertLayer, BlockIdentity
-from bert4torch.snippets import old_checkpoint, create_position_ids_start_at_padding, DottableDict, modify_variable_mapping
+from bert4torch.snippets import create_position_ids_start_at_padding, DottableDict, modify_variable_mapping
 from bert4torch.activations import get_activation
 import copy
 from packaging import version
