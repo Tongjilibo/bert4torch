@@ -15,7 +15,6 @@ import os
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
 from bert4torch.pipelines.base import PipeLineBase
-from bert4torch.models import build_transformer_model, Decoder, Transformer
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -51,6 +50,7 @@ from .conversation import Conversation
 class NoneObject:
     def __init__(self, *args, **kwarg):
         pass
+
 
 if is_fastapi_available():
     from fastapi import FastAPI, HTTPException, APIRouter, Depends
@@ -107,7 +107,7 @@ If a question does not make any sense, or is not factually coherent, explain why
 
 CHAT_START_DOCSTRING = r"""
     :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
-    :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
+    :param torch_dtype: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quant_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
     :param create_model_at_startup: bool, 是否在启动的时候加载模型, 默认为True
@@ -120,7 +120,7 @@ CHAT_START_DOCSTRING = r"""
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBase(PipeLineBase):
     def __init__(self, checkpoint_path:str, config_path:str=None, 
-                 precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
+                 torch_dtype:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, 
                  create_model_at_startup:bool=True, system:str=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -135,8 +135,9 @@ class ChatBase(PipeLineBase):
             self.config = DottableDict()
             self.generation_config = dict()
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
-        self.precision = precision
+        self.torch_dtype = torch_dtype
         self.quantization_config = quantization_config
+        kwargs['return_dict'] = False
         if create_model_at_startup:
             self.model = self.build_model(**kwargs)
         # tokenizer放在build_model之后，防止用户传入的是模型名称需要下载
@@ -144,6 +145,7 @@ class ChatBase(PipeLineBase):
         self.generation_config['tokenizer'] = self.tokenizer
         self.template_config = self.config.get('template_config', dict())
         self.system = system
+        self.kwargs = kwargs
 
     def no_history_states(self) -> bool:
         '''不使用history的states'''
@@ -174,39 +176,6 @@ class ChatBase(PipeLineBase):
             else:
                 log_error(f'Please check your transformer=={transformer_version}, which may not compatible.')
             raise e
-
-    def build_model(self, **model_init_config) -> Union[Decoder, Transformer]:
-        '''初始化model, 方便外部继承'''
-        if (not hasattr(self, 'model')) or (self.model is None):
-            # 初始化
-            self.model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, **model_init_config)
-            self.model.eval()
-
-            # 精度
-            if self.precision == 'double':
-                self.model = self.model.double()
-            elif self.precision == 'float':
-                self.model = self.model.float()
-            elif self.precision in {'half', 'float16'}:
-                self.model = self.model.half()
-            elif self.precision == 'bfloat16':
-                self.model = self.model.bfloat16()
-
-            # 量化
-            if self.quantization_config is not None:
-                self.model = self.model.quantize(**self.quantization_config)
-            if model_init_config.get('device_map') is None:
-                self.model = self.model.to(self.device)
-        
-        elif self.device not in str(self.model.device):
-            # 切换device到cuda上
-            cur = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
-            log_free(f'{cur} - Moving model from cpu to {self.device}', prefix='[LOAD]', prefix_color='cyan')
-            self.model.to(self.device)
-            gc.collect()
-            cuda_empty_cache()
-            
-        return self.model
         
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         '''对response和histry进行后处理
@@ -495,7 +464,7 @@ class ChatWebStreamlit(ChatBase):
         self.max_temperature = kwargs.get('max_temperature', 10.0)
 
     @st.cache_resource
-    def build_model(_self, **kwarg):
+    def build_model(self, **kwarg):
         return super().build_model(**kwarg)
     
     @st.cache_resource
@@ -776,7 +745,7 @@ class ChatOpenaiApi(ChatBase):
         input_args_or_kwargs, history = self.prepare_build_prompt_args(request)
 
         with self.lock:
-            self.model = self.build_model()
+            self.model = self.build_model(**self.kwargs)
             self.last_callapi_timestamp = time.time()
 
             # 流式输出

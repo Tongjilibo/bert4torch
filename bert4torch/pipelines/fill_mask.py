@@ -20,10 +20,9 @@ class FillMask(PipeLineBase):
     >>> res = model.predict(["今天[MASK]气不错，[MASK]情很好", '[MASK]学技术是第一生产力'])
     ```
     '''
-    def build_model(self, model_config):
-        model_config['with_mlm'] = 'softmax'
-        return super().build_model(model_config)
-        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, with_mlm='softmax', **kwargs)
+
     @torch.inference_mode()
     def predict(
             self,

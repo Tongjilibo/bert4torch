@@ -13,7 +13,7 @@ class Chat:
 
     ### 基础参数
     :param checkpoint_path: str, 模型所在的文件夹地址
-    :param precision: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
+    :param torch_dtype: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quant_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
         - bos_token_id: int, 解码使用的起始token_id, 不同预训练模型设置可能不一样
@@ -64,7 +64,7 @@ class Chat:
                  # 基类使用
                  checkpoint_path:str, 
                  config_path:str=None,
-                 precision:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
+                 torch_dtype:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, 
                  generation_config:dict=None, 
                  create_model_at_startup:bool=True,
@@ -142,8 +142,8 @@ def get_args_parser() -> ArgumentParser:
                         help="bert4torch_config.json file path or pretrained_model_name_or_path, if not set use `checkpoint_path` instead")
     parser.add_argument("--mode", type=str, choices=['cli', 'gradio', 'openai'], default='cli', 
                         help="deploy model in cli / gradio / openai mode")
-    parser.add_argument("--precision", type=str, choices=['double', 'float', 'half', 'float16', 'bfloat16', None], default=None, 
-                        help="modify model precision")
+    parser.add_argument("--torch_dtype", type=str, choices=['double', 'float', 'half', 'float16', 'bfloat16', None], default=None, 
+                        help="modify model torch_dtype")
     
     # 命令行参数
     parser.add_argument("--system", type=str, default=None, help="cli args: model system/prompt/instrunctions")
