@@ -294,7 +294,7 @@ class Model(BaseModel):
         self.use_bert_last_4_layers = use_bert_last_4_layers
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, # segment_vocab_size=0, 
                                             output_all_encoded_layers = True if use_bert_last_4_layers else False)
-        lstm_input_size = self.bert.configs['hidden_size']
+        lstm_input_size = self.bert.config['hidden_size']
 
         self.dis_embs = nn.Embedding(20, dist_emb_size)
         self.reg_embs = nn.Embedding(3, type_emb_size)

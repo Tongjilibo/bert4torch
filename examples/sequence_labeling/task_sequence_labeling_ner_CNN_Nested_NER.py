@@ -201,7 +201,7 @@ class CNNNer(BaseModel):
                  size_embed_dim=0, logit_drop=0, kernel_size=3, n_head=4, cnn_depth=3):
         super(CNNNer, self).__init__()
         self.pretrain_model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        hidden_size = self.pretrain_model.configs['hidden_size']
+        hidden_size = self.pretrain_model.config['hidden_size']
 
         if size_embed_dim!=0:
             n_pos = 30

@@ -96,20 +96,15 @@ class AwqQuantizer(QuantizerBase):
             log_warn("We suggest you to set `torch_dtype=torch.float16` for better efficiency with AWQ.")
         return torch_dtype
 
-    def _process_model_before_weight_loading(
-        self, model, keep_in_fp32_modules: Optional[List[str]] = None, **kwargs
-    ):
-        from ..integrations import replace_quantization_scales, replace_with_awq_linear
+    def _process_model_before_weight_loading(self, model, keep_in_fp32_modules: Optional[List[str]] = None, **kwargs):
+        from transformers.integrations import replace_quantization_scales, replace_with_awq_linear
 
-        self.modules_to_not_convert = self.get_modules_to_not_convert(
-            model, self.quantization_config.modules_to_not_convert, keep_in_fp32_modules
-        )
-
+        self.modules_to_not_convert = self.quantization_config.modules_to_not_convert  # 修改
         model, has_been_replaced = replace_with_awq_linear(
             model, quantization_config=self.quantization_config, modules_to_not_convert=self.modules_to_not_convert
         )
 
-        model = replace_quantization_scales(model, model.config.model_type)
+        model = replace_quantization_scales(model, model.config.model)
 
         if not has_been_replaced:
             log_warn(
@@ -119,18 +114,18 @@ class AwqQuantizer(QuantizerBase):
 
     def _process_model_after_weight_loading(self, model, **kwargs):
         if self.quantization_config.do_fuse:
-            from ..integrations import fuse_awq_modules
+            from transformers.integrations import fuse_awq_modules
 
             model = fuse_awq_modules(model, self.quantization_config)
             model._awq_is_fused = True  # TODO: consider storing this flag in model.config instead
 
         if self.quantization_config.version == AWQLinearVersion.EXLLAMA:
-            from ..integrations import post_init_awq_exllama_modules
+            from transformers.integrations import post_init_awq_exllama_modules
 
             model = post_init_awq_exllama_modules(model, self.quantization_config.exllama_config)
 
         if self.quantization_config.version == AWQLinearVersion.IPEX:
-            from ..integrations import post_init_awq_ipex_modules
+            from transformers.integrations import post_init_awq_ipex_modules
 
             model = post_init_awq_ipex_modules(model)
 
@@ -151,3 +146,4 @@ class AwqQuantizer(QuantizerBase):
         # AWQ supports PEFT fine-tuning from version 0.2.0
         MIN_AWQ_VERSION_FOR_PEFT = "0.2.0"
         return version.parse(importlib.metadata.version("autoawq")) >= version.parse(MIN_AWQ_VERSION_FOR_PEFT)
+

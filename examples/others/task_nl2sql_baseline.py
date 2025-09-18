@@ -185,7 +185,7 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        hidden_size = self.bert.configs['hidden_size']
+        hidden_size = self.bert.config['hidden_size']
         self.conn = nn.Linear(hidden_size, num_cond_conn_op)
         self.agg = nn.Linear(hidden_size, num_agg)
         self.op = nn.Linear(hidden_size, num_op)

@@ -409,7 +409,7 @@ class Model(BaseModel):
         self.encoder.embeddings.position_embeddings.weight.requires_grad = False
         self.encoder.embeddings.segment_embeddings.weight.requires_grad = False
 
-        config = self.encoder.configs
+        config = self.encoder.config
         self.num_classes = num_classes
         self.decoder = SetDecoder(config, num_generated_triples, num_decoder_layers, num_classes)
 

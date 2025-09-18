@@ -238,7 +238,7 @@ class Model(BaseModel):
 
         # pretrain model
         self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0)
-        config = self.bert.configs
+        config = self.bert.config
         # sequence tagging
         self.sequence_tagging_sub = MultiNonLinearClassifier(config.hidden_size * 2, self.seq_tag_size, drop_prob)
         self.sequence_tagging_obj = MultiNonLinearClassifier(config.hidden_size * 2, self.seq_tag_size, drop_prob)

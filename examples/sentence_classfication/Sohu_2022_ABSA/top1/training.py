@@ -104,7 +104,7 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__() 
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, pad_token_id=tokenizer.pad_token_id)
-        hidden_size = self.bert.configs['hidden_size']
+        hidden_size = self.bert.config['hidden_size']
         self.classifier = nn.Sequential(
                 nn.Linear(hidden_size, hidden_size),
                 nn.LeakyReLU(),

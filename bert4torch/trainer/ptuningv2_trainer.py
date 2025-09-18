@@ -71,7 +71,7 @@ class PtuningV2Model(BaseModel):
         self.encoder = encoder
         if hasattr(encoder, 'model_type'):
             self.model_type = self.encoder.model_type
-        self.config = self.encoder.configs
+        self.config = self.encoder.config
         self.config.pre_seq_len = pre_seq_len
         self.config.prefix_projection = prefix_projection
         for param in self.parameters():

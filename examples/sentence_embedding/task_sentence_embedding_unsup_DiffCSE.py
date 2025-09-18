@@ -214,9 +214,9 @@ class Model(BaseModel):
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
         self.bert = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
-        self.mlp = ProjectionMLP(self.bert.configs['hidden_size'])
+        self.mlp = ProjectionMLP(self.bert.config['hidden_size'])
         self.discriminator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate)
-        self.electra_head = nn.Linear(self.bert.configs['hidden_size'], 2)
+        self.electra_head = nn.Linear(self.bert.config['hidden_size'], 2)
         self.sim = Similarity(temp=0.05)
     
     def forward(self, input_ids, mlm_inputs, attention_mask):

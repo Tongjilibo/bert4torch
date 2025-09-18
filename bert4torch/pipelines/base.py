@@ -68,7 +68,7 @@ class PipeLineBase:
                 # 使用device_map对应的device
                 self.device = model.device
             
-            self.model = model
+            return model
         
         if str(self.device) not in str(self.model.device):
             # 切换device到cuda上

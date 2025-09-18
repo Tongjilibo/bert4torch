@@ -57,7 +57,7 @@ def main():
     # Qwen3-0.6B-Base	Qwen3-1.7B-Base	Qwen3-4B-Base	Qwen3-8B-Base	Qwen3-14B-Base
     # Qwen3-0.6B	Qwen3-0.6B-GPTQ-Int8	Qwen3-1.7B	Qwen3-4B	Qwen3-8B	Qwen3-14B	Qwen3-32B
     # Qwen3-4B-Instruct-2507	Qwen3-4B-Thinking-2507	Qwen3-30B-A3B-Instruct-2507	Qwen3-30B-A3B-Thinking-2507
-    model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-0.6B'
+    model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-4B-AWQ'
 
     # batch: 同时infer多条query
     # gen_1toN: 为一条query同时生成N条response
@@ -84,7 +84,7 @@ def main():
         # offload_max_callapi_interval=30,  # 超出该时间段无调用则offload
         # offload_scheduler_interval=3,  # 检查的间隔
         # enable_thinking=False,
-        device_map='auto'
+        # device_map='auto'
     )
 
     if choice == 'batch':

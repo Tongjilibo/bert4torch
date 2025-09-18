@@ -163,7 +163,7 @@ class Model(BaseModel):
         self.crf = CRF(len(entity_categories))
 
         self.dropout = nn.Dropout(0.1)
-        self.dense3 = nn.Linear(self.bert.configs['hidden_size'], len(intents_categories))
+        self.dense3 = nn.Linear(self.bert.config['hidden_size'], len(intents_categories))
 
     def forward(self, *inputs):
         # 实体识别一阶段的输出

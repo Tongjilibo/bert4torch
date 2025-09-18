@@ -67,7 +67,7 @@ class Model(BaseModel):
         self.pool_method = pool_method
         self.bert= build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, dropout_rate=0.3, segment_vocab_size=0, with_pool=True)
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
+        self.dense = nn.Linear(self.bert.config['hidden_size'], 2)
 
     def forward(self, token_ids):
         hidden_states, pooling = self.bert([token_ids])

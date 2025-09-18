@@ -159,7 +159,7 @@ class Model(BaseModel):
     def __init__(self):
         super().__init__()
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
-        hidden_size = self.bert.configs['hidden_size']
+        hidden_size = self.bert.config['hidden_size']
         self.label_fusion_layer = LabelFusionForToken(hidden_size)
         self.start_fc = Classifier(hidden_size, num_labels)
         self.end_fc = Classifier(hidden_size, num_labels)

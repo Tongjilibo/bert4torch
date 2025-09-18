@@ -54,6 +54,7 @@ class PreTrainedModel(nn.Module):
         self.quantized = False
         self.add_trainer = kwargs.get('add_trainer', False)
         self.dtype = None
+        self.config = None
 
     def tie_weights(self):
         pass
@@ -445,6 +446,11 @@ class PreTrainedModel(nn.Module):
 
     def quantize(self, quant_method:Literal['cpm_kernels', 'load_in_8bit', 'load_in_4bit', 'gptq', 'awq'], **kwargs):
         '''量化
+        1. 前量化: 模型权重已量化, 模型权重加载前即修改模型结构, 此时quantization_config在bert4torch_config.json里面
+        2. 后量化: 模型权重未量化, 模型权重加载后再修改模型结构
+            - build_transformer_model()中传入quantization_config
+            - build_transformer_model()完成后, 再手动调用model.quantize()
+            - pipelines.Chat()中传入quantization_config
         
         Examples:
         ```python

@@ -63,7 +63,7 @@ class Model(BaseModel):
         # 这里指定了hierarchical_position和max_position，把原有的position
         self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, hierarchical_position=True, with_pool=True)
         self.dropout = nn.Dropout(0.1)
-        self.dense = nn.Linear(self.bert.configs['hidden_size'], 2)
+        self.dense = nn.Linear(self.bert.config['hidden_size'], 2)
 
     def forward(self, token_ids, segment_ids):
         _, pooled_output = self.bert([token_ids, segment_ids])

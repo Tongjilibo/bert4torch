@@ -234,6 +234,7 @@ def build_transformer_model(
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重
 
+    transformer.config = config
     # 预训练模型是否已量化, 加载量化后的权重使用, 如果是加载原权重再自行量化这里不需要设置
     pre_quantized = hasattr(config, "quantization_config")
     if pre_quantized:
@@ -254,7 +255,6 @@ def build_transformer_model(
     
     # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
     transformer.tie_weights()
-    transformer.configs = transformer.config = config
 
     # meta device则报错
     if device_map is None:
