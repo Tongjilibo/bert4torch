@@ -136,6 +136,17 @@ def load_image(image: Union[Image.Image, np.ndarray, str]) -> Image.Image:
     return image
 
 
+def has_meta_param(model:nn.Module, verbose:bool=False):
+    '''是否有meta的param'''
+    meta_names = [name_ for name_, para_ in model.named_parameters() if para_.device == torch.device('meta')]
+
+    if len(meta_names) > 0:
+        if verbose:
+            log_error(f'Meta device not allowed: {meta_names}')
+        return True
+    return False
+
+
 if version.parse(torch.__version__) >= version.parse("1.10.0"):
     inference_mode = torch.inference_mode
 else:

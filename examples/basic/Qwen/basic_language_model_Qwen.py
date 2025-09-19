@@ -55,7 +55,7 @@ def main():
     # Qwen2.5-0.5B-Instruct	Qwen2.5-1.5B-Instruct	Qwen2.5-3B-Instruct	Qwen2.5-7B-Instruct	Qwen2.5-14B-Instruct
         
     # Qwen3-0.6B-Base	Qwen3-1.7B-Base	Qwen3-4B-Base	Qwen3-8B-Base	Qwen3-14B-Base
-    # Qwen3-0.6B	Qwen3-0.6B-GPTQ-Int8	Qwen3-1.7B	Qwen3-4B	Qwen3-8B	Qwen3-14B	Qwen3-32B
+    # Qwen3-0.6B	Qwen3-0.6B-GPTQ-Int8	Qwen3-1.7B	Qwen3-4B    Qwen3-4B-AWQ	Qwen3-8B	Qwen3-14B	Qwen3-32B
     # Qwen3-4B-Instruct-2507	Qwen3-4B-Thinking-2507	Qwen3-30B-A3B-Instruct-2507	Qwen3-30B-A3B-Thinking-2507
     model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-4B-AWQ'
 
@@ -100,6 +100,7 @@ def main():
 
     else:
         demo.run()
+
 
 if __name__ == '__main__':
     main()

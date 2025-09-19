@@ -19,7 +19,8 @@ from bert4torch.snippets import (
     log_warn,
     log_warn_once,
     is_accelerate_available,
-    DottableDict
+    DottableDict,
+    has_meta_param
 )
 from torch4keras.model import BaseModel, add_trainer
 import warnings
@@ -175,8 +176,14 @@ class PreTrainedModel(nn.Module):
         """
         return load_checkpoint(checkpoint)
 
-    def from_pretrained_single(self, checkpoint:Union[str, os.PathLike]=None, mapping:Union[dict,Callable]=None,
-                               device_map:dict=None, torch_dtype=None, verbose=1):
+    def from_pretrained_single(
+        self, 
+        checkpoint:Union[str, os.PathLike]=None, 
+        mapping:Union[dict,Callable]=None,
+        device_map:dict=None, 
+        torch_dtype=None, 
+        verbose=1
+    ):
         """加载预训练模型(单个权重文件)，根据mapping从checkpoint加载权重"""
         # 加载模型文件, 并可专业些转换
         ckpt_state_dict = self.load_trans_ckpt(checkpoint)
@@ -233,7 +240,7 @@ class PreTrainedModel(nn.Module):
         self._print_mismatch_keys(missing_keys, over_keys, verbose)  # 打印mixmatch keys
 
         # 将ckpt的权重load到模型结构中
-        if str(next(self.parameters()).device) == 'meta':
+        if has_meta_param(self):
             load_state_dict_into_meta_model(self, state_dict_new, device_map=device_map, dtype=torch_dtype, 
                                             is_safetensors=checkpoint.endswith(".safetensors"))
         else:
@@ -244,13 +251,13 @@ class PreTrainedModel(nn.Module):
         return missing_keys, over_keys, needed_keys
 
     def from_pretrained(
-            self, 
-            checkpoints:Union[str, os.PathLike, list], 
-            mapping:Union[dict, Callable]=None, 
-            device_map:dict=None, 
-            torch_dtype=None, 
-            verbose=1,
-            **kwargs
+        self, 
+        checkpoints:Union[str, os.PathLike, list], 
+        mapping:Union[dict, Callable]=None, 
+        device_map:dict=None, 
+        torch_dtype=None, 
+        verbose=1,
+        **kwargs
     ):
         """加载预训练模型(单个/多个ckpt)"""
         self.dtype = torch_dtype
@@ -475,16 +482,16 @@ class PreTrainedModel(nn.Module):
             print("Already quantized.")
             return self
         
-        config = DottableDict(copy.deepcopy(kwargs))
-        if 'model' in config:
-            config.pop('model')
+        quantization_config = DottableDict(copy.deepcopy(kwargs))
+        if 'model' in quantization_config:
+            quantization_config.pop('model')
         
         from bert4torch.quantizers.auto import AUTO_QUANTIZER_MAPPING
         from bert4torch.quantizers.base import QuantizerBase
-        config['quant_method'] = quant_method
-        torch_dtype = config.pop('torch_dtype', None)
-        device_map = config.pop('device_map', None)
-        quantizer:QuantizerBase = AUTO_QUANTIZER_MAPPING[quant_method](quantization_config=config)
+        quantization_config['quant_method'] = quant_method
+        torch_dtype = quantization_config.pop('torch_dtype', None)
+        device_map = quantization_config.pop('device_map', None)
+        quantizer:QuantizerBase = AUTO_QUANTIZER_MAPPING[quant_method](quantization_config=quantization_config)
         quantizer.validate_environment(
             torch_dtype=torch_dtype,
             device_map=device_map,
@@ -492,9 +499,9 @@ class PreTrainedModel(nn.Module):
         )
         torch_dtype = quantizer.update_torch_dtype(torch_dtype)
         device_map = quantizer.update_device_map(device_map)
-        config = quantizer.update_tp_plan(config)
+        quantization_config = quantizer.update_tp_plan(quantization_config)
 
-        quantizer.preprocess_model(model=self, device_map=device_map, quantization_config=config)
+        quantizer.preprocess_model(model=self, device_map=device_map, quantization_config=quantization_config)
 
         self.quantized = True
         self.quantizer = quantizer

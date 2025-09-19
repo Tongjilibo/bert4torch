@@ -33,8 +33,7 @@ from bert4torch.models.deepseek import DeepSeek
 from typing import Union, Literal
 import json
 import os
-import torch
-from bert4torch.models.modeling_utils import set_default_torch_dtype, get_device_map
+from bert4torch.models.modeling_utils import restore_default_torch_dtype, set_default_torch_dtype, get_device_map
 from bert4torch.snippets import (
     log_warn_once, 
     log_error,
@@ -44,10 +43,11 @@ from bert4torch.snippets import (
     is_accelerate_available,
     get_checkpoint_path, 
     get_config_path,
-    DottableDict
+    DottableDict,
+    has_meta_param
 )
 
-
+@restore_default_torch_dtype
 def build_transformer_model(
         config_path: Union[str, os.PathLike] = None, 
         checkpoint_path: Union[str, os.PathLike, list] = None, 
@@ -217,9 +217,8 @@ def build_transformer_model(
         MODEL = extend_with_base_model(MODEL)
 
     # 指定默认权重类型
-    dtype_orig = None
     if torch_dtype is not None:
-        torch_dtype, dtype_orig = set_default_torch_dtype(torch_dtype, model)
+        torch_dtype = set_default_torch_dtype(torch_dtype, model, config)
 
     # 生成网络结构
     if skip_init and (checkpoint_path is not None):
@@ -240,10 +239,6 @@ def build_transformer_model(
     if pre_quantized:
         transformer = transformer.quantize(device_map=device_map, torch_dtype=torch_dtype, 
                                            **config.pop('quantization_config'))
-
-    # 恢复默认权重类型
-    if dtype_orig is not None:
-        torch.set_default_dtype(dtype_orig)
     
     # 权重加载
     transformer.checkpoint_path = checkpoint_path
@@ -258,13 +253,8 @@ def build_transformer_model(
 
     # meta device则报错
     if device_map is None:
-        meta_names = []
-        for name_, para_ in transformer.named_parameters():
-            if str(para_.device) == 'meta':
-                meta_names.append(name_)
-        if len(meta_names) > 0:
-            log_error(f'Meta device not allowed: {meta_names}')
-    
+        has_meta_param(transformer, verbose=True)
+
     if hasattr(transformer, 'quantizer'):
         transformer.quantizer.postprocess_model(transformer, config=config)
 

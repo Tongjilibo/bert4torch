@@ -168,7 +168,11 @@ class GLM(Decoder):
         # past_token_ids: inputs+output_ids
         states['past_token_ids'] = past_token_ids
         return states
-    
+
+    @property
+    def _layer_args(self):
+        return super()._layer_args + ['num_hidden_layers']
+
 
 class GLM2(GLM):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B

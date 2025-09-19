@@ -13,7 +13,7 @@ from typing import List, Union, Dict
 import re
 from tqdm import tqdm
 from functools import partial
-from bert4torch.snippets import is_package_available
+from bert4torch.snippets import is_package_available, has_meta_param
 from .base import QuantizerBase
 
 try:
@@ -224,11 +224,8 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
 
 class CpmKernelQuantizer(QuantizerBase):
     def _process_model_before_weight_loading(
+            self,
             model:nn.Module, 
-            quantization_bit:int=8, 
-            use_quantization_cache:bool=False, 
-            empty_init:bool=False, 
-            target_modules:Union[str, List]=None, 
             **kwargs
         ):
         """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理
@@ -238,11 +235,17 @@ class CpmKernelQuantizer(QuantizerBase):
         这里修改了hard code, 可以适配其他模型
         target_modules: str/list, 指定对某些层做量化
         """
+        quantization_config = kwargs['quantization_config']
+        quantization_bit:int = quantization_config['quantization_bit']
+        use_quantization_cache:bool = quantization_config.get('use_quantization_cache', False)
+        empty_init:bool = quantization_config.get('empty_init', False)
+        target_modules:Union[str, List] = quantization_config.get('target_modules', None)
+
         if not is_package_available('cpm_kernels'):
             raise ModuleNotFoundError('Module `cpm_kernels` not found, you may use `pip install cpm_kernels`')
 
         # 把meta权重to_empty(device='cpu'), 执行后就不是meta了
-        if str(next(model.parameters()).device) == 'meta':
+        if has_meta_param(model):
             model.apply(model.init_meta_weights)
 
         model.half()  # 确保模型是fp16
@@ -296,5 +299,12 @@ class CpmKernelQuantizer(QuantizerBase):
             exec('model.' + ''.join(name_new) + ' = module_quant')
         return model
 
+    def _process_model_after_weight_loading(self, model, **kwargs):
+        return model
 
+    def is_serializable(self, *args, **kwargs):
+        return True
 
+    @property
+    def is_trainable(self, *args, **kwargs):
+        return False

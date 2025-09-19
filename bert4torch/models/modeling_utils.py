@@ -5,6 +5,7 @@ import inspect
 from torch.utils.checkpoint import CheckpointFunction
 from torch4keras.snippets import log_info, log_warn, log_error, is_accelerate_available, find_tied_parameters, log_warn_once
 from typing import Union, Optional
+from functools import partial, wraps
 
 
 if is_accelerate_available():
@@ -48,26 +49,42 @@ def get_state_dict_dtype(state_dict:dict):
         return next(state_dict.values()).dtype
 
 
-def set_default_torch_dtype(dtype: Union[str, torch.dtype], model_name:str='model') -> torch.dtype:
+def restore_default_torch_dtype(func):
+    """
+    Decorator to restore the default torch dtype
+    at the end of the function. Serves
+    as a backup in case calling the function raises
+    an error after the function has changed the default dtype but before it could restore it.
+    """
+
+    @wraps(func)
+    def _wrapper(*args, **kwargs):
+        old_dtype = torch.get_default_dtype()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            torch.set_default_dtype(old_dtype)
+
+    return _wrapper
+
+
+def set_default_torch_dtype(torch_dtype: Union[str, torch.dtype], model_name:str='model', model_config:dict=None) -> torch.dtype:
     """设置默认权重类型"""
     if not isinstance(model_name, str):
         model_name = 'model'
-    mapping = {
-        'float16': torch.float16,
-        'float32': torch.float32,
-        'float64': torch.float64,
-        'bfloat16': torch.bfloat16
-        }
-    if isinstance(dtype, str):
-        dtype = mapping[dtype]
 
-    if not dtype.is_floating_point:
-        raise ValueError(f"Can't instantiate {model_name} under dtype={dtype} since it is not a floating point dtype")
-    dtype_orig = torch.get_default_dtype()
-    torch.set_default_dtype(dtype)
-    # if dtype_orig != dtype:
-    #     log_info(f"Instantiating {model_name} under default dtype {dtype}.")
-    return dtype, dtype_orig
+    if isinstance(torch_dtype, str):
+        torch_dtype = getattr(torch, torch_dtype)
+
+    if not torch_dtype.is_floating_point:
+        raise ValueError(f"Can't instantiate {model_name} under dtype={torch_dtype} since it is not a floating point dtype")
+    
+    # 目前的量化模型，都是float16的
+    if hasattr(model_config, "quantization_config"):
+        torch_dtype = torch.float16
+    
+    torch.set_default_dtype(torch_dtype)
+    return torch_dtype
 
 
 @torch.no_grad()

@@ -5,6 +5,8 @@ from packaging import version
 from .base import QuantizerBase
 from bert4torch.snippets.import_utils import is_auto_gptq_available, is_gptqmodel_available, is_optimum_available, is_torch_available
 from bert4torch.snippets import log_warn, log_info
+from bert4torch.models.modeling_utils import get_layers
+
 
 if is_torch_available():
     import torch
@@ -79,6 +81,9 @@ class GptqQuantizer(QuantizerBase):
         #     raise RuntimeError("We can only quantize pure text model.")
 
         if self.pre_quantized:
+            new_mapping = modify_variable_mapping(model, kwargs['quantization_config'].get('block_name_to_quantize'))
+            model.variable_mapping = lambda: new_mapping
+
             # compat: latest optimum has gptqmodel refactor
             if version.parse(importlib.metadata.version("optimum")) <= version.parse("1.23.99"):
                 model = self.optimum_quantizer.convert_model(model)
@@ -101,3 +106,24 @@ class GptqQuantizer(QuantizerBase):
 
     def is_serializable(self, safe_serialization=None):
         return True
+
+
+def modify_variable_mapping(model, block_name_to_quantize:str):
+    '''量化会修改模型的结构，因此也需要修改variable_mapping'''
+    old_mapping = model.variable_mapping()
+    layers_to_be_replaced = get_layers(model, prefix=block_name_to_quantize)
+    new_mapping = {}
+    for k in layers_to_be_replaced.keys():
+        for o, n in old_mapping.items():
+            if not o.startswith(k+'.'):
+                new_mapping[o] = n
+                continue
+            n = n.replace('.weight', '').replace('.bias', '')
+            new_mapping.update({
+                f"{k}.g_idx": f"{n}.g_idx",
+                f"{k}.qweight": f"{n}.qweight",
+                f"{k}.qzeros": f"{n}.qzeros",
+                f"{k}.scales": f"{n}.scales"
+            })
+
+    return new_mapping

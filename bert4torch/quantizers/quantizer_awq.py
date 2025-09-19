@@ -5,6 +5,7 @@ from .base import QuantizerBase
 from bert4torch.snippets.import_utils import is_torch_available, is_auto_awq_available, is_accelerate_available
 from bert4torch.snippets import log_warn, log_warn_once, log_info
 from enum import Enum
+import re
 
 
 if is_torch_available():
@@ -99,11 +100,14 @@ class AwqQuantizer(QuantizerBase):
     def _process_model_before_weight_loading(self, model, keep_in_fp32_modules: Optional[List[str]] = None, **kwargs):
         from transformers.integrations import replace_quantization_scales, replace_with_awq_linear
 
-        self.modules_to_not_convert = self.quantization_config.modules_to_not_convert  # 修改
+        # 修改
+        self.modules_to_not_convert = self.quantization_config.modules_to_not_convert
+        new_mapping = modify_variable_mapping(model, self.modules_to_not_convert)
+        model.variable_mapping = lambda: new_mapping
+
         model, has_been_replaced = replace_with_awq_linear(
             model, quantization_config=self.quantization_config, modules_to_not_convert=self.modules_to_not_convert
         )
-
         model = replace_quantization_scales(model, model.config.model)
 
         if not has_been_replaced:
@@ -147,3 +151,26 @@ class AwqQuantizer(QuantizerBase):
         MIN_AWQ_VERSION_FOR_PEFT = "0.2.0"
         return version.parse(importlib.metadata.version("autoawq")) >= version.parse(MIN_AWQ_VERSION_FOR_PEFT)
 
+
+def modify_variable_mapping(model, modules_to_not_convert:str):
+    '''量化会修改模型的结构，因此也需要修改variable_mapping'''
+    old_mapping = model.variable_mapping()
+    new_mapping = {}
+    for o, n in old_mapping.items():
+        eval_str = 'model.' + re.sub(r'\.(\d+)\.', r'[\1].', o).replace('.weight', '').replace('.weight', '')
+        module = eval(eval_str)
+        if not isinstance(module, torch.nn.Linear):
+            new_mapping[o] = n
+            continue
+        elif any([i in o for i in modules_to_not_convert]):
+            new_mapping[o] = n
+            continue
+        o = o.replace('.weight', '').replace('.weight', '')
+        n = n.replace('.weight', '').replace('.weight', '')
+        new_mapping.update({
+            f"{o}.qweight": f"{n}.qweight",
+            f"{o}.qzeros": f"{n}.qzeros",
+            f"{o}.scales": f"{n}.scales"
+        })
+
+    return new_mapping

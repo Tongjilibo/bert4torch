@@ -267,7 +267,7 @@ class Glm2Layer(BertLayer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.attnLayerNorm.register_parameter('bias', None)
-        self.ffnLayerNorm.register_parameter('bias', None)
+        # self.ffnLayerNorm.register_parameter('bias', None)
         self.multiHeadAttention.o.register_parameter('bias', None)
         self.feedForward.intermediateDense.register_parameter('bias', None)
         self.feedForward.outputDense.register_parameter('bias', None)

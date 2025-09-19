@@ -2,11 +2,16 @@ import inspect
 from torch import nn
 from typing import List, Dict, Literal
 import torch
+from torch4keras.snippets import log_warn
+from bert4torch.snippets import has_meta_param
 from .base import QuantizerBase
+import importlib
+from packaging import version
 
 
 class BnbkBitHfQuantizer(QuantizerBase):
     def _process_model_before_weight_loading(
+            self,
             model:nn.Module, 
             quant_method:Literal['load_in_8bit', 'load_in_4bit'], 
             keep_in_fp32_modules:List=None, 
@@ -25,7 +30,7 @@ class BnbkBitHfQuantizer(QuantizerBase):
         load_in_4bit = True if quant_method == 'load_in_4bit' else False
 
         # 把meta权重to_empty(device='cpu'), 执行后就不是meta了
-        if str(next(model.parameters()).device) == 'meta':
+        if has_meta_param(model):
             model.apply(model.init_meta_weights)
 
         if quantization_config is None:
@@ -62,6 +67,39 @@ class BnbkBitHfQuantizer(QuantizerBase):
             if param.device == torch.device("meta"):
                 set_module_quantized_tensor_to_device(model, key, 'cpu', value=state_dict[key])
 
-        model.is_loaded_in_8bit = load_in_8bit
-        model.is_loaded_in_4bit = load_in_4bit
+        model.is_loaded_in_8bit = self.load_in_8bit = load_in_8bit
+        model.is_loaded_in_4bit = self.load_in_4bit = load_in_4bit
         return model
+
+    def _process_model_after_weight_loading(self, model, **kwargs):
+        if model.is_loaded_in_8bit:
+            model.is_8bit_serializable = self.is_serializable()
+        elif model.is_loaded_in_4bit:
+            model.is_4bit_serializable = self.is_serializable()
+        return model
+
+    def is_serializable(self, safe_serialization=None):
+        if self.load_in_4bit:
+            _is_4bit_serializable = version.parse(importlib.metadata.version("bitsandbytes")) >= version.parse("0.41.3")
+
+            if not _is_4bit_serializable:
+                log_warn(
+                    "You are calling `save_pretrained` to a 4-bit converted model, but your `bitsandbytes` version doesn't support it. "
+                    "If you want to save 4-bit models, make sure to have `bitsandbytes>=0.41.3` installed."
+                )
+                return False
+            
+        elif self.load_in_8bit:
+            _bnb_supports_8bit_serialization = version.parse(importlib.metadata.version("bitsandbytes")) > version.parse(
+                "0.37.2"
+            )
+
+            if not _bnb_supports_8bit_serialization:
+                log_warn(
+                    "You are calling `save_pretrained` to a 8-bit converted model, but your `bitsandbytes` version doesn't support it. "
+                    "If you want to save 8-bit models, make sure to have `bitsandbytes>0.37.2` installed. You will most likely face errors or"
+                    " unexpected behaviours."
+                )
+                return False
+
+        return True
