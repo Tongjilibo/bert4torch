@@ -10,16 +10,15 @@ from packaging import version
 
 
 class BnbkBitHfQuantizer(QuantizerBase):
-    def _process_model_before_weight_loading(
-            self,
-            model:nn.Module, 
-            quant_method:Literal['load_in_8bit', 'load_in_4bit'], 
-            keep_in_fp32_modules:List=None, 
-            llm_int8_skip_modules:List=None, 
-            quantization_config:Dict=None, 
-            **kwargs
-        ):
+    def _process_model_before_weight_loading(self, model:nn.Module, **kwargs):
         '''transformer的load_in_8bit, 源自transformer源代码'''
+        quantization_config = kwargs['quantization_config']
+        quant_method:Literal['load_in_8bit', 'load_in_4bit'] = quantization_config['quant_method']
+        keep_in_fp32_modules:List = quantization_config.get('keep_in_fp32_modules')
+        llm_int8_skip_modules:List = quantization_config.get('llm_int8_skip_modules')
+        bits_and_bytes_config:Dict = quantization_config.get('bits_and_bytes_config')
+
+
         # 兼容transformers新旧版本
         try:
             from transformers.integrations import replace_with_bnb_linear, set_module_quantized_tensor_to_device
@@ -33,13 +32,13 @@ class BnbkBitHfQuantizer(QuantizerBase):
         if has_meta_param(model):
             model.apply(model.init_meta_weights)
 
-        if quantization_config is None:
-            quantization_config, kwargs = BitsAndBytesConfig.from_dict(
-                config_dict={"load_in_8bit": load_in_8bit, "load_in_4bit": load_in_4bit}, return_unused_kwargs=True, **kwargs
+        if bits_and_bytes_config is None:
+            bits_and_bytes_config, kwargs = BitsAndBytesConfig.from_dict(
+                config_dict={"load_in_8bit": load_in_8bit, "load_in_4bit": load_in_4bit}, return_unused_kwargs=True, **quantization_config
             )
-        elif quantization_config is not None:
-            load_in_8bit = quantization_config.load_in_8bit
-            load_in_4bit = quantization_config.load_in_4bit
+        elif bits_and_bytes_config is not None:
+            load_in_8bit = bits_and_bytes_config.load_in_8bit
+            load_in_4bit = bits_and_bytes_config.load_in_4bit
             quantization_config_kwargs = {
                 k: v for k, v in kwargs.items() if k in inspect.signature(BitsAndBytesConfig).parameters
             }
@@ -50,7 +49,7 @@ class BnbkBitHfQuantizer(QuantizerBase):
                     "`quantization_config` argument at the same time."
                 )
 
-        load_in_8bit_skip_modules = quantization_config.llm_int8_skip_modules or []
+        load_in_8bit_skip_modules = bits_and_bytes_config.llm_int8_skip_modules or []
 
         # We keep some modules such as the lm_head in their original dtype for numerical stability reasons
         modules_to_not_convert = load_in_8bit_skip_modules
@@ -61,7 +60,7 @@ class BnbkBitHfQuantizer(QuantizerBase):
         modules_to_not_convert.extend([] if llm_int8_skip_modules is None else llm_int8_skip_modules)
 
         state_dict = model.state_dict()
-        model = replace_with_bnb_linear(model, modules_to_not_convert=modules_to_not_convert, quantization_config=quantization_config)
+        model = replace_with_bnb_linear(model, modules_to_not_convert=modules_to_not_convert, quantization_config=bits_and_bytes_config)
 
         for key, param in model.named_parameters():
             if param.device == torch.device("meta"):
@@ -103,3 +102,11 @@ class BnbkBitHfQuantizer(QuantizerBase):
                 return False
 
         return True
+
+    @property
+    def is_trainable(self) -> bool:
+        if self.load_in_8bit:
+            return version.parse(importlib.metadata.version("bitsandbytes")) >= version.parse("0.37.0")
+        elif self.load_in_4bit:    
+            return True
+        return False

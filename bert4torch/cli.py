@@ -17,7 +17,7 @@ from .pipelines.chat import run_llm_serve
 from enum import Enum, unique
 
 
-VERSION = "v0.5.9.post2"
+VERSION = "v0.6.0"
 
 
 line_length = 70

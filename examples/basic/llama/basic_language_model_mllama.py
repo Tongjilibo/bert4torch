@@ -44,10 +44,7 @@ def chat_demo1():
 
 
 def chat_demo2():
-    demo = Chat(model_dir, 
-                # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8}
-                mode='gradio'
-                )
+    demo = Chat(model_dir, mode='gradio')
     demo.run()
 
 

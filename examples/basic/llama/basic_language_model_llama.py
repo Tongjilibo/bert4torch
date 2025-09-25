@@ -32,8 +32,7 @@ generation_config = {
 
 demo = Chat(model_dir, 
             mode='cli',
-            generation_config=generation_config,
-            # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8}
+            generation_config=generation_config
             )
 
 functions = [{

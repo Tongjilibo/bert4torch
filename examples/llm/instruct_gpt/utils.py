@@ -27,23 +27,18 @@ def get_nbit_lora_model(model, load_in_nbit=Literal[8, 4], use_lora=False):
     if load_in_nbit == 8:
         model.gradient_checkpointing_enable()
         model.enable_input_require_grads()
-
-        class CastOutputToFloat(nn.Sequential):
-            def forward(self, x):
-                return super().forward(x).to(torch.float32)
         model = model.quantize(quant_method='load_in_8bit', llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head'])
-        model.lm_head = CastOutputToFloat(model.lm_head)
         
     elif load_in_nbit == 4:
-        from transformers import BitsAndBytesConfig
+        model = model.quantize(
+            quant_method='load_in_4bit', 
+            load_in_4bit=True,
+            bnb_4bit_quant_type='nf4',
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
+            llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
+        )
         from peft import prepare_model_for_kbit_training
-        q_config = BitsAndBytesConfig(load_in_4bit=True,
-                                    bnb_4bit_quant_type='nf4',
-                                    bnb_4bit_use_double_quant=True,
-                                    bnb_4bit_compute_dtype=torch.float16,  # 可选 torch.float32, torch.float16, torch.bfloat16
-                                    llm_int8_skip_modules=['model.embeddings.word_embeddings', 'lm_head']
-                                    )
-        model = model.quantize(quant_method='load_in_4bit', quantization_config=q_config)
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
 
     # lora

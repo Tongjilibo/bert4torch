@@ -53,12 +53,7 @@ def chat_demo2():
         'repetition_penalty': 1.1
     }
 
-    demo = Chat(model_dir, 
-                generation_config=generation_config,
-                # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8}
-                mode='gradio',
-                template='minicpmv'
-                )
+    demo = Chat(model_dir, generation_config=generation_config, mode='gradio')
     demo.run()
 
 if __name__ == '__main__':

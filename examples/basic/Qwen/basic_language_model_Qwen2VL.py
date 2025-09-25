@@ -73,11 +73,7 @@ def chat_demo1():
         print('\n')
 
 def chat_demo2():
-    demo = Chat(model_dir, 
-                # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8}
-                mode='gradio',
-                template='qwen2_vl'
-                )
+    demo = Chat(model_dir, mode='gradio')
     demo.run()
 
 def call_openai():

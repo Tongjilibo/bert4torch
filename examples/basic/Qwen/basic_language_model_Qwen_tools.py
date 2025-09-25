@@ -51,8 +51,7 @@ functions = [
 demo = Chat(model_dir, 
             system='你是一个乐于助人的AI助手。', 
             mode='cli',
-            generation_config={'top_k': 40, 'repetition_penalty': 1.1, 'temperature': 0.7},
-            # quantization_config={'quant_method': 'cpm_kernels', 'quantization_bit':8}
+            generation_config={'top_k': 40, 'repetition_penalty': 1.1, 'temperature': 0.7}
             )
 
 demo.run(functions=functions)

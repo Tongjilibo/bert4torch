@@ -1,7 +1,6 @@
 import torch
 from bert4torch.snippets import load_image
 try:
-    from PIL import Image
     import torchvision.transforms as T
     from torchvision.transforms.functional import InterpolationMode
 except:
