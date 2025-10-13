@@ -9,12 +9,14 @@ from bert4torch.snippets import DottableDict, is_trl_available
 
 
 try:
-    import trl
-    trl.trainer.ppo_trainer.SUPPORTED_ARCHITECTURES = (BaseModel, )
-    from trl.trainer import PPOTrainer as PPOTrainerTrl
+    if is_trl_available():
+        import trl
+        trl.trainer.ppo_trainer.SUPPORTED_ARCHITECTURES = (BaseModel, )
+        from trl.trainer import PPOTrainer as PPOTrainerTrl
+    else:
+        class PPOTrainerTrl: pass
 except:
-    class PPOTrainerTrl:
-        pass
+    class PPOTrainerTrl: pass
 
 
 class PPOTrainer(PPOTrainerTrl, Trainer):
