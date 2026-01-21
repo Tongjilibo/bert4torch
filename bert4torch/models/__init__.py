@@ -21,7 +21,7 @@ from .t5 import T5, T5_Encoder, T5_Decoder
 from .xlnet import Transformer_XL, XLNET
 from .uie import UIE
 from .bloom import Bloom
-from .qwen import Qwen, Qwen2, Qwen3, Qwen3Moe, Qwen2VL
+from .qwen import Qwen, Qwen2, Qwen3, Qwen3Moe, Qwen2VL, Qwen2_5VL, Qwen3VL
 from .intern import InternLM, InternLM2, InternVL
 from .falcon import Falcon
 from .deepseek import DeepSeek
@@ -168,8 +168,10 @@ def build_transformer_model(
         'qwen': Qwen,
         'qwen2': Qwen2,
         'qwen2_vl': Qwen2VL,
+        'qwen2_5_vl': Qwen2_5VL,
         'qwen3': Qwen3,
         'qwen3_moe': Qwen3Moe,
+        'qwen3_vl': Qwen3VL,
         'roberta': BERT,  
         'roformer': RoFormer,
         'roformer_v2': RoFormerV2,

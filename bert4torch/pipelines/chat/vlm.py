@@ -13,8 +13,7 @@
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict
 from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
-from bert4torch.models.qwen.qwen2_vl import process_vision_info
-from bert4torch.models.qwen.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
+from bert4torch.models.qwen.vision_process import process_vision_info, MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.intern.internvl.vision_process import fetch_image
 from bert4torch.snippets import (
     log_warn_once, 
@@ -904,6 +903,7 @@ VLM_MAPPING = {
     'minicpmv': MiniCPMV,
     'minicpm_llama3_v': MiniCPMV,
     'qwen2_vl': Qwen2VL,
+    'qwen2_5_vl': Qwen2VL,
     'mllama': Mllama,
     'glm4v': GLM4V,
     'internvl2_5': InternVL,

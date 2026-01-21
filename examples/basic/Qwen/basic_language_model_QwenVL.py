@@ -6,7 +6,7 @@
 from bert4torch.pipelines import Chat
 from bert4torch.snippets.openai_client import OpenaiClient
 from bert4torch.models import build_transformer_model
-from bert4torch.models.qwen import process_vision_info
+from bert4torch.models.qwen.vision_process import process_vision_info
 from transformers import AutoProcessor
 from PIL import Image
 import base64
@@ -14,7 +14,10 @@ import io
 
 # Qwen2-VL-2B-Instruct
 # Qwen2-VL-7B-Instruct
-model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
+# Qwen2.5-VL-3B-Instruct
+# Qwen2.5-VL-7B-Instruct
+# Qwen3-VL-2B-Instruct
+model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-VL-2B-Instruct'
 
 def chat_demo1():
     device = 'cuda'
@@ -112,6 +115,6 @@ def call_openai():
 
 
 if __name__ == '__main__':
-    # chat_demo1()
-    chat_demo2()
+    chat_demo1()
+    # chat_demo2()
     # call_openai()
