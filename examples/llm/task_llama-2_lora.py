@@ -97,7 +97,7 @@ dev_dataloader = DataLoader(MyDataset(os.path.join(data_dir, 'dev_sft.csv')), ba
 
 
 # ====================================建立模型====================================
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True, max_position=64)
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, add_trainer=True, max_position_embeddings=64)
 
 # 量化
 load_in_nbit = None

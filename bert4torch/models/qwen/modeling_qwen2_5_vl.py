@@ -12,6 +12,6 @@ class Qwen2_5VL(Qwen2VL):
         from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VisionTransformerPretrainedModel
         from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import Qwen2_5_VLVisionConfig
         vision_config = Qwen2_5_VLVisionConfig.from_dict(self.config.vision_config)
-        self.visual = Qwen2_5_VisionTransformerPretrainedModel._from_config(vision_config, attn_implementation=self.config._attn_implementation)
+        self.visual = Qwen2_5_VisionTransformerPretrainedModel._from_config(vision_config)
         self.model = Qwen2(**config)
         self.model.passed_kwargs = Qwen2_5VL.passed_kwargs

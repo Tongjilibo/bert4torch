@@ -34,20 +34,20 @@ class DebertaV2PositionsEncoding(nn.Module):
     """deberta用的相对位置编码
     来自论文：https://arxiv.org/abs/2006.03654
     """
-    def __init__(self, qlen, klen, position_buckets, max_position):
+    def __init__(self, qlen, klen, position_buckets, max_position_embeddings):
         super(DebertaV2PositionsEncoding, self).__init__()
         q_ids = torch.arange(0, qlen)
         k_ids = torch.arange(0, klen)
         rel_pos_ids = q_ids[:, None] - k_ids[None, :]
-        if position_buckets > 0 and max_position > 0:
-            rel_pos_ids = self.make_log_bucket_position(rel_pos_ids, position_buckets, max_position)
+        if position_buckets > 0 and max_position_embeddings > 0:
+            rel_pos_ids = self.make_log_bucket_position(rel_pos_ids, position_buckets, max_position_embeddings)
         rel_pos_ids = rel_pos_ids.to(torch.long)
         rel_pos_ids = rel_pos_ids[:qlen, :]
         rel_pos_ids = rel_pos_ids.unsqueeze(0)
         self.register_buffer('relative_position', rel_pos_ids)
 
     @staticmethod
-    def make_log_bucket_position(relative_pos, bucket_size, max_position):
+    def make_log_bucket_position(relative_pos, bucket_size, max_position_embeddings):
         sign = torch.sign(relative_pos)
         mid = bucket_size // 2
         abs_pos = torch.where((relative_pos < mid) & (relative_pos > -mid),
@@ -55,7 +55,7 @@ class DebertaV2PositionsEncoding(nn.Module):
             torch.abs(relative_pos),
         )
         log_pos = (
-            torch.ceil(torch.log(abs_pos / mid) / torch.log(torch.tensor((max_position - 1) / mid)) * (mid - 1)) + mid
+            torch.ceil(torch.log(abs_pos / mid) / torch.log(torch.tensor((max_position_embeddings - 1) / mid)) * (mid - 1)) + mid
         )
         bucket_pos = torch.where(abs_pos <= mid, relative_pos.type_as(log_pos), log_pos * sign)
         return bucket_pos
@@ -151,9 +151,9 @@ class T5PositionsEncoding(nn.Module):
 class SinusoidalPositionEncoding(nn.Module):
     """定义Sin-Cos位置Embedding
     """
-    def __init__(self, max_position, embedding_size):
+    def __init__(self, max_position_embeddings, embedding_size):
         super(SinusoidalPositionEncoding, self).__init__()
-        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position, embedding_size), freeze=True) 
+        self.position_embeddings = nn.Embedding.from_pretrained(get_sinusoid_encoding_table(max_position_embeddings, embedding_size), freeze=True) 
     def forward(self, position_ids):
         return self.position_embeddings(position_ids)
 
@@ -169,7 +169,7 @@ class RopePositionEncoding(nn.Module):
     """
     def __init__(self, 
                  embedding_size: int, 
-                 max_position: int=2048, 
+                 max_position_embeddings: int=2048, 
                  rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
                  scaling_factor: float=1.0, 
                  rope_theta: float=10000.0, 
@@ -183,13 +183,13 @@ class RopePositionEncoding(nn.Module):
         self.ntk_alpha = 1.0  # ntk外推
         self.scaling_factor = scaling_factor  # chatglm中32k的插值
         self.rope_theta = rope_theta or 10000.0
-        self.max_position = max_position  # 原始支持的最大长度
+        self.max_position_embeddings = max_position_embeddings  # 原始支持的最大长度
 
         # 有三种方案
         # 1. 仅register_buffer inv_freq, cos和sin都在forward现算，优点省显存，缺点降低forward速度, transformer中最新逻辑
         # 2. 按照最大长度register_buffer cos和sin，优点forward速度快，缺点费显存
         # 3. 按照给定的最小长度register_buffer cos和sin，优点forward速度折中（>最小长度需现算），缺点显存折中
-        self.max_seq_len_cached = kwargs.get('max_seq_len_cached', max_position)  # 推理过程中遇到的最大长度max(seq_len, max_position)
+        self.max_seq_len_cached = kwargs.get('max_seq_len_cached', max_position_embeddings)  # 推理过程中遇到的最大长度max(seq_len, max_position_embeddings)
         self.sin_cos_cached = kwargs.get('sin_cos_cached', False)
         self._set_inv_freq_cache(self.max_seq_len_cached, device=device)  # 这里没有直接设置到max_position，因为容易占显存
         self._set_cos_sin_cache(self.max_seq_len_cached, device or 'cpu', dtype=torch.get_default_dtype())
@@ -310,14 +310,14 @@ class RopeGlmPositionEncoding(RopePositionEncoding):
     '''GLM对应的rope编码'''
     def __init__(self, 
                  embedding_size: int, 
-                 max_position: int = 2048, 
+                 max_position_embeddings: int = 2048, 
                  rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent', 
                  scaling_factor: float = 1, 
                  rope_theta: float = 10000, 
                  device=None, 
                  **kwargs):
         # glm的embedding_size不同
-        super().__init__(embedding_size // 2, max_position, rope_rank, scaling_factor, rope_theta, device, **kwargs)
+        super().__init__(embedding_size // 2, max_position_embeddings, rope_rank, scaling_factor, rope_theta, device, **kwargs)
     
     @torch.no_grad()
     def forward(self, qk:Union[torch.Tensor, List[torch.Tensor]], position_ids:torch.Tensor=None):
@@ -340,18 +340,18 @@ class RopeDynamicNTKScalingPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope'''
     def __init__(self, 
                  embedding_size: int, 
-                 max_position: int=2048, 
+                 max_position_embeddings: int=2048, 
                  rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
                  scaling_factor: float=1.0, 
                  rope_theta: float=10000.0, 
                  **kwargs):
         self.scaling_factor_raw = scaling_factor
         scaling_factor = 1.0  # 仅在超长时候能使用的到
-        super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
+        super().__init__(embedding_size, max_position_embeddings, rope_rank, scaling_factor, rope_theta, **kwargs)
 
     def _set_inv_freq_cache(self, seq_len, device=None):
         # 根据transformer中llama代码，dynamic时候需要seq_len > self.max_seq_len_cached才执行scaling_factor
-        self.ntk_alpha = (self.scaling_factor_raw * seq_len / self.max_position) - (self.scaling_factor_raw - 1)
+        self.ntk_alpha = (self.scaling_factor_raw * seq_len / self.max_position_embeddings) - (self.scaling_factor_raw - 1)
         return super()._set_inv_freq_cache(seq_len, device)
 
 
@@ -359,7 +359,7 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
     '''使用llama3的rope'''
     def __init__(self, 
                  embedding_size: int, 
-                 max_position: int=2048, 
+                 max_position_embeddings: int=2048, 
                  rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
                  scaling_factor: float=1.0, 
                  rope_theta: float=10000.0, 
@@ -367,7 +367,7 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
         self.low_freq_factor = kwargs["low_freq_factor"]  # `1` in the original implementation
         self.high_freq_factor = kwargs["high_freq_factor"]  # `4` in the original implementation
         self.old_context_len = kwargs["original_max_position_embeddings"]  # `8192` in the original implementation
-        super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
+        super().__init__(embedding_size, max_position_embeddings, rope_rank, scaling_factor, rope_theta, **kwargs)
 
     def _set_inv_freq_cache(self, seq_len, device=None):
         base = self.rope_theta
@@ -396,7 +396,7 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
 class RopeDynamicNTKScalingQwenPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope (Qwen版)'''
     def _set_inv_freq_cache(self, seq_len, device=None):
-        context_value = math.log(seq_len / self.max_position, 2) + 1
+        context_value = math.log(seq_len / self.max_position_embeddings, 2) + 1
         ntk_alpha = max(2 ** math.ceil(context_value) - 1, 1)
         if ntk_alpha != self.ntk_alpha:
             self.ntk_alpha = ntk_alpha
@@ -408,7 +408,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
     def __init__(
         self,
         embedding_size,
-        max_position=2048,
+        max_position_embeddings=2048,
         rope_rank: Literal['adjacent', 'updown', 'rotate_half']='adjacent',
         scaling_factor=1.0,
         rope_theta=10000,
@@ -425,7 +425,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         self.beta_slow = beta_slow
         self.mscale = mscale
         self.mscale_all_dim = mscale_all_dim
-        super().__init__(embedding_size, max_position, rope_rank, scaling_factor, rope_theta, **kwargs)
+        super().__init__(embedding_size, max_position_embeddings, rope_rank, scaling_factor, rope_theta, **kwargs)
 
     # Inverse dim formula to find dim based on number of rotations
     @staticmethod

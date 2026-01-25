@@ -10,7 +10,7 @@ class BART(Transformer):
     '''
     def __init__(self, *args, **kwargs):
         self.postion_offset = 2
-        kwargs['max_position'] = kwargs['max_position'] + self.postion_offset  # bart有个值为2的offset
+        kwargs['max_position_embeddings'] = kwargs['max_position_embeddings'] + self.postion_offset  # bart有个值为2的offset
         super(BART, self).__init__(*args, **kwargs)
 
     def load_variable(self, variable, ckpt_key, model_key):

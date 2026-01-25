@@ -26,7 +26,7 @@ class BertBase(PreTrainedModel):
             num_attention_heads:int,  # Attention的头数
             intermediate_size:int,  # FeedForward的隐层维度
             hidden_act:str,  # FeedForward隐层的激活函数
-            max_position:int,  # 序列最大长度
+            max_position_embeddings:int,  # 序列最大长度
             dropout_rate:float=None,  # Dropout比例
             attention_probs_dropout_prob:float=None,  # Attention矩阵的Dropout比例
             embedding_size:int=None,  # 指定embedding_size, 不指定则使用config文件的参数
@@ -76,7 +76,7 @@ class BertBase(PreTrainedModel):
         self.return_dict = return_dict
         self.tie_word_embeddings = tie_word_embeddings or kwargs.get('tie_emb_prj_weight', False)  # 兼顾old version
 
-        self.max_position = max_position
+        self.max_position_embeddings = max_position_embeddings
         self.segment_vocab_size = segment_vocab_size
         self.with_pool = with_pool
         self.with_nsp = with_nsp
@@ -118,14 +118,14 @@ class BertBase(PreTrainedModel):
 
     @property
     def _embedding_args(self):
-        args = ['vocab_size', 'embedding_size', 'hidden_size', 'max_position', 'segment_vocab_size', 
+        args = ['vocab_size', 'embedding_size', 'hidden_size', 'max_position_embeddings', 'segment_vocab_size', 
                 'shared_segment_embeddings', 'dropout_rate', 'conditional_size', 'hierarchical_position']
         return args
 
     @property
     def _layer_args(self):
         args = ['hidden_size', 'num_attention_heads', 'dropout_rate', 'attention_probs_dropout_prob', 
-                'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position']
+                'intermediate_size', 'hidden_act', 'is_dropout', 'conditional_size', 'max_position_embeddings']
         return args
     
     def tie_weights(self):

@@ -209,7 +209,7 @@ class Transformer(PreTrainedModelForDecoder):
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     def __init__(self, *args, tie_word_embeddings:bool=False, tie_word_embeddings_encoder_decoder:bool=False, **kwargs):
         super(Transformer, self).__init__(*args, **kwargs)
-        self.max_position = kwargs['max_position']
+        self.max_position_embeddings = kwargs['max_position_embeddings']
         # decoder的word_embeddings和lm_head的权重共享
         self.tie_word_embeddings = kwargs['tie_word_embeddings'] = tie_word_embeddings
         # encoder和decoder之间的word_embedding权重共享

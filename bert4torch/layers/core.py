@@ -94,7 +94,7 @@ class BertEmbeddings(nn.Module):
     """embeddings层
        构造word, position and token_type embeddings, 一般是token、position、segment三者embedding之和
     """
-    def __init__(self, vocab_size:int, embedding_size:int, hidden_size:int, max_position:int, segment_vocab_size:int, shared_segment_embeddings:bool, 
+    def __init__(self, vocab_size:int, embedding_size:int, hidden_size:int, max_position_embeddings:int, segment_vocab_size:int, shared_segment_embeddings:bool, 
                  dropout_rate:float, conditional_size:Union[bool, int]=False, pad_token_id:int=0, **kwargs):
         super(BertEmbeddings, self).__init__()
         self.shared_segment_embeddings = shared_segment_embeddings
@@ -102,12 +102,12 @@ class BertEmbeddings(nn.Module):
 
         # 位置编码
         if kwargs.get('pos_emb_type') == 'sinusoid':
-            self.position_embeddings = SinusoidalPositionEncoding(max_position, embedding_size)
+            self.position_embeddings = SinusoidalPositionEncoding(max_position_embeddings, embedding_size)
         elif kwargs.get('pos_emb_type') in {'rotary', 'typical_relative', 't5_relative', 'MultiHeadAttention', 'deberta_v2', 'alibi'}:
             # 如果使用相对位置编码，则不声明PositionEmbeddings
             pass
-        elif max_position > 0:
-            self.position_embeddings = nn.Embedding(max_position, embedding_size)
+        elif max_position_embeddings > 0:
+            self.position_embeddings = nn.Embedding(max_position_embeddings, embedding_size)
         # 层次位置编码
         self.hierarchical_position = kwargs.get('hierarchical_position')
 

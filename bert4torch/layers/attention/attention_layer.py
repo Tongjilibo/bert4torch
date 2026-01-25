@@ -70,7 +70,7 @@ class MultiHeadAttention(nn.Module):
         self.max_window_layers = kwargs.get('max_window_layers')
         self._attn_implementation = _attn_implementation  # attention的实现
         self.use_logn_attn = use_logn_attn # 使用logn_attn
-        self.max_position = kwargs.get('max_position')
+        self.max_position_embeddings = kwargs.get('max_position_embeddings')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))  # Attention中V的head_size
@@ -144,7 +144,7 @@ class MultiHeadAttention(nn.Module):
 
         # 使用logn_attn
         if self.use_logn_attn:
-            query_states *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position)).clip(1).to(query_states.dtype)
+            query_states *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position_embeddings)).clip(1).to(query_states.dtype)
 
         # past_key_values
         if self.is_decoder and (not self.training):  # 仅推理是记录
@@ -267,11 +267,11 @@ class DebertaV2Attention(MultiHeadAttention):
 
         # position_embedding
         self.pos_att_type = kwargs.get('pos_att_type', [])
-        self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position, 
-                                                                klen=self.max_position, 
+        self.relative_positions = DebertaV2PositionsEncoding(qlen=self.max_position_embeddings, 
+                                                                klen=self.max_position_embeddings, 
                                                                 position_buckets=kwargs.get('position_buckets'),
-                                                                max_position=self.max_position)
-        self.relative_positions_encoding = nn.Embedding(self.max_position, self.hidden_size)
+                                                                max_position_embeddings=self.max_position_embeddings)
+        self.relative_positions_encoding = nn.Embedding(self.max_position_embeddings, self.hidden_size)
         self.norm_rel_ebd = [x.strip() for x in kwargs.get("norm_rel_ebd", "none").lower().split("|")]
         if "layer_norm" in self.norm_rel_ebd:
             self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
@@ -369,8 +369,8 @@ class AlibiAttention(MultiHeadAttention):
 class NezhaTypicalRelativeAttention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         self.relative_positions_encoding = NezhaPositionsEncoding(
-            qlen=self.max_position, 
-            klen=self.max_position,
+            qlen=self.max_position_embeddings, 
+            klen=self.max_position_embeddings,
             embedding_size=self.attention_head_size,
             max_relative_position=kwargs.get('max_relative_position')
             )
@@ -428,8 +428,8 @@ class RopeAttention(MultiHeadAttention):
         
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
             embedding_size=self.attention_head_size, 
-            max_position=self.max_position, 
-            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position),
+            max_position_embeddings=self.max_position_embeddings, 
+            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position_embeddings),
             sin_cos_cached = kwargs.get('rope_sin_cos_cached', False),
             rope_rank=rope_rank, 
             scaling_factor=scaling_factor, 
@@ -713,8 +713,8 @@ class DeepseekV2Attention(MultiHeadAttention):
         rope_rank = kwargs.get('rope_rank')
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
             embedding_size = kwargs.get('qk_rope_head_dim'), 
-            max_position = self.max_position, 
-            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position),
+            max_position_embeddings = self.max_position_embeddings, 
+            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position_embeddings),
             sin_cos_cached = kwargs.get('rope_sin_cos_cached', False),
             rope_rank = rope_rank, 
             scaling_factor = scaling_factor, 
@@ -765,8 +765,8 @@ class DeepseekV2Attention(MultiHeadAttention):
 class T5Attention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         self.relative_positions = T5PositionsEncoding(
-            qlen=self.max_position,  
-            klen=self.max_position, 
+            qlen=self.max_position_embeddings,  
+            klen=self.max_position_embeddings, 
             relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
             is_decoder=kwargs.get('is_decoder'))
         self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
@@ -816,11 +816,11 @@ class ModernBertAttention(RopeAttention):
             self.local_attention = (-1, -1)
 
         kwargs['rope_theta'] = kwargs['global_rope_theta']
-        self.max_position = kwargs['max_position_embeddings']
+        self.max_position_embeddings = kwargs['max_position_embeddings']
         if self.local_attention != (-1, -1):
             if kwargs['local_rope_theta'] is not None:
                 kwargs['rope_theta'] = kwargs['local_rope_theta']
-            self.max_position = kwargs['local_attention']
+            self.max_position_embeddings = kwargs['local_attention']
         super().init_position_encoding(**kwargs)
 
     def forward(self, 

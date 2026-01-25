@@ -13,7 +13,7 @@ class Qwen2VL(PreTrainedModelForDecoder):
         from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VisionTransformerPretrainedModel
         from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig
         vision_config = Qwen2VLVisionConfig.from_dict(self.config.vision_config)
-        self.visual = Qwen2VisionTransformerPretrainedModel._from_config(vision_config, attn_implementation=self.config._attn_implementation)
+        self.visual = Qwen2VisionTransformerPretrainedModel._from_config(vision_config)
         self.model = Qwen2(**config)
         self.model.passed_kwargs = Qwen2VL.passed_kwargs
 

@@ -265,8 +265,8 @@ def check_update_config(config_path:str, **kwargs):
     if config_path is not None:
         config.update(json.load(open(config_path, encoding='utf-8')))
     config.update(kwargs)
-    if 'max_position' not in config:
-        config['max_position'] = config.get('max_position_embeddings', 512)
+    if 'max_position_embeddings' not in config:
+        config['max_position_embeddings'] = config.get('max_position_embeddings', 512)
     if 'dropout_rate' not in config:
         config['dropout_rate'] = config.get('hidden_dropout_prob')
     if 'segment_vocab_size' not in config:
