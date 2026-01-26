@@ -14,13 +14,13 @@ class ALBERT(BertBase):
         """
 
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for l_i in range(self.num_hidden_layers):
-            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+        for layer_idx in range(self.num_hidden_layers):
+            model_kwargs = self.apply_on_layer_begin(layer_idx, **model_kwargs)
             layer_module = self.encoderLayer[0]
             outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
+            model_kwargs = self.apply_on_layer_end(layer_idx, **model_kwargs)
             hidden_states = model_kwargs['hidden_states']
-            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)

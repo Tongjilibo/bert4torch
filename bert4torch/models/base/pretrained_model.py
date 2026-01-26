@@ -64,6 +64,12 @@ class PreTrainedModel(nn.Module):
     def gradient_checkpointing_enable(self):
         self.gradient_checkpoint=True
 
+    def get_input_embeddings(self) -> nn.Module:
+        """获取word_embeddings"""
+        if hasattr(self, "embeddings") and hasattr(self.embeddings, "word_embeddings"):
+            return self.embeddings.word_embeddings
+        raise NotImplementedError
+    
     def enable_input_require_grads(self):
         """transformer移植来
         Enables the gradients for the input embeddings. This is useful for fine-tuning adapter weights while keeping

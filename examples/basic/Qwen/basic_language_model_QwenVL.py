@@ -16,8 +16,10 @@ import io
 # Qwen2-VL-7B-Instruct
 # Qwen2.5-VL-3B-Instruct
 # Qwen2.5-VL-7B-Instruct
-# Qwen3-VL-2B-Instruct
-model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen3-VL-2B-Instruct'
+# Qwen3-VL-2B-Instruct Qwen3-VL-2B-Thinking
+# Qwen3-VL-4B-Instruct Qwen3-VL-4B-Thinking
+# Qwen3-VL-8B-Instruct Qwen3-VL-4B-Thinking
+model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
 
 def chat_demo1():
     device = 'cuda'
@@ -41,24 +43,19 @@ def chat_demo1():
                     {
                         "type": "image",
                         "image": "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
-                        "max_pixels": 512 * 512,
+                        # "max_pixels": 512 * 512,
                     },
                     {"type": "text", "text": query},
                 ],
             }
         ]
 
-        # Preparation for inference
-        text = processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        image_inputs, video_inputs = process_vision_info(messages)
-        inputs = processor(
-            text=[text],
-            images=image_inputs,
-            videos=video_inputs,
-            padding=True,
-            return_tensors="pt",
+        inputs = processor.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt"
         ).to(device)
 
         # 一次性输出
@@ -115,6 +112,6 @@ def call_openai():
 
 
 if __name__ == '__main__':
-    chat_demo1()
-    # chat_demo2()
+    # chat_demo1()
+    chat_demo2()
     # call_openai()

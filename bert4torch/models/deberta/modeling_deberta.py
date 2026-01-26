@@ -40,14 +40,14 @@ class DebertaV2(BertBase):
     def apply_main_layers(self, **model_kwargs):
         """DebertaV2: 主要区别是第0层后, 会通过卷积层"""
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for l_i, layer_module in enumerate(self.encoderLayer):
-            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+        for layer_idx, layer_module in enumerate(self.encoderLayer):
+            model_kwargs = self.apply_on_layer_begin(layer_idx, **model_kwargs)
             outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
             # 第0层要经过卷积
-            if l_i == 0 and self.conv is not None:
+            if layer_idx == 0 and self.conv is not None:
                 model_kwargs['hidden_states'] = self.conv(encoded_layers[0], model_kwargs['hidden_states'], model_kwargs['attention_mask'].squeeze(1).squeeze(1))
-            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
+            model_kwargs = self.apply_on_layer_end(layer_idx, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(model_kwargs['hidden_states'])

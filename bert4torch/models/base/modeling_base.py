@@ -133,11 +133,7 @@ class BertBase(PreTrainedModel):
         if (self.tie_word_embeddings is True) and self.with_mlm:
             self.mlmDecoder.weight = self.embeddings.word_embeddings.weight
             self.mlmDecoder.bias = self.mlmBias
-    
-    def get_input_embeddings(self):
-        """获取word_embeddings"""
-        return self.embeddings.word_embeddings
-    
+        
     def layer_forward(self, layer, model_kwargs, use_reentrant=False):
         """transformer block的forward"""
         if self.gradient_checkpoint and self.training:
@@ -281,19 +277,19 @@ class BertBase(PreTrainedModel):
         
         return model_kwargs
 
-    def apply_on_layer_begin(self, l_i, **model_kwargs):
+    def apply_on_layer_begin(self, layer_idx, **model_kwargs):
         '''新增对layer block输入进行操作的函数'''
         # if model_kwargs.get('use_states') is not True:
         #     return model_kwargs
         
         if model_kwargs.get('past_key_values') is not None:
-            model_kwargs['past_key_value'] = model_kwargs['past_key_values'][l_i]
+            model_kwargs['past_key_value'] = model_kwargs['past_key_values'][layer_idx]
 
         if model_kwargs.get('cross_past_key_values') is not None:
-            model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][l_i]
+            model_kwargs['cross_past_key_value'] = model_kwargs['cross_past_key_values'][layer_idx]
         return model_kwargs
     
-    def apply_on_layer_end(self, l_i, **model_kwargs):
+    def apply_on_layer_end(self, layer_idx, **model_kwargs):
         '''新增对layer block输出进行操作的函数, 目前仅在MixUp中使用'''
         if model_kwargs.get('use_states') is not True:
             return model_kwargs
@@ -301,11 +297,11 @@ class BertBase(PreTrainedModel):
         if model_kwargs.get('past_key_value') is not None:
             if ('past_key_values' not in model_kwargs) or (model_kwargs.get('past_key_values') is None):
                 model_kwargs['past_key_values'] = [None]*self.num_hidden_layers
-            model_kwargs['past_key_values'][l_i] = model_kwargs['past_key_value']
+            model_kwargs['past_key_values'][layer_idx] = model_kwargs['past_key_value']
         if model_kwargs.get('cross_past_key_value') is not None:
             if ('cross_past_key_values' not in model_kwargs) or (model_kwargs.get('cross_past_key_values') is None):
                 model_kwargs['cross_past_key_values'] = [None]*self.num_hidden_layers
-            model_kwargs['cross_past_key_values'][l_i] = model_kwargs['cross_past_key_value']
+            model_kwargs['cross_past_key_values'][layer_idx] = model_kwargs['cross_past_key_value']
         return model_kwargs
     
     def apply_main_layers(self, **model_kwargs):
@@ -316,12 +312,12 @@ class BertBase(PreTrainedModel):
         :return: Dict[torch.Tensor], [encoded_layers, conditional_emb]
         """
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for l_i, layer_module in enumerate(self.encoderLayer):
-            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+        for layer_idx, layer_module in enumerate(self.encoderLayer):
+            model_kwargs = self.apply_on_layer_begin(layer_idx, **model_kwargs)
             outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
+            model_kwargs = self.apply_on_layer_end(layer_idx, **model_kwargs)
             hidden_states = model_kwargs['hidden_states']
-            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 encoded_layers.append(hidden_states)

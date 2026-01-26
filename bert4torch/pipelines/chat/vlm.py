@@ -698,16 +698,23 @@ class Qwen2VL(ChatVLBase):
                                             "max_pixels": self.max_pixels}] + messages[-1]['content']
             all_messages.append(messages)
 
-        text = self.processor.apply_chat_template(all_messages, tokenize=False, add_generation_prompt=True)
-        image_inputs, video_inputs = process_vision_info(all_messages)
-        inputs = self.processor(
-            text=text,
-            images=image_inputs,
-            videos=video_inputs,
-            padding=True,
-            return_tensors="pt",
-        ).to(self.device)
+        # text = self.processor.apply_chat_template(all_messages, tokenize=False, add_generation_prompt=True)
+        # image_inputs, video_inputs = process_vision_info(all_messages)
+        # inputs = self.processor(
+        #     text=text,
+        #     images=image_inputs,
+        #     videos=video_inputs,
+        #     padding=True,
+        #     return_tensors="pt",
+        # ).to(self.device)
 
+        inputs = self.processor.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt"
+        ).to(self.device)
         history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
 
@@ -904,6 +911,7 @@ VLM_MAPPING = {
     'minicpm_llama3_v': MiniCPMV,
     'qwen2_vl': Qwen2VL,
     'qwen2_5_vl': Qwen2VL,
+    'qwen3_vl': Qwen2VL,
     'mllama': Mllama,
     'glm4v': GLM4V,
     'internvl2_5': InternVL,

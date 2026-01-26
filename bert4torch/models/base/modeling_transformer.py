@@ -145,12 +145,12 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
         顺序：Att1 --> Add --> LN --> Att2 --> Add -->  LN --> FFN --> Add --> LN
         """
         decoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for l_i, layer_module in enumerate(self.decoderLayer):
-            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+        for layer_idx, layer_module in enumerate(self.decoderLayer):
+            model_kwargs = self.apply_on_layer_begin(layer_idx, **model_kwargs)
             outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
+            model_kwargs = self.apply_on_layer_end(layer_idx, **model_kwargs)
             hidden_states = model_kwargs['hidden_states']
-            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
 
             if self.output_all_encoded_layers:
                 decoded_layers.append(hidden_states)

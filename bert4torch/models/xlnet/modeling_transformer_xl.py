@@ -157,14 +157,14 @@ class Transformer_XL(BertBase):
 
     def apply_main_layers(self, **model_kwargs):
         encoded_layers = [model_kwargs['hidden_states']] # 添加embedding的输出
-        for l_i, layer_module in enumerate(self.encoderLayer):
-            mems_i = None if self.mems is None else self.mems[l_i]
+        for layer_idx, layer_module in enumerate(self.encoderLayer):
+            mems_i = None if self.mems is None else self.mems[layer_idx]
             model_kwargs['mems_i'] = mems_i
-            model_kwargs = self.apply_on_layer_begin(l_i, **model_kwargs)
+            model_kwargs = self.apply_on_layer_begin(layer_idx, **model_kwargs)
             outputs = self.layer_forward(layer_module, model_kwargs)
             model_kwargs.update(outputs)
+            model_kwargs = self.apply_on_layer_end(layer_idx, **model_kwargs)
             hidden_states = model_kwargs['hidden_states']
-            model_kwargs = self.apply_on_layer_end(l_i, **model_kwargs)
             encoded_layers.append(hidden_states)
         
         # 原实现中word_emb, pos_emb和core_out(hidden_states)使用同一个dropout

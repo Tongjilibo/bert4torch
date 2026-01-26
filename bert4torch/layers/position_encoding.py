@@ -249,19 +249,17 @@ class RopePositionEncoding(nn.Module):
         position_ids_expanded = position_ids.unsqueeze(-2).float()
 
         with torch.autocast(device_type=device_type, enabled=False):
-            emb = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(-2, -1)  # btz, seq_len, hdsz
-            cos:torch.Tensor = emb.cos()
-            sin:torch.Tensor = emb.sin()
-
-        if self.rope_rank == 'adjacent':
-            # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
-            cos = cos.repeat_interleave(2, dim=-1)  # [..., seq_len, hdsz]
-            sin = sin.repeat_interleave(2, dim=-1)  # [..., seq_len, hdsz]
-        elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
-            # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
-            cos = torch.cat((cos, cos), dim=-1)  # [..., seq_len, hdsz]
-            sin = torch.cat((sin, sin), dim=-1)  # [..., seq_len, hdsz]
-
+            freqs:torch.Tensor = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(-2, -1)  # btz, seq_len, hdsz
+            if self.rope_rank == 'adjacent':
+                # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
+                emb = freqs.repeat_interleave(2, dim=-1)  # [..., seq_len, hdsz]
+            elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
+                # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
+                emb = torch.cat((freqs, freqs), dim=-1)  # [..., seq_len, hdsz]
+            else:
+                raise ValueError(f"rope_rank {self.rope_rank} is not supported")
+            cos = emb.cos()
+            sin = emb.sin()
         return cos.to(dtype=dtype), sin.to(dtype=dtype)
     
     def rotate_and_compute(self, x:torch.Tensor, cos:torch.Tensor, sin:torch.Tensor, position_ids:torch.Tensor, unsqueeze_dim:int=1):
@@ -273,6 +271,8 @@ class RopePositionEncoding(nn.Module):
         elif self.rope_rank in {'updown', 'rotate_half'}:
             # 其实就是rotate_half，注意cat和stack+reshape是结果不同的
             x2 = torch.cat([-x[..., x.shape[-1]//2:], x[..., :x.shape[-1]//2]], dim=-1)
+        else:
+            raise ValueError(f"rope_rank {self.rope_rank} is not supported")
         if cos.dim() < x.dim():
             cos = cos.unsqueeze(unsqueeze_dim)
             sin = sin.unsqueeze(unsqueeze_dim)
@@ -492,7 +492,50 @@ class RopeMropePositionEncoding(RopePositionEncoding):
         sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1)
         return cos, sin
 
-        
+
+class RopeMropeInterleavedPositionEncoding(RopePositionEncoding):
+    '''qwen3vl中使用'''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mrope_section = kwargs.get('mrope_section')
+    
+    def apply_interleaved_mrope(self, freqs, mrope_section):
+        """Apply interleaved MRoPE to 3D rotary embeddings.
+        Reorganizes frequency layout from chunked [TTT...HHH...WWW] to
+        interleaved [THTHWHTHW...TT], preserving frequency continuity.
+        args:
+            x: (3, bs, seq_len, head_dim // 2)
+            mrope_section: (3,)
+        returns:
+            x_t: (bs, seq_len, head_dim // 2)
+        """
+        freqs_t = freqs[0]  # just overwrite the first dimension T
+        for dim, offset in enumerate((1, 2), start=1):  # H, W
+            length = mrope_section[dim] * 3
+            idx = slice(offset, length, 3)
+            freqs_t[..., idx] = freqs[dim, ..., idx]
+        return freqs_t
+    def _compute_cos_sin(self, inv_freq_expanded:torch.Tensor, position_ids:torch.Tensor, device_type:str, dtype:str):
+        '''拆分出来，方便compute_cos_sin和_set_cos_sin_cache调用'''
+        inv_freq_expanded = inv_freq_expanded.float().expand(*position_ids.shape[:-1], -1, 1)
+        position_ids_expanded = position_ids.unsqueeze(-2).float()
+
+        with torch.autocast(device_type=device_type, enabled=False):
+            freqs:torch.Tensor = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(-2, -1)  # btz, seq_len, hdsz
+            freqs = self.apply_interleaved_mrope(freqs, self.mrope_section)
+            if self.rope_rank == 'adjacent':
+                # 相邻的两位是相同的，和官方博客上一致，如cos_position是[cos(mθ0), cos(mθ0), cos(mθ1), cos(mθ1), ...] 
+                emb = freqs.repeat_interleave(2, dim=-1)  # [..., seq_len, hdsz]
+            elif self.rope_rank in {'updown', 'rotate_half'}:  # 目前chatglm和llama系列有部分使用
+                # 整片的上下分布，和官方博客上不一致，如cos_position是[cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1)), cos(mθ0), cos(mθ1), ..., cos(mθ(d/2-1))] 
+                emb = torch.cat((freqs, freqs), dim=-1)  # [..., seq_len, hdsz]
+            else:
+                raise ValueError(f"rope_rank {self.rope_rank} is not supported")
+            cos = emb.cos()
+            sin = emb.sin()
+        return cos.to(dtype=dtype), sin.to(dtype=dtype)
+    
+
 ROPE_ENCODGING_MAP = {
     None: RopePositionEncoding,
     'linear': RopeLinearScalingPositionEncoding,
@@ -501,6 +544,7 @@ ROPE_ENCODGING_MAP = {
     'llama3': RopeLlama3PositionEncoding,
     'yarn': RopeYarnPositionEncoding,
     'mrope': RopeMropePositionEncoding,
+    'mrope_interleaved': RopeMropeInterleavedPositionEncoding,
     'glm': RopeGlmPositionEncoding
 }
 
