@@ -8,7 +8,9 @@ from bert4torch.models import build_transformer_model
 from transformers import AutoProcessor
 import torch
 
-model_dir = '/data/pretrain_ckpt/PaddlePaddle/PaddleOCR-VL'
+root_dir = '/data/pretrain_ckpt/PaddlePaddle'
+# model_dir = f'{root_dir}/PaddleOCR-VL'
+model_dir = f'{root_dir}/PaddleOCR-VL-1.5'
 image_path = "/home/lb/projects/tongjilibo/bert4torch/test_local/images/表格1.png"
 
 
@@ -22,6 +24,8 @@ def demo_generate():
         "table": "Table Recognition:",
         "formula": "Formula Recognition:",
         "chart": "Chart Recognition:",
+        "spotting": "Spotting:",  # 1.5新增
+        "seal": "Seal Recognition:",  # 1.5新增
     }
 
 

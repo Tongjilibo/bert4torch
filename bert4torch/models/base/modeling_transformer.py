@@ -95,12 +95,10 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
     '''所有decoder模型的基类(含大模型)'''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
-    def __init__(self, *args, logit_scale:Union[bool,int,float]=False, final_layernorm:bool=False, 
-                 convert_logits_dtype:Literal['float16', 'float32', 'float64', 'bfloat16', None]=None, **kwargs):
+    def __init__(self, *args, logit_scale:Union[bool,int,float]=False, final_layernorm:bool=False, **kwargs):
         '''
         :param logit_scale: bool, 是否对logits进行缩放
         :param final_layernorm: bool, 对last_hidden_state是否进行层归一化
-        :param convert_logits_dtype: bool, 是否对logits进行dtype转换
         '''
         kwargs['vocab_size'] = kwargs.get('tgt_vocab_size', kwargs['vocab_size'])
         kwargs['is_decoder'] = True  # 标记是decoder
@@ -110,7 +108,6 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
         del self.encoderLayer
         self.final_layernorm = final_layernorm
         mapping = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32, 'float64': torch.float64}
-        self.convert_logits_dtype = mapping[convert_logits_dtype] if convert_logits_dtype is not None else None
         self.num_logits_to_keep = kwargs.get('num_logits_to_keep', 0)
         self.attn_type = kwargs.get('attn_type')
         
@@ -169,8 +166,6 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
             logits = self.lm_head(last_hidden_state[:, -self.num_logits_to_keep:, :])  # [btz, seq_len, vocab_size]
             logits = logits * self.logit_scale if hasattr(self, 'logit_scale') else logits
             logits = self.final_activation(logits)
-            if self.convert_logits_dtype is not None:
-                logits = logits.to(self.convert_logits_dtype)
             return self.gen_outputs(locals(), last_hidden_state, logits) if self.return_dict else logits
         elif not self.return_dict:
             return last_hidden_state

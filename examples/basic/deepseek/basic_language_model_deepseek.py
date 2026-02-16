@@ -22,7 +22,7 @@ from bert4torch.pipelines import Chat
 # DeepSeek-R1-Distill-Llama-8B
 # DeepSeek-R1-Distill-Qwen-14B
 # DeepSeek-R1-0528-Qwen3-8B
-model_dir = 'E:/data/pretrain_ckpt/deepseek-ai/deepseek-moe-16b-chat'
+model_dir = 'E:/data/pretrain_ckpt/deepseek-ai/DeepSeek-V2-Lite-Chat'
 generation_config = {
     'max_length': 512,
 }
@@ -30,7 +30,6 @@ generation_config = {
 demo = Chat(model_dir, 
             system='You are a helpful assistant.',
             mode='cli',
-            # route_api='/v1/chat/completions',
             generation_config=generation_config,
             device_map='auto'
             )

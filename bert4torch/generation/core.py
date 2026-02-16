@@ -68,7 +68,7 @@ class AutoRegressiveDecoder(object):
                  eos_token_id:Union[int, float, tuple, list]=-1, 
                  max_new_tokens:int=None, 
                  min_new_tokens:int=1, 
-                 max_length:int=64, 
+                 max_length:int=256, 
                  pad_token_id:int=0, 
                  padding_side:Literal['left', 'right']='right', 
                  device:str='cpu', 

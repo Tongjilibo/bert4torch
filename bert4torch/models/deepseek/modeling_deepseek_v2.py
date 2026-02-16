@@ -2,8 +2,10 @@ from bert4torch.models.base import Decoder
 from bert4torch.layers.core import DeepseekMoeFeedForward
 
 
-class DeepSeek(Decoder):
-    '''DeepSeek: https://github.com/deepseek-ai/DeepSeek-MoE
+class DeepSeekV2(Decoder):
+    '''
+    DeepSeekV2: https://github.com/deepseek-ai/DeepSeek-V2
+    DeepSeek-MoE: https://github.com/deepseek-ai/DeepSeek-MoE
     模型结构: 基本和llama基本一致, 只是各个linear层多了bias; 和Qwen基本一致, 除了o有bias
     1) FeedForward和Llama一致, 三个dense层
     2) 除了qkvo有bias, 其余均没有bias

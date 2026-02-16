@@ -5,19 +5,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Callable, List, Optional, Tuple, Union
-from transformers.activations import ACT2FN
-from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
+from bert4torch.snippets import DottableDict, safe_import
 from torch.nn.init import _calculate_fan_in_and_fan_out
-from transformers.modeling_utils import PreTrainedModel, sdpa_attention_forward
-from transformers.utils import is_flash_attn_2_available, torch_int
-from bert4torch.snippets import DottableDict
-from transformers.configuration_utils import PretrainedConfig
-if is_flash_attn_2_available():
-    from flash_attn import flash_attn_varlen_func
-    from flash_attn.layers.rotary import apply_rotary_emb
-else:
-    flash_attn_varlen_func = None
-    apply_rotary_emb = None
+with safe_import():
+    from transformers.activations import ACT2FN
+    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
+    from transformers.modeling_utils import PreTrainedModel, sdpa_attention_forward
+    from transformers.utils import is_flash_attn_2_available, torch_int
+    from transformers.configuration_utils import PretrainedConfig
+    if is_flash_attn_2_available():
+        from flash_attn import flash_attn_varlen_func
+        from flash_attn.layers.rotary import apply_rotary_emb
+    else:
+        flash_attn_varlen_func = None
+        apply_rotary_emb = None
 
 
 def _trunc_normal_(tensor, mean, std, a, b):

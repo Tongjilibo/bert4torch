@@ -187,7 +187,7 @@ def get_device_map(pretrained_model, device_map, torch_dtype, **kwargs):
                 "This model has some weights that should be kept in higher precision, you need to upgrade "
                 "`accelerate` to properly deal with them (`pip install --upgrade accelerate`)."
             )
-        if device_map != "sequential":
+        if device_map != "sequential":  # 90%
             max_memory = get_balanced_memory(
                 pretrained_model,
                 dtype=target_dtype,
@@ -197,6 +197,8 @@ def get_device_map(pretrained_model, device_map, torch_dtype, **kwargs):
             )
         else:
             max_memory = get_max_memory(max_memory)
+        
+        max_memory = {k:v*0.95 for k, v in max_memory.items()}  # 0.9*0.95=0.855
         device_map_kwargs["max_memory"] = max_memory
 
         # Make sure tied weights are tied before creating the device map.
