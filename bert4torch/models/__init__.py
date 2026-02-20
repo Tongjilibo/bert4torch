@@ -24,7 +24,7 @@ from .bloom import Bloom
 from .qwen import Qwen, Qwen2, Qwen3, Qwen3Moe, Qwen2VL, Qwen2_5VL, Qwen3VL
 from .intern import InternLM, InternLM2, InternVL
 from .falcon import Falcon
-from .deepseek import DeepSeekV2, DeepSeekOCR2
+from .deepseek import DeepSeekV2, DeepSeekOCR, DeepSeekOCR2
 from .modeling_utils import restore_default_torch_dtype, set_default_torch_dtype, get_device_map, has_meta_param
 from typing import Union, Literal
 import json
@@ -139,6 +139,7 @@ def build_transformer_model(
         'deberta_v2': DebertaV2,
         'decoder': Decoder,
         'deepseek_v2': DeepSeekV2,
+        'deepseek_ocr': DeepSeekOCR,
         'deepseek_ocr2': DeepSeekOCR2,
         'electra': ELECTRA,
         'encoder': Encoder,

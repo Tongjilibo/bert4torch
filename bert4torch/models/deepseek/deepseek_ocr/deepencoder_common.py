@@ -2,16 +2,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import copy
-
-
-from typing import Optional, Tuple
-
-# from megatron.model import LayerNorm
-
-import transformers
-
-
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, List
 from functools import partial
 
 
@@ -182,326 +173,9 @@ class MlpProjector(nn.Module):
             fwd = 0
 
         return fwd * 3
-    
-
-#===================qwen2================================
-
-class CustomQwen2Decoder(nn.Module):
-    """
-    Qwen2 visual encoder
-    non-causal attention + causal attention
-    token_type_ids ：0=non-causal, 1=causal
-    """
-    
-    def __init__(
-        self,
-        decoder_layer: int = 24,
-        max_position_embeddings: int = 131072,
-        hidden_dimension: int = 896,
-        num_attention_heads: int = 14,
-        num_key_value_heads: int = 2,
-        intermediate_size: int = 4864,
-        vocab_size: int = 151936,
-        attn_implementation: str = "sdpa",  # ⭐ 
-        rms_norm_eps: float = 1e-06,
-        rope_theta: float = 1000000.0,
-        attention_dropout: float = 0.0,
-        hidden_act: str = "silu",
-        initializer_range: float = 0.02,
-    ):
-        super().__init__()
-        
-        # attn_implementation check
-        if attn_implementation == "flash_attention_2":
-            raise ValueError(
-                "CustomQwen2Decoder do not support flash_attention_2，"
-                "new attention mask needs 'sdpa' or 'eager'"
-            )
-        
-        # load
-        Qwen2Model = getattr(transformers.models.qwen2.modeling_qwen2, 'Qwen2Model')
-        Qwen2Config = getattr(transformers, 'Qwen2Config')
-        
-        # config
-        config = Qwen2Config(
-            hidden_size=hidden_dimension,
-            num_hidden_layers=decoder_layer,
-            num_attention_heads=num_attention_heads,
-            num_key_value_heads=num_key_value_heads,
-            intermediate_size=intermediate_size,
-            max_position_embeddings=max_position_embeddings,
-            vocab_size=vocab_size,
-            rms_norm_eps=rms_norm_eps,
-            rope_theta=rope_theta,
-            attention_dropout=attention_dropout,
-            hidden_act=hidden_act,
-            initializer_range=initializer_range,
-            _attn_implementation=attn_implementation,  # ⭐ 
-        )
-        
-        # 
-        self.model = self._create_custom_model(Qwen2Model, config)
-
-        del self.model.embed_tokens 
-    
-    def _create_custom_model(self, Qwen2Model, config):
-        """ Qwen2Model """
-        
-        class CustomQwen2ModelInner(Qwen2Model):
-
-            
-            def forward(
-                self,
-                input_ids=None,
-                attention_mask=None,
-                position_ids=None,
-                past_key_values=None,
-                inputs_embeds=None,
-                token_type_ids=None,  # ⭐
-                use_cache=None,
-                output_attentions=None,
-                output_hidden_states=None,
-                return_dict=None,
-                cache_position=None,
-            ):
-                # token_type_ids
-                self._current_token_type_ids = token_type_ids
-                
-                outputs = super().forward(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    position_ids=position_ids,
-                    past_key_values=past_key_values,
-                    inputs_embeds=inputs_embeds,
-                    use_cache=use_cache,
-                    output_attentions=output_attentions,
-                    output_hidden_states=output_hidden_states,
-                    return_dict=return_dict,
-                    cache_position=cache_position,
-                )
-                
-                return outputs
-            
-            def _update_causal_mask(
-                self,
-                attention_mask,
-                input_tensor,
-                cache_position,
-                past_key_values,
-                output_attentions,
-            ):
-                dtype, device = input_tensor.dtype, input_tensor.device
-                min_dtype = torch.finfo(dtype).min
-                batch_size, sequence_length = input_tensor.shape[0], input_tensor.shape[1]
-                
-                token_type_ids = self._current_token_type_ids
-                
-                # attention mask
-                causal_mask = self._create_custom_4d_mask(
-                    sequence_length=sequence_length,
-                    dtype=dtype,
-                    device=device,
-                    batch_size=batch_size,
-                    token_type_ids=token_type_ids,
-                )
-                
-                #  padding mask
-                if attention_mask is not None and attention_mask.dim() == 2:
-                    padding_mask = attention_mask[:, None, None, :].to(dtype=dtype)
-                    padding_mask = (1.0 - padding_mask) * min_dtype
-                    causal_mask = causal_mask + padding_mask
-                
-                return causal_mask
-            
-            def _create_custom_4d_mask(
-                self,
-                sequence_length,
-                dtype,
-                device,
-                batch_size,
-                token_type_ids,
-            ):
-                min_dtype = torch.finfo(dtype).min
-                
-                masks = []
-                for b in range(batch_size):
-                    mask = torch.full(
-                        (sequence_length, sequence_length),
-                        fill_value=min_dtype,
-                        dtype=dtype,
-                        device=device
-                    )
-                    
-                    type_ids = token_type_ids[b]
-                    
-                    image_positions = (type_ids == 0).nonzero(as_tuple=True)[0]
-                    text_positions = (type_ids == 1).nonzero(as_tuple=True)[0]
-                    
-                    # non-casual
-                    if len(image_positions) > 0:
-                        mask[image_positions[:, None], image_positions] = 0.0
-                    
-                    # causal
-                    for i, text_pos in enumerate(text_positions):
-                        if len(image_positions) > 0:
-                            mask[text_pos, image_positions] = 0.0
-                        mask[text_pos, text_positions[:i+1]] = 0.0
-                    
-                    masks.append(mask)
-                
-                mask = torch.stack(masks, dim=0).unsqueeze(1)
-                return mask
-        
-        return CustomQwen2ModelInner(config)
-    
-    def forward(
-        self,
-        inputs_embeds,
-        token_type_ids,
-        attention_mask=None,
-        **kwargs
-    ):
-        """
-        Args:
-            inputs_embeds: [batch_size, seq_len, hidden_dim]
-            token_type_ids: [batch_size, seq_len], 0=non-causal, 1=causal
-            attention_mask: [batch_size, seq_len], optional
-        """
-        return self.model(
-            inputs_embeds=inputs_embeds,
-            token_type_ids=token_type_ids,
-            attention_mask=attention_mask,
-            **kwargs
-        )
-
-
-
-
-
-# batch_size = 2
-# inputs_embeds = torch.randn(batch_size, 512, 896).cuda()
-
-# inputs_embeds = torch.randn(batch_size, 512, 896).cuda()
-# token_type_ids = torch.cat([
-#     torch.zeros(batch_size, 256, dtype=torch.long),
-#     torch.ones(batch_size, 256, dtype=torch.long),
-# ], dim=1).cuda()
-
-# # start = time.time()
-# with torch.no_grad():
-#     outputs_sdpa = decoder_sdpa(inputs_embeds, token_type_ids)
-#     print(outputs_sdpa[0].shape)
-# print(f"SDPA time: {time.time() - start:.4f}s")
-
-
-
-class Qwen2Decoder2Encoder(nn.Module):
-    """
-    Decoder based on Multilingual BART
-    Set the initial weights and configuration with a pretrained multilingual BART model,
-    and modify the detailed configurations as a Nougat decoder
-    """
-
-    def __init__(
-        self,
-        decoder_layer: int,
-        hidden_dimension: int,
-        num_attention_heads: int,
-        num_key_value_heads: int,
-        intermediate_size: int,
-        max_query: int,
-    ):
-        super().__init__()
-
-        self.model = CustomQwen2Decoder(
-            decoder_layer=decoder_layer,
-            hidden_dimension=hidden_dimension,
-            num_attention_heads=num_attention_heads,
-            num_key_value_heads=num_key_value_heads,
-            intermediate_size=intermediate_size,
-            attn_implementation="sdpa", 
-        )
-
-
-
-
-        self.query_768 = nn.Embedding(144, hidden_dimension)
-        self.query_1024 = nn.Embedding(256, hidden_dimension)
-
-
-        # self.query_refixation = nn.Embedding(int(math.sqrt(max_query)), hidden_dimension)
-
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x  = x.flatten(2).transpose(1, 2)
-
-        bs, n_query, _ = x.shape
-
-        if n_query == 144:
-            param_img = self.query_768.weight
-        elif n_query == 256:
-            param_img = self.query_1024.weight
-
-        batch_query_imgs = param_img.unsqueeze(0).expand(
-            bs, -1, -1
-        )  # (batch_size, num_queries, hidden_size)
-
-
-
-        x_combined = torch.cat([x, batch_query_imgs], dim=1)
-
-        token_type_ids = torch.cat([
-            torch.zeros(bs, n_query, dtype=torch.long),
-            torch.ones(bs, n_query, dtype=torch.long),
-        ], dim=1)
-
-
-        y = self.model(x_combined, token_type_ids)[0]
-
-
-        y = y[:, n_query:, :] # causal flow query
-
-
-        return y
-
-
-def build_qwen2_decoder_as_encoder(
-    decoder_layer=24,
-    hidden_dimension=896,
-    num_attention_heads=14,
-    num_key_value_heads=2,
-    intermediate_size=4864,
-    max_query = 400,
-    checkpoint=None,
-):
-
-    decoder_as_encoder = Qwen2Decoder2Encoder(
-            decoder_layer=decoder_layer,
-            hidden_dimension = hidden_dimension,
-            num_attention_heads = num_attention_heads,
-            num_key_value_heads = num_key_value_heads,
-            intermediate_size = intermediate_size,
-            max_query = max_query
-        )
-
-
-
-    
-    if checkpoint is not None:
-        # with open(checkpoint, "rb") as f:
-        state_dict = torch.load(checkpoint)
-
-        decoder_as_encoder.load_state_dict(state_dict, strict=True)
-        # tob
-        print(checkpoint)
-    return decoder_as_encoder
-
-
 
 
 #=========================Sam-Vary=================================
-
-
 def get_abs_pos_sam(abs_pos, tgt_size):
 
     dtype = abs_pos.dtype
@@ -572,6 +246,7 @@ class ImageEncoderViT(nn.Module):
         mlp_ratio: float = 4.0,
         out_chans: int = 256,
         qkv_bias: bool = True,
+        downsample_channels: List[int] = None,
         norm_layer: Type[nn.Module] = nn.LayerNorm,
         act_layer: Type[nn.Module] = nn.GELU,
         use_abs_pos: bool = True,
@@ -649,8 +324,8 @@ class ImageEncoderViT(nn.Module):
             LayerNorm2d(out_chans),
         )
 
-        self.net_2 = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1, bias=False)
-        self.net_3 = nn.Conv2d(512, 896, kernel_size=3, stride=2, padding=1, bias=False)
+        self.net_2 = nn.Conv2d(256, downsample_channels[0], kernel_size=3, stride=2, padding=1, bias=False)
+        self.net_3 = nn.Conv2d(downsample_channels[0], downsample_channels[1], kernel_size=3, stride=2, padding=1, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
@@ -959,57 +634,38 @@ class PatchEmbed(nn.Module):
         return x
 
 
-def build_sam_vit_b(checkpoint=None):
-    return _build_sam(
-        encoder_embed_dim=768,
-        encoder_depth=12,
-        encoder_num_heads=12,
-        encoder_global_attn_indexes=[2, 5, 8, 11],
-        checkpoint=checkpoint,
-    )
-
-def build_sam_fast_vit_b(checkpoint=None, compile_mode='max-autotune', dtype=torch.bfloat16):
-    image_encoder = build_sam_vit_b(checkpoint).eval().to(dtype)
+def build_sam_fast_vit_b(compile_mode='max-autotune', dtype=torch.bfloat16, **config):
+    image_encoder = build_sam_vit_b(**config).eval().to(dtype)
     # sam = _apply_eval_dtype_sam(sam, dtype)
     image_encoder = torch.compile(image_encoder, mode=compile_mode)
     return image_encoder
 
 
-def _build_sam(
-    encoder_embed_dim,
-    encoder_depth,
-    encoder_num_heads,
-    encoder_global_attn_indexes,
-    checkpoint=None,
+def build_sam_vit_b(
+    width=768,
+    layers=12,
+    heads=12,
+    global_attn_indexes=[2, 5, 8, 11],
+    downsample_channels=[512, 1024]
 ):
     prompt_embed_dim = 256
     image_size = 1024
     vit_patch_size = 16
     image_embedding_size = image_size // vit_patch_size
     image_encoder=ImageEncoderViT(
-            depth=encoder_depth,
-            embed_dim=encoder_embed_dim,
+            depth=layers,
+            embed_dim=width,
             img_size=image_size,
+            downsample_channels=downsample_channels,
             mlp_ratio=4,
             norm_layer=partial(torch.nn.LayerNorm, eps=1e-6),
-            num_heads=encoder_num_heads,
+            num_heads=heads,
             patch_size=vit_patch_size,
             qkv_bias=True,
             use_rel_pos=True,
-            global_attn_indexes=encoder_global_attn_indexes,
+            global_attn_indexes=global_attn_indexes,
             window_size=14,
             out_chans=prompt_embed_dim,
         )
     image_encoder.eval()
-    if checkpoint is not None:
-        # with open(checkpoint, "rb") as f:
-        state_dict = torch.load(checkpoint)
-        # print(state_dict.keys())
-        # for key in state_dict:
-        # image_encoder.load_state_dict({k[14:]: v for k, v in state_dict.items() if 'image_encoder' in k}, strict=False)
-        # ocr-anyting
-        # image_encoder.load_state_dict(state_dict, strict=True)
-        # tob
-        image_encoder.load_state_dict({k[30:]: v for k, v in state_dict.items() if 'vision_tower_high' in k}, strict=True)
-        print(checkpoint)
     return image_encoder

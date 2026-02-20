@@ -5,22 +5,21 @@
 from bert4torch.models import build_transformer_model
 import torch
 
-model_dir = '/data/pretrain_ckpt/deepseek-ai/DeepSeek-OCR-2'
+model_dir = '/data/pretrain_ckpt/deepseek-ai/DeepSeek-OCR'
+# model_dir = '/data/pretrain_ckpt/deepseek-ai/DeepSeek-OCR-2'
 prompt = "<image>\n<|grounding|>Convert the document to markdown."
 image_file = '/data/pretrain_ckpt/deepseek-ai/DeepSeek-OCR-2/image.png'
-output_path = '/data/pretrain_ckpt/deepseek-ai/DeepSeek-OCR-2/output'
 
 def chat_demo1():
     from transformers import AutoModel, AutoTokenizer
-    from bert4torch.models.deepseek.deepseek_ocr2 import process_vision_info
+    from bert4torch.models.deepseek import process_vision_info
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
 
-    res = process_vision_info(tokenizer, prompt=prompt, image_file=image_file, output_path = output_path, base_size = 1024, image_size = 768, crop_mode=True, save_results = True)
+    res = process_vision_info(tokenizer, prompt=prompt, image_file=image_file, base_size = 1024, image_size = 768, crop_mode=True)
 
-    model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to("cuda")
-    with torch.autocast("cuda", dtype=torch.bfloat16):
-        with torch.no_grad():
-            output = model.generate(**res, max_new_tokens=256)
+    model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
+    model = model.eval().cuda().to(torch.bfloat16)
+    output = model.generate(**res, max_new_tokens=1024, pad_token_id=2, eos_token_id=1)
     print(tokenizer.batch_decode(output, skip_special_tokens=True)[0])
 
 

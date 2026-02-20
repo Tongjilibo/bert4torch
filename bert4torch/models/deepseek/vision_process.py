@@ -185,42 +185,20 @@ def text_encode(tokenizer, text: str, bos: bool = True, eos: bool = False):
 
     return t
 
-def process_vision_info(tokenizer, prompt='', image_file='', output_path = '', base_size=1024, image_size=640, crop_mode=True, test_compress=False, save_results=False, eval_mode=False):
-
-    if prompt and image_file:
-        conversation = [
-            {
-                "role": "<|User|>",
-                # "content": "<image>\n<|grounding|>Given the layout of the image. ",
-                "content": f'{prompt}',
-                # "content": "君不见黄河之水天上来的下一句是什么？",
-                # "content": "<image>\nFree OCR. ",
-                # "content": "<image>\nParse the figure. ",
-                # "content": "<image>\nExtract the text in the image. ",
-                "images": [f'{image_file}'],
-            },
-            {"role": "<|Assistant|>", "content": ""},
-        ]
-    
-    elif prompt:
-        conversation = [
-            {
-                "role": "<|User|>",
-                # "content": "<image>\n<|grounding|>Given the layout of the image. ",
-                "content": f'{prompt}',
-                # "content": "君不见黄河之水天上来的下一句是什么？",
-                # "content": "<image>\nFree OCR. ",
-                # "content": "<image>\nParse the figure. ",
-                # "content": "<image>\nExtract the text in the image. ",
-                # "images": [f'{image_file}'],
-            },
-            {"role": "<|Assistant|>", "content": ""},
-        ]
-    else:
+def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, image_size=640, crop_mode=True):
+    if not prompt:
         assert False, f'prompt is none!'
+        
+    conversation = [
+        {
+            "role": "<|User|>",
+            "content": f'{prompt}',
+        },
+        {"role": "<|Assistant|>", "content": ""},
+    ]
+    if image_file:
+        conversation[0]['images'] = [f'{image_file}']
     
-    # prompt = format_messages(conversations=conversation, sft_format='plain', system_prompt='')
-
     patch_size = 16
     downsample_ratio = 4
     images = load_pil_images(conversation)
@@ -231,7 +209,6 @@ def process_vision_info(tokenizer, prompt='', image_file='', output_path = '', b
     image_draw = images[0].copy()
 
     w,h = image_draw.size
-    # print(w, h)
     ratio = 1 - ((max(w, h) - min(w, h)) / (max(w, h)))
 
 
@@ -276,10 +253,6 @@ def process_vision_info(tokenizer, prompt='', image_file='', output_path = '', b
             # elif base_size == 640:
             #     valid_img_tokens += int(100 * ratio)
             
-
-
-
-            
             images_list.append(image_transform(global_view).to(torch.bfloat16))
 
             # global_view_tensor = image_transform(global_view).to(torch.bfloat16)
@@ -301,12 +274,7 @@ def process_vision_info(tokenizer, prompt='', image_file='', output_path = '', b
             num_queries = math.ceil((image_size // patch_size) / downsample_ratio)
             num_queries_base = math.ceil((base_size // patch_size) / downsample_ratio)
 
-
-
             """add image tokens"""
-
-            
-
             tokenized_image = ([image_token_id] * num_queries_base) * num_queries_base
             tokenized_image += [image_token_id]
             if width_crop_num > 1 or height_crop_num > 1:
@@ -317,9 +285,6 @@ def process_vision_info(tokenizer, prompt='', image_file='', output_path = '', b
             # num_image_tokens.append(len(tokenized_image))
 
         else:
-            # best_width, best_height = self.image_size, self.image_size
-            # print(image.size, (best_width, best_height)) # check the select_best_resolutions func
-
             """process the global view"""
             if image_size <= 768:
                 print('directly resize')

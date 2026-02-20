@@ -28,15 +28,13 @@ def demo_generate():
         "seal": "Seal Recognition:",  # 1.5新增
     }
 
-
     image = Image.open(image_path).convert("RGB")
 
+    processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=True)
     model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to("cuda")
 
-    processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=True)
-
     messages = [
-        {"role": "user",         
+        {"role": "user",
         "content": [
                 {"type": "image", "image": image},
                 {"type": "text", "text": PROMPTS[CHOSEN_TASK]},
