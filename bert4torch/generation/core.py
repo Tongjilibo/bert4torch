@@ -76,7 +76,8 @@ class AutoRegressiveDecoder(object):
                  top_k:int=None, 
                  top_p:float=None,
                  temperature:float=1.0, 
-                 repetition_penalty:float=1.0, 
+                 repetition_penalty:int=1, 
+                 no_repeat_ngram_size=1,
                  do_sample:bool=True,
                  min_ends:int=1, 
                  **generation_config):
@@ -98,6 +99,7 @@ class AutoRegressiveDecoder(object):
         self.top_p = top_p  # top_p采样
         self.temperature = temperature  # 温度系数
         self.repetition_penalty = repetition_penalty  # 重复性惩罚系数
+        self.no_repeat_ngram_size = no_repeat_ngram_size  # n-gram重复惩罚
         self.do_sample = do_sample  # 是否采样, 如果为False则不进行top_k和top_p采样, 直接取最大值
         self.prepared_logits_processor = self._get_logits_processor()
         self.min_ends = min_ends
@@ -128,6 +130,7 @@ class AutoRegressiveDecoder(object):
         if not self.do_sample or self.temperature == 0:  # greed
             return processors
         processors.append(RepetitionPenaltyLogitsProcessor(penalty=self.repetition_penalty))
+        processors.append(NoRepeatNGramLogitsProcessor(ngram_size=self.no_repeat_ngram_size))
         processors.append(TemperatureLogitsWarper(self.temperature))
         processors.append(TopKLogitsWarper(top_k=self.top_k))
         processors.append(TopPLogitsWarper(top_p=self.top_p))
@@ -137,6 +140,8 @@ class AutoRegressiveDecoder(object):
         for processor in self.prepared_logits_processor:
             if isinstance(processor, RepetitionPenaltyLogitsProcessor):
                 processor.penalty = self.repetition_penalty
+            elif isinstance(processor, NoRepeatNGramLogitsProcessor):
+                processor.ngram_size = self.no_repeat_ngram_size
             elif isinstance(processor, TemperatureLogitsWarper):
                 processor.temperature = self.temperature
             elif isinstance(processor, TopKLogitsWarper):

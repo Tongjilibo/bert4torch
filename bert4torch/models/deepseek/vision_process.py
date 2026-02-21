@@ -185,7 +185,9 @@ def text_encode(tokenizer, text: str, bos: bool = True, eos: bool = False):
 
     return t
 
-def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, image_size=640, crop_mode=True):
+def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, 
+                        image_size=768, crop_mode=True, crop_thread=768, 
+                        add_image_token_id=False, dynamic_preprocess_max_num=6):
     if not prompt:
         assert False, f'prompt is none!'
         
@@ -217,6 +219,10 @@ def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, ima
 
     image_token = '<image>'
     image_token_id = 128815
+    if add_image_token_id:
+        add_image_token_id = [image_token_id]
+    else:
+        add_image_token_id = []
     text_splits = prompt.split(image_token)
 
     images_list, images_crop_list, images_seq_mask = [], [], []
@@ -230,13 +236,13 @@ def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, ima
 
         if crop_mode:
 
-            if image.size[0] <= 768 and image.size[1] <= 768:
+            if image.size[0] <= crop_thread and image.size[1] <= crop_thread:
                 crop_ratio = [1, 1]
 
             else:
                 if crop_mode:
                     # best_width, best_height = select_best_resolution(image.size, self.candidate_resolutions)
-                    images_crop_raw, crop_ratio = dynamic_preprocess(image)
+                    images_crop_raw, crop_ratio = dynamic_preprocess(image, max_num=dynamic_preprocess_max_num, image_size=image_size)
                 else:
                     # best_width, best_height = self.image_size, self.image_size
                     crop_ratio = [1, 1]
@@ -268,17 +274,17 @@ def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, ima
                 for i in range(len(images_crop_raw)):
                     images_crop_list.append(image_transform(images_crop_raw[i]).to(torch.bfloat16))
             
-            if image_size == 768:
+            if image_size == crop_thread:
                 valid_img_tokens += len(images_crop_list) * 144
 
             num_queries = math.ceil((image_size // patch_size) / downsample_ratio)
             num_queries_base = math.ceil((base_size // patch_size) / downsample_ratio)
 
             """add image tokens"""
-            tokenized_image = ([image_token_id] * num_queries_base) * num_queries_base
+            tokenized_image = ([image_token_id] * num_queries_base + add_image_token_id) * num_queries_base
             tokenized_image += [image_token_id]
             if width_crop_num > 1 or height_crop_num > 1:
-                tokenized_image += ([image_token_id] * (num_queries * width_crop_num)) * (
+                tokenized_image += ([image_token_id] * (num_queries * width_crop_num) + add_image_token_id) * (
                             num_queries * height_crop_num)
             tokenized_str += tokenized_image
             images_seq_mask += [True] * len(tokenized_image)
@@ -286,7 +292,7 @@ def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, ima
 
         else:
             """process the global view"""
-            if image_size <= 768:
+            if image_size <= crop_thread:
                 print('directly resize')
                 image = image.resize((image_size, image_size))
             # else:
@@ -313,7 +319,7 @@ def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, ima
             """add image tokens"""
             num_queries = math.ceil((image_size // patch_size) / downsample_ratio)
 
-            tokenized_image = ([image_token_id] * num_queries) * num_queries
+            tokenized_image = ([image_token_id] * num_queries + add_image_token_id) * num_queries
             tokenized_image += [image_token_id]
             # tokenized_image += ([self.image_token_id] * (num_queries * width_crop_num) + [self.image_token_id]) * (
             #             num_queries * height_crop_num)
