@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union, Tuple, Type
 from bert4torch.snippets.import_utils import is_torch_available
+from bert4torch.snippets import create_registrar
 
 
 if is_torch_available():
@@ -265,3 +266,7 @@ class QuantizerBase(ABC):
     @property
     @abstractmethod
     def is_trainable(self): ...
+
+
+AUTO_QUANTIZER_MAPPING : Dict[str, Type[QuantizerBase]] = {}
+register_quantizer = create_registrar(AUTO_QUANTIZER_MAPPING)

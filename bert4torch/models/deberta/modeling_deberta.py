@@ -1,8 +1,9 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import ConvLayer
 
 
+@register_model(name="deberta_v2")
 class DebertaV2(BertBase):
     '''DeBERTaV2: https://arxiv.org/abs/2006.03654, https://github.com/microsoft/DeBERTa:
        这里使用的是IEDEA的中文模型: https://huggingface.co/IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese:

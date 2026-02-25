@@ -19,11 +19,12 @@ from bert4torch.snippets import (
     log_warn,
     log_warn_once,
     is_accelerate_available,
-    DottableDict
+    DottableDict,
+    create_registrar
 )
 from torch4keras.model import BaseModel, add_trainer
 import warnings
-from typing import Union, Literal, Callable, List
+from typing import Union, Literal, Callable, List, Type, Dict
 from tqdm import tqdm
 import gc
 import copy
@@ -494,8 +495,7 @@ class PreTrainedModel(nn.Module):
         if 'model' in quantization_config:
             quantization_config.pop('model')
         
-        from bert4torch.quantizers.auto import AUTO_QUANTIZER_MAPPING
-        from bert4torch.quantizers.base import QuantizerBase
+        from bert4torch.quantizers import AUTO_QUANTIZER_MAPPING, QuantizerBase
         quantization_config['quant_method'] = quant_method
         torch_dtype = quantization_config.pop('torch_dtype', None)
         device_map = quantization_config.pop('device_map', None)
@@ -606,3 +606,7 @@ def extend_with_unified_language_model(InputModel):
             super(UnifiedLanguageModel, self).__init__(*args, **kwargs)
 
     return UnifiedLanguageModel
+
+
+MODEL_FACTORY: Dict[str, Type[PreTrainedModel]] = {}
+register_model = create_registrar(MODEL_FACTORY)

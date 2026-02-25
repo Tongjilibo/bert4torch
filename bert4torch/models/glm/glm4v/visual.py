@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from argparse import Namespace
 import torch.nn.functional as F
-from transformers.activations import ACT2FN
+from bert4torch.activations import ACT2FN
 import math
 from torch.nn import LayerNorm
 

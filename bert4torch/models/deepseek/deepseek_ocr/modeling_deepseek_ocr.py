@@ -3,7 +3,7 @@ image_encoder: sam+clip
 language_model: deepseekv2
 '''
 from ..modeling_deepseek_v2 import DeepSeekV2
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from .deepencoder_common import build_sam_vit_b, MlpProjector
 from .deepencoder_clip import build_clip_l
 import torch
@@ -12,6 +12,7 @@ from bert4torch.snippets import DottableDict
 from typing import Union, Optional
 
 
+@register_model(name="deepseek_ocr")
 class DeepSeekOCR(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"images_ori", "images_crop", "images_seq_mask", "images_spatial_crop"}
     def __init__(self, *args, **kwargs):

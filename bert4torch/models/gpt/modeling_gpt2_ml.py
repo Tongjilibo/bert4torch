@@ -1,7 +1,8 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 import torch
 
 
+@register_model(name="gpt2_ml")
 class GPT2_ML(Decoder):
     """构建GPT2_ML模型；
     链接: https://github.com/imcaspar/gpt2-ml；

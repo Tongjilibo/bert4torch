@@ -1,4 +1,4 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import AlibiAttention, BertLayer, BlockIdentity
 import math
@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 
+@register_model(name="falcon")
 class Falcon(Decoder):
     '''Falcon: https://huggingface.co/tiiuae
     falcon-rw-1b：alibi编码，但是其attention_scale是在+attention_mask后执行的，和bloom、baichuan-13b-chat其他不一样

@@ -1,7 +1,8 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 import torch
 
 
+@register_model(name="internlm2")
 class InternLM2(Decoder):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,8 +1,8 @@
-from bert4torch.models.base import Decoder
-from bert4torch.snippets import delete_arguments
+from bert4torch.models.base import Decoder, register_model
 import torch
 
 
+@register_model(name="bloom")
 class Bloom(Decoder):
     '''Bloom: https://arxiv.org/abs/2211.05100
     主要区别就是alibi编码，其他和bert结构一致

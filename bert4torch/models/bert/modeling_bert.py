@@ -1,7 +1,9 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 from bert4torch.snippets import modify_variable_mapping
 
 
+@register_model(name="bert")
+@register_model(name="roberta")
 class BERT(BertBase):
     def load_trans_ckpt(self, checkpoint):
         """加载ckpt, 方便后续继承并做一些预处理

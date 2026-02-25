@@ -1,4 +1,4 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 from bert4torch.snippets import insert_arguments, delete_arguments
 from bert4torch.layers import AdaptiveEmbedding, XlnetPositionsEncoding
 from bert4torch.layers import BlockIdentity, XlnetLayer
@@ -6,6 +6,7 @@ from torch import nn
 import torch
 
 
+@register_model(name="transformer_xl")
 class Transformer_XL(BertBase):
     '''构建transformer-xl模型, 已加载；
     项目: https://github.com/kimiyoung/transformer-xl；

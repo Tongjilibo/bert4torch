@@ -2,7 +2,11 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from typing import Union, List, Literal, Optional
+from typing import Union, List, Literal, Optional, Dict, Type
+from bert4torch.snippets import create_registrar
+
+ROPE_ENCODGING_MAP : Dict[str, Type[nn.Module]] = {}
+register_rope = create_registrar(ROPE_ENCODGING_MAP)
 
 
 def get_sinusoid_encoding_table(n_position:int, d_hid:int, base:float=10000.0, padding_idx:Optional[int]=None):
@@ -158,6 +162,7 @@ class SinusoidalPositionEncoding(nn.Module):
         return self.position_embeddings(position_ids)
 
 
+@register_rope(name='default')
 class RopePositionEncoding(nn.Module):
     """旋转式位置编码: https://kexue.fm/archives/8265
 
@@ -301,11 +306,13 @@ class RopePositionEncoding(nn.Module):
             return self.rotate_and_compute(qk, cos, sin, position_ids)
 
 
+@register_rope(name="linear")
 class RopeLinearScalingPositionEncoding(RopePositionEncoding):
     '''使用linear scaling的rope, scaling_factor != 1的时候生效'''
     pass
 
 
+@register_rope(name="glm")
 class RopeGlmPositionEncoding(RopePositionEncoding):
     '''GLM对应的rope编码'''
     def __init__(self, 
@@ -336,6 +343,7 @@ class RopeGlmPositionEncoding(RopePositionEncoding):
         return query_states, key_states
 
 
+@register_rope(name="dynamic")
 class RopeDynamicNTKScalingPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope'''
     def __init__(self, 
@@ -355,6 +363,7 @@ class RopeDynamicNTKScalingPositionEncoding(RopePositionEncoding):
         return super()._set_inv_freq_cache(seq_len, device)
 
 
+@register_rope(name="llama3")
 class RopeLlama3PositionEncoding(RopePositionEncoding):
     '''使用llama3的rope'''
     def __init__(self, 
@@ -393,6 +402,7 @@ class RopeLlama3PositionEncoding(RopePositionEncoding):
         return inv_freq_llama    
 
 
+@register_rope(name="dynamic_qwen")
 class RopeDynamicNTKScalingQwenPositionEncoding(RopePositionEncoding):
     '''使用Dynamic NTK scaling的rope (Qwen版)'''
     def _set_inv_freq_cache(self, seq_len, device=None):
@@ -403,6 +413,7 @@ class RopeDynamicNTKScalingQwenPositionEncoding(RopePositionEncoding):
         return super()._set_inv_freq_cache(seq_len, device)
 
 
+@register_rope(name="yarn")
 class RopeYarnPositionEncoding(RopePositionEncoding):
     '''DeepSeekV2中使用'''
     def __init__(
@@ -479,6 +490,7 @@ class RopeYarnPositionEncoding(RopePositionEncoding):
         return cos, sin
     
 
+@register_rope(name="mrope")
 class RopeMropePositionEncoding(RopePositionEncoding):
     '''qwen2vl中使用'''
     def __init__(self, *args, **kwargs):
@@ -493,6 +505,7 @@ class RopeMropePositionEncoding(RopePositionEncoding):
         return cos, sin
 
 
+@register_rope(name="mrope_interleaved")
 class RopeMropeInterleavedPositionEncoding(RopePositionEncoding):
     '''qwen3vl中使用'''
     def __init__(self, *args, **kwargs):
@@ -534,19 +547,6 @@ class RopeMropeInterleavedPositionEncoding(RopePositionEncoding):
             cos = emb.cos()
             sin = emb.sin()
         return cos.to(dtype=dtype), sin.to(dtype=dtype)
-    
-
-ROPE_ENCODGING_MAP = {
-    None: RopePositionEncoding,
-    'linear': RopeLinearScalingPositionEncoding,
-    'dynamic': RopeDynamicNTKScalingPositionEncoding,
-    'dynamic_qwen': RopeDynamicNTKScalingQwenPositionEncoding,
-    'llama3': RopeLlama3PositionEncoding,
-    'yarn': RopeYarnPositionEncoding,
-    'mrope': RopeMropePositionEncoding,
-    'mrope_interleaved': RopeMropeInterleavedPositionEncoding,
-    'glm': RopeGlmPositionEncoding
-}
 
 
 class XlnetPositionsEncoding(nn.Module):

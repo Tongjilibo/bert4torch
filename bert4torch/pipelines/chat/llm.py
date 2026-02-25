@@ -12,7 +12,7 @@
 
 import os
 import torch
-from typing import Union, Optional, List, Tuple, Literal, Dict
+from typing import Union, Optional, List, Tuple, Literal, Dict, Type, Any
 from bert4torch.pipelines.base import PipeLineBase
 from bert4torch.snippets import (
     log_warn_once, 
@@ -33,7 +33,8 @@ from bert4torch.snippets import (
     JsonConfig,
     NoopContextManager,
     sequence_padding,
-    DottableDict
+    DottableDict,
+    create_registrar
 )
 from packaging import version
 import gc
@@ -840,7 +841,12 @@ class ChatOpenaiApi(ChatBase):
 # ==========================================================================================
 # =========================              各个具体模型实现        ============================
 # ==========================================================================================
+LLM_MAPPING : Dict[str, Type[ChatBase]] = {}
+register_llm = create_registrar(LLM_MAPPING)
+
+
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="glm")
 class Glm(ChatBase):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         # 没有system和function call
@@ -880,6 +886,7 @@ class Glm(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="glm2")
 class Glm2(ChatBase):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions is not None: 
@@ -916,6 +923,7 @@ class Glm2(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="glm3")
 class Glm3(ChatBase):
     ''' functions格式如下:
     ```python
@@ -991,6 +999,7 @@ class Glm3(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="glm4")
 class Glm4(ChatBase):
     '''functions格式如下:
     ```python
@@ -1064,6 +1073,7 @@ class Glm4(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="internlm")
 class InternLM(ChatBase):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1092,6 +1102,7 @@ class InternLM(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="internlm2")
 class InternLM2(ChatBase):
     '''internlm2支持function call, 格式如下:
 
@@ -1184,6 +1195,7 @@ class InternLM2(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="qwen")
 class Qwen(ChatBase):
     '''functions格式如下:
     ```python
@@ -1389,6 +1401,7 @@ class Qwen(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="qwen2")
 class Qwen2(ChatBase):
     '''Qwen2的chat, 含function call的逻辑
     主要参考了qwen_agent的逻辑
@@ -1668,6 +1681,7 @@ class Qwen2(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="llama2")
 class LLaMA2(ChatBase):
     '''LLaMA2
     LLaMA由于只有base模型, 没有chat所以直接model.generate即可
@@ -1700,6 +1714,9 @@ class LLaMA2(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="qwen3")
+@register_llm(name="qwen3_moe")
+@register_llm(name="apply_chat_template")
 class ApplyChatTemplate(ChatBase):
     '''直接使用self.tokenizer.apply_chat_template来构建输入
     如果模型直接沿用这种方式，则无需做特殊的处理
@@ -1737,6 +1754,7 @@ class ApplyChatTemplate(ChatBase):
         return response
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="llama3")
 class LLaMA3(ApplyChatTemplate):
     '''llama3不支持function call, llama3.1支持function call
     
@@ -1754,6 +1772,7 @@ class LLaMA3(ApplyChatTemplate):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="deepseek_r1")
 class DeepSeekR1(ApplyChatTemplate):
     '''直接使用self.tokenizer.apply_chat_template来构建输入
     如果模型直接沿用这种方式，则无需做特殊的处理
@@ -1766,6 +1785,7 @@ class DeepSeekR1(ApplyChatTemplate):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="ziya")
 class Ziya(ChatBase):
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions is not None: 
@@ -1785,6 +1805,7 @@ class Ziya(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="chinese_llama_alpaca")
 class ChineseLlamaAlpaca(ChatBase):
     def __init__(self, *args, system:str=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1815,6 +1836,7 @@ class ChineseLlamaAlpaca(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="belle")
 class Belle(ChatBase):
     def build_tokenizer(self, **kwargs):
         from transformers import AutoTokenizer
@@ -1837,6 +1859,7 @@ class Belle(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="baichuan")
 class Baichuan(ChatBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1860,6 +1883,7 @@ class Baichuan(ChatBase):
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)
+@register_llm(name="pretrained_text_continuation")
 class PretrainedTextContinuation(ChatBase):
     '''预训练的模型续写'''
     def __init__(self, *args, **kwargs):
@@ -1880,26 +1904,3 @@ class PretrainedTextContinuation(ChatBase):
         total_input += query
         history = self.update_history(history, query)
         return total_input
-
-
-LLM_MAPPING = {
-    'glm': Glm,
-    'glm2': Glm2,
-    'glm3': Glm3,
-    'glm4': Glm4,
-    'internlm': InternLM,
-    'internlm2': InternLM2,
-    'qwen': Qwen,
-    'qwen2': Qwen2,
-    'qwen3': ApplyChatTemplate,
-    'qwen3_moe': ApplyChatTemplate,
-    'llama2': LLaMA2,
-    'llama3': LLaMA3,
-    'ziya': Ziya,
-    'chinese_llama_alpaca': ChineseLlamaAlpaca,
-    'belle': Belle,
-    'baichuan': Baichuan,
-    'apply_chat_template': ApplyChatTemplate,
-    'pretrained_text_continuation': PretrainedTextContinuation,
-    'deepseek_r1': DeepSeekR1
-}

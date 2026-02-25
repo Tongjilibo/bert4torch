@@ -1,8 +1,8 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 from torch import nn
 import copy
 
-
+@register_model(name="albert")
 class ALBERT(BertBase):
     def __init__(self, *args, **kwargs):
         super(ALBERT, self).__init__(*args, **kwargs)
@@ -87,6 +87,7 @@ class ALBERT(BertBase):
             return variable
 
 
+@register_model(name="albert_unshared")
 class ALBERT_Unshared(ALBERT):
     def __init__(self, *args, **kwargs):
         super(ALBERT_Unshared, self).__init__(*args, **kwargs)

@@ -1,8 +1,10 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 import torch
 
 
-class GLM(Decoder):
+@register_model(name="chatglm")
+@register_model(name="glm")
+class Glm(Decoder):
     '''GLM: https://github.com/THUDM/GLM, ChatGLM-6B: https://github.com/THUDM/ChatGLM-6B
     Unilm设计, 可定义为GLM(UniLM_MASK, BERT)但是要求传入segement_ids比较麻烦, 这里继承LM_MASK并使用get_masks()重新构造attention_mask
     模型结构特点：

@@ -1,7 +1,7 @@
 import importlib.metadata
 from typing import TYPE_CHECKING, List, Optional
 from packaging import version
-from .base import QuantizerBase
+from .base import QuantizerBase, register_quantizer
 from bert4torch.snippets.import_utils import is_torch_available, is_auto_awq_available, is_accelerate_available
 from bert4torch.snippets import log_warn, log_warn_once, log_info
 from enum import Enum
@@ -33,6 +33,7 @@ class AWQLinearVersion(str, Enum):
             raise ValueError(f"Unknown AWQLinearVersion {version}")
 
 
+@register_quantizer(name='awq')
 class AwqQuantizer(QuantizerBase):
     """
     4-bit quantization for Activation-aware Weight Quantization(AWQ) (https://arxiv.org/abs/2306.00978)

@@ -1,10 +1,11 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
 from bert4torch.layers import NormHead
 import torch
 import re
 
 
+@register_model(name="llama")
 class LLaMA(Decoder):
     '''LLaMA
     链接: https://github.com/facebookresearch/llama
@@ -47,6 +48,7 @@ class LLaMA(Decoder):
         return mapping
 
 
+@register_model(name="baichuan")
 class Baichuan(LLaMA):
     '''Baichuan
     单独拎出来是因为qkv是合并的权重W_pack

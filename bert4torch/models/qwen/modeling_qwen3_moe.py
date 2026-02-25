@@ -1,8 +1,10 @@
 from .modeling_qwen3 import Qwen3
 from bert4torch.layers.core import Qwen3MoeSparseFeedForward
 import re
+from ..base import register_model
 
 
+@register_model(name="qwen3_moe")
 class Qwen3Moe(Qwen3):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

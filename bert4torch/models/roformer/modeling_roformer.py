@@ -1,10 +1,11 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 from bert4torch.layers import LayerNorm
 from bert4torch.snippets import delete_arguments
 import re
 from functools import partial
 
 
+@register_model(name="roformer")
 class RoFormer(BertBase):
     """旋转式位置编码的BERT模型；
     链接：https://kexue.fm/archives/8265
@@ -18,6 +19,7 @@ class RoFormer(BertBase):
         return mapping
 
 
+@register_model(name="roformer_v2")
 class RoFormerV2(RoFormer):
     """RoFormerV2；
     改动：去掉bias，简化Norm，优化初始化等。目前初始化暂时还用的bert的初始化，finetune不受影响

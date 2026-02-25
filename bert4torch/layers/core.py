@@ -4,11 +4,16 @@ import torch.nn.functional as F
 import torch.distributed as dist
 import math
 import numpy as np
+from typing import Dict, Type
 from typing import Union, Literal, Optional, List, Tuple
 from bert4torch.activations import get_activation
 from bert4torch.layers.position_encoding import SinusoidalPositionEncoding
 from bert4torch.snippets import torch_div, take_along_dim, DottableDict
 from bert4torch.losses import AddAuxiliaryLoss
+from bert4torch.snippets import create_registrar
+
+MLP_MAP: Dict[str, Type[nn.Module]] = {}
+register_mlp = create_registrar(MLP_MAP)
 
 
 class LayerNorm(nn.Module):
@@ -223,6 +228,7 @@ class ErnieEmbeddings(BertEmbeddings):
         return embeddings
 
 
+@register_mlp
 class PositionWiseFeedForward(nn.Module):
     def __init__(self, hidden_size:int, intermediate_size:int, dropout_rate:float=0.5, 
                  hidden_act:str='gelu', is_dropout:bool=False, **kwargs):
@@ -255,6 +261,7 @@ class PositionWiseFeedForward(nn.Module):
         return x
 
 
+@register_mlp
 class LlamaFeedForward(nn.Module):
     '''FeedForward和Bert的不一致，Bert只有两个全连接, LLaMA和Qwen使用'''
     def __init__(self, dim: int, intermediate_size: int, hidden_act='silu', **kwargs):
@@ -269,6 +276,24 @@ class LlamaFeedForward(nn.Module):
         return self.outputDense(self.intermediate_act_fn(self.intermediateDense(x)) * self.intermediateDense2(x))
 
 
+@register_mlp
+class GlmOcrTextFeedForward(nn.Module):
+    '''GlmOcrFeedForward, 合并了LlamaFeedForward的'''
+    def __init__(self, dim: int, intermediate_size: int, hidden_act='silu', **kwargs):
+        super().__init__()
+        bias = kwargs.get('mlp_bias', kwargs.get('use_bias', False))
+        self.intermediateDense = nn.Linear(dim, intermediate_size, bias=bias)
+        self.outputDense = nn.Linear(intermediate_size, dim, bias=bias)
+        self.intermediate_act_fn = get_activation(hidden_act)
+
+    def forward(self, x):
+        up_states = self.intermediateDense(x)
+        gate, up_states = up_states.chunk(2, dim=-1)
+        up_states = up_states * self.intermediate_act_fn(gate)
+        return self.outputDense(up_states)
+
+
+@register_mlp
 class T5PositionWiseFeedForward(PositionWiseFeedForward):
     '''参考transformer包: https://github.com/huggingface/transformers/blob/main/src/transformers/models/t5/modeling_t5.py'''
     def __init__(self, hidden_size, intermediate_size, **kwargs):
@@ -373,6 +398,7 @@ class DeepSeekMoEGate(nn.Module):
         return topk_idx, topk_weight, aux_loss
        
 
+@register_mlp
 class DeepseekMoeFeedForward(nn.Module):
     """
     A mixed expert module containing shared experts.
@@ -517,6 +543,7 @@ class DeepseekMoeFeedForward(nn.Module):
         return final_out
     
 
+@register_mlp
 class Qwen3MoeSparseFeedForward(nn.Module):
     def __init__(self, **config):
         super().__init__()
@@ -569,13 +596,3 @@ class Qwen3MoeSparseFeedForward(nn.Module):
             final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
         final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
         return final_hidden_states
-    
-    
-
-MLP_MAP = {
-    "PositionWiseFeedForward": PositionWiseFeedForward,
-    "LlamaFeedForward": LlamaFeedForward,
-    "T5PositionWiseFeedForward": T5PositionWiseFeedForward,
-    "DeepseekMoeFeedForward": DeepseekMoeFeedForward,
-    "Qwen3MoeSparseFeedForward": Qwen3MoeSparseFeedForward
-}

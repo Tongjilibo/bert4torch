@@ -1,8 +1,10 @@
 from .modeling_transformer_xl import Transformer_XL
 import torch
 from torch4keras.snippets import safe_torch_load
+from ..base import register_model
 
 
+@register_model(name="xlnet")
 class XLNET(Transformer_XL):
     '''构建xlnet模型, 这里做了简化, 只用来finetune, 即没有perm_mask, target_mapping这些输入；
        接受的inputs输入: [token_ids, segment_ids]

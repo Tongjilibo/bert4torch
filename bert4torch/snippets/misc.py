@@ -3,7 +3,7 @@
 '''
 
 from torch4keras.snippets import log_info, log_warn, log_error, TimeitContextManager
-from typing import Union, Optional, List
+from typing import Union, Dict, Type, Callable
 import re
 from io import BytesIO
 import requests
@@ -110,3 +110,37 @@ def load_image(image: Union[Image.Image, np.ndarray, str]) -> Image.Image:
         raise ValueError(f"Unrecognized image input, support local path, http url, base64, np.ndarray and PIL.Image, got {image}")
     image = image_obj.convert("RGB")
     return image
+
+
+def create_registrar(target_map: Dict[str, Type]) -> Callable:
+    """
+    注册器工厂函数：根据目标映射字典创建对应的注册装饰器
+    
+    参数:
+        target_map: 要注册类的目标字典（如MLP_MAP、ATTN_MAP）
+    
+    返回:
+        专用的注册装饰器函数
+    """
+    def register(cls=None, name: str = None):
+        """
+        为指定映射字典服务的注册装饰器
+        
+        参数:
+            cls: 要注册的类（装饰器自动传入）
+            name: 可选，自定义注册到字典中的key，默认使用类名
+        """
+        def decorator(cls):
+            # 确定注册的key，优先使用自定义name，否则使用类名
+            register_name = name or cls.__name__
+            # 将类注册到指定的目标字典中
+            target_map[register_name] = cls
+            # 返回原类，不改变类的功能
+            return cls
+        
+        # 处理两种使用方式：@register 或 @register(name="CustomName")
+        if cls is not None:
+            return decorator(cls)
+        return decorator
+    
+    return register

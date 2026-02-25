@@ -1,9 +1,10 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 from bert4torch.snippets import insert_arguments, delete_arguments
 from torch import nn
 from bert4torch.activations import get_activation
 
 
+@register_model(name="electra")
 class ELECTRA(BertBase):
     """Google推出的ELECTRA模型；
     链接：https://arxiv.org/abs/2003.10555

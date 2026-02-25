@@ -1,9 +1,10 @@
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.qwen.modeling_qwen2_vl import Qwen2VL
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 
 
+@register_model(name="qwen2_5_vl")
 class Qwen2_5VL(Qwen2VL):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):

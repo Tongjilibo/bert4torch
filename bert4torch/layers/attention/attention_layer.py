@@ -18,9 +18,9 @@ from bert4torch.layers.position_encoding import (
 )
 from bert4torch.layers.core import LayerNorm
 from bert4torch.activations import get_activation
-from bert4torch.snippets import log_warn_once, is_xformers_available
+from bert4torch.snippets import log_warn_once, is_xformers_available, create_registrar
 from bert4torch.layers.attention.attention_utils import eager_attention_forward, sdpa_attention_forward, flash_attention_forward
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple, Dict, Type
 import copy
 
 
@@ -28,6 +28,11 @@ if is_xformers_available():
     from xformers import ops as xops
 
 
+ATTENTION_MAP: Dict[str, Type[nn.Module]] = {}
+register_attn = create_registrar(ATTENTION_MAP)
+
+
+@register_attn
 class MultiHeadAttention(nn.Module):
     '''多头注意力
     :param hidden_size: int, 隐含层神经元个数
@@ -254,6 +259,8 @@ class MultiHeadAttention(nn.Module):
         return attention_scores
 
 
+@register_attn
+@register_attn(name="deberta_v2")
 class DebertaV2Attention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         self.share_att_key = kwargs.get("share_att_key", False)
@@ -347,6 +354,8 @@ class DebertaV2Attention(MultiHeadAttention):
         return score
 
 
+@register_attn
+@register_attn(name="alibi")
 class AlibiAttention(MultiHeadAttention):
     '''alibi相对位置编码'''
     def init_position_encoding(self, **kwargs):
@@ -366,6 +375,8 @@ class AlibiAttention(MultiHeadAttention):
         return attention_scores
 
 
+@register_attn
+@register_attn(name="typical_relative")
 class NezhaTypicalRelativeAttention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         self.relative_positions_encoding = NezhaPositionsEncoding(
@@ -414,15 +425,17 @@ class NezhaTypicalRelativeAttention(MultiHeadAttention):
         return context_layer, output['attention_scores']
 
 
+@register_attn
+@register_attn(name="rotary")
 class RopeAttention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         rope_scaling = copy.deepcopy(self.rope_scaling)
-        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
+        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', 'default'))
         scaling_factor = rope_scaling.pop("factor", None)
         rope_theta = kwargs.get('rope_theta')
         rope_rank = kwargs.get('rope_rank')
-        if scaling_type is None:
-            assert scaling_factor is None , f'Args `rope_scaling.factor` not supported in standard rope'
+        if scaling_type == 'default':
+            assert scaling_factor is None , 'Args `rope_scaling.factor` not supported in default rope'
         elif scaling_type in {'linear', 'dynamic'}:
             assert scaling_factor is not None and scaling_factor != 1, f'Args `rope_scaling.factor`={scaling_factor} which is illegal'
         
@@ -456,6 +469,7 @@ class RopeAttention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
 
 
+@register_attn
 class Qwen3Attention(RopeAttention):
     '''qwen3的注意力机制
         - 有q_norm和k_norm
@@ -473,6 +487,7 @@ class Qwen3Attention(RopeAttention):
         return self.k_norm(super().transpose_for_k_scores(x))
     
 
+@register_attn
 class GatedAttention(nn.Module):
     '''门控注意力单元
     链接：https://arxiv.org/abs/2202.10447
@@ -566,6 +581,7 @@ class GatedAttention(nn.Module):
             return out.unbind(dim = -2)
 
 
+@register_attn
 class TransformerxlMultiHeadAttn(MultiHeadAttention):
     '''Transformer_XL式相对位置编码RelPartialLearnableMultiHeadAttn, 这里修改成了MultiHeadAttention的batch_first代码格式'''
     def __init__(self, *args, r_w_bias=None, r_r_bias=None, r_s_bias=None, **kwargs):
@@ -672,6 +688,7 @@ class TransformerxlMultiHeadAttn(MultiHeadAttention):
         return outputs
 
 
+@register_attn
 class DeepseekV2Attention(MultiHeadAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -707,7 +724,7 @@ class DeepseekV2Attention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         '''这里dim为qk_rope_head_dim所以重新初始化了'''
         rope_scaling = copy.deepcopy(self.rope_scaling)
-        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', None))
+        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', 'default'))
         scaling_factor = rope_scaling.pop("factor", None)
         rope_theta = kwargs.get('rope_theta')
         rope_rank = kwargs.get('rope_rank')
@@ -762,6 +779,8 @@ class DeepseekV2Attention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
     
 
+@register_attn
+@register_attn(name="t5_relative")
 class T5Attention(MultiHeadAttention):
     def init_position_encoding(self, **kwargs):
         self.relative_positions = T5PositionsEncoding(
@@ -783,6 +802,7 @@ class T5Attention(MultiHeadAttention):
         return attention_scores
 
 
+@register_attn
 class MllamaTextCrossAttention(MultiHeadAttention):
     '''mllama部分层使用的crossattention'''
     def __init__(self, *args, **kwargs):
@@ -808,6 +828,7 @@ class MllamaTextCrossAttention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
 
 
+@register_attn
 class ModernBertAttention(RopeAttention):
     def init_position_encoding(self, **kwargs):
         if self.layer_idx % kwargs['global_attn_every_n_layers'] != 0:
@@ -837,26 +858,3 @@ class ModernBertAttention(RopeAttention):
             attention_mask = sliding_window_mask
         return super().forward(hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, 
                                past_key_value=past_key_value, position_ids=position_ids)
-
-
-ATTENTION_MAP = {
-    'MultiHeadAttention': MultiHeadAttention,
-    'GatedAttention': GatedAttention,
-    'TransformerxlMultiHeadAttn': TransformerxlMultiHeadAttn,
-    'DeepseekV2Attention': DeepseekV2Attention,
-    'DebertaV2Attention': DebertaV2Attention,
-    'AlibiAttention': AlibiAttention,
-    'NezhaTypicalRelativeAttention': NezhaTypicalRelativeAttention,
-    'RopeAttention': RopeAttention,
-    'Qwen3Attention': Qwen3Attention,
-    'T5Attention': T5Attention,
-    'MllamaTextCrossAttention': MllamaTextCrossAttention,
-    'ModernBertAttention': ModernBertAttention,
-
-    # 下面是以pos_emb_type为key
-    'deberta_v2': DebertaV2Attention,
-    'alibi': AlibiAttention,
-    'typical_relative': NezhaTypicalRelativeAttention,
-    'rotary': RopeAttention,
-    't5_relative': T5Attention,
-}

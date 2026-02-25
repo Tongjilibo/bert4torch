@@ -1,4 +1,4 @@
-from bert4torch.models.base import BertBase
+from bert4torch.models.base import BertBase, register_model
 import torch
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import LayerNorm, BlockIdentity
@@ -9,6 +9,7 @@ except:
     pass
 
 
+@register_model(name="modernbert")
 class ModernBert(BertBase):
     @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):

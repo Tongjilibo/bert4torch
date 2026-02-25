@@ -1,6 +1,7 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 
 
+@register_model(name="ernie4_5")
 class Ernied4_5(Decoder):
     '''百度Ernied4_5大模型
     '''

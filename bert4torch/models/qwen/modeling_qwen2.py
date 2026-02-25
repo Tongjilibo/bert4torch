@@ -1,7 +1,8 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 from bert4torch.models.modeling_utils import safe_register_parameter
 
 
+@register_model(name="qwen2")
 class Qwen2(Decoder):
     '''通义千问: https://github.com/QwenLM/Qwen3
     1) FeedForward和Llama一致, 三个dense层

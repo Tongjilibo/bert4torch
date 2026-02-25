@@ -15,7 +15,7 @@ from tqdm import tqdm
 from functools import partial
 from bert4torch.snippets import is_package_available
 from bert4torch.models.modeling_utils import has_meta_param
-from .base import QuantizerBase
+from .base import QuantizerBase, register_quantizer
 
 try:
     from cpm_kernels.kernels.base import LazyKernelCModule, KernelFunction, round_up
@@ -223,6 +223,7 @@ class QuantizedEmbedding(Embedding):  # TODO: backward, check empty_init
         return output
 
 
+@register_quantizer(name="cpm_kernels")
 class CpmKernelQuantizer(QuantizerBase):
     def _process_model_before_weight_loading(self, model:nn.Module, **kwargs):
         """从chagglm-6b移植过来的的量化，方便以int8和int4进行推理

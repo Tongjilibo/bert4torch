@@ -278,7 +278,7 @@ class NoRepeatNGramLogitsProcessor(LogitsProcessor):
         self.ngram_size = ngram_size
 
     @add_start_docstrings(LOGITS_PROCESSOR_INPUTS_DOCSTRING)
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> torch.FloatTensor:
         if self.ngram_size == 0:
             return scores
         

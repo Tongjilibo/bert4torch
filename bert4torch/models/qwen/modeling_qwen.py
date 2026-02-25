@@ -1,7 +1,9 @@
 from .modeling_qwen2 import Qwen2
+from ..base import register_model
 import torch
 
 
+@register_model(name="qwen")
 class Qwen(Qwen2):
     '''通义千问: https://github.com/QwenLM/Qwen
     1) FeedForward和Llama一致, 三个dense层

@@ -1,8 +1,7 @@
-from bert4torch.models.base import Decoder
-from bert4torch.layers import LlamaFeedForward
-from bert4torch.models.modeling_utils  import safe_register_parameter
+from bert4torch.models.base import Decoder, register_model
 
 
+@register_model(name="internlm")
 class InternLM(Decoder):
     '''InternLM: https://github.com/InternLM/InternLM
     模型结构: 基本和llama基本一致, 只是各个linear层多了bias; 和Qwen基本一致, 除了o有bias

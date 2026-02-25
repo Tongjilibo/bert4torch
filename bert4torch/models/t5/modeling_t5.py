@@ -1,9 +1,13 @@
-from bert4torch.models.base import Encoder, Decoder, Transformer
+from bert4torch.models.base import Encoder, Decoder, Transformer, register_model
 from bert4torch.snippets import insert_arguments, delete_arguments
 from bert4torch.layers import LayerNorm
 from torch import nn
 
 
+@register_model(name='mt5.1.1_encoder')
+@register_model(name='t5.1.0_encoder')
+@register_model(name='t5.1.1_encoder')
+@register_model(name='t5_encoder')
 class T5_Encoder(Encoder):
     _no_split_modules = ["T5Layer"]
     @insert_arguments(version='t5.1.0')
@@ -57,6 +61,10 @@ class T5_Encoder(Encoder):
         return mapping
     
 
+@register_model(name='mt5.1.1_decoder')
+@register_model(name='t5.1.0_decoder')
+@register_model(name='t5.1.1_decoder')
+@register_model(name='t5_decoder')
 class T5_Decoder(Decoder):
     _no_split_modules = ["T5Layer"]
     @insert_arguments(version='t5.1.0')
@@ -119,6 +127,10 @@ class T5_Decoder(Decoder):
         return mapping
 
 
+@register_model(name='mt5.1.1')
+@register_model(name='t5')
+@register_model(name='t5.1.0')
+@register_model(name='t5.1.1')
 class T5(Transformer):
     """Google的T5模型: Encoder-Decoder
     decoder: tie_word_embeddings=False

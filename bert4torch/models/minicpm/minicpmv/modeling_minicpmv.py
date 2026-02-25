@@ -4,11 +4,12 @@ import torch
 from .resampler import Resampler
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 import inspect
 
 
+@register_model(name="minicpmv")
 class MiniCPMV(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "tgt_sizes", "image_bound"}
     def __init__(self, **config):
@@ -188,6 +189,7 @@ class MiniCPMV(PreTrainedModelForDecoder):
         return states
 
 
+@register_model(name="minicpm_llama3_v")
 class MiniCPMLlama3V(MiniCPMV):
     def __init__(self, **config):
         super().__init__(**config)

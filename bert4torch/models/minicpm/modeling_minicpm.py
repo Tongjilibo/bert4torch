@@ -1,6 +1,8 @@
 from bert4torch.models.llama import LLaMA
+from bert4torch.models.base import register_model
 
 
+@register_model(name="minicpm")
 class MiniCPM(LLaMA):
     _no_split_modules = ["MiniCPMLayer"]
     def __init__(self, *args, **kwargs):

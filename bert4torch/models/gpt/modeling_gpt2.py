@@ -1,7 +1,8 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 import torch
 
 
+@register_model(name="gpt2")
 class GPT2(Decoder):
     """构建GPT模型；
     链接：https://github.com/openai/finetune-transformer-lm

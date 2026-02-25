@@ -1,7 +1,8 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 from bert4torch.layers.core import DeepseekMoeFeedForward
 
 
+@register_model(name="deepseek_v2")
 class DeepSeekV2(Decoder):
     '''
     DeepSeekV2: https://github.com/deepseek-ai/DeepSeek-V2

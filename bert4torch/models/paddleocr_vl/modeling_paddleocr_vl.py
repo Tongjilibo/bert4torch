@@ -1,7 +1,6 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
-from bert4torch.models.base import PreTrainedModelForDecoder
-from bert4torch.models.modeling_utils import inference_mode
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 from bert4torch.activations import ACT2FN
 import torch
@@ -68,6 +67,7 @@ class Projector(nn.Module):
         return hidden_states.view(*dims, -1)
 
 
+@register_model(name="paddleocr_vl")
 class PaddleOCR_VL(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):

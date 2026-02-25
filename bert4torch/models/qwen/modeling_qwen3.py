@@ -1,7 +1,8 @@
-from bert4torch.models.base import Decoder
+from bert4torch.models.base import Decoder, register_model
 from .modeling_qwen2 import Qwen2
 
 
+@register_model(name="qwen3")
 class Qwen3(Qwen2):
     '''通义千问: https://github.com/QwenLM/Qwen3
     1) 没有bias, 和llama一致

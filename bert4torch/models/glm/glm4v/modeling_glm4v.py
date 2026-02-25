@@ -1,5 +1,5 @@
-from bert4torch.models.glm import GLM2
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.glm import Glm2
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 import torch
 from typing import Optional, List
@@ -14,7 +14,8 @@ def is_empty(images_list: Optional[List[List[torch.Tensor]]]):
     return True
 
 
-class GLM4V(PreTrainedModelForDecoder):
+@register_model(name="glm4v")
+class Glm4v(PreTrainedModelForDecoder):
     _no_split_modules = ["Glm2Layer"] 
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"images"}
     def __init__(self, **config):
@@ -22,7 +23,7 @@ class GLM4V(PreTrainedModelForDecoder):
         self.config = DottableDict(config)
         from .visual import EVA2CLIPModel
         self.vision = EVA2CLIPModel(self.config)
-        self.llm = GLM2(**config)
+        self.llm = Glm2(**config)
 
     def load_variable(self, *args, **kwargs):
         return self.llm.load_variable(*args, **kwargs)

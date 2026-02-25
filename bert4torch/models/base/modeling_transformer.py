@@ -2,7 +2,7 @@
 Encoder、Decoder、Transformer等基类模型结构
 '''
 from .modeling_base import BertBase
-from .pretrained_model import LM_Mask, PreTrainedModel
+from .pretrained_model import LM_Mask, PreTrainedModel, register_model
 from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
 from bert4torch.layers import LayerNorm
@@ -12,6 +12,7 @@ from torch import nn
 import torch
 
 
+@register_model(name="encoder")
 class Encoder(BertBase):
     def __init__(self, *args, **kwargs):
         kwargs['vocab_size'] = kwargs.get('src_vocab_size', kwargs['vocab_size'])
@@ -91,6 +92,7 @@ class PreTrainedModelForDecoder(PreTrainedModel):
         yield from self.generation.stream_generate(input_ids, **kwargs)
 
 
+@register_model(name="decoder")
 class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
     '''所有decoder模型的基类(含大模型)'''
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
@@ -195,7 +197,7 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
             mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
 
-
+@register_model(name="transformer")
 class Transformer(PreTrainedModelForDecoder):
     '''encoder-decoder结构
     :param tie_word_embeddings: bool, decoder的word_embeddings和lm_head的权重共享

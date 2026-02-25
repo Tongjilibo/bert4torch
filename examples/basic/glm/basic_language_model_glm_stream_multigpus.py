@@ -3,7 +3,7 @@
 
 from typing import Dict, Tuple, Union, Optional
 from torch.nn import Module
-from basic_language_model_chatglm import demo
+from examples.basic.glm.basic_language_model_glm import demo
 
 def auto_configure_device_map(num_gpus: int) -> Dict[str, int]:
     # embeddings.word_embeddings 占用1层

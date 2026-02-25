@@ -11,7 +11,7 @@
 '''
 
 import torch
-from typing import Union, Optional, List, Tuple, Literal, Dict
+from typing import Union, Optional, List, Tuple, Literal, Dict, Type
 from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
 from bert4torch.models.qwen.vision_process import process_vision_info, MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.intern.internvl.vision_process import fetch_image
@@ -29,7 +29,8 @@ from bert4torch.snippets import (
     is_streamlit_available,
     add_start_docstrings,
     is_transformers_available,
-    load_image
+    load_image,
+    create_registrar
 )
 import json
 import copy
@@ -558,6 +559,15 @@ class ChatVLOpenaiApi(ChatOpenaiApi):
         return input_kwargs, history
 
 
+# ==========================================================================================
+# =========================              各个具体模型实现        ============================
+# ==========================================================================================
+VLM_MAPPING : Dict[str, Type[ChatVLBase]] = {}
+register_vlm = create_registrar(VLM_MAPPING)
+
+
+@register_vlm(name="minicpmv")
+@register_vlm(name="minicpm_llama3_v")
 class MiniCPMV(ChatVLBase):
     @staticmethod
     def trans_history_format(history):
@@ -655,7 +665,9 @@ class MiniCPMV(ChatVLBase):
         history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
 
-
+@register_vlm(name='qwen2_vl')
+@register_vlm(name='qwen2_5_vl')
+@register_vlm(name='qwen3_vl')
 class Qwen2VL(ChatVLBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -719,6 +731,8 @@ class Qwen2VL(ChatVLBase):
         return inputs
 
 
+@register_vlm(name="mllama")
+@register_vlm(name="paddleocr_vl")
 class Mllama(ChatVLBase):
     def build_prompt(
             self,
@@ -757,6 +771,7 @@ class Mllama(ChatVLBase):
         return inputs
     
 
+@register_vlm(name="glm4v")
 class GLM4V(ChatVLBase):
     @staticmethod
     def trans_history_format(history):
@@ -815,6 +830,7 @@ class GLM4V(ChatVLBase):
         return inputs
 
 
+@register_vlm(name="internvl2_5")
 class InternVL(ChatVLBase):
     def __init__(self, *args, max_num:int=12, separate_or_conbined_images:Literal['separate', 'conbined']='separate', **kwargs):
         super().__init__(*args, **kwargs)
@@ -904,16 +920,3 @@ class InternVL(ChatVLBase):
         else:
             inputs['pixel_values'] = None
         return inputs
-    
-
-VLM_MAPPING = {
-    'minicpmv': MiniCPMV,
-    'minicpm_llama3_v': MiniCPMV,
-    'qwen2_vl': Qwen2VL,
-    'qwen2_5_vl': Qwen2VL,
-    'qwen3_vl': Qwen2VL,
-    'mllama': Mllama,
-    'glm4v': GLM4V,
-    'internvl2_5': InternVL,
-    'paddleocr_vl': Mllama
-}

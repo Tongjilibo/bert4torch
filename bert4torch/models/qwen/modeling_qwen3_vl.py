@@ -1,11 +1,12 @@
 from bert4torch.models.qwen import Qwen3
 from bert4torch.models.qwen.modeling_qwen2_vl import Qwen2VL
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 import torch
 from typing import List, Optional, Tuple, Union
 
 
+@register_model(name="qwen3_vl")
 class Qwen3VLTextModel(Qwen3):
     def apply_on_layer_end(self, layer_idx, **model_kwargs):
         visual_pos_masks = model_kwargs.get("visual_pos_masks", None)

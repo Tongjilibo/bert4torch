@@ -77,7 +77,7 @@ class AutoRegressiveDecoder(object):
                  top_p:float=None,
                  temperature:float=1.0, 
                  repetition_penalty:int=1, 
-                 no_repeat_ngram_size=1,
+                 no_repeat_ngram_size=0,
                  do_sample:bool=True,
                  min_ends:int=1, 
                  **generation_config):

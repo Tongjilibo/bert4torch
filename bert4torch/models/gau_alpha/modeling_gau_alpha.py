@@ -1,9 +1,11 @@
 from bert4torch.models.roformer import RoFormerV2
+from bert4torch.models.base import register_model
 from torch import nn
 import copy
 from bert4torch.layers import BlockIdentity, GAULayer, LayerNorm
 
 
+@register_model(name="gau_alpha")
 class GAU_alpha(RoFormerV2):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -1,8 +1,9 @@
-from bert4torch.models.base import Transformer
+from bert4torch.models.base import Transformer, register_model
 from bert4torch.snippets import modify_variable_mapping
 import torch
 
 
+@register_model(name="bart")
 class BART(Transformer):
     '''BART: encoder-decoder结构
     decoder: tie_word_embeddings=True

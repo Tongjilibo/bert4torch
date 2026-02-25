@@ -4,11 +4,13 @@ from typing import List, Dict, Literal
 import torch
 from torch4keras.snippets import log_warn
 from bert4torch.models.modeling_utils import has_meta_param
-from .base import QuantizerBase
+from .base import QuantizerBase, register_quantizer
 import importlib
 from packaging import version
 
 
+@register_quantizer('load_in_8bit')
+@register_quantizer('load_in_4bit')
 class BnbkBitHfQuantizer(QuantizerBase):
     def _process_model_before_weight_loading(self, model:nn.Module, **kwargs):
         '''transformer的load_in_8bit, 源自transformer源代码'''

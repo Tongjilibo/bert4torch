@@ -1,13 +1,14 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen import Qwen2
 from bert4torch.models.llama import LLaMA
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict, log_warn_once
 from bert4torch.models.modeling_utils import inference_mode
 import torch
 from torch import nn
 
 
+@register_model(name="internvl")
 class InternVL(PreTrainedModelForDecoder):
     _no_split_modules = ['InternVisionModel', 'BertLayer']
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values"}

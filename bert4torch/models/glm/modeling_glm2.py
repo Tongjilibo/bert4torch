@@ -1,9 +1,12 @@
 from bert4torch.layers import LayerNorm
-from .modeling_glm import GLM
+from ..base import register_model
+from .modeling_glm import Glm
 import torch
 
 
-class GLM2(GLM):
+@register_model(name="chatglm2")
+@register_model(name="glm2")
+class Glm2(Glm):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
     主要修改：1) 不使用Unilm式的mask
              2) flash_attention

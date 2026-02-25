@@ -2,7 +2,7 @@
 import importlib
 from typing import TYPE_CHECKING, Optional
 from packaging import version
-from .base import QuantizerBase
+from .base import QuantizerBase, register_quantizer
 from bert4torch.snippets.import_utils import is_auto_gptq_available, is_gptqmodel_available, is_optimum_available, is_torch_available
 from bert4torch.snippets import log_warn, log_info
 from bert4torch.models.modeling_utils import get_layers
@@ -12,6 +12,7 @@ if is_torch_available():
     import torch
 
 
+@register_quantizer(name="gptq")
 class GptqQuantizer(QuantizerBase):
     """
     Quantizer of the GPTQ method - for GPTQ the quantizer support calibration of the model through

@@ -3,9 +3,8 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.layers import MllamaCrossAttentionDecoderLayer
 from bert4torch.models.llama import LLaMA
-from bert4torch.models.base import PreTrainedModelForDecoder
+from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
-from bert4torch.models.modeling_utils import inference_mode
 from torch import nn
 import torch
 
@@ -20,6 +19,7 @@ class MllamaTextModel(LLaMA):
                 self.decoderLayer[layer_idx] = MllamaCrossAttentionDecoderLayer(layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs))
 
 
+@register_model(name="mllama")
 class Mllama(PreTrainedModelForDecoder):
     _no_split_modules = [
         "MllamaVisionEncoderLayer",

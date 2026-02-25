@@ -1,6 +1,6 @@
 from torch4keras.model import BaseModel, BaseModelDP, BaseModelDDP
 from torch4keras.trainer import Trainer
-from .base import PreTrainedModel, BertBase, Transformer, Encoder, Decoder, \
+from .base import PreTrainedModel, BertBase, Transformer, Encoder, Decoder, MODEL_FACTORY, \
     extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
 from .albert import ALBERT, ALBERT_Unshared
 from .bart import BART
@@ -11,7 +11,7 @@ from .ernie import Ernie, Ernied4_5
 from .paddleocr_vl import PaddleOCR_VL
 from .gau_alpha import GAU_alpha
 from .modernbert import ModernBert
-from .glm import GLM, GLM2, GLM4V
+from .glm import Glm, Glm2, Glm4v, GlmOcr
 from .gpt import GPT, GPT2, GPT2_ML
 from .llama import LLaMA, Baichuan, Mllama
 from .minicpm import MiniCPM, MiniCPMV, MiniCPMLlama3V
@@ -127,74 +127,9 @@ def build_transformer_model(
     torch_dtype = config.pop('torch_dtype', None)
     checkpoint_path = checkpoint_path or config.get('checkpoint_path')
 
-    models = {
-        'albert': ALBERT,
-        'albert_unshared': ALBERT_Unshared,
-        'baichuan': Baichuan,
-        'bart': BART,
-        'bert': BERT,
-        'bloom': Bloom,
-        'chatglm': GLM,
-        'chatglm2': GLM2,
-        'deberta_v2': DebertaV2,
-        'decoder': Decoder,
-        'deepseek_v2': DeepSeekV2,
-        'deepseek_ocr': DeepSeekOCR,
-        'deepseek_ocr2': DeepSeekOCR2,
-        'electra': ELECTRA,
-        'encoder': Encoder,
-        'ernie': Ernie,
-        'ernie4_5': Ernied4_5,
-        'falcon': Falcon,
-        'gau_alpha': GAU_alpha,
-        'glm': GLM,
-        'glm2': GLM2,
-        'glm4v': GLM4V,
-        'gpt': GPT,
-        'gpt2': GPT2,
-        'gpt2_ml': GPT2_ML,
-        'internlm': InternLM,
-        'internlm2': InternLM2,
-        'internvl': InternVL,
-        'llama': LLaMA,
-        'minicpm': MiniCPM,
-        'minicpm_llama3_v': MiniCPMLlama3V,
-        'minicpmv': MiniCPMV,
-        'mllama': Mllama,
-        'modernbert': ModernBert,
-        'mt5.1.1': T5,
-        'mt5.1.1_decoder': T5_Decoder,
-        'mt5.1.1_encoder': T5_Encoder,
-        'nezha': NEZHA,
-        'paddleocr_vl': PaddleOCR_VL,
-        'qwen': Qwen,
-        'qwen2': Qwen2,
-        'qwen2_vl': Qwen2VL,
-        'qwen2_5_vl': Qwen2_5VL,
-        'qwen3': Qwen3,
-        'qwen3_moe': Qwen3Moe,
-        'qwen3_vl': Qwen3VL,
-        'roberta': BERT,  
-        'roformer': RoFormer,
-        'roformer_v2': RoFormerV2,
-        't5': T5,
-        't5.1.0': T5,
-        't5.1.0_decoder': T5_Decoder,
-        't5.1.0_encoder': T5_Encoder,
-        't5.1.1': T5,
-        't5.1.1_decoder': T5_Decoder,
-        't5.1.1_encoder': T5_Encoder,
-        't5_decoder': T5_Decoder,
-        't5_encoder': T5_Encoder,
-        'transformer': Transformer,
-        'transformer_xl': Transformer_XL,
-        'uie': UIE,
-        'xlnet': XLNET,
-    }
-
     model = model or config.get('model', config.get('model_type', 'bert'))
     if isinstance(model, str):  # string表示使用自带的模型
-        MODEL = models[model.lower()]
+        MODEL = MODEL_FACTORY[model.lower()]
         if model.endswith('t5.1.1'):
             config['version'] = model
     elif isinstance(model, type) and issubclass(model, PreTrainedModel): # nn.Module表示使用自定义的模型：
