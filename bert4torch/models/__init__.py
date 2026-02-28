@@ -2,29 +2,6 @@ from torch4keras.model import BaseModel, BaseModelDP, BaseModelDDP
 from torch4keras.trainer import Trainer
 from .base import PreTrainedModel, BertBase, Transformer, Encoder, Decoder, MODEL_FACTORY, \
     extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
-from .albert import ALBERT, ALBERT_Unshared
-from .bart import BART
-from .bert import BERT
-from .deberta import DebertaV2
-from .electra import ELECTRA
-from .ernie import Ernie, Ernied4_5
-from .paddleocr_vl import PaddleOCR_VL
-from .gau_alpha import GAU_alpha
-from .modernbert import ModernBert
-from .glm import Glm, Glm2, Glm4v, GlmOcr
-from .gpt import GPT, GPT2, GPT2_ML
-from .llama import LLaMA, Baichuan, Mllama
-from .minicpm import MiniCPM, MiniCPMV, MiniCPMLlama3V
-from .nezha import NEZHA
-from .roformer import RoFormer, RoFormerV2
-from .t5 import T5, T5_Encoder, T5_Decoder
-from .xlnet import Transformer_XL, XLNET
-from .uie import UIE
-from .bloom import Bloom
-from .qwen import Qwen, Qwen2, Qwen3, Qwen3Moe, Qwen2VL, Qwen2_5VL, Qwen3VL
-from .intern import InternLM, InternLM2, InternVL
-from .falcon import Falcon
-from .deepseek import DeepSeekV2, DeepSeekOCR, DeepSeekOCR2
 from .modeling_utils import restore_default_torch_dtype, set_default_torch_dtype, get_device_map, has_meta_param
 from typing import Union, Literal
 import json
@@ -38,8 +15,11 @@ from bert4torch.snippets import (
     is_accelerate_available,
     get_checkpoint_path, 
     get_config_path,
-    DottableDict
+    DottableDict,
+    import_submodels
 )
+import_submodels(os.path.dirname(os.path.abspath(__file__)), package_prefix='bert4torch.models')
+
 
 @restore_default_torch_dtype
 def build_transformer_model(

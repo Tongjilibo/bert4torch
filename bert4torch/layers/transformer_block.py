@@ -5,9 +5,15 @@ import torch.nn.functional as F
 from bert4torch.layers.core import LayerNorm, MLP_MAP, T5PositionWiseFeedForward
 from bert4torch.layers.attention import ATTENTION_MAP, GatedAttention, TransformerxlMultiHeadAttn
 from bert4torch.models.modeling_utils import safe_register_parameter
-from typing import Union, Optional, Tuple
+from bert4torch.snippets import create_registrar
+from typing import Union, Optional, Tuple, Dict, Type
 
 
+TRANSFORMER_BLOCKS : Dict[str, Type[nn.Module]] = {}
+register_layer = create_registrar(TRANSFORMER_BLOCKS)
+
+
+@register_layer
 class BertLayer(nn.Module):
     """Transformer层:
         顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
@@ -21,7 +27,6 @@ class BertLayer(nn.Module):
         :param is_dropout: bool, mlp中是否使用dropout层，默认为False
         :param conditional_size: bool/int，LayerNorm时候是否使用条件LayerNorm, 默认为False
         :param pre_layernorm: bool, layernorm是pre还是post，bert是post，现在大模型基本都是pre, 默认为False表示post_layernorm
-        :param apply_residual_post_layernorm: bool，残差连接时候是使用layernorm前的还是后的hidden_states, 默认为False表示使用layernorm前的
 
         注意:
         1. 以上都不计dropout层，并不代表没有dropout，每一层的dropout使用略有不同，注意区分
@@ -38,16 +43,14 @@ class BertLayer(nn.Module):
                  is_dropout:bool=False, 
                  conditional_size:Union[bool, int]=False, 
                  pre_layernorm:bool=False, 
-                 apply_residual_post_layernorm:bool=False, 
                  **kwargs
         ):
         super(BertLayer, self).__init__()
         self.dropout_rate = dropout_rate
         self.pre_layernorm = pre_layernorm  # True表示pre, False表示post
-        self.apply_residual_post_layernorm = apply_residual_post_layernorm
         self.is_decoder = kwargs.get('is_decoder', False)
         self.add_cross_attention = kwargs.get('add_cross_attention', False)
-        self.attn_type = kwargs.get('attn_type',  kwargs.get('pos_emb_type', 'MultiHeadAttention'))
+        self.attn_type = kwargs.get('attn_type') or kwargs.get('pos_emb_type') or 'MultiHeadAttention'
         self.mlp_type = kwargs.get('mlp_type', 'PositionWiseFeedForward')
         
         # self attention
@@ -64,17 +67,19 @@ class BertLayer(nn.Module):
             self.crossAttention = ATTENTION_MAP[self.attn_type](hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
             self.crossLayerNorm = LayerNorm(hidden_size, conditional_size=conditional_size, **kwargs)
 
-    def forward(self, 
-                hidden_states:torch.FloatTensor=None, 
-                attention_mask:torch.Tensor=None, 
-                position_ids:torch.FloatTensor=None, 
-                conditional_emb:Optional[torch.Tensor]=None, 
-                encoder_hidden_states=None, 
-                encoder_attention_mask:Optional[torch.FloatTensor]=None, 
-                past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
-                cross_past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
-                **model_kwargs
+    def forward(
+        self, 
+        hidden_states:torch.FloatTensor=None, 
+        attention_mask:torch.Tensor=None, 
+        position_ids:torch.FloatTensor=None, 
+        conditional_emb:Optional[torch.Tensor]=None, 
+        encoder_hidden_states=None, 
+        encoder_attention_mask:Optional[torch.FloatTensor]=None, 
+        past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
+        cross_past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, 
+        **model_kwargs
         ):
+
         return_tensors = dict()
         # ============== self attention ==============
         # pre layernorm
@@ -83,12 +88,12 @@ class BertLayer(nn.Module):
         else:
             x = hidden_states
         self_attn_output = self.multiHeadAttention(x, attention_mask, past_key_value=past_key_value, position_ids=position_ids)  # self.decoder为true时候，这里的attention_mask是三角的
-        residual = x if self.apply_residual_post_layernorm else hidden_states
-        hidden_states = self.dropout_add(self_attn_output[0], residual)
+        hidden_states = self.dropout_add(self_attn_output[0], hidden_states)
         # post layernorm
         if not self.pre_layernorm:
             hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
         
+
         # ============== cross attention ==============
         if self.is_decoder and encoder_hidden_states is not None:
             # pre layernorm
@@ -97,13 +102,13 @@ class BertLayer(nn.Module):
             else:
                 x = hidden_states
             cross_attn_output = self.crossAttention(x, None, encoder_hidden_states, encoder_attention_mask, cross_past_key_value, position_ids=position_ids)
-            residual = x if self.apply_residual_post_layernorm else hidden_states
-            hidden_states = self.dropout_add(cross_attn_output[0], residual)
+            hidden_states = self.dropout_add(cross_attn_output[0], hidden_states)
             if model_kwargs.get('use_states', False):
                 return_tensors['cross_past_key_value'] = cross_attn_output[-1]
             # post layernorm
             if not self.pre_layernorm:
                 hidden_states = self.crossLayerNorm(hidden_states, conditional_emb)
+
 
         # ============== feedforward ==============
         # pre layernorm
@@ -112,11 +117,11 @@ class BertLayer(nn.Module):
         else:
             x = hidden_states
         feedforward_output = self.feedForward(x)
-        residual = x if self.apply_residual_post_layernorm else hidden_states
-        hidden_states = self.dropout_add(feedforward_output, residual)
+        hidden_states = self.dropout_add(feedforward_output, hidden_states)
         if not self.pre_layernorm:
             hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb)
         
+
         if self.is_decoder and model_kwargs.get('use_states', False):
             return_tensors['past_key_value'] = self_attn_output[-1]
         return_tensors['hidden_states'] = hidden_states
@@ -126,8 +131,9 @@ class BertLayer(nn.Module):
         out = F.dropout(x, p=self.dropout_rate, training=self.training)
         out = residual + out
         return out
+   
 
-
+@register_layer
 class T5Layer(BertLayer):
     """T5的Encoder的主体是基于Self-Attention的模块
     顺序：LN --> Att --> Add --> LN --> FFN --> Add
@@ -170,6 +176,7 @@ class T5Layer(BertLayer):
         return model_kwargs
 
 
+@register_layer
 class XlnetLayer(BertLayer):
     '''Transformer_XL层
     顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
@@ -185,23 +192,20 @@ class XlnetLayer(BertLayer):
         hidden_states_cat = torch.cat([mems_i, hidden_states], 1) if mems_i is not None else hidden_states
         
         # Attn
-        if self.pre_layernorm:
-            hidden_states_cat = self.attnLayerNorm(hidden_states_cat, conditional_emb)
         self_attn_output = self.multiHeadAttention(hidden_states, hidden_states_cat, pos_emb, attention_mask, segment_ids)
         hidden_states = self.dropout_add(self_attn_output[0], hidden_states)
-        if not self.pre_layernorm:  # post_layernorm
-            hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
+        hidden_states = self.attnLayerNorm(hidden_states, conditional_emb)
 
         # FFN
         x = self.ffnLayerNorm(hidden_states, conditional_emb) if self.pre_layernorm else hidden_states
         self_attn_output2 = self.feedForward(x)
         hidden_states = self.dropout_add(self_attn_output2, hidden_states)
-        if not self.pre_layernorm:  # post_layernorm
-            hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb)
+        hidden_states = self.ffnLayerNorm(hidden_states, conditional_emb)
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
     
 
+@register_layer
 class MiniCPMLayer(BertLayer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -211,6 +215,7 @@ class MiniCPMLayer(BertLayer):
         return residual + x * (self.scale_depth / math.sqrt(self.num_hidden_layers))
 
 
+@register_layer
 class FalconParallelAttnLayer(BertLayer):
     '''适用于Falcon的transformer block
     主要区别是attention和feedForward是平行的
@@ -236,6 +241,7 @@ class FalconParallelAttnLayer(BertLayer):
         return model_kwargs
 
 
+@register_layer
 class GlmLayer(BertLayer):
     '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
     def __init__(self, *args, **kwargs):
@@ -261,6 +267,7 @@ class GlmLayer(BertLayer):
         return model_kwargs
 
 
+@register_layer
 class Glm2Layer(BertLayer):
     '''顺序：LN --> Att --> Add --> LN --> FFN --> Add'''
     def __init__(self, *args, **kwargs):
@@ -274,6 +281,7 @@ class Glm2Layer(BertLayer):
         )
 
 
+@register_layer
 class Gpt2MlLayer(BertLayer):
     '''未定义在layer.py中是因为该层针对gpt2_ml模型，不可复用；
     顺序：Att --> Add --> LN --> FFN --> Add --> LN
@@ -297,7 +305,8 @@ class Gpt2MlLayer(BertLayer):
         return model_kwargs
 
 
-class GAULayer(nn.Module):
+@register_layer
+class GauLayer(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.gau = GatedAttention(**kwargs)
@@ -312,6 +321,7 @@ class GAULayer(nn.Module):
         return model_kwargs
         
 
+@register_layer
 class MllamaCrossAttentionDecoderLayer(BertLayer):
     '''mllama的cross_attention版本'''
     def __init__(self, *args, **kwargs):
@@ -342,16 +352,3 @@ class MllamaCrossAttentionDecoderLayer(BertLayer):
 
         model_kwargs['hidden_states'] = hidden_states
         return model_kwargs
-
-
-TRANSFORMER_BLOCKS = {
-    "BertLayer": BertLayer,
-    "MiniCPMLayer": MiniCPMLayer,
-    "FalconParallelAttnLayer": FalconParallelAttnLayer,
-    "GlmLayer": GlmLayer,
-    "Glm2Layer": Glm2Layer,
-    "T5Layer": T5Layer,
-    "GAU_Layer": GAULayer,
-    "Gpt2MlLayer": Gpt2MlLayer,
-    "XlnetLayer": XlnetLayer
-}

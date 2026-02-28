@@ -109,7 +109,6 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
         self.decoderLayer = self.encoderLayer
         del self.encoderLayer
         self.final_layernorm = final_layernorm
-        mapping = {'float16': torch.float16, 'bfloat16': torch.bfloat16, 'float32': torch.float32, 'float64': torch.float64}
         self.num_logits_to_keep = kwargs.get('num_logits_to_keep', 0)
         self.attn_type = kwargs.get('attn_type')
         
@@ -196,6 +195,7 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
         if self.with_lm and (not self.tie_word_embeddings):  # 当且仅当未绑定权重的时候
             mapping.update({'lm_head.weight': f'{prefix}.lm_head.weight'})
         return mapping
+
 
 @register_model(name="transformer")
 class Transformer(PreTrainedModelForDecoder):

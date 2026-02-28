@@ -45,6 +45,6 @@ from bert4torch.layers.transformer_block import (
     GlmLayer,
     Glm2Layer,
     Gpt2MlLayer,
-    GAULayer,
+    GauLayer,
     MllamaCrossAttentionDecoderLayer
 )

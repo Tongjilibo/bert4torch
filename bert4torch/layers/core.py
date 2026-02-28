@@ -282,7 +282,7 @@ class GlmOcrTextFeedForward(nn.Module):
     def __init__(self, dim: int, intermediate_size: int, hidden_act='silu', **kwargs):
         super().__init__()
         bias = kwargs.get('mlp_bias', kwargs.get('use_bias', False))
-        self.intermediateDense = nn.Linear(dim, intermediate_size, bias=bias)
+        self.intermediateDense = nn.Linear(dim, 2*intermediate_size, bias=bias)
         self.outputDense = nn.Linear(intermediate_size, dim, bias=bias)
         self.intermediate_act_fn = get_activation(hidden_act)
 

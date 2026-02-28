@@ -3,6 +3,7 @@ import torch
 from packaging import version
 from torch4keras.snippets.import_utils import *
 from importlib.util import find_spec
+from typing import List
 import sys
 if sys.version_info < (3, 8):
     import importlib_metadata
@@ -69,3 +70,32 @@ def is_optimum_available() -> bool:
 
 def is_auto_awq_available() -> bool:
     return importlib.util.find_spec("awq") is not None
+
+
+def get_valid_subdirs(root_dir: str) -> List[str]:
+    """获取所有包含 __init__.py 的有效子目录"""
+    subdirs = []
+    for item in os.listdir(root_dir):
+        item_path = os.path.join(root_dir, item)
+        # 是目录 + 不在排除列表 + 包含 __init__.py
+        if (
+            os.path.isdir(item_path)
+            and os.path.exists(os.path.join(item_path, "__init__.py"))
+        ):
+            subdirs.append(item)
+    return subdirs
+
+
+def import_submodels(root_dir: str, package_prefix='') -> None:
+    """从指定子模块中导入所有模型类"""
+    
+    # 确定要扫描的目标目录
+    target_dirs = get_valid_subdirs(root_dir)
+
+    # 遍历所有目标目录，导入模型
+    for subdir in target_dirs:
+        try:
+            sub_module = importlib.import_module(f"{package_prefix}.{subdir}", package=__name__)
+        except ImportError as e:
+            log_error_once(f"import {package_prefix}.{subdir} failed - {e}")
+            return

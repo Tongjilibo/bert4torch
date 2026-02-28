@@ -2,7 +2,7 @@ from bert4torch.models.roformer import RoFormerV2
 from bert4torch.models.base import register_model
 from torch import nn
 import copy
-from bert4torch.layers import BlockIdentity, GAULayer, LayerNorm
+from bert4torch.layers import BlockIdentity, GauLayer, LayerNorm
 
 
 @register_model(name="gau_alpha")
@@ -10,7 +10,7 @@ class GAU_alpha(RoFormerV2):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        layer = GAULayer(**kwargs)
+        layer = GauLayer(**kwargs)
         self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
         # LayerNorm没有weight
         for layer in self.modules():

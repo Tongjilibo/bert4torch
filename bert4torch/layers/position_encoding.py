@@ -505,6 +505,29 @@ class RopeMropePositionEncoding(RopePositionEncoding):
         return cos, sin
 
 
+@register_rope(name="mrope_glm_ocr")
+class RopeMropeGlmOcrPositionEncoding(RopeMropePositionEncoding):
+    '''GlmOcr中使用'''
+    def compute_cos_sin(self, qk, position_ids):
+        cos, sin = super().compute_cos_sin(qk, position_ids)
+        cos = cos.unsqueeze(1)
+        sin = sin.unsqueeze(1)
+        # Interleave them instead of usual shape
+        cos = cos[..., : cos.shape[-1] // 2].repeat_interleave(2, dim=-1)
+        sin = sin[..., : sin.shape[-1] // 2].repeat_interleave(2, dim=-1)
+        return cos, sin
+
+    def rotate_and_compute(self, x:torch.Tensor, cos:torch.Tensor, sin:torch.Tensor, position_ids:torch.Tensor, unsqueeze_dim:int=1):
+        # Keep half or full tensor for later concatenation
+        rotary_dim = cos.shape[-1]
+        rot, pass_ = x[..., :rotary_dim], x[..., rotary_dim:]
+
+        rot2 = torch.stack([-rot[..., 1::2], rot[..., ::2]], dim=-1).reshape_as(rot)
+        embed = rot * cos + rot2 * sin
+        embed = torch.cat([embed, pass_], dim=-1)
+        return embed
+
+
 @register_rope(name="mrope_interleaved")
 class RopeMropeInterleavedPositionEncoding(RopePositionEncoding):
     '''qwen3vl中使用'''
@@ -528,6 +551,7 @@ class RopeMropeInterleavedPositionEncoding(RopePositionEncoding):
             idx = slice(offset, length, 3)
             freqs_t[..., idx] = freqs[dim, ..., idx]
         return freqs_t
+    
     def _compute_cos_sin(self, inv_freq_expanded:torch.Tensor, position_ids:torch.Tensor, device_type:str, dtype:str):
         '''拆分出来，方便compute_cos_sin和_set_cos_sin_cache调用'''
         inv_freq_expanded = inv_freq_expanded.float().expand(*position_ids.shape[:-1], -1, 1)

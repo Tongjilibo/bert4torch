@@ -42,7 +42,6 @@ class MultiHeadAttention(nn.Module):
     :param attention_scale: bool, 是否对attention_scores进行缩放，默认为True
     :param output_attentions: bool，是否返回attention_scores，默认为False
     :param bias: bool, qkvo的weight是否包含bias，默认为True
-    :param rope_scaling: dict, rope的position encoding的参数，默认为None
     :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
     :param use_logn_attn: bool，是否使用use_logn_attn, 默认为None
     :param layer_idx: int，transformer block的层序号
@@ -54,7 +53,6 @@ class MultiHeadAttention(nn.Module):
                  dropout_rate:float=0.1, 
                  attention_scale:bool=True,
                  output_attentions:bool=False, 
-                 rope_scaling:dict=None, 
                  _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
                  use_logn_attn:bool=None, 
                  layer_idx:int=None,
@@ -69,7 +67,6 @@ class MultiHeadAttention(nn.Module):
         self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = kwargs.get('attention_bias', kwargs.get('use_bias', True))
-        self.rope_scaling = rope_scaling or dict()
         self.layer_idx = layer_idx
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
@@ -78,7 +75,7 @@ class MultiHeadAttention(nn.Module):
         self.max_position_embeddings = kwargs.get('max_position_embeddings')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
-        self.attention_head_size = kwargs.get('attention_head_size', int(hidden_size/num_attention_heads))  # Attention中V的head_size
+        self.attention_head_size = kwargs.get('attention_head_size', hidden_size//num_attention_heads)  # Attention中V的head_size
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)  # Attention中Q,K的head_size
         self.scaling = self.attention_head_size ** (-0.5)
         q_inner_dim = k_inner_dim = self.attention_key_size * num_attention_heads
@@ -89,10 +86,6 @@ class MultiHeadAttention(nn.Module):
             self.num_key_value_heads = num_key_value_heads
             k_inner_dim_tmp = self.attention_head_size * self.num_key_value_heads
             v_inner_dim_tmp = k_inner_dim_tmp
-
-        # longlora
-        if kwargs.get('longlora_group_size') is not None:
-            self.longlora_group_size = kwargs.get('longlora_group_size')
 
         self.q = nn.Linear(hidden_size, q_inner_dim, bias=self.bias)
         self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'num_key_value_heads') else k_inner_dim, bias=self.bias)
@@ -160,26 +153,15 @@ class MultiHeadAttention(nn.Module):
             key_states = self.repeat_kv(key_states)
             value_states = self.repeat_kv(value_states)
 
-        # longlora
-        if hasattr(self, 'longlora_group_size'):
-            query_states, key_states, value_states, attention_mask = self.longlora_shift(query_states, key_states, value_states, attention_mask)
-
-
+            
         # ====================================attention的多类实现====================================
         context_layer, attention_scores = self.attention_forward(query_states, key_states, value_states, attention_mask, past_key_value)
 
-        if hasattr(self, 'longlora_group_size'):  # context_layer: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
-            bsz, q_len = hidden_states.shape[:2]
-            context_layer = context_layer.transpose(1, 2).contiguous()
-            context_layer = context_layer.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
-            # shift back
-            context_layer[:, :, self.num_attention_heads//2:] = context_layer[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
-            context_layer = context_layer.reshape(bsz, q_len, self.hidden_size)
-        else:
-            # context_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-            context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-            new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-            context_layer = context_layer.reshape(*new_context_layer_shape).contiguous()
+
+        # context_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
+        context_layer = context_layer.reshape(*new_context_layer_shape).contiguous()
 
         # 是否返回attention scores
         outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
@@ -210,26 +192,6 @@ class MultiHeadAttention(nn.Module):
         hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
         return hidden_states
 
-    def longlora_shift(self, query_states, key_states, value_states, attention_mask):
-        '''longlora中对qkv和mask进行修改: https://github.com/dvlab-research/LongLoRA'''
-        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
-        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
-
-        def shift(qkv, bsz, q_len, group_size, num_heads, head_dim):
-            qkv[:, num_heads // 2:] = qkv[:, num_heads // 2:].roll(-group_size // 2, dims=2)
-            qkv = qkv.transpose(1, 2).reshape(bsz * (q_len // group_size), group_size, num_heads, head_dim).transpose(1, 2)
-            return qkv
-
-        bsz, _, q_len, _ = query_states.shape
-        num_group = q_len // self.longlora_group_size
-        query_states = shift(query_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
-        key_states = shift(key_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
-        value_states = shift(value_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
-        attention_mask = attention_mask[:, :, :self.longlora_group_size, :self.longlora_group_size].repeat(num_group, 1, 1, 1)
-        # qkv: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
-        return query_states, key_states, value_states, attention_mask
-
     def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
         x = x.view(*new_x_shape)
@@ -257,6 +219,46 @@ class MultiHeadAttention(nn.Module):
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         return attention_scores
+
+
+@register_attn
+class LongloraGroupAttention(MultiHeadAttention):
+    '''longlora中对qkv和mask进行修改: https://github.com/dvlab-research/LongLoRA'''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert 'longlora_group_size' in kwargs, '`longlora_group_size` not in kwargs'
+        self.longlora_group_size = kwargs['longlora_group_size']
+
+    def attention_forward(self, query_states, key_states, value_states, attention_mask, past_key_value = None, **kwargs):
+        query_states, key_states, value_states, attention_mask = self.longlora_shift(query_states, key_states, value_states, attention_mask)
+        context_layer, attention_scores = super().attention_forward(query_states, key_states, value_states, attention_mask, past_key_value, **kwargs)
+        
+        bsz, q_len = query_states.shape[:2]
+        context_layer = context_layer.transpose(1, 2).contiguous()
+        context_layer = context_layer.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
+        # shift back
+        context_layer[:, :, self.num_attention_heads//2:] = context_layer[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
+        context_layer = context_layer.reshape(bsz, q_len, self.hidden_size)
+        return context_layer, attention_scores
+
+    def longlora_shift(self, query_states, key_states, value_states, attention_mask):
+        # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
+        # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
+        # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
+
+        def shift(qkv, bsz, q_len, group_size, num_heads, head_dim):
+            qkv[:, num_heads // 2:] = qkv[:, num_heads // 2:].roll(-group_size // 2, dims=2)
+            qkv = qkv.transpose(1, 2).reshape(bsz * (q_len // group_size), group_size, num_heads, head_dim).transpose(1, 2)
+            return qkv
+
+        bsz, _, q_len, _ = query_states.shape
+        num_group = q_len // self.longlora_group_size
+        query_states = shift(query_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
+        key_states = shift(key_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
+        value_states = shift(value_states, bsz, q_len, self.longlora_group_size, self.num_attention_heads, self.attention_head_size)
+        attention_mask = attention_mask[:, :, :self.longlora_group_size, :self.longlora_group_size].repeat(num_group, 1, 1, 1)
+        # qkv: [bsz * (q_len // group_size), num_heads, group_size, head_dim]
+        return query_states, key_states, value_states, attention_mask
 
 
 @register_attn
@@ -428,12 +430,20 @@ class NezhaTypicalRelativeAttention(MultiHeadAttention):
 @register_attn
 @register_attn(name="rotary")
 class RopeAttention(MultiHeadAttention):
+    '''
+    :param rope_scaling: dict, rope的position encoding的参数，默认为None
+    '''
     def init_position_encoding(self, **kwargs):
-        rope_scaling = copy.deepcopy(self.rope_scaling)
-        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', 'default'))
-        scaling_factor = rope_scaling.pop("factor", None)
-        rope_theta = kwargs.get('rope_theta')
-        rope_rank = kwargs.get('rope_rank')
+        # 兼容新config.json中rope_parameters参数
+        self.rope_parameters = kwargs.get('rope_parameters') or kwargs.get('rope_scaling') or dict()
+        rope_parameters = copy.deepcopy(self.rope_parameters)
+        scaling_type = rope_parameters.pop("rope_type", rope_parameters.pop('type', 'default'))
+        scaling_factor = rope_parameters.pop("factor", None)
+        rope_theta = rope_parameters.pop('rope_theta', None) or kwargs.get('rope_theta')
+        rope_rank = rope_parameters.pop('rope_rank', None) or kwargs.get('rope_rank')
+        rope_max_seq_len_cached = rope_parameters.pop('rope_max_seq_len_cached', self.max_position_embeddings)
+        rope_sin_cos_cached = rope_parameters.pop('rope_sin_cos_cached', False)
+
         if scaling_type == 'default':
             assert scaling_factor is None , 'Args `rope_scaling.factor` not supported in default rope'
         elif scaling_type in {'linear', 'dynamic'}:
@@ -442,12 +452,12 @@ class RopeAttention(MultiHeadAttention):
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
             embedding_size=self.attention_head_size, 
             max_position_embeddings=self.max_position_embeddings, 
-            max_seq_len_cached=kwargs.get('rope_max_seq_len_cached', self.max_position_embeddings),
-            sin_cos_cached = kwargs.get('rope_sin_cos_cached', False),
+            max_seq_len_cached=rope_max_seq_len_cached,
+            sin_cos_cached=rope_sin_cos_cached,
             rope_rank=rope_rank, 
             scaling_factor=scaling_factor, 
             rope_theta=rope_theta,
-            **rope_scaling)
+            **rope_parameters)
 
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
         query_states = self.transpose_for_q_scores(self.q(hidden_states))
@@ -714,20 +724,21 @@ class DeepseekV2Attention(MultiHeadAttention):
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
 
         self.scaling = self.q_head_dim ** (-0.5)
-        if self.rope_scaling is not None:
-            mscale_all_dim = self.rope_scaling.get("mscale_all_dim", 0)
-            scaling_factor = self.rope_scaling["factor"]
+        self.rope_parameters = kwargs.get('rope_parameters') or kwargs.get('rope_scaling')
+        if self.rope_parameters is not None:
+            mscale_all_dim = self.rope_parameters.get("mscale_all_dim", 0)
+            scaling_factor = self.rope_parameters["factor"]
             if mscale_all_dim:
                 mscale = 1.0 if scaling_factor <= 1 else 0.1 * mscale_all_dim * math.log(scaling_factor) + 1.0
                 self.scaling = self.scaling * mscale * mscale
         
     def init_position_encoding(self, **kwargs):
         '''这里dim为qk_rope_head_dim所以重新初始化了'''
-        rope_scaling = copy.deepcopy(self.rope_scaling)
-        scaling_type = rope_scaling.pop("rope_type", rope_scaling.pop('type', 'default'))
-        scaling_factor = rope_scaling.pop("factor", None)
-        rope_theta = kwargs.get('rope_theta')
-        rope_rank = kwargs.get('rope_rank')
+        rope_parameters = copy.deepcopy(self.rope_parameters)
+        scaling_type = rope_parameters.pop("rope_type", rope_parameters.pop('type', 'default'))
+        scaling_factor = rope_parameters.pop("factor", None)
+        rope_theta = rope_parameters.pop('rope_theta', None) or kwargs.get('rope_theta')
+        rope_rank = rope_parameters.pop('rope_rank', None) or kwargs.get('rope_rank')
         self.relative_positions_encoding = ROPE_ENCODGING_MAP[scaling_type](
             embedding_size = kwargs.get('qk_rope_head_dim'), 
             max_position_embeddings = self.max_position_embeddings, 
@@ -736,7 +747,7 @@ class DeepseekV2Attention(MultiHeadAttention):
             rope_rank = rope_rank, 
             scaling_factor = scaling_factor, 
             rope_theta = rope_theta,
-            **rope_scaling
+            **rope_parameters
             )
     
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):

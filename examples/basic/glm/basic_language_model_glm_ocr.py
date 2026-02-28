@@ -1,15 +1,14 @@
 #! -*- coding: utf-8 -*-
-"""PaddleOCR-VL的测试
+"""glmocr的测试
 """
 
-from PIL import Image
 from bert4torch.pipelines import Chat
 from bert4torch.models import build_transformer_model
 from transformers import AutoProcessor
 import torch
 
 model_dir = '/data/pretrain_ckpt/zai-org/GLM-OCR'
-image_path = "/home/lb/projects/tongjilibo/bert4torch/test_local/images/表格1.png"
+image_path = "/data/pretrain_ckpt/zai-org/GLM-OCR/image.png"
 
 
 def demo_generate():

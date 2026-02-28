@@ -145,30 +145,7 @@ class BertBase(PreTrainedModel):
         else:
             return layer(**model_kwargs)
 
-    def preprare_embeddings_inputs(self, *inputs:Union[tuple, list], **model_kwargs):
-        '''解析准备进embedding层的的输入'''
-        # ========================= token_ids =========================
-        index_ = 0
-        if model_kwargs.get('input_ids') is not None:
-            token_ids = model_kwargs['input_ids']
-        elif model_kwargs.get('token_ids') is not None:
-            token_ids = model_kwargs['token_ids']
-        else:
-            token_ids = inputs[0]
-            index_ += 1
-        
-        # ========================= segment_ids =========================
-        if model_kwargs.get('segment_ids') is not None:
-            segment_ids = model_kwargs['segment_ids']
-        elif model_kwargs.get('token_type_ids') is not None:
-            segment_ids = model_kwargs['token_type_ids']
-        elif self.segment_vocab_size > 0:
-            segment_ids = inputs[index_]
-            index_ += 1
-        else:
-            segment_ids = None
-
-        # ========================= position_ids =========================
+    def _prepare_position_ids(self, inputs, index_, token_ids, model_kwargs):
         # 以下只有在一种情况下生效, 是传入了past_key_values接着推理, 如多轮对话中维持past_key_values
         # 1）ptuning_v2不生效(训练阶段), 虽然传入了past_key_values, 但是postion_ids依然从0开始
         # 2）use_states=True推理时候不生效, 虽然past_key_values有值, 但是由于传入了'position_ids'
@@ -193,10 +170,13 @@ class BertBase(PreTrainedModel):
             position_ids = create_position_ids_start_at_padding(token_ids, pad_token_id, past_key_values_length=-1, start_padding_idx=False)
         else:
             position_ids = torch.arange(token_ids.shape[1], dtype=torch.long, device=token_ids.device).unsqueeze(0) + past_key_values_length
+        
         model_kwargs['position_ids'] = position_ids
+        return position_ids, index_
 
-        # ========================= attention_mask =========================
+    def _prepare_attention_mask(self, inputs, index_, token_ids, segment_ids, model_kwargs):
         # 这里attention_mask表示传入[btz, seq_len], 而后续的attention_mask其实是extended_attention_mask[btz, 1, 1/q_len, seq_len]
+        pad_token_id = model_kwargs.get('pad_token_id', self.pad_token_id)
         if model_kwargs.get('attention_mask') is not None:
             # attention_mask是根据token_ids生成的，因此外部需要重置下，目前是带cache解码时候使用
             attention_mask = model_kwargs['attention_mask']
@@ -234,6 +214,36 @@ class BertBase(PreTrainedModel):
             pad_length = model_kwargs.get('past_key_values')[0][0].shape[2] + token_ids.shape[1] - attention_mask.shape[-1]
             pre_attention_mask = torch.ones(attention_mask.shape[:3] + torch.Size([pad_length])).to(attention_mask)
             attention_mask = torch.cat([pre_attention_mask, attention_mask], dim=-1)
+        return attention_mask, index_
+
+    def preprare_embeddings_inputs(self, *inputs:Union[tuple, list], **model_kwargs):
+        '''解析准备进embedding层的的输入'''
+        # ========================= token_ids =========================
+        index_ = 0
+        if model_kwargs.get('input_ids') is not None:
+            token_ids = model_kwargs['input_ids']
+        elif model_kwargs.get('token_ids') is not None:
+            token_ids = model_kwargs['token_ids']
+        else:
+            token_ids = inputs[0]
+            index_ += 1
+        
+        # ========================= segment_ids =========================
+        if model_kwargs.get('segment_ids') is not None:
+            segment_ids = model_kwargs['segment_ids']
+        elif model_kwargs.get('token_type_ids') is not None:
+            segment_ids = model_kwargs['token_type_ids']
+        elif self.segment_vocab_size > 0:
+            segment_ids = inputs[index_]
+            index_ += 1
+        else:
+            segment_ids = None
+
+        # ========================= position_ids =========================
+        position_ids, index_ = self._prepare_position_ids(inputs, index_, token_ids, model_kwargs)
+
+        # ========================= attention_mask =========================
+        attention_mask, index_ = self._prepare_attention_mask(inputs, index_, token_ids, segment_ids, model_kwargs)
 
         # ========================= conditional layer_norm =========================
         if model_kwargs.get('conditional_emb') is not None:
