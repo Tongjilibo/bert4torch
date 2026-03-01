@@ -16,7 +16,7 @@ from bert4torch.layers.position_encoding import (
     ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
-from bert4torch.layers.layer_norm import LayerNorm
+from bert4torch.layers.layer_norm import LayerNorm, RMSNorm
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_xformers_available, create_registrar
 from bert4torch.layers.attention.attention_utils import eager_attention_forward, sdpa_attention_forward, flash_attention_forward
@@ -487,8 +487,8 @@ class Qwen3Attention(RopeAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         layer_norm_eps = kwargs.get('layer_norm_eps', 1e-6)
-        self.q_norm = LayerNorm(self.attention_head_size, layer_norm_mode='rmsnorm', layer_norm_eps=layer_norm_eps)
-        self.k_norm = LayerNorm(self.attention_key_size, layer_norm_mode='rmsnorm', layer_norm_eps=layer_norm_eps)
+        self.q_norm = RMSNorm(self.attention_head_size, layer_norm_eps=layer_norm_eps)
+        self.k_norm = RMSNorm(self.attention_key_size, layer_norm_eps=layer_norm_eps)
 
     def transpose_for_q_scores(self, x):
         return self.q_norm(super().transpose_for_q_scores(x))
@@ -713,12 +713,12 @@ class DeepseekV2Attention(MultiHeadAttention):
         else:
             del self.q
             self.q_a = nn.Linear(self.hidden_size, self.q_lora_rank, bias=self.bias)
-            self.q_a_layernorm = LayerNorm(self.q_lora_rank, layer_norm_mode='rmsnorm', layer_norm_eps=layer_norm_eps)
+            self.q_a_layernorm = RMSNorm(self.q_lora_rank, layer_norm_eps=layer_norm_eps)
             self.q_b = nn.Linear(self.q_lora_rank, self.attention_key_size * self.q_head_dim, bias=self.bias)
 
         del self.k, self.v
         self.kv_a_proj_with_mqa = nn.Linear(self.hidden_size, self.kv_lora_rank + self.qk_rope_head_dim, bias=self.bias)
-        self.kv_a_layernorm = LayerNorm(self.kv_lora_rank, layer_norm_mode='rmsnorm', layer_norm_eps=layer_norm_eps)
+        self.kv_a_layernorm = RMSNorm(self.kv_lora_rank, layer_norm_eps=layer_norm_eps)
         self.kv_b = nn.Linear(self.kv_lora_rank, self.num_attention_heads * 
                               (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
@@ -818,8 +818,8 @@ class MllamaTextCrossAttention(MultiHeadAttention):
     '''mllama部分层使用的crossattention'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.q_norm = LayerNorm(self.attention_head_size, layer_norm_mode='rmsnorm', layer_norm_eps=kwargs.get('layer_norm_eps', 1e-6))
-        self.k_norm = LayerNorm(self.attention_key_size, layer_norm_mode='rmsnorm', layer_norm_eps=kwargs.get('layer_norm_eps', 1e-6))
+        self.q_norm = RMSNorm(self.attention_head_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-6))
+        self.k_norm = RMSNorm(self.attention_key_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-6))
 
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
         query_states = self.transpose_for_q_scores(self.q(hidden_states))

@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 from .pretrained_model import PreTrainedModel
 from ..modeling_utils import old_checkpoint
-from bert4torch.layers import LayerNorm, EMBEDDING_MAP, TRANSFORMER_BLOCKS, BlockIdentity
+from bert4torch.layers import LAYER_NORM, EMBEDDING_MAP, TRANSFORMER_BLOCKS, BlockIdentity
 from bert4torch.snippets import create_position_ids_start_at_padding, DottableDict
 from bert4torch.activations import get_activation
 from packaging import version
@@ -50,8 +50,8 @@ class BertBase(PreTrainedModel):
             additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False,
             is_dropout:bool=False,
             pad_token_id:int=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
-            embedding_type:str='BertEmbeddings',
-            layer_type:str='BertLayer',
+            embedding_type:str='default',
+            layer_type:str='default',
             **kwargs  # 其余参数
     ):
         super(BertBase, self).__init__(**kwargs)
@@ -91,8 +91,6 @@ class BertBase(PreTrainedModel):
             self.with_pool = True
         self.additional_embs = additional_embs
         self.conditional_size = conditional_size
-        if kwargs.get('hierarchical_position'):
-            embedding_type = 'HierarchicalPositionEmbeddings'
         self.embeddings = EMBEDDING_MAP[embedding_type](**self.get_kw(*self._embedding_args, **kwargs))
         self.encoderLayer = nn.ModuleList([TRANSFORMER_BLOCKS[layer_type](layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
                                            if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
@@ -113,7 +111,7 @@ class BertBase(PreTrainedModel):
             # mlm预测
             self.mlmDense = nn.Linear(self.hidden_size, self.embedding_size)  # 允许hidden_size和embedding_size不同
             self.transform_act_fn = get_activation(self.hidden_act)
-            self.mlmLayerNorm = LayerNorm(self.embedding_size, layer_norm_eps=1e-12, conditional_size=self.conditional_size)
+            self.mlmLayerNorm = LAYER_NORM[kwargs](self.embedding_size, layer_norm_eps=1e-12)
             self.mlmDecoder = nn.Linear(self.embedding_size, self.vocab_size, bias=False)
             self.mlmBias = nn.Parameter(torch.zeros(self.vocab_size))
             self.mlmDecoder.bias = self.mlmBias
@@ -122,7 +120,7 @@ class BertBase(PreTrainedModel):
     @property
     def _embedding_args(self):
         args = ['vocab_size', 'embedding_size', 'hidden_size', 'max_position_embeddings', 'segment_vocab_size', 
-                'shared_segment_embeddings', 'dropout_rate', 'conditional_size', 'hierarchical_position']
+                'shared_segment_embeddings', 'dropout_rate', 'conditional_size', 'hierarchical_position_alpha']
         return args
 
     @property

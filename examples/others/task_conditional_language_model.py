@@ -78,13 +78,14 @@ class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
         self.c = nn.Embedding(num_classes, 128)
-        self.bert = build_transformer_model(config_path,
-                                            checkpoint_path,
-                                            with_mlm=True,
-                                            application='lm',
-                                            keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
-                                            conditional_size=128,
-                                            verbose=0)  # 忽略未初始化的权重
+        self.bert = build_transformer_model(
+            config_path,
+            checkpoint_path,
+            with_mlm=True,
+            application='lm',
+            keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
+            conditional_size=128,
+            verbose=0)  # 忽略未初始化的权重
 
     def forward(self, token_ids, segment_ids, labels):
         conditional_emb = self.c(labels)

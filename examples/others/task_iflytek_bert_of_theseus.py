@@ -70,7 +70,9 @@ valid_dataloader = DataLoader(MyDataset('F:/data/corpus/sentence_classification/
 class BERT_THESEUS(BertBase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layer = BertLayer(self.hidden_size, self.num_attention_heads, self.dropout_rate, self.attention_probs_dropout_prob, self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
+        layer = BertLayer(self.hidden_size, self.num_attention_heads, 
+                          self.dropout_rate, self.attention_probs_dropout_prob, 
+                          self.intermediate_size, self.hidden_act, is_dropout=False, conditional_size=self.conditional_size)
         self.encoderLayer = nn.ModuleList(nn.ModuleList([copy.deepcopy(layer) for _ in range(self.num_hidden_layers)]))
         self.scc_n_layer = 6  # 蒸馏到6层
         self.scc_layer = nn.ModuleList([copy.deepcopy(layer) for _ in range(self.scc_n_layer)])

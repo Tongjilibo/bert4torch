@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from bert4torch.activations import get_activation
-from bert4torch.layers.layer_norm import LayerNorm
+from bert4torch.layers.layer_norm import LayerNorm, ConditionalLayerNorm
 import random
 import warnings
 import math
@@ -158,10 +158,10 @@ class TplinkerHandshakingKernel(nn.Module):
         elif shaking_type == "cat_plus":
             self.combine_fc = nn.Linear(hidden_size * 3, hidden_size)
         elif shaking_type == "cln":
-            self.tp_cln = LayerNorm(hidden_size, conditional_size=hidden_size)
+            self.tp_cln = ConditionalLayerNorm(hidden_size, conditional_size=hidden_size)
         elif shaking_type == "cln_plus":
-            self.tp_cln = LayerNorm(hidden_size, conditional_size=hidden_size)
-            self.inner_context_cln = LayerNorm(hidden_size, conditional_size=hidden_size)
+            self.tp_cln = ConditionalLayerNorm(hidden_size, conditional_size=hidden_size)
+            self.inner_context_cln = ConditionalLayerNorm(hidden_size, conditional_size=hidden_size)
             
         self.inner_enc_type = inner_enc_type
         if inner_enc_type == "mix_pooling":

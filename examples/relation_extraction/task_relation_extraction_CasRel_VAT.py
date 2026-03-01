@@ -5,7 +5,7 @@
 import json
 import random
 import numpy as np
-from bert4torch.layers import LayerNorm
+from bert4torch.layers import ConditionalLayerNorm
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, ListDataset
@@ -151,7 +151,7 @@ class Model(BaseModel):
         super().__init__()
         self.bert = build_transformer_model(config_path, checkpoint_path)
         self.linear1 = nn.Linear(768, 2)
-        self.condLayerNorm = LayerNorm(hidden_size=768, conditional_size=768 * 2)
+        self.condLayerNorm = ConditionalLayerNorm(hidden_size=768, conditional_size=768 * 2)
         self.linear2 = nn.Linear(768, len(predicate2id) * 2)
 
     @staticmethod

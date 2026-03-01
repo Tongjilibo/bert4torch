@@ -5,7 +5,7 @@ from .modeling_base import BertBase
 from .pretrained_model import LM_Mask, PreTrainedModel, register_model
 from bert4torch.snippets import delete_arguments, insert_arguments
 from bert4torch.activations import get_activation
-from bert4torch.layers import LayerNorm
+from bert4torch.layers import LAYER_NORM
 from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
 from typing import Union, Literal
 from torch import nn
@@ -125,12 +125,7 @@ class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
             self.logit_scale = logit_scale
         
         if self.final_layernorm:
-            self.LayerNormFinal = LayerNorm(
-                self.hidden_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-12), 
-                conditional_size=self.conditional_size, layer_norm_mode=kwargs.get('norm_mode', 'normal'), 
-                rmsnorm_fp32=kwargs.get('rmsnorm_fp32', 'llama-qwen'), 
-                use_bias=kwargs.get('use_bias', True)
-                )
+            self.LayerNormFinal = LAYER_NORM[kwargs](**kwargs)
 
     def tie_weights(self):
         # decoder底层的embedding和顶层的全连接共享

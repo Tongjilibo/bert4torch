@@ -11,7 +11,7 @@ import torch.optim as optim
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from bert4torch.optimizers import get_linear_schedule_with_warmup
-from bert4torch.layers import LayerNorm
+from bert4torch.layers import LayerNorm, ConditionalLayerNorm
 from bert4torch.tokenizers import Tokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
@@ -309,7 +309,7 @@ class Model(BaseModel):
         self.predictor = CoPredictor(label_num, lstm_hid_size, biaffine_size,
                                      conv_hid_size * len(dilation), ffnn_hid_size, out_dropout)
 
-        self.cln = LayerNorm(lstm_hid_size, conditional_size=lstm_hid_size)
+        self.cln = ConditionalLayerNorm(lstm_hid_size, conditional_size=lstm_hid_size)
 
     def forward(self, token_ids, pieces2word, dist_inputs, sent_length, grid_mask2d):
         bert_embs = self.bert([token_ids, torch.zeros_like(token_ids)])

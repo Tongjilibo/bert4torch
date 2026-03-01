@@ -61,7 +61,8 @@ class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
         # 这里指定了hierarchical_position和max_position，把原有的position
-        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, hierarchical_position=True, with_pool=True)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, 
+                                            embedding_type='HierarchicalPositionEmbeddings', with_pool=True)
         self.dropout = nn.Dropout(0.1)
         self.dense = nn.Linear(self.bert.config['hidden_size'], 2)
 

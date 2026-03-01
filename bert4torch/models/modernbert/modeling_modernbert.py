@@ -1,7 +1,7 @@
 from bert4torch.models.base import BertBase, register_model
 import torch
 from bert4torch.snippets import delete_arguments
-from bert4torch.layers import LayerNorm, BlockIdentity
+from bert4torch.layers import TorchBuildInLayerNorm, BlockIdentity
 from bert4torch.models.modeling_utils import safe_register_parameter
 try:
     from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
@@ -15,12 +15,7 @@ class ModernBert(BertBase):
     def __init__(self, *args, **kwargs):
         super(ModernBert, self).__init__(*args, **kwargs)
         self.local_attention = kwargs['local_attention']
-        self.LayerNormFinal = LayerNorm(
-            self.hidden_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-12), 
-            conditional_size=self.conditional_size, 
-            layer_norm_mode=kwargs.get('norm_mode', 'torch_buildin'),
-            use_bias=kwargs.get('use_bias', True)
-            )
+        self.LayerNormFinal = TorchBuildInLayerNorm(self.hidden_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-12), use_bias=kwargs.get('use_bias', False))
         self.encoderLayer[0].attnLayerNorm = BlockIdentity(return_args_index=set([0]))
         safe_register_parameter([self.mlmDense, self.mlmLayerNorm], 'bias', None)
 

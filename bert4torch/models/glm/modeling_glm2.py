@@ -1,4 +1,4 @@
-from bert4torch.layers import LayerNorm
+from bert4torch.layers import GlmRMSNorm
 from ..base import register_model
 from .modeling_glm import Glm
 import torch
@@ -15,7 +15,7 @@ class Glm2(Glm):
     _no_split_modules = ["Glm2Layer"]
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.LayerNormFinal = LayerNorm(self.hidden_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-5), layer_norm_mode='rmsnorm')
+        self.LayerNormFinal = GlmRMSNorm(self.hidden_size, layer_norm_eps=kwargs.get('layer_norm_eps', 1e-5))
 
     def load_trans_ckpt(self, checkpoint, prefix=''):
         state_dict = super().load_trans_ckpt(checkpoint)

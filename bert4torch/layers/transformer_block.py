@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import math
 import torch.nn.functional as F
-from bert4torch.layers.layer_norm import LayerNorm
+from bert4torch.layers.layer_norm import LAYER_NORM, RoformerV2LayerNorm
 from bert4torch.layers.mlp import MLP_MAP, T5PositionWiseFeedForward
 from bert4torch.layers.attention import ATTENTION_MAP, GatedAttention, TransformerxlMultiHeadAttn
 from bert4torch.models.modeling_utils import safe_register_parameter
@@ -15,6 +15,7 @@ register_layer = create_registrar(TRANSFORMER_BLOCKS)
 
 
 @register_layer
+@register_layer(name='default')
 class BertLayer(nn.Module):
     """Transformer层:
         顺序为: Attention --> Add --> LayerNorm --> Feed Forward --> Add --> LayerNorm
@@ -41,7 +42,6 @@ class BertLayer(nn.Module):
                  intermediate_size:int, 
                  hidden_act:str, 
                  is_dropout:bool=False, 
-                 conditional_size:Union[bool, int]=False, 
                  **kwargs
         ):
         super(BertLayer, self).__init__()
@@ -53,17 +53,17 @@ class BertLayer(nn.Module):
         
         # self attention
         self.multiHeadAttention = ATTENTION_MAP[self.attn_type](hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
-        self.attnLayerNorm = LayerNorm(hidden_size, conditional_size=conditional_size, **kwargs)
+        self.attnLayerNorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
 
         # feedforward
         self.feedForward = MLP_MAP[self.mlp_type](hidden_size, intermediate_size, dropout_rate=dropout_rate, 
                                                   hidden_act=hidden_act, is_dropout=is_dropout, **kwargs)
-        self.ffnLayerNorm = LayerNorm(hidden_size, conditional_size=conditional_size, **kwargs)
+        self.ffnLayerNorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
 
         # cross attention
         if self.add_cross_attention and self.is_decoder:
             self.crossAttention = ATTENTION_MAP[self.attn_type](hidden_size, num_attention_heads, attention_probs_dropout_prob, dropout_rate, **kwargs)
-            self.crossLayerNorm = LayerNorm(hidden_size, conditional_size=conditional_size, **kwargs)
+            self.crossLayerNorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
 
     def forward(
         self, 
@@ -343,10 +343,10 @@ class Glm4Layer(LLMLayer):
         super().__init__(hidden_size, *args, **kwargs)
         del self.attnLayerNorm
         del self.ffnLayerNorm
-        self.input_layernorm = LayerNorm(hidden_size, **kwargs)
-        self.post_attention_layernorm = LayerNorm(hidden_size, **kwargs)
-        self.pre_mlp_layernorm = LayerNorm(hidden_size, **kwargs)
-        self.post_mlp_layernorm = LayerNorm(hidden_size, **kwargs)
+        self.input_layernorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
+        self.post_attention_layernorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
+        self.pre_mlp_layernorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
+        self.post_mlp_layernorm = LAYER_NORM[kwargs](hidden_size, **kwargs)
 
     def _process_before_self_attention(self, hidden_states, conditional_emb):
         return self.input_layernorm(hidden_states, conditional_emb)
@@ -369,7 +369,7 @@ class GauLayer(nn.Module):
         super().__init__()
         self.gau = GatedAttention(**kwargs)
         self.dropout_rate = kwargs.get('dropout_rate')
-        self.attnLayerNorm = LayerNorm(**kwargs)
+        self.attnLayerNorm = RoformerV2LayerNorm(**kwargs)
 
     def forward(self, hidden_states=None, attention_mask=None, conditional_emb=None, position_ids=None, **model_kwargs):
         gau_hidden_states = self.gau(hidden_states, attention_mask, position_ids)

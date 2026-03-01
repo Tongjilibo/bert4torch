@@ -8,14 +8,14 @@ from bert4torch.layers import BlockIdentity, GauLayer, LayerNorm
 @register_model(name="gau_alpha")
 class GAU_alpha(RoFormerV2):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, layer_type='GauLayer', layer_norm_mode='roformer_v2', **kwargs)
 
-        layer = GauLayer(**kwargs)
-        self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
-        # LayerNorm没有weight
-        for layer in self.modules():
-            if isinstance(layer, LayerNorm) and hasattr(layer, 'weight'):
-                del layer.weight
+        # layer = GauLayer(**kwargs)
+        # self.encoderLayer = nn.ModuleList([copy.deepcopy(layer) if layer_id in self.keep_hidden_layers else BlockIdentity() for layer_id in range(self.num_hidden_layers)])
+        # # LayerNorm没有weight
+        # for layer in self.modules():
+        #     if isinstance(layer, LayerNorm) and hasattr(layer, 'weight'):
+        #         del layer.weight
 
     def load_variable(self, variable, ckpt_key, model_key):
         if ckpt_key in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'}:

@@ -1,6 +1,6 @@
 from bert4torch.models.base import Encoder, Decoder, Transformer, register_model
 from bert4torch.snippets import insert_arguments, delete_arguments
-from bert4torch.layers import LayerNorm
+from bert4torch.layers import RMSNorm
 from torch import nn
 
 
@@ -15,7 +15,7 @@ class T5_Encoder(Encoder):
         super().__init__(*args, version=self.version, **kwargs)
         del self.embeddings.layerNorm
 
-        self.final_layer_norm = LayerNorm(self.hidden_size, layer_norm_eps=1e-12, conditional_size=self.conditional_size, layer_norm_mode='rmsnorm')
+        self.final_layer_norm = RMSNorm(self.hidden_size, layer_norm_eps=1e-12)
         self.dropout = nn.Dropout(self.dropout_rate)
         self.tie_weights()
 
@@ -71,7 +71,7 @@ class T5_Decoder(Decoder):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, version=self.version, **kwargs)
         del self.embeddings.layerNorm        
-        self.final_layer_norm = LayerNorm(self.hidden_size, layer_norm_eps=1e-12, conditional_size=self.conditional_size, layer_norm_mode='rmsnorm')
+        self.final_layer_norm = RMSNorm(self.hidden_size, layer_norm_eps=1e-12)
         self.dropout = nn.Dropout(self.dropout_rate)
         self.tie_weights()
 

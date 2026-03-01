@@ -41,7 +41,7 @@ def demo_generate():
         return_tensors="pt"
     ).to(DEVICE)
 
-    outputs = model.generate(**inputs, max_new_tokens=8192)
+    outputs = model.generate(**inputs, max_new_tokens=512)
     outputs = processor.batch_decode(outputs, skip_special_tokens=True)[0]
     print(outputs)
 

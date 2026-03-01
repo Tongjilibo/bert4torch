@@ -53,7 +53,7 @@ def build_transformer_model(
     :param residual_attention_scores: bool, Attention矩阵加残差, 默认为False
     :param ignore_invalid_weights: bool, 允许跳过不存在的权重, 默认为False
     :param keep_hidden_layers: 保留的hidden_layer层的id, 默认为None表示全部使用
-    :param hierarchical_position: 是否层次分解位置编码, 默认为None表示不使用
+    :param hierarchical_position_alpha: 是否层次分解位置编码, 默认为None表示不使用
     :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
     :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
     :param verbose: int, 是否显示加载权重的[WARNING]信息, 默认为1表示显示未加载的, 2表示显示所有不匹配的, 0表示不显示

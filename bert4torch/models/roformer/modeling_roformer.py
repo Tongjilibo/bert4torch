@@ -26,12 +26,7 @@ class RoFormerV2(RoFormer):
     """
     @delete_arguments('with_pool', 'with_nsp')
     def __init__(self, *args, **kwargs):
-        super(RoFormerV2, self).__init__(*args, **kwargs)
-
-        # LayerNorm没有weight
-        for layer in self.modules():
-            if isinstance(layer, LayerNorm) and hasattr(layer, 'weight'):
-                del layer.weight
+        super(RoFormerV2, self).__init__(*args, layer_norm_mode='roformer_v2', **kwargs)
             
         if self.with_mlm:
             del self.mlmLayerNorm
