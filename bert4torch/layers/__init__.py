@@ -10,7 +10,9 @@ from bert4torch.layers.attention import (
     TransformerxlMultiHeadAttn,
     ATTENTION_MAP
 )
-from bert4torch.layers.core import LayerNorm, BertEmbeddings, ErnieEmbeddings, PositionWiseFeedForward, LlamaFeedForward, T5PositionWiseFeedForward
+from bert4torch.layers.layer_norm import *
+from bert4torch.layers.word_embedding import *
+from bert4torch.layers.mlp import *
 from bert4torch.layers.crf import CRF
 from bert4torch.layers.global_point import GlobalPointer, EfficientGlobalPointer
 from bert4torch.layers.misc import (

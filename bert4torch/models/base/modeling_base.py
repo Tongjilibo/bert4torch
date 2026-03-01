@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 from .pretrained_model import PreTrainedModel
 from ..modeling_utils import old_checkpoint
-from bert4torch.layers import LayerNorm, BertEmbeddings, TRANSFORMER_BLOCKS, BlockIdentity
+from bert4torch.layers import LayerNorm, EMBEDDING_MAP, TRANSFORMER_BLOCKS, BlockIdentity
 from bert4torch.snippets import create_position_ids_start_at_padding, DottableDict
 from bert4torch.activations import get_activation
 from packaging import version
@@ -50,6 +50,7 @@ class BertBase(PreTrainedModel):
             additional_embs:Union[bool, torch.Tensor, List[torch.Tensor]]=False,
             is_dropout:bool=False,
             pad_token_id:int=0,  # 默认0是padding ids, 但是注意google的mt5padding不是0
+            embedding_type:str='BertEmbeddings',
             layer_type:str='BertLayer',
             **kwargs  # 其余参数
     ):
@@ -90,7 +91,9 @@ class BertBase(PreTrainedModel):
             self.with_pool = True
         self.additional_embs = additional_embs
         self.conditional_size = conditional_size
-        self.embeddings = BertEmbeddings(**self.get_kw(*self._embedding_args, **kwargs))
+        if kwargs.get('hierarchical_position'):
+            embedding_type = 'HierarchicalPositionEmbeddings'
+        self.embeddings = EMBEDDING_MAP[embedding_type](**self.get_kw(*self._embedding_args, **kwargs))
         self.encoderLayer = nn.ModuleList([TRANSFORMER_BLOCKS[layer_type](layer_idx=layer_idx, **self.get_kw(*self._layer_args, **kwargs)) 
                                            if layer_idx in self.keep_hidden_layers else BlockIdentity() for layer_idx in range(self.num_hidden_layers)])
         

@@ -1,5 +1,5 @@
 from .modeling_qwen3 import Qwen3
-from bert4torch.layers.core import Qwen3MoeSparseFeedForward
+from bert4torch.layers.mlp import Qwen3MoeSparseFeedForward
 import re
 from ..base import register_model
 

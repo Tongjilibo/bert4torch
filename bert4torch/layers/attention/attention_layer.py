@@ -16,7 +16,7 @@ from bert4torch.layers.position_encoding import (
     ROPE_ENCODGING_MAP,
     ALiBiPositionsEncoding
 )
-from bert4torch.layers.core import LayerNorm
+from bert4torch.layers.layer_norm import LayerNorm
 from bert4torch.activations import get_activation
 from bert4torch.snippets import log_warn_once, is_xformers_available, create_registrar
 from bert4torch.layers.attention.attention_utils import eager_attention_forward, sdpa_attention_forward, flash_attention_forward

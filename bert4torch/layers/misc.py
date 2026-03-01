@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from bert4torch.activations import get_activation
-from bert4torch.layers.core import LayerNorm
+from bert4torch.layers.layer_norm import LayerNorm
 import random
 import warnings
 import math

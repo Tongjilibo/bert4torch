@@ -1,5 +1,5 @@
 from typing import List, Optional, Tuple, Union
-from bert4torch.models.qwen import Qwen2
+from bert4torch.models.glm import Glm4
 from bert4torch.models.base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 from .visual import GlmOcrVisionModel, GlmOcrVisionConfig
@@ -15,11 +15,11 @@ class GlmOcr(PreTrainedModelForDecoder):
         self.config = DottableDict(config)
         vision_config = GlmOcrVisionConfig.from_dict(self.config.vision_config)
         self.visual = GlmOcrVisionModel._from_config(vision_config)
-        self.model = Qwen2(**self.config.text_config)
-        self.model.passed_kwargs = GlmOcr.passed_kwargs
+        self.language_model = Glm4(**self.config.text_config)
+        self.language_model.passed_kwargs = GlmOcr.passed_kwargs
 
     def get_input_embeddings(self):
-        return self.model.get_input_embeddings()
+        return self.language_model.get_input_embeddings()
 
     def get_image_features(self, pixel_values: torch.FloatTensor, image_grid_thw: Optional[torch.LongTensor] = None):
         """图片embedding"""
@@ -95,7 +95,7 @@ class GlmOcr(PreTrainedModelForDecoder):
             use_states=False: 和train阶段一致
         """
         if inputs_embeds is None:
-            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds = self.language_model.embeddings(input_ids)
         
         if pixel_values is not None:
             image_embeds = self.get_image_features(pixel_values, image_grid_thw)
@@ -114,17 +114,17 @@ class GlmOcr(PreTrainedModelForDecoder):
         return inputs_embeds, attention_mask
 
     def tie_weights(self):
-        self.model.tie_weights()
+        self.language_model.tie_weights()
 
     def forward(self, *inputs:Union[tuple, list], **model_kwargs):
         """准备进embedding层的一些输入
         position_ids在之前已经准备好
         """
         inputs = self.args_segmentate(inputs, **model_kwargs)
-        input_ids, _, _, model_kwargs['attention_mask'], _, _, model_kwargs = self.model.preprare_embeddings_inputs(*inputs, **model_kwargs)
+        input_ids, _, _, model_kwargs['attention_mask'], _, _, model_kwargs = self.language_model.preprare_embeddings_inputs(*inputs, **model_kwargs)
         inputs_embeds, model_kwargs['attention_mask'] = self.get_visual_embedding(input_ids=input_ids, **model_kwargs)
         
-        return self.model(input_ids=inputs_embeds, **model_kwargs)
+        return self.language_model(input_ids=inputs_embeds, **model_kwargs)
 
 
     def load_variable(self, variable, ckpt_key, model_key):
@@ -135,29 +135,17 @@ class GlmOcr(PreTrainedModelForDecoder):
     def variable_mapping(self):
         # 映射到权重格式
         mapping = {
-            'model.embeddings.word_embeddings.weight': 'model.language_model.embed_tokens.weight',
-            'model.lm_head.weight': 'lm_head.weight',
-            'model.LayerNormFinal.weight': 'model.language_model.norm.weight',
+            'language_model.embeddings.word_embeddings.weight': 'model.language_model.embed_tokens.weight',
+            'language_model.lm_head.weight': 'lm_head.weight',
+            'language_model.LayerNormFinal.weight': 'model.language_model.norm.weight',
             }
-
-        for i in range(self.model.num_hidden_layers):
-            mapping.update( 
-            {
-                f'model.decoderLayer.{i}.multiHeadAttention.q.weight': f'model.language_model.layers.{i}.self_attn.q_proj.weight',
-                f'model.decoderLayer.{i}.multiHeadAttention.q.bias': f'model.language_model.layers.{i}.self_attn.q_proj.bias',
-                f'model.decoderLayer.{i}.multiHeadAttention.k.weight': f'model.language_model.layers.{i}.self_attn.k_proj.weight',
-                f'model.decoderLayer.{i}.multiHeadAttention.k.bias': f'model.language_model.layers.{i}.self_attn.k_proj.bias',
-                f'model.decoderLayer.{i}.multiHeadAttention.v.weight': f'model.language_model.layers.{i}.self_attn.v_proj.weight',
-                f'model.decoderLayer.{i}.multiHeadAttention.v.bias': f'model.language_model.layers.{i}.self_attn.v_proj.bias',
-                f'model.decoderLayer.{i}.multiHeadAttention.o.weight': f'model.language_model.layers.{i}.self_attn.o_proj.weight',
-                f'model.decoderLayer.{i}.attnLayerNorm.weight': f'model.language_model.layers.{i}.input_layernorm.weight',
-                f'model.decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.language_model.layers.{i}.mlp.gate_up_proj.weight',
-                f'model.decoderLayer.{i}.feedForward.outputDense.weight': f'model.language_model.layers.{i}.mlp.down_proj.weight',
-                f'model.decoderLayer.{i}.ffnLayerNorm.weight': f'model.language_model.layers.{i}.post_attention_layernorm.weight'
-            })
 
         for model_key, _ in self.visual.named_parameters():
             mapping[f'visual.{model_key}'] = f'model.visual.{model_key}'
+        
+        for new_key, old_key in self.language_model.variable_mapping().items():
+            if old_key.startswith('model.'):
+                mapping[f'language_model.{new_key}'] = old_key.replace('model.', 'model.language_model.')
         return mapping
 
     def get_rope_index(
@@ -330,7 +318,7 @@ class GlmOcr(PreTrainedModelForDecoder):
         if step == 0 or (use_states is False):
             position_ids, rope_deltas = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
         else:
-            position_ids = rope_deltas
+            position_ids = position_ids[..., -1:] + 1
             # 无需重新生成vlm embedding
             pixel_values = None
             pixel_values_videos = None

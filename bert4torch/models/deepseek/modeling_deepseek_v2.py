@@ -1,5 +1,5 @@
 from bert4torch.models.base import Decoder, register_model
-from bert4torch.layers.core import DeepseekMoeFeedForward
+from bert4torch.layers.mlp import DeepseekMoeFeedForward
 
 
 @register_model(name="deepseek_v2")
