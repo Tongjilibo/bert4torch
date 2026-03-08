@@ -6,6 +6,7 @@ import torch
 
 @register_model(name="chatglm2")
 @register_model(name="glm2")
+@register_model(name="glm3")  # 架构一样
 class Glm2(Glm):
     """CHATGLM2-6B: https://github.com/THUDM/ChatGLM2-6B
     主要修改：1) 不使用Unilm式的mask

@@ -20,7 +20,7 @@ def demo_generate():
             "content": [
                 {
                     "type": "image",
-                    "url": image_path
+                    "image": image_path
                 },
                 {
                     "type": "text",
@@ -31,7 +31,6 @@ def demo_generate():
     ]
 
     processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=True)
-    model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(DEVICE)
 
     inputs = processor.apply_chat_template(
         messages, 
@@ -41,6 +40,7 @@ def demo_generate():
         return_tensors="pt"
     ).to(DEVICE)
 
+    model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to(DEVICE)
     outputs = model.generate(**inputs, max_new_tokens=512)
     outputs = processor.batch_decode(outputs, skip_special_tokens=True)[0]
     print(outputs)

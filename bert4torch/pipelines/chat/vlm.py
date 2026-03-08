@@ -710,16 +710,6 @@ class Qwen2VL(ChatVLBase):
                                             "max_pixels": self.max_pixels}] + messages[-1]['content']
             all_messages.append(messages)
 
-        # text = self.processor.apply_chat_template(all_messages, tokenize=False, add_generation_prompt=True)
-        # image_inputs, video_inputs = process_vision_info(all_messages)
-        # inputs = self.processor(
-        #     text=text,
-        #     images=image_inputs,
-        #     videos=video_inputs,
-        #     padding=True,
-        #     return_tensors="pt",
-        # ).to(self.device)
-
         inputs = self.processor.apply_chat_template(
             messages,
             tokenize=True,
@@ -731,6 +721,7 @@ class Qwen2VL(ChatVLBase):
         return inputs
 
 
+@register_vlm(name="glm_ocr")
 @register_vlm(name="mllama")
 @register_vlm(name="paddleocr_vl")
 class Mllama(ChatVLBase):
