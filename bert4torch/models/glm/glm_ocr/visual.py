@@ -2,26 +2,29 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import LayerNorm
-import itertools
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, Optional
-from transformers import initialization as init
-from transformers.activations import ACT2FN
-from transformers.cache_utils import Cache, DynamicCache
-from transformers.generation import GenerationMixin
-from transformers.integrations import use_kernel_forward_from_hub
-from transformers.masking_utils import create_causal_mask
-from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
-from transformers.modeling_layers import GradientCheckpointingLayer
-from transformers.modeling_outputs import BaseModelOutputWithPast, BaseModelOutputWithPooling, ModelOutput
-from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
-from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
-from transformers.processing_utils import Unpack
-from transformers.utils import TransformersKwargs, auto_docstring, can_return_tuple, torch_compilable_check
-from transformers.utils.generic import is_flash_attention_requested, maybe_autocast, merge_with_config_defaults
-from transformers.utils.output_capturing import capture_outputs
-from transformers.models.glm_ocr.configuration_glm_ocr import GlmOcrConfig, GlmOcrTextConfig, GlmOcrVisionConfig
+try:
+    from transformers import initialization as init
+    from transformers.activations import ACT2FN
+    from transformers.cache_utils import Cache, DynamicCache
+    from transformers.generation import GenerationMixin
+    from transformers.integrations import use_kernel_forward_from_hub
+    from transformers.masking_utils import create_causal_mask
+    from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+    from transformers.modeling_layers import GradientCheckpointingLayer
+    from transformers.modeling_outputs import BaseModelOutputWithPast, BaseModelOutputWithPooling, ModelOutput
+    from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
+    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
+    from transformers.processing_utils import Unpack
+    from transformers.utils import TransformersKwargs, auto_docstring, can_return_tuple, torch_compilable_check
+    from transformers.utils.generic import is_flash_attention_requested, maybe_autocast, merge_with_config_defaults
+    from transformers.utils.output_capturing import capture_outputs
+    from transformers.models.glm_ocr.configuration_glm_ocr import GlmOcrConfig, GlmOcrTextConfig, GlmOcrVisionConfig
+except:
+    PreTrainedModel = object
+    GradientCheckpointingLayer = object
+    GlmOcrConfig = object
+    GlmOcrVisionConfig = object
 
 
 class GlmOcrRMSNorm(nn.Module):
@@ -115,7 +118,7 @@ def eager_attention_forward(
     attention_mask: torch.Tensor | None,
     scaling: float,
     dropout: float = 0.0,
-    **kwargs: Unpack[TransformersKwargs],
+    **kwargs,
 ):
     key_states = repeat_kv(key, module.num_key_value_groups)
     value_states = repeat_kv(value, module.num_key_value_groups)
@@ -283,7 +286,6 @@ class GlmOcrVisionPatchEmbed(nn.Module):
         return hidden_states
 
 
-@auto_docstring
 class GlmOcrPreTrainedModel(PreTrainedModel):
     config: GlmOcrConfig
     base_model_prefix = "model"
@@ -373,9 +375,6 @@ class GlmOcrVisionModel(GlmOcrPreTrainedModel):
         rotary_pos_emb = rotary_pos_emb_full[pos_ids].flatten(1)
         return rotary_pos_emb, pos_ids
 
-    @merge_with_config_defaults
-    @capture_outputs
-    @auto_docstring
     def forward(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor, **kwargs) -> torch.Tensor:
         r"""
         hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):

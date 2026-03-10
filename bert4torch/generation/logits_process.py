@@ -252,24 +252,6 @@ class NoRepeatNGramLogitsProcessor(LogitsProcessor):
         ngram_size (`int`):
             All ngrams of size `ngram_size` can only occur once.
 
-    Examples:
-
-    ```py
-    >>> from transformers import AutoTokenizer, AutoModelForCausalLM
-
-    >>> model = AutoModelForCausalLM.from_pretrained("distilbert/distilgpt2")
-    >>> tokenizer = AutoTokenizer.from_pretrained("distilbert/distilgpt2")
-    >>> inputs = tokenizer(["Today I"], return_tensors="pt")
-
-    >>> output = model.generate(**inputs)
-    >>> print(tokenizer.decode(output[0], skip_special_tokens=True))
-    Today I’m not sure if I’m going to be able to do it.
-
-    >>> # Now let's add ngram size using `no_repeat_ngram_size`. This stops the repetitions ("I’m") in the output.
-    >>> output = model.generate(**inputs, no_repeat_ngram_size=2)
-    >>> print(tokenizer.decode(output[0], skip_special_tokens=True))
-    Today I’m not sure if I can get a better understanding of the nature of this issue
-    ```
     """
 
     def __init__(self, ngram_size: int=0):

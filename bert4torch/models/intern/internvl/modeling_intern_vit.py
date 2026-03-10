@@ -10,12 +10,13 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
-from bert4torch.snippets import log_warn, log_info
+from bert4torch.snippets import log_warn, log_info, safe_import
 
-from transformers.activations import ACT2FN
-from transformers.modeling_outputs import (BaseModelOutput, BaseModelOutputWithPooling)
-from transformers.modeling_utils import PreTrainedModel
-from transformers.configuration_utils import PretrainedConfig
+with safe_import():
+    from transformers.activations import ACT2FN
+    from transformers.modeling_outputs import (BaseModelOutput, BaseModelOutputWithPooling)
+    from transformers.modeling_utils import PreTrainedModel
+    from transformers.configuration_utils import PretrainedConfig
 
 
 try:

@@ -1,6 +1,6 @@
 #! -*- coding: utf-8 -*-
 # 测试代码可用性: 提取特征
-
+from bert4torch.models.glm import *
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer

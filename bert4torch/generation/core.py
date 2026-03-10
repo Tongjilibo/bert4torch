@@ -9,7 +9,7 @@ from bert4torch.generation.logits_process import *
 from bert4torch.snippets import take_along_dim, torch_div, sequence_padding, create_position_ids_start_at_padding, \
     log_info, log_warn, log_warn_once
 from bert4torch.models.modeling_utils import inference_mode
-from bert4torch.tokenizers import TokenizerBase
+from bert4torch.tokenizers import PreTrainedTokenizerBase
 from torch4keras.model import BaseModel
 from torch4keras.trainer import Trainer
 from contextlib import contextmanager
@@ -668,7 +668,7 @@ class SeqGeneration(AutoRegressiveDecoder):
 
         # tokenizer参数
         self.tokenizer = tokenizer
-        self.tokenizer_type = 'b4t' if isinstance(tokenizer, TokenizerBase) else 'hf'
+        self.tokenizer_type = 'b4t' if isinstance(tokenizer, PreTrainedTokenizerBase) else 'hf'
         self.tokenizer_encode_config = kwargs.get('tokenizer_encode_config') or self.clear_tokenizer_config(tokenizer_config, 'encode')
         self.tokenizer_decode_config = kwargs.get('tokenizer_decode_config') or self.clear_tokenizer_config(tokenizer_config, 'decode')
 

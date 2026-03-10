@@ -1,5 +1,4 @@
 from bert4torch.models.base import Decoder, register_model
-from bert4torch.models.modeling_utils import safe_register_parameter
 
 
 @register_model(name="glm4")
