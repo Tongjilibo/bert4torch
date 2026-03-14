@@ -30,10 +30,7 @@ import gc
 import copy
 import re
 import os
-
-
-if is_accelerate_available():
-    from accelerate import dispatch_model
+from bert4torch.accelerate import dispatch_model
 
 
 class PreTrainedModel(nn.Module):

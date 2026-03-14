@@ -6,13 +6,13 @@ from .modeling_utils import restore_default_torch_dtype, set_default_torch_dtype
 from typing import Union, Literal
 import json
 import os
+from bert4torch.accelerate import init_empty_weights
 from bert4torch.snippets import (
     log_warn_once, 
     log_error,
     is_flash_attn_available, 
     is_xformers_available, 
     is_torch_sdpa_available,
-    is_accelerate_available,
     get_checkpoint_path, 
     get_config_path,
     DottableDict,
@@ -136,13 +136,8 @@ def build_transformer_model(
 
     # 生成网络结构
     if skip_init and (checkpoint_path is not None):
-        if is_accelerate_available():
-            from accelerate import init_empty_weights
-            with init_empty_weights():
-                transformer = MODEL(**config)
-        else:
-            skip_init = False  # 若accelerate包不存在则先初始化模型参数
-            log_warn_once('Package `accelerate` not available, use `pip install accelerate`')
+        with init_empty_weights():
+            transformer = MODEL(**config)
     if not skip_init:
         transformer = MODEL(**config)
         transformer.apply(transformer.init_model_weights)  # 初始化权重

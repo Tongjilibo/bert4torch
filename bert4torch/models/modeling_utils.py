@@ -7,17 +7,14 @@ from torch4keras.snippets import log_info, log_warn, log_error, is_accelerate_av
 from typing import Union, Optional, List
 from functools import partial, wraps
 from packaging import version
-
-
-if is_accelerate_available():
-    from accelerate.utils.modeling import (
-        infer_auto_device_map, 
-        get_balanced_memory, 
-        check_tied_parameters_on_same_device, 
-        get_max_memory,
-        set_module_tensor_to_device, 
-        offload_weight
-    )
+from bert4torch.accelerate.utils.modeling import (
+    infer_auto_device_map, 
+    get_balanced_memory, 
+    check_tied_parameters_on_same_device, 
+    get_max_memory,
+    set_module_tensor_to_device, 
+    offload_weight
+)
 
 
 def cal_ts_num(tensor_shape):

@@ -1,0 +1,371 @@
+# Copyright 2022 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
+import os
+from contextlib import contextmanager
+from functools import wraps
+from typing import Optional, Union
+import torch
+import torch.nn as nn
+from .hooks import (
+    attach_align_device_hook_on_blocks,
+)
+from .utils import (
+    OffloadedWeightsLoader,
+    check_cuda_p2p_ib_support,
+    check_device_map,
+    extract_submodules_state_dict,
+    find_tied_parameters,
+    is_bnb_available,
+    is_mlu_available,
+    is_musa_available,
+    is_neuron_available,
+    is_npu_available,
+    is_sdaa_available,
+    is_xpu_available,
+    offload_state_dict,
+    parse_flag_from_env,
+    retie_parameters,
+)
+from .utils.other import recursive_getattr
+
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def init_empty_weights(include_buffers: Optional[bool] = None):
+    """
+    A context manager under which models are initialized with all parameters on the meta device, therefore creating an
+    empty model. Useful when just initializing the model would blow the available RAM.
+
+    Args:
+        include_buffers (`bool`, *optional*):
+            Whether or not to also put all buffers on the meta device while initializing.
+
+    Example:
+
+    ```python
+    import torch.nn as nn
+    from bert4torch.accelerate import init_empty_weights
+
+    # Initialize a model with 100 billions parameters in no time and without using any RAM.
+    with init_empty_weights():
+        tst = nn.Sequential(*[nn.Linear(10000, 10000) for _ in range(1000)])
+    ```
+
+    <Tip warning={true}>
+
+    Any model created under this context manager has no weights. As such you can't do something like
+    `model.to(some_device)` with it. To load weights inside your empty model, see [`load_checkpoint_and_dispatch`].
+    Make sure to overwrite the default device_map param for [`load_checkpoint_and_dispatch`], otherwise dispatch is not
+    called.
+
+    </Tip>
+    """
+    if include_buffers is None:
+        include_buffers = parse_flag_from_env("ACCELERATE_INIT_INCLUDE_BUFFERS", False)
+    with init_on_device(torch.device("meta"), include_buffers=include_buffers) as f:
+        yield f
+
+
+@contextmanager
+def init_on_device(device: torch.device, include_buffers: Optional[bool] = None):
+    """
+    A context manager under which models are initialized with all parameters on the specified device.
+
+    Args:
+        device (`torch.device`):
+            Device to initialize all parameters on.
+        include_buffers (`bool`, *optional*):
+            Whether or not to also put all buffers on the meta device while initializing.
+
+    Example:
+
+    ```python
+    import torch.nn as nn
+    from bert4torch.accelerate import init_on_device
+
+    # init model on specified device(e.g., "cuda", "xpu" and so on)
+    with init_on_device(device=torch.device("cuda")):
+        tst = nn.Linear(100, 100)  # on specified device
+    ```
+    """
+    if include_buffers is None:
+        include_buffers = parse_flag_from_env("ACCELERATE_INIT_INCLUDE_BUFFERS", False)
+
+    if include_buffers:
+        with device:
+            yield
+        return
+
+    old_register_parameter = nn.Module.register_parameter
+    if include_buffers:
+        old_register_buffer = nn.Module.register_buffer
+
+    def register_empty_parameter(module, name, param):
+        old_register_parameter(module, name, param)
+        if param is not None:
+            param_cls = type(module._parameters[name])
+            kwargs = module._parameters[name].__dict__
+            kwargs["requires_grad"] = param.requires_grad
+            # Pop non-constructor attributes before creating the parameter, then restore them after
+            _is_hf_initialized = kwargs.pop("_is_hf_initialized", None)
+            module._parameters[name] = param_cls(module._parameters[name].to(device), **kwargs)
+            if _is_hf_initialized is not None:
+                module._parameters[name]._is_hf_initialized = _is_hf_initialized
+
+    def register_empty_buffer(module, name, buffer, persistent=True):
+        old_register_buffer(module, name, buffer, persistent=persistent)
+        if buffer is not None:
+            module._buffers[name] = module._buffers[name].to(device)
+
+    # Patch tensor creation
+    if include_buffers:
+        tensor_constructors_to_patch = {
+            torch_function_name: getattr(torch, torch_function_name)
+            for torch_function_name in ["empty", "zeros", "ones", "full"]
+        }
+    else:
+        tensor_constructors_to_patch = {}
+
+    def patch_tensor_constructor(fn):
+        def wrapper(*args, **kwargs):
+            kwargs["device"] = device
+            return fn(*args, **kwargs)
+
+        return wrapper
+
+    try:
+        nn.Module.register_parameter = register_empty_parameter
+        if include_buffers:
+            nn.Module.register_buffer = register_empty_buffer
+        for torch_function_name in tensor_constructors_to_patch.keys():
+            setattr(torch, torch_function_name, patch_tensor_constructor(getattr(torch, torch_function_name)))
+        yield
+    finally:
+        nn.Module.register_parameter = old_register_parameter
+        if include_buffers:
+            nn.Module.register_buffer = old_register_buffer
+        for torch_function_name, old_torch_function in tensor_constructors_to_patch.items():
+            setattr(torch, torch_function_name, old_torch_function)
+
+
+def dispatch_model(
+    model: nn.Module,
+    device_map: dict[str, Union[str, int, torch.device]],
+    main_device: Optional[torch.device] = None,
+    state_dict: Optional[dict[str, torch.Tensor]] = None,
+    offload_dir: Optional[Union[str, os.PathLike]] = None,
+    offload_index: Optional[dict[str, str]] = None,
+    offload_buffers: bool = False,
+    skip_keys: Optional[Union[str, list[str]]] = None,
+    preload_module_classes: Optional[list[str]] = None,
+    force_hooks: bool = False,
+):
+    """
+    Dispatches a model according to a given device map. Layers of the model might be spread across GPUs, offloaded on
+    the CPU or even the disk.
+
+    Args:
+        model (`torch.nn.Module`):
+            The model to dispatch.
+        device_map (`Dict[str, Union[str, int, torch.device]]`):
+            A dictionary mapping module names in the models `state_dict` to the device they should go to. Note that
+            `"disk"` is accepted even if it's not a proper value for `torch.device`.
+        main_device (`str`, `int` or `torch.device`, *optional*):
+            The main execution device. Will default to the first device in the `device_map` different from `"cpu"` or
+            `"disk"`.
+        state_dict (`Dict[str, torch.Tensor]`, *optional*):
+            The state dict of the part of the model that will be kept on CPU.
+        offload_dir (`str` or `os.PathLike`):
+            The folder in which to offload the model weights (or where the model weights are already offloaded).
+        offload_index (`Dict`, *optional*):
+            A dictionary from weight name to their information (`dtype`/ `shape` or safetensors filename). Will default
+            to the index saved in `save_folder`.
+        offload_buffers (`bool`, *optional*, defaults to `False`):
+            Whether or not to offload the buffers with the model parameters.
+        skip_keys (`str` or `List[str]`, *optional*):
+            A list of keys to ignore when moving inputs or outputs between devices.
+        preload_module_classes (`List[str]`, *optional*):
+            A list of classes whose instances should load all their weights (even in the submodules) at the beginning
+            of the forward. This should only be used for classes that have submodules which are registered but not
+            called directly during the forward, for instance if a `dense` linear layer is registered, but at forward,
+            `dense.weight` and `dense.bias` are used in some operations instead of calling `dense` directly.
+        force_hooks (`bool`, *optional*, defaults to `False`):
+            Whether or not to force device hooks to be attached to the model even if all layers are dispatched to a
+            single device.
+    """
+    # Error early if the device map is incomplete.
+    check_device_map(model, device_map)
+
+    # We need to force hook for quantized model that can't be moved with to()
+    if getattr(model, "quantization_method", "bitsandbytes") == "bitsandbytes":
+        # since bnb 0.43.2, we can move 4-bit model
+        if (getattr(model, "is_loaded_in_8bit", False) and not is_bnb_available(min_version="0.48.0")) or (
+            getattr(model, "is_loaded_in_4bit", False) and not is_bnb_available(min_version="0.43.2")
+        ):
+            force_hooks = True
+
+    # We attach hooks if the device_map has at least 2 different devices or if
+    # force_hooks is set to `True`. Otherwise, the model in already loaded
+    # in the unique device and the user can decide where to dispatch the model.
+    # If the model is quantized, we always force-dispatch the model
+    if (len(set(device_map.values())) > 1) or force_hooks:
+        if main_device is None:
+            if set(device_map.values()) == {"cpu"} or set(device_map.values()) == {"cpu", "disk"}:
+                main_device = "cpu"
+            else:
+                main_device = [d for d in device_map.values() if d not in ["cpu", "disk"]][0]
+
+        if main_device != "cpu":
+            cpu_modules = [name for name, device in device_map.items() if device == "cpu"]
+            if state_dict is None and len(cpu_modules) > 0:
+                state_dict = extract_submodules_state_dict(model.state_dict(), cpu_modules)
+
+        disk_modules = [name for name, device in device_map.items() if device == "disk"]
+        if offload_dir is None and offload_index is None and len(disk_modules) > 0:
+            raise ValueError(
+                "We need an `offload_dir` to dispatch this model according to this `device_map`, the following submodules "
+                f"need to be offloaded: {', '.join(disk_modules)}."
+            )
+        if (
+            len(disk_modules) > 0
+            and offload_index is None
+            and (not os.path.isdir(offload_dir) or not os.path.isfile(os.path.join(offload_dir, "index.json")))
+        ):
+            disk_state_dict = extract_submodules_state_dict(model.state_dict(), disk_modules)
+            offload_state_dict(offload_dir, disk_state_dict)
+
+        execution_device = {
+            name: main_device if device in ["cpu", "disk"] else device for name, device in device_map.items()
+        }
+        execution_device[""] = main_device
+        offloaded_devices = ["disk"] if main_device == "cpu" or main_device == "mps" else ["cpu", "disk"]
+        offload = {name: device in offloaded_devices for name, device in device_map.items()}
+        save_folder = offload_dir if len(disk_modules) > 0 else None
+        if state_dict is not None or save_folder is not None or offload_index is not None:
+            device = main_device if offload_index is not None else None
+            weights_map = OffloadedWeightsLoader(
+                state_dict=state_dict, save_folder=save_folder, index=offload_index, device=device
+            )
+        else:
+            weights_map = None
+
+        # When dispatching the model's parameters to the devices specified in device_map, we want to avoid allocating memory several times for the
+        # tied parameters. The dictionary tied_params_map keeps track of the already allocated data for a given tied parameter (represented by its
+        # original pointer) on each devices.
+        tied_params = find_tied_parameters(model)
+
+        tied_params_map = {}
+        for group in tied_params:
+            for param_name in group:
+                # data_ptr() is enough here, as `find_tied_parameters` finds tied params simply by comparing `param1 is param2`, so we don't need
+                # to care about views of tensors through storage_offset.
+                data_ptr = recursive_getattr(model, param_name).data_ptr()
+                tied_params_map[data_ptr] = {}
+
+                # Note: To handle the disk offloading case, we can not simply use weights_map[param_name].data_ptr() as the reference pointer,
+                # as we have no guarantee that safetensors' `file.get_tensor()` will always give the same pointer.
+
+        attach_align_device_hook_on_blocks(
+            model,
+            execution_device=execution_device,
+            offload=offload,
+            offload_buffers=offload_buffers,
+            weights_map=weights_map,
+            skip_keys=skip_keys,
+            preload_module_classes=preload_module_classes,
+            tied_params_map=tied_params_map,
+        )
+
+        # warn if there is any params on the meta device
+        offloaded_devices_str = " and ".join(
+            [device for device in set(device_map.values()) if device in ("cpu", "disk")]
+        )
+        if len(offloaded_devices_str) > 0:
+            logger.warning(
+                f"Some parameters are on the meta device because they were offloaded to the {offloaded_devices_str}."
+            )
+
+        # Attaching the hook may break tied weights, so we retie them
+        retie_parameters(model, tied_params)
+
+        # add warning on `to` method
+        def add_warning(fn, model):
+            @wraps(fn)
+            def wrapper(*args, **kwargs):
+                warning_msg = "You shouldn't move a model that is dispatched using accelerate hooks."
+                if str(fn.__name__) == "to":
+                    to_device = torch._C._nn._parse_to(*args, **kwargs)[0]
+                    if to_device is not None:
+                        logger.warning(warning_msg)
+                else:
+                    logger.warning(warning_msg)
+                for param in model.parameters():
+                    if param.device == torch.device("meta"):
+                        raise RuntimeError("You can't move a model that has some modules offloaded to cpu or disk.")
+                return fn(*args, **kwargs)
+
+            return wrapper
+
+        # Make sure to update _accelerate_added_attributes in hooks.py if you add any hook
+        model.to = add_warning(model.to, model)
+        if is_npu_available():
+            model.npu = add_warning(model.npu, model)
+        elif is_mlu_available():
+            model.mlu = add_warning(model.mlu, model)
+        elif is_sdaa_available():
+            model.sdaa = add_warning(model.sdaa, model)
+        elif is_musa_available():
+            model.musa = add_warning(model.musa, model)
+        elif is_xpu_available():
+            model.xpu = add_warning(model.xpu, model)
+        elif is_neuron_available():
+            model.neuron = add_warning(model.neuron, model)
+        else:
+            model.cuda = add_warning(model.cuda, model)
+
+        # Check if we are using multi-gpus with RTX 4000 series
+        use_multi_gpu = len([device for device in set(device_map.values()) if device not in ("cpu", "disk")]) > 1
+        if use_multi_gpu and not check_cuda_p2p_ib_support():
+            logger.warning(
+                "We've detected an older driver with an RTX 4000 series GPU. These drivers have issues with P2P. "
+                "This can affect the multi-gpu inference when using accelerate device_map."
+                "Please make sure to update your driver to the latest version which resolves this."
+            )
+    else:
+        device = list(device_map.values())[0]
+        # `torch.Tensor.to(<int num>)` is not supported by `torch_npu` (see this [issue](https://github.com/Ascend/pytorch/issues/16)).
+        if is_npu_available() and isinstance(device, int):
+            device = f"npu:{device}"
+        elif is_mlu_available() and isinstance(device, int):
+            device = f"mlu:{device}"
+        elif is_sdaa_available() and isinstance(device, int):
+            device = f"sdaa:{device}"
+        elif is_musa_available() and isinstance(device, int):
+            device = f"musa:{device}"
+        elif is_neuron_available() and isinstance(device, int):
+            device = f"neuron:{device}"
+        if device != "disk":
+            model.to(device)
+        else:
+            raise ValueError(
+                "You are trying to offload the whole model to the disk. Please use the `disk_offload` function instead."
+            )
+    # Convert OrderedDict back to dict for easier usage
+    model.hf_device_map = dict(device_map)
+    return model
+
