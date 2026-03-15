@@ -16,10 +16,12 @@ import json
 import os
 from collections.abc import Mapping
 from typing import Optional, Union
-
 import numpy as np
 import torch
-from safetensors import safe_open
+try:
+    from safetensors import safe_open
+except ImportError:
+    pass
 
 
 def offload_weight(weight, weight_name, offload_folder, index=None):

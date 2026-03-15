@@ -3,10 +3,6 @@ import torch
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import TorchBuildInLayerNorm, BlockIdentity
 from bert4torch.models.modeling_utils import safe_register_parameter
-try:
-    from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
-except:
-    pass
 
 
 @register_model(name="modernbert")
@@ -20,7 +16,11 @@ class ModernBert(BertBase):
         safe_register_parameter([self.mlmDense, self.mlmLayerNorm], 'bias', None)
 
     def _update_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
-        global_attention_mask = _prepare_4d_attention_mask(attention_mask, self.dtype)
+        # _prepare_4d_attention_mask
+        bsz, src_len = attention_mask.size()
+        expanded_mask = attention_mask[:, None, None, :].expand(bsz, 1, src_len, src_len).to(self.dtype)
+        inverted_mask = torch.tensor(1.0, dtype=self.dtype) - expanded_mask
+        global_attention_mask = inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(self.dtype).min)
 
         # Create position indices
         rows = torch.arange(global_attention_mask.shape[2]).unsqueeze(0)
