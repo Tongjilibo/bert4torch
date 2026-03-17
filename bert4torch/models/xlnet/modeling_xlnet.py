@@ -1,4 +1,4 @@
-from .modeling_transformer_xl import Transformer_XL
+from ..transformer_xl.modeling_transformer_xl import Transformer_XL
 import torch
 from torch4keras.snippets import safe_torch_load
 from ..base import register_model

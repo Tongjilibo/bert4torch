@@ -1,4 +1,4 @@
-from bert4torch.models.base import Encoder, Decoder, Transformer, register_model
+from ..base import Encoder, Decoder, Transformer, register_model
 from bert4torch.snippets import insert_arguments, delete_arguments
 from bert4torch.layers import RMSNorm
 from torch import nn

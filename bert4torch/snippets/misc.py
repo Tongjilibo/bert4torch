@@ -11,7 +11,12 @@ from PIL import Image
 import base64
 import numpy as np
 import os
-
+import functools
+import types
+from .import_utils import (
+    is_torch_available,
+    
+)
 
 def insert_arguments(**arguments):
     """装饰器，为类方法增加参数（主要用于类的__init__方法）"""
@@ -144,3 +149,149 @@ def create_registrar(target_map: Dict[str, Type]) -> Callable:
         return decorator
     
     return register
+
+
+def copy_func(f):
+    """Returns a copy of a function f."""
+    # Based on http://stackoverflow.com/a/6528148/190597 (Glenn Maynard)
+    g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__, argdefs=f.__defaults__, closure=f.__closure__)
+    g = functools.update_wrapper(g, f)
+    g.__kwdefaults__ = f.__kwdefaults__
+    return g
+
+
+def _is_numpy(x):
+    return isinstance(x, np.ndarray)
+
+
+def is_numpy_array(x):
+    """
+    Tests if `x` is a numpy array or not.
+    """
+    return _is_numpy(x)
+
+
+def _is_torch(x):
+    import torch
+
+    return isinstance(x, torch.Tensor)
+
+
+def is_torch_tensor(x):
+    """
+    Tests if `x` is a torch tensor or not. Safe to call even if torch is not installed.
+    """
+    return False if not is_torch_available() else _is_torch(x)
+
+	
+def _is_torch_device(x):
+    import torch
+
+    return isinstance(x, torch.device)
+
+
+def _is_jax(x):
+    import jax.numpy as jnp  # noqa: F811
+
+    return isinstance(x, jnp.ndarray)
+
+
+def is_jax_tensor(x):
+    """
+    Tests if `x` is a Jax tensor or not. Safe to call even if jax is not installed.
+    """
+    return False if not is_flax_available() else _is_jax(x)
+
+
+def is_torch_device(x):
+    """
+    Tests if `x` is a torch device or not. Safe to call even if torch is not installed.
+    """
+    return False if not is_torch_available() else _is_torch_device(x)
+
+
+def _is_mlx(x):
+    import mlx.core as mx
+
+    return isinstance(x, mx.array)
+
+
+def is_mlx_array(x):
+    """
+    Tests if `x` is a mlx array or not. Safe to call even when mlx is not installed.
+    """
+    return False if not is_mlx_available() else _is_mlx(x)
+
+
+def infer_framework_from_repr(x):
+    """
+    Tries to guess the framework of an object `x` from its repr (brittle but will help in `is_tensor` to try the
+    frameworks in a smart order, without the need to import the frameworks).
+    """
+    representation = str(type(x))
+    if representation.startswith("<class 'torch."):
+        return "pt"
+    elif representation.startswith("<class 'tensorflow."):
+        return "tf"
+    elif representation.startswith("<class 'jax"):
+        return "jax"
+    elif representation.startswith("<class 'numpy."):
+        return "np"
+    elif representation.startswith("<class 'mlx."):
+        return "mlx"
+
+def _get_frameworks_and_test_func(x):
+    """
+    Returns an (ordered since we are in Python 3.7+) dictionary framework to test function, which places the framework
+    we can guess from the repr first, then Numpy, then the others.
+    """
+    framework_to_test = {
+        "pt": is_torch_tensor,
+        "jax": is_jax_tensor,
+        "np": is_numpy_array,
+        "mlx": is_mlx_array,
+    }
+    preferred_framework = infer_framework_from_repr(x)
+    # We will test this one first, then numpy, then the others.
+    frameworks = [] if preferred_framework is None else [preferred_framework]
+    if preferred_framework != "np":
+        frameworks.append("np")
+    frameworks.extend([f for f in framework_to_test if f not in [preferred_framework, "np"]])
+    return {f: framework_to_test[f] for f in frameworks}
+
+
+def to_py_obj(obj):
+    """
+    Convert a TensorFlow tensor, PyTorch tensor, Numpy array or python list to a python list.
+    """
+    if isinstance(obj, (int, float)):
+        return obj
+    elif isinstance(obj, (dict, UserDict)):
+        return {k: to_py_obj(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        try:
+            arr = np.array(obj)
+            if np.issubdtype(arr.dtype, np.integer) or np.issubdtype(arr.dtype, np.floating):
+                return arr.tolist()
+        except Exception:
+            pass
+        return [to_py_obj(o) for o in obj]
+
+    framework_to_py_obj = {
+        "pt": lambda obj: obj.tolist(),
+        "tf": lambda obj: obj.numpy().tolist(),
+        "jax": lambda obj: np.asarray(obj).tolist(),
+        "np": lambda obj: obj.tolist(),
+    }
+
+    # This gives us a smart order to test the frameworks with the corresponding tests.
+    framework_to_test_func = _get_frameworks_and_test_func(obj)
+    for framework, test_func in framework_to_test_func.items():
+        if test_func(obj):
+            return framework_to_py_obj[framework](obj)
+
+    # tolist also works on 0d np arrays
+    if isinstance(obj, np.number):
+        return obj.tolist()
+    else:
+        return obj

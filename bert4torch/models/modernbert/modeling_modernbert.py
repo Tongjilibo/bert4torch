@@ -1,4 +1,4 @@
-from bert4torch.models.base import BertBase, register_model
+from ..base import BertBase, register_model
 import torch
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import TorchBuildInLayerNorm, BlockIdentity

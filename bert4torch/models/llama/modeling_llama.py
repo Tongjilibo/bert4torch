@@ -1,4 +1,4 @@
-from bert4torch.models.base import Decoder, register_model
+from ..base import Decoder, register_model
 from bert4torch.snippets import delete_arguments, modify_variable_mapping
 from bert4torch.layers import NormHead
 import torch

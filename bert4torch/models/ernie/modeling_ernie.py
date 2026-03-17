@@ -1,4 +1,4 @@
-from bert4torch.models.base import BertBase, register_model
+from ..base import BertBase, register_model
 from bert4torch.layers import ErnieEmbeddings
 
 

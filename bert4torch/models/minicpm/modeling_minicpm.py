@@ -1,5 +1,5 @@
 from bert4torch.models.llama import LLaMA
-from bert4torch.models.base import register_model
+from ..base import register_model
 
 
 @register_model(name="minicpm")

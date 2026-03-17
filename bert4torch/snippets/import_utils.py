@@ -9,6 +9,84 @@ if sys.version_info < (3, 8):
     import importlib_metadata
 else:
     import importlib.metadata as importlib_metadata
+from . import logging
+
+
+logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+
+
+ENV_VARS_TRUE_VALUES = {"1", "ON", "YES", "TRUE"}
+ENV_VARS_TRUE_AND_AUTO_VALUES = ENV_VARS_TRUE_VALUES.union({"AUTO"})
+
+USE_TF = os.environ.get("USE_TF", "AUTO").upper()
+USE_TORCH = os.environ.get("USE_TORCH", "AUTO").upper()
+FORCE_TF_AVAILABLE = os.environ.get("FORCE_TF_AVAILABLE", "AUTO").upper()
+
+
+_tf_version = "N/A"
+_tf_available = False
+if FORCE_TF_AVAILABLE in ENV_VARS_TRUE_VALUES:
+    _tf_available = True
+else:
+    if USE_TF in ENV_VARS_TRUE_AND_AUTO_VALUES and USE_TORCH not in ENV_VARS_TRUE_VALUES:
+        # Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
+        # with tensorflow-cpu to make sure it still works!
+        _tf_available = importlib.util.find_spec("tensorflow") is not None
+        if _tf_available:
+            candidates = (
+                "tensorflow",
+                "tensorflow-cpu",
+                "tensorflow-gpu",
+                "tf-nightly",
+                "tf-nightly-cpu",
+                "tf-nightly-gpu",
+                "tf-nightly-rocm",
+                "intel-tensorflow",
+                "intel-tensorflow-avx512",
+                "tensorflow-rocm",
+                "tensorflow-macos",
+                "tensorflow-aarch64",
+            )
+            _tf_version = None
+            # For the metadata, we have to look for both tensorflow and tensorflow-cpu
+            for pkg in candidates:
+                try:
+                    _tf_version = importlib.metadata.version(pkg)
+                    break
+                except importlib.metadata.PackageNotFoundError:
+                    pass
+            _tf_available = _tf_version is not None
+        if _tf_available:
+            if version.parse(_tf_version) < version.parse("2"):
+                logger.info(
+                    f"TensorFlow found but with version {_tf_version}. Transformers requires version 2 minimum."
+                )
+                _tf_available = False
+    else:
+        logger.info("Disabling Tensorflow because USE_TORCH is set")
+
+
+def is_tf_available():
+    return _tf_available
+
+
+def is_jinja_available():
+    return is_package_available("jinja2")
+
+
+@lru_cache
+def is_vision_available():
+    _pil_available = importlib.util.find_spec("PIL") is not None
+    if _pil_available:
+        try:
+            package_version = importlib.metadata.version("Pillow")
+        except importlib.metadata.PackageNotFoundError:
+            try:
+                package_version = importlib.metadata.version("Pillow-SIMD")
+            except importlib.metadata.PackageNotFoundError:
+                return False
+        logger.debug(f"Detected PIL version {package_version}")
+    return _pil_available
 
 
 def is_flash_attn_available():
@@ -72,6 +150,20 @@ def is_auto_awq_available() -> bool:
     return importlib.util.find_spec("awq") is not None
 
 
+def is_protobuf_available():
+    if importlib.util.find_spec("google") is None:
+        return False
+    return importlib.util.find_spec("google.protobuf") is not None
+
+
+def is_tokenizers_available():
+    return is_package_available('tokenizers')
+
+
+def is_sentencepiece_available():
+    return is_package_available("sentencepiece")
+
+
 def get_valid_subdirs(root_dir: str) -> List[str]:
     """获取所有包含 __init__.py 的有效子目录"""
     subdirs = []
@@ -99,3 +191,11 @@ def import_submodels(root_dir: str, package_prefix='') -> None:
         except ImportError as e:
             log_error_once(f"import {package_prefix}.{subdir} failed - {e}")
             return
+
+
+# docstyle-ignore
+PROTOBUF_IMPORT_ERROR = """
+{0} requires the protobuf library but it was not found in your environment. Check out the instructions on the
+installation page of its repo: https://github.com/protocolbuffers/protobuf/tree/master/python#installation and follow the ones
+that match your environment. Please note that you may need to restart your runtime after installation.
+"""

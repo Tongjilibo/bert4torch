@@ -1,4 +1,4 @@
-from bert4torch.models.base import Decoder, register_model
+from ..base import Decoder, register_model
 from bert4torch.snippets import delete_arguments
 from bert4torch.layers import AlibiAttention, BertLayer, BlockIdentity
 import math

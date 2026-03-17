@@ -16,7 +16,7 @@ image_file = '/data/pretrain_ckpt/deepseek-ai/DeepSeek-OCR-2/image.png'
 
 def chat_demo1():
     from transformers import AutoModel, AutoTokenizer
-    from bert4torch.models.deepseek import process_vision_info
+    from bert4torch.models.deepseek_v2 import process_vision_info
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
 
     res = process_vision_info(tokenizer, prompt=prompt, image_file=image_file, base_size = 1024, image_size = 768, 

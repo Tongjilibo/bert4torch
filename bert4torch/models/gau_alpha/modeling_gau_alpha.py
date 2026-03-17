@@ -1,5 +1,5 @@
 from bert4torch.models.roformer import RoFormerV2
-from bert4torch.models.base import register_model
+from ..base import register_model
 from torch import nn
 import copy
 from bert4torch.layers import BlockIdentity, GauLayer, LayerNorm

@@ -1,4 +1,4 @@
-from bert4torch.models.base import Decoder, register_model
+from ..base import Decoder, register_model
 import torch
 
 

@@ -1,4 +1,4 @@
-from bert4torch.models.base import Transformer, register_model
+from ..base import Transformer, register_model
 from bert4torch.snippets import modify_variable_mapping
 import torch
 

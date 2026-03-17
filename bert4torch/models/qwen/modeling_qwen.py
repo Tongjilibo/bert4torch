@@ -1,4 +1,4 @@
-from .modeling_qwen2 import Qwen2
+from ..qwen2.modeling_qwen2 import Qwen2
 from ..base import register_model
 import torch
 

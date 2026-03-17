@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple, Union
-from bert4torch.models.qwen import Qwen2
-from bert4torch.models.base import PreTrainedModelForDecoder, register_model
+from bert4torch.models.qwen2 import Qwen2
+from ..base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DottableDict
 from bert4torch.activations import ACT2FN
 import torch
