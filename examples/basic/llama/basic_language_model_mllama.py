@@ -10,7 +10,7 @@ from transformers import AutoProcessor
 from bert4torch.pipelines import Chat
 
 
-model_dir = 'E:/data/pretrain_ckpt/meta-llama/Llama-3.2-11B-Vision-Instruct'
+model_dir = '/data/pretrain_ckpt/meta-llama/Llama-3.2-11B-Vision-Instruct'
 
 def chat_demo1():
     device = 'cuda'

@@ -6,7 +6,7 @@ from bert4torch.tokenizers import Tokenizer
 
 
 # 加载模型，
-base_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext'
+base_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext'
 dict_path = base_path + '/vocab.txt'
 config_path = base_path + '/bert4torch_config.json'
 checkpoint_path = base_path + '/pytorch_model.bin'

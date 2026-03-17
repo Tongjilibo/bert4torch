@@ -5,7 +5,7 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import torch
 
-root_model_path = "E:/data/pretrain_ckpt/voidful/albert_chinese_base"
+root_model_path = "/data/pretrain_ckpt/voidful/albert_chinese_base"
 inputtext = "天气不[MASK]，想出去玩玩"
 
 

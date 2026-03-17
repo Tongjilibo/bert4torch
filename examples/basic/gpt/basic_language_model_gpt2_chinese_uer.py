@@ -10,7 +10,7 @@ import os
 import time
 
 
-ckpt_dir = 'E:/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'
+ckpt_dir = '/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 
 # ===============bert4torch======================

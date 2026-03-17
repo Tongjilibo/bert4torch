@@ -6,8 +6,8 @@ from bert4torch.tokenizers import Tokenizer
 import torch
 
 # 加载模型，请更换成自己的路径, 以下两个权重是一样的，一个是tf用转换命令转的，一个是hf上的bert_base_chinese
-# root_model_path = "E:/data/pretrain_ckpt/Tongjilibo/bert-chinese_L-12_H-768_A-12"
-root_model_path = "E:/data/pretrain_ckpt/google-bert/bert-base-chinese"
+# root_model_path = "/data/pretrain_ckpt/Tongjilibo/bert-chinese_L-12_H-768_A-12"
+root_model_path = "/data/pretrain_ckpt/google-bert/bert-base-chinese"
 
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"

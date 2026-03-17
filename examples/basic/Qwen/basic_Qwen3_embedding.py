@@ -1,5 +1,5 @@
 # Qwen3-Embedding-0.6B, Qwen3-Embedding-4B, Qwen3-Embedding-8B
-root_model_path = "E:/data/pretrain_ckpt/Qwen/Qwen3-Embedding-0.6B"
+root_model_path = "/data/pretrain_ckpt/Qwen/Qwen3-Embedding-0.6B"
 queries = [
     "What is the capital of China?",
     "Explain gravity",

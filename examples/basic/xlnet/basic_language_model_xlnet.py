@@ -2,7 +2,7 @@ from transformers import XLNetTokenizer, XLNetModel
 from bert4torch.models import build_transformer_model
 import torch
 
-pretrained_model = "E:/data/pretrain_ckpt/hfl/chinese-xlnet-base"
+pretrained_model = "/data/pretrain_ckpt/hfl/chinese-xlnet-base"
 config_path = f'{pretrained_model}/bert4torch_config.json'
 checkpoint_path = f'{pretrained_model}/pytorch_model.bin'
 

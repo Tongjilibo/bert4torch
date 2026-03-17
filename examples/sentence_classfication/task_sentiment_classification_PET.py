@@ -21,9 +21,9 @@ from torch.utils.data import DataLoader
 num_classes = 2
 maxlen = 256
 batch_size = 16
-config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
+config_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 choice = 'semi-sup'  # zero-shot1, zero-shot2, few-shot, semi-sup
 

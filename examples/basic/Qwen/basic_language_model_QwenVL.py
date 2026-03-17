@@ -18,7 +18,7 @@ import io
 # Qwen3-VL-2B-Instruct Qwen3-VL-2B-Thinking
 # Qwen3-VL-4B-Instruct Qwen3-VL-4B-Thinking
 # Qwen3-VL-8B-Instruct Qwen3-VL-4B-Thinking
-model_dir = 'E:/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
+model_dir = '/data/pretrain_ckpt/Qwen/Qwen2-VL-2B-Instruct'
 
 def chat_demo1():
     device = 'cuda'

@@ -5,7 +5,7 @@ import re
 
 # Yi-6B
 # Yi-1.5-9B-Chat-16K
-model_dir = "E:/data/pretrain_ckpt/01-ai/Yi-1.5-9B-Chat-16K"
+model_dir = "/data/pretrain_ckpt/01-ai/Yi-1.5-9B-Chat-16K"
 
 
 # print('==========================transformers=============================')

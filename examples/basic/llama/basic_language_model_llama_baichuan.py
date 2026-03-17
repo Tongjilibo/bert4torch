@@ -6,7 +6,7 @@ from bert4torch.pipelines import Chat
 
 # Baichuan-7B Baichuan-13B-Base Baichuan-13B-Chat
 # Baichuan2-7B-Base Baichuan2-7B-Chat Baichuan2-13B-Base Baichuan2-13B-Chat
-model_dir = 'E:/data/pretrain_ckpt/baichuan-inc/Baichuan2-7B-Chat'
+model_dir = '/data/pretrain_ckpt/baichuan-inc/Baichuan2-7B-Chat'
 with_prompt = True if 'Chat' in model_dir else False
 
 

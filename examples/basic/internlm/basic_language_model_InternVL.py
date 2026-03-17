@@ -17,7 +17,7 @@ import requests
 # InternVL2_5-2B
 # InternVL2_5-4B
 # InternVL2_5-8B
-model_dir = 'E:/data/pretrain_ckpt/OpenGVLab/InternVL2_5-1B'
+model_dir = '/data/pretrain_ckpt/OpenGVLab/InternVL2_5-1B'
 image1 = Image.open(requests.get("https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg", stream=True).raw).convert('RGB')
 image2 = Image.open(requests.get("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg", stream=True).raw).convert('RGB')
 

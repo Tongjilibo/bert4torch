@@ -14,9 +14,9 @@ import time
 from tqdm import tqdm
 
 
-config_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
+config_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 
 
 tokenizer = Tokenizer(dict_path, do_lower_case=True)

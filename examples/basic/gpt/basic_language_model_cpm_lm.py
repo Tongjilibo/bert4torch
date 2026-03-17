@@ -12,9 +12,9 @@ import jieba
 jieba.initialize()
 
 # 模型路径
-config_path = 'E:/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/pytorch_model.bin'
-spm_path = 'E:/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/chinese_vocab.model'
+config_path = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/pytorch_model.bin'
+spm_path = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/chinese_vocab.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def pre_tokenize(text):

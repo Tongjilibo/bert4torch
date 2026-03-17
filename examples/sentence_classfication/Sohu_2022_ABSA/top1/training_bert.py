@@ -22,10 +22,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # 配置设置
-config_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/bert4torch_config.json'
-checkpoint_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
-dict_path = 'E:/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
-data_dir = 'E:/data/corpus/Sohu2022/Sohu2022_data/nlp_data'
+config_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/bert4torch_config.json'
+checkpoint_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/pytorch_model.bin'
+dict_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext/vocab.txt'
+data_dir = '/data/corpus/Sohu2022/Sohu2022_data/nlp_data'
 
 choice = 'train'
 prefix = f'_char_512'

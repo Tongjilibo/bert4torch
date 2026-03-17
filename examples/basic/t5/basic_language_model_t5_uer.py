@@ -7,8 +7,8 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer, load_vocab
 from bert4torch.generation import AutoRegressiveDecoder
 
-# model_dir = 'E:/data/pretrain_ckpt/uer/t5-small-chinese-cluecorpussmall/'
-model_dir = 'E:/data/pretrain_ckpt/uer/t5-base-chinese-cluecorpussmall/'
+# model_dir = '/data/pretrain_ckpt/uer/t5-small-chinese-cluecorpussmall/'
+model_dir = '/data/pretrain_ckpt/uer/t5-base-chinese-cluecorpussmall/'
 config_path = model_dir + 'bert4torch_config.json'
 checkpoint_path = model_dir + 'pytorch_model.bin'
 dict_path = model_dir + 'vocab.txt'

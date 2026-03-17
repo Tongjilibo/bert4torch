@@ -187,7 +187,7 @@ def text_encode(tokenizer, text: str, bos: bool = True, eos: bool = False):
 
 def process_vision_info(tokenizer, prompt='', image_file='', base_size=1024, 
                         image_size=768, crop_mode=True, crop_thread=768, 
-                        add_image_token_id=False, dynamic_preprocess_max_num=6):
+                        add_image_token_id=True, dynamic_preprocess_max_num=6):
     if not prompt:
         assert False, f'prompt is none!'
         

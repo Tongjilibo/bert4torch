@@ -12,7 +12,7 @@ from bert4torch.models import build_transformer_model
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 
-pretrained_model = "E:/data/pretrain_ckpt/transfo-xl/transfo-xl-wt103"
+pretrained_model = "/data/pretrain_ckpt/transfo-xl/transfo-xl-wt103"
 
 try:
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model)

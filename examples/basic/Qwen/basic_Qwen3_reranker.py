@@ -5,7 +5,7 @@ from bert4torch.models import build_transformer_model
 
 
 # Qwen3-Reranker-0.6B, Qwen3-Reranker-4B, Qwen3-Reranker-8B
-root_model_path = "E:/data/pretrain_ckpt/Qwen/Qwen3-Reranker-0.6B"
+root_model_path = "/data/pretrain_ckpt/Qwen/Qwen3-Reranker-0.6B"
 tokenizer = AutoTokenizer.from_pretrained(root_model_path, padding_side='left')
 
 # transformers

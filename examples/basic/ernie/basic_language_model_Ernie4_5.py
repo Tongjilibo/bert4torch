@@ -5,7 +5,7 @@ from bert4torch.pipelines import Chat
 
 
 def main():
-    model_dir = "E:/data/pretrain_ckpt/baidu/ERNIE-4.5-0.3B-PT"
+    model_dir = "/data/pretrain_ckpt/baidu/ERNIE-4.5-0.3B-PT"
 
     # batch: 同时infer多条query
     # gen_1toN: 为一条query同时生成N条response

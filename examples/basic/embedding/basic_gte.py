@@ -1,5 +1,5 @@
-# root_model_path = 'E:/data/pretrain_ckpt/thenlper/gte-large-zh'
-root_model_path = 'E:/data/pretrain_ckpt/thenlper/gte-base-zh'
+# root_model_path = '/data/pretrain_ckpt/thenlper/gte-large-zh'
+root_model_path = '/data/pretrain_ckpt/thenlper/gte-base-zh'
 sentences = ['That is a happy person', 'That is a very happy person']
 
 print('=========================================bert4torch====================================')

@@ -13,7 +13,7 @@ import re
 # internlm2-1_8b, internlm2-chat-1_8b, internlm2-7b, internlm2-chat-7b, internlm2-20b, internlm2-chat-20b
 # internlm2_5-7b, internlm2_5-7b-chat, internlm2_5-7b-chat-1m
 # internlm3-8b-instruct
-model_dir = 'E:/data/pretrain_ckpt/internlm/internlm2-chat-1_8b'
+model_dir = '/data/pretrain_ckpt/internlm/internlm2-chat-1_8b'
 
 generation_config = {
     'top_p': 0.8, 

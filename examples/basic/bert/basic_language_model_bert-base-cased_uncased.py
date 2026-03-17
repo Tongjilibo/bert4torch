@@ -11,7 +11,7 @@ from torch.nn.functional import softmax
 # bert-base-multilingual-cased
 # bert_base_uncased
 # bert_base_cased
-root_model_path = "E:/data/pretrain_ckpt/google-bert/bert-base-multilingual-cased"
+root_model_path = "/data/pretrain_ckpt/google-bert/bert-base-multilingual-cased"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 text = "The capital of France is [MASK]."
