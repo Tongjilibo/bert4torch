@@ -22,7 +22,7 @@ from typing import Optional
 
 import regex as re
 
-from ...tokenizers.tokenization_utils import AddedToken, PreTrainedTokenizer
+from ...tokenizers.tokenization_utils import AddedToken, PreTrainedTokenizer, register_tokenizer
 from ...snippets import logging
 
 
@@ -80,6 +80,7 @@ def get_pairs(word):
     return pairs
 
 
+@register_tokenizer
 class Qwen2Tokenizer(PreTrainedTokenizer):
     """
     Construct a Qwen2 tokenizer. Based on byte-level Byte-Pair-Encoding.

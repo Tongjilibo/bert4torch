@@ -22,13 +22,11 @@ import os
 from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any, Optional, Union
-
 import tokenizers.pre_tokenizers as pre_tokenizers_fast
 from tokenizers import Encoding as EncodingFast
 from tokenizers import Tokenizer as TokenizerFast
 from tokenizers.decoders import Decoder as DecoderFast
 from tokenizers.trainers import BpeTrainer, UnigramTrainer, WordLevelTrainer, WordPieceTrainer
-
 from .convert_slow_tokenizer import convert_slow_tokenizer
 from .tokenization_utils import PreTrainedTokenizer
 from .tokenization_utils_base import (
@@ -42,7 +40,8 @@ from .tokenization_utils_base import (
     TextInput,
     TextInputPair,
     TruncationStrategy,
-    PaddingStrategy
+    PaddingStrategy,
+    register_tokenizer
 )
 from ..snippets import add_end_docstrings, logging
 

@@ -8,7 +8,7 @@ from .deepencoder_common import build_sam_vit_b, MlpProjector
 from .deepencoder_clip import build_clip_l
 import torch
 from torch import nn
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DotDict
 from typing import Union, Optional
 
 
@@ -17,12 +17,12 @@ class DeepSeekOCR(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"images_ori", "images_crop", "images_seq_mask", "images_spatial_crop"}
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.config = DottableDict(kwargs)
+        self.config = DotDict(kwargs)
 
         self.sam_model = build_sam_vit_b(**self.config.vision_config.width.sam_vit_b)
         self.vision_model = build_clip_l()
         n_embed = 1280
-        self.projector =  MlpProjector(DottableDict(projector_type="linear", input_dim=2048, n_embed=n_embed))
+        self.projector =  MlpProjector(DotDict(projector_type="linear", input_dim=2048, n_embed=n_embed))
         embed_std = 1 / torch.sqrt(torch.tensor(n_embed, dtype=torch.float32))
         self.image_newline = nn.Parameter(torch.randn(n_embed) * embed_std)
         self.view_seperator = nn.Parameter(torch.randn(n_embed) * embed_std)

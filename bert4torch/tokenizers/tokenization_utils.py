@@ -39,7 +39,8 @@ from .tokenization_utils_base import (
     TruncationStrategy,
     TensorType,
     ExplicitEnum,
-    PaddingStrategy
+    PaddingStrategy,
+    register_tokenizer
 )
 from ..snippets import add_end_docstrings, logging
 

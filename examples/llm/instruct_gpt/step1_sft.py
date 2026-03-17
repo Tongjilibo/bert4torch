@@ -2,7 +2,7 @@
 # Supervised Finetune
 
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, DottableDict
+from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, DotDict
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.losses import CausalLMLoss
 import torch.nn as nn
@@ -19,7 +19,7 @@ from utils import get_model_config, get_conv_template, get_nbit_lora_model
 
 
 # 基本参数
-args = DottableDict()
+args = DotDict()
 args.max_source_length = 256
 args.max_target_length = 256
 args.max_length = args.max_source_length + args.max_target_length

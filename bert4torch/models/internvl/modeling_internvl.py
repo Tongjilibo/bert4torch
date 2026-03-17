@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen2 import Qwen2
 from bert4torch.models.llama import LLaMA
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DottableDict, log_warn_once
+from bert4torch.snippets import DotDict, log_warn_once
 from bert4torch.models.modeling_utils import inference_mode
 import torch
 from torch import nn
@@ -14,7 +14,7 @@ class InternVL(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values"}
     def __init__(self, **config):
         super().__init__(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         self.select_layer = self.config.select_layer
         self.downsample_ratio = self.config.downsample_ratio
         use_flash_attn = has_flash_attn if has_flash_attn else False

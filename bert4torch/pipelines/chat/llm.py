@@ -33,7 +33,7 @@ from bert4torch.snippets import (
     JsonConfig,
     NoopContextManager,
     sequence_padding,
-    DottableDict,
+    DotDict,
     create_registrar
 )
 from packaging import version
@@ -45,6 +45,7 @@ import threading
 import re
 import copy
 from .conversation import Conversation
+from bert4torch.models.auto import AutoTokenizer
 
 
 class NoneObject:
@@ -132,7 +133,7 @@ class ChatBase(PipeLineBase):
             self.config = JsonConfig(config_path_tmp)
             self.generation_config = self.config.get('generation_config', dict())
         else:
-            self.config = DottableDict()
+            self.config = DotDict()
             self.generation_config = dict()
         self.generation_config.update(generation_config if generation_config is not None else kwargs)
         self.torch_dtype = torch_dtype
@@ -158,7 +159,6 @@ class ChatBase(PipeLineBase):
     
     def build_tokenizer(self, **kwargs):
         '''初始化tokenizer'''
-        from transformers import AutoTokenizer
         init_kwargs = {'additional_special_tokens'}
         new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
         try:
@@ -1839,7 +1839,6 @@ class ChineseLlamaAlpaca(ChatBase):
 @register_llm(name="belle")
 class Belle(ChatBase):
     def build_tokenizer(self, **kwargs):
-        from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
     
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:

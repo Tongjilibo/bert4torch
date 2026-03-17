@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Callable, List, Optional, Tuple, Union
-from bert4torch.snippets import DottableDict, safe_import
+from bert4torch.snippets import DotDict, safe_import
 from torch.nn.init import _calculate_fan_in_and_fan_out
 with safe_import():
     from transformers.activations import ACT2FN
@@ -120,7 +120,7 @@ def default_flax_embed_init(tensor):
 
 
 class SiglipVisionEmbeddings(nn.Module):
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
@@ -306,7 +306,7 @@ def eager_attention_forward(
 class SiglipAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
@@ -451,7 +451,7 @@ class SiglipMLP(nn.Module):
 
 
 class SiglipEncoderLayer(nn.Module):
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.layer_norm1 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
@@ -503,7 +503,7 @@ class SiglipEncoderLayer(nn.Module):
 
 
 class SiglipPreTrainedModel(PreTrainedModel):
-    config_class = DottableDict
+    config_class = DotDict
     base_model_prefix = "siglip"
     supports_gradient_checkpointing = True
 
@@ -521,7 +521,7 @@ class SiglipPreTrainedModel(PreTrainedModel):
         if isinstance(module, SiglipVisionEmbeddings):
             width = (
                 self.config.vision_config.hidden_size
-                if isinstance(self.config, DottableDict)
+                if isinstance(self.config, DotDict)
                 else self.config.hidden_size
             )
             nn.init.normal_(module.position_embedding.weight, std=1 / np.sqrt(width))
@@ -561,10 +561,10 @@ class SiglipEncoder(nn.Module):
     [`SiglipEncoderLayer`].
 
     Args:
-        config: DottableDict
+        config: DotDict
     """
 
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.config = config
         embed_dim = config.hidden_size
@@ -790,7 +790,7 @@ class SiglipEncoder(nn.Module):
 
 
 class SiglipVisionTransformer(nn.Module):
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.config = config
         embed_dim = config.hidden_size
@@ -950,7 +950,7 @@ class SiglipVisionTransformer(nn.Module):
 class SiglipMultiheadAttentionPoolingHead(nn.Module):
     """Multihead Attention Pooling."""
 
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         super().__init__()
 
         self.probe = nn.Parameter(torch.randn(1, 1, config.hidden_size))
@@ -976,10 +976,10 @@ class SiglipMultiheadAttentionPoolingHead(nn.Module):
 
 
 class SiglipVisionModel(SiglipPreTrainedModel):
-    config_class = DottableDict
+    config_class = DotDict
     main_input_name = "pixel_values"
 
-    def __init__(self, config: DottableDict):
+    def __init__(self, config: DotDict):
         config = PretrainedConfig(**config)
         super().__init__(config)
 

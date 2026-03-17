@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.qwen2 import Qwen2
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DotDict
 from bert4torch.activations import ACT2FN
 import torch
 from torch import nn
@@ -10,7 +10,7 @@ import numpy as np
 
 class Projector(nn.Module):
 
-    def __init__(self, text_config: DottableDict, vision_config: DottableDict):
+    def __init__(self, text_config: DotDict, vision_config: DotDict):
         super().__init__()
         self.text_config = text_config
         self.vision_config = vision_config
@@ -72,7 +72,7 @@ class PaddleOCR_VL(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):
         super().__init__(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         self.mlp_AR = Projector(self.config, self.config.vision_config)
         from .visual import SiglipVisionModel
         self.visual = SiglipVisionModel(self.config.vision_config)

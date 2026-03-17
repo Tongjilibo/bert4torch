@@ -4,6 +4,7 @@
 
 from torch4keras.snippets import log_info, log_warn, log_error, TimeitContextManager
 from typing import Union, Dict, Type, Callable
+from collections import UserDict
 import re
 from io import BytesIO
 import requests

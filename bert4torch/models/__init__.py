@@ -15,7 +15,7 @@ from bert4torch.snippets import (
     is_torch_sdpa_available,
     get_checkpoint_path, 
     get_config_path,
-    DottableDict,
+    DotDict,
     import_submodels
 )
 import_submodels(os.path.dirname(os.path.abspath(__file__)), package_prefix='bert4torch.models')
@@ -198,4 +198,4 @@ def check_update_config(config_path:str, **kwargs):
         log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
         config['_attn_implementation'] = 'eager'
 
-    return DottableDict(config)
+    return DotDict(config)

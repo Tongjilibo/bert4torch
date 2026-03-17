@@ -2,7 +2,7 @@ import collections
 import unicodedata
 from io import open
 import re
-from .base import PreTrainedTokenizerBase
+from .base import TokenizerBase
 from typing import List, Union
 from bert4torch.snippets import is_string, lowercase_and_normalize
 import six
@@ -48,7 +48,7 @@ def whitespace_tokenize(text):
     return tokens
 
 
-class BertTokenizer(PreTrainedTokenizerBase):
+class BertTokenizer(TokenizerBase):
     """Bert原生分词器
     """
     def __init__(self, token_dict:Union[str, dict], do_lower_case:bool=True, do_basic_tokenize:bool=True, do_tokenize_unk:bool=False, **kwargs):

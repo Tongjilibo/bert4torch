@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, Union
 from bert4torch.models.glm4 import Glm4
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DotDict
 from .visual import GlmOcrVisionModel, GlmOcrVisionConfig
 import torch
 import itertools
@@ -12,7 +12,7 @@ class GlmOcr(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):
         super().__init__(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         vision_config = GlmOcrVisionConfig.from_dict(self.config.vision_config)
         self.visual = GlmOcrVisionModel._from_config(vision_config)
         self.language_model = Glm4(**self.config.text_config)

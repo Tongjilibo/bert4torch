@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import math
-from torch4keras.snippets import DottableDict
+from torch4keras.snippets import DotDict
 
 #===================clip============================================================
 
@@ -328,7 +328,7 @@ class VitModel(nn.Module):
         return output
 
 
-vit_model_cfg = DottableDict(
+vit_model_cfg = DotDict(
     num_layers=24,
     hidden_size=1024,
     num_heads = 16,

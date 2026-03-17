@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from bert4torch.optimizers import get_linear_schedule_with_warmup
-from bert4torch.snippets import DottableDict, ListDataset, sequence_padding, seed_everything
+from bert4torch.snippets import DotDict, ListDataset, sequence_padding, seed_everything
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.trainer import DPOTrainer
 from bert4torch.callbacks import Callback, Logger
@@ -21,7 +21,7 @@ import copy
 
 
 # 基本参数
-args = DottableDict()
+args = DotDict()
 args.steps_per_epoch = None
 args.epochs = 1
 args.data_path = 'E:/Github/MedicalGPT/data/reward/**/*.json'

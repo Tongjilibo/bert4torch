@@ -6,7 +6,7 @@ rlhf
 from glob import glob
 import torch
 from torch import nn
-from bert4torch.snippets import DottableDict, ListDataset, sequence_padding
+from bert4torch.snippets import DotDict, ListDataset, sequence_padding
 from bert4torch.models import BaseModel, build_transformer_model
 from bert4torch.generation import SeqGeneration
 from bert4torch.callbacks import Callback, Logger
@@ -18,7 +18,7 @@ import json
 
 
 # 基本参数
-args = DottableDict()
+args = DotDict()
 args.steps_per_epoch = None
 args.epochs = 1
 args.data_path = 'E:/Github/MedicalGPT/data/finetune/**/*.jsonl'

@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Union
 from bert4torch.layers import MllamaCrossAttentionDecoderLayer
 from bert4torch.models.llama import LLaMA
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DotDict
 from torch import nn
 import torch
 
@@ -29,7 +29,7 @@ class Mllama(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {'pixel_values', 'aspect_ratio_ids', 'aspect_ratio_mask', 'cross_attention_mask'}
     def __init__(self, **config):
         super().__init__(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         from transformers.models.mllama.modeling_mllama import MllamaVisionModel
         from transformers.models.mllama.configuration_mllama import MllamaConfig, MllamaVisionConfig
         vision_config = MllamaVisionConfig.from_dict(self.config.vision_config)

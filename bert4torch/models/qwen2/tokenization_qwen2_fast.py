@@ -16,7 +16,7 @@
 
 from typing import Optional
 from ...tokenizers.tokenization_utils import AddedToken
-from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast
+from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast, register_tokenizer
 from ...snippets import logging
 from .tokenization_qwen2 import Qwen2Tokenizer
 
@@ -33,6 +33,7 @@ VOCAB_FILES_NAMES = {
 MAX_MODEL_INPUT_SIZES = {"qwen/qwen-tokenizer": 32768}
 
 
+@register_tokenizer()
 class Qwen2TokenizerFast(PreTrainedTokenizerFast):
     """
     Construct a "fast" Qwen2 tokenizer (backed by HuggingFace's *tokenizers* library). Based on byte-level

@@ -6,7 +6,7 @@ import math
 import numpy as np
 from typing import Dict, Type
 from bert4torch.activations import get_activation
-from bert4torch.snippets import DottableDict, create_registrar
+from bert4torch.snippets import DotDict, create_registrar
 from bert4torch.losses import AddAuxiliaryLoss
 
 MLP_MAP: Dict[str, Type[nn.Module]] = {}
@@ -190,7 +190,7 @@ class DeepseekMoeFeedForward(nn.Module):
     """
     def __init__(self, **config):
         super().__init__()
-        config = DottableDict(config)
+        config = DotDict(config)
         self.config = config
         self.num_experts_per_tok = config.num_experts_per_tok
         if hasattr(config, "ep_size") and config.ep_size > 1:
@@ -332,7 +332,7 @@ class DeepseekMoeFeedForward(nn.Module):
 class Qwen3MoeSparseFeedForward(nn.Module):
     def __init__(self, **config):
         super().__init__()
-        config = DottableDict(config)
+        config = DotDict(config)
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
         self.norm_topk_prob = config.norm_topk_prob

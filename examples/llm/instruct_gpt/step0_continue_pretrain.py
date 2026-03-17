@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.snippets import IterDataset, DottableDict
+from bert4torch.snippets import IterDataset, DotDict
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.losses import CausalLMLoss
@@ -20,7 +20,7 @@ from utils import get_model_config, get_nbit_lora_model
 
 
 # 基本参数
-args = DottableDict()
+args = DotDict()
 args.lr = 5e-5
 args.batch_size = 1
 args.eval_batch_size = 4

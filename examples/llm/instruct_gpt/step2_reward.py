@@ -6,7 +6,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from bert4torch.models import build_transformer_model, BaseModel
-from bert4torch.snippets import ListDataset, sequence_padding, DottableDict
+from bert4torch.snippets import ListDataset, sequence_padding, DotDict
 from bert4torch.callbacks import Callback, Logger
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from transformers import AutoTokenizer
@@ -18,7 +18,7 @@ from utils import get_model_config, get_nbit_lora_model
 
 
 # 基本参数
-args = DottableDict()
+args = DotDict()
 args.lr = 1e-5
 args.batch_size = 4
 args.eval_batch_size = 4

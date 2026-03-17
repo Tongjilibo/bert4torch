@@ -5,6 +5,7 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import Tokenizer
 import gc
 from bert4torch.snippets import log_free, cuda_empty_cache
+from bert4torch.models.auto import AutoTokenizer
 import time
 
 
@@ -36,7 +37,6 @@ class PipeLineBase:
         if self.tokenizer_type == 'b4t':
             tokenizer = Tokenizer(os.path.join(self.checkpoint_path, 'vocab.txt'), do_lower_case=True)
         else:
-            from transformers import AutoTokenizer
             tokenizer = AutoTokenizer.from_pretrained(self.checkpoint_path)
         return tokenizer
 

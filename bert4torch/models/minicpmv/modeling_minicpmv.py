@@ -5,7 +5,7 @@ from .resampler import Resampler
 from bert4torch.models.qwen2 import Qwen2
 from bert4torch.models.llama import LLaMA
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DotDict
 import inspect
 
 
@@ -15,7 +15,7 @@ class MiniCPMV(PreTrainedModelForDecoder):
     def __init__(self, **config):
         super().__init__(**config)
         self.llm = Qwen2(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         self.vpm = self.init_vision_module()
         self.vision_dim = self.vpm.embed_dim
         self.embed_dim = self.llm.hidden_size
@@ -194,7 +194,7 @@ class MiniCPMLlama3V(MiniCPMV):
     def __init__(self, **config):
         super().__init__(**config)
         self.llm = LLaMA(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         self.vpm = self.init_vision_module()
         self.vision_dim = self.vpm.embed_dim
         self.embed_dim = self.llm.hidden_size

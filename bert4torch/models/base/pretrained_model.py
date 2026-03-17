@@ -19,7 +19,7 @@ from bert4torch.snippets import (
     log_warn,
     log_warn_once,
     is_accelerate_available,
-    DottableDict,
+    DotDict,
     create_registrar
 )
 from torch4keras.model import BaseModel, add_trainer
@@ -488,7 +488,7 @@ class PreTrainedModel(nn.Module):
             print("Already quantized.")
             return self
         
-        quantization_config = DottableDict(copy.deepcopy(kwargs))
+        quantization_config = DotDict(copy.deepcopy(kwargs))
         if 'model' in quantization_config:
             quantization_config.pop('model')
         

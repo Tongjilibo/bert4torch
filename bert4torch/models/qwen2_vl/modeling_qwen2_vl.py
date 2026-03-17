@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, Union
 from ..qwen2 import Qwen2
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DottableDict
+from bert4torch.snippets import DotDict
 import torch
 
 
@@ -10,7 +10,7 @@ class Qwen2VL(PreTrainedModelForDecoder):
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {"pixel_values", "pixel_values_videos", "image_grid_thw", "video_grid_thw", "rope_deltas"}
     def __init__(self, **config):
         super().__init__(**config)
-        self.config = DottableDict(config)
+        self.config = DotDict(config)
         from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VisionTransformerPretrainedModel
         from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig
         vision_config = Qwen2VLVisionConfig.from_dict(self.config.vision_config)

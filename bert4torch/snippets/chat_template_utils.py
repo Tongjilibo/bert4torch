@@ -262,7 +262,7 @@ def get_json_schema(func: Callable) -> dict:
     support them, like so:
 
     ```python
-    >>> from transformers import AutoTokenizer
+    >>> from bert4torch import AutoTokenizer
     >>> from transformers.utils import get_json_schema
     >>>
     >>> def multiply(x: float, y: float):

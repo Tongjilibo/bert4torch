@@ -5,7 +5,7 @@ from torch import nn
 from torch4keras.trainer import Trainer
 from bert4torch.models import BaseModel
 from bert4torch.generation import SeqGeneration, Seq2SeqGeneration
-from bert4torch.snippets import DottableDict, is_trl_available
+from bert4torch.snippets import DotDict, is_trl_available
 
 
 try:
@@ -55,7 +55,7 @@ class PPOTrainer(PPOTrainerTrl, Trainer):
                 super().__init__(*arg, **kwargs)
                 self.module = model
                 if value_head_config is None:
-                    value_head_config = DottableDict({'summary_dropout_prob': 0.1, 'hidden_size': self.module.config['hidden_size']})
+                    value_head_config = DotDict({'summary_dropout_prob': 0.1, 'hidden_size': self.module.config['hidden_size']})
                 self.v_head = ValueHead(value_head_config, **kwargs)
                 self._init_weights = AutoModelForCausalLMWithValueHead._init_weights
                 self._init_weights(self, **kwargs)

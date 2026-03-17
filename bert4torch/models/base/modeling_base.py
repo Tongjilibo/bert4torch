@@ -7,7 +7,7 @@ from torch.utils.checkpoint import checkpoint
 from .pretrained_model import PreTrainedModel
 from ..modeling_utils import old_checkpoint
 from bert4torch.layers import LAYER_NORM, EMBEDDING_MAP, TRANSFORMER_BLOCKS, BlockIdentity
-from bert4torch.snippets import create_position_ids_start_at_padding, DottableDict
+from bert4torch.snippets import create_position_ids_start_at_padding, DotDict
 from bert4torch.activations import get_activation
 from packaging import version
 from typing import Union, Literal, List
@@ -382,7 +382,7 @@ class BertBase(PreTrainedModel):
             return outputs if len(outputs) > 1 else outputs[0]
         else:
             # 以dict格式返回
-            outputs = DottableDict()
+            outputs = DotDict()
             for arg in args:
                 if arg is None:
                     continue

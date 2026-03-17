@@ -28,7 +28,7 @@ class TokenizerListOutput(list):
         return self
 
 
-class PreTrainedTokenizerBase(object):
+class TokenizerBase(object):
     """分词器基类
     """
     def __init__(self, token_start:str='[CLS]', token_end:str='[SEP]', token_unk:str='[UNK]', token_pad:str='[PAD]', token_mask:str='[MASK]', 

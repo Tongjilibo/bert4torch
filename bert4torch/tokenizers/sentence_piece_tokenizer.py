@@ -1,8 +1,8 @@
-from .base import PreTrainedTokenizerBase
+from .base import TokenizerBase
 import unicodedata
 
 
-class SpTokenizer(PreTrainedTokenizerBase):
+class SpTokenizer(TokenizerBase):
     """基于SentencePiece模型的封装，使用上跟Tokenizer基本一致。
     """
     def __init__(self, sp_model_path, remove_space=True, keep_accents=False, do_lower_case=False, **kwargs):

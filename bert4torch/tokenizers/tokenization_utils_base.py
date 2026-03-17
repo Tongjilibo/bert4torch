@@ -28,7 +28,7 @@ from collections.abc import Mapping, Sequence, Sized
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, Optional, Union, Dict, Type
 import numpy as np
 from packaging import version
 from enum import Enum
@@ -58,6 +58,7 @@ from ..snippets import (
 )
 from ..snippets.chat_template_utils import render_jinja_template
 from ..snippets.import_utils import PROTOBUF_IMPORT_ERROR
+from ..snippets.misc import create_registrar
 
 
 class ExplicitEnum(str, Enum):
@@ -2207,20 +2208,20 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
             if config_tokenizer_class is None:
                 # Third attempt. If we have not yet found the original type of the tokenizer,
                 # we are loading we see if we can infer it from the type of the configuration file
-                from ..models.auto.tokenization_auto import TOKENIZER_MAPPING_NAMES  # tests_ignore
+                from ..models.auto.tokenization_auto import TOKENIZER_MAPPING  # tests_ignore
 
                 if hasattr(config, "model_type"):
                     model_type = config.model_type
                 else:
                     # Fallback: use pattern matching on the string.
                     model_type = None
-                    for pattern in TOKENIZER_MAPPING_NAMES:
+                    for pattern in TOKENIZER_MAPPING:
                         if pattern in str(pretrained_model_name_or_path):
                             model_type = pattern
                             break
 
                 if model_type is not None:
-                    config_tokenizer_class, config_tokenizer_class_fast = TOKENIZER_MAPPING_NAMES.get(
+                    config_tokenizer_class, config_tokenizer_class_fast = TOKENIZER_MAPPING.get(
                         model_type, (None, None)
                     )
                     if config_tokenizer_class is None:
@@ -4216,3 +4217,7 @@ if PreTrainedTokenizerBase.push_to_hub.__doc__ is not None:
     PreTrainedTokenizerBase.push_to_hub.__doc__ = PreTrainedTokenizerBase.push_to_hub.__doc__.format(
         object="tokenizer", object_class="AutoTokenizer", object_files="tokenizer files"
     )
+
+
+TOKENIZER_MAPPING: Dict[str, Type[PreTrainedTokenizerBase]] = {}
+register_tokenizer = create_registrar(TOKENIZER_MAPPING)
