@@ -18,7 +18,7 @@ import pickle
 from typing import Optional
 from ...tokenizers.tokenization_utils_base import BatchEncoding
 from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast, register_tokenizer
-from ...snippets import logging
+from ...utils import logging
 
 
 logger = logging.get_logger(__name__)

@@ -2,14 +2,17 @@
 '''
 from typing import List, Dict, Union, Optional, Literal
 import asyncio
-from openai import OpenAI, AsyncOpenAI
-from bert4torch.snippets import is_sseclient_available, log_info, log_error, green, red
+from .import_utils import is_sseclient_available, is_openai_available
+from torch4keras.snippets import log_info, log_error, green, red
 import traceback
 import requests
 import json
 import random
 import time
 import inspect
+
+if is_openai_available():
+    from openai import OpenAI, AsyncOpenAI
 
 
 class OpenaiClient:

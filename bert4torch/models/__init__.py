@@ -1,201 +1,49 @@
 from torch4keras.model import BaseModel, BaseModelDP, BaseModelDDP
 from torch4keras.trainer import Trainer
-from .base import PreTrainedModel, BertBase, Transformer, Encoder, Decoder, MODEL_FACTORY, \
-    extend_with_base_model, extend_with_language_model, extend_with_unified_language_model
-from .modeling_utils import restore_default_torch_dtype, set_default_torch_dtype, get_device_map, has_meta_param
-from typing import Union, Literal
-import json
-import os
-from bert4torch.accelerate import init_empty_weights
-from bert4torch.snippets import (
-    log_warn_once, 
-    log_error,
-    is_flash_attn_available, 
-    is_xformers_available, 
-    is_torch_sdpa_available,
-    get_checkpoint_path, 
-    get_config_path,
-    DotDict,
-    import_submodels
-)
-import_submodels(os.path.dirname(os.path.abspath(__file__)), package_prefix='bert4torch.models')
-
-
-@restore_default_torch_dtype
-def build_transformer_model(
-        config_path: Union[str, os.PathLike] = None, 
-        checkpoint_path: Union[str, os.PathLike, list] = None, 
-        model: Union[str, PreTrainedModel] = None, 
-        application: Literal['encoder', 'lm', 'unilm', None] = None, 
-        add_trainer: bool = False, 
-        verbose: int = 1, 
-        **kwargs
-        ) -> Union[PreTrainedModel, BertBase, Transformer, Trainer]:
-    """根据配置文件构建模型, 可选加载checkpoint权重, 类似AutoModel.from_pretrained(...)
-
-    :param config_path: str, 模型的config文件地址, 大部分模型都提供了bert4torch_config.json
-    :param checkpoint_path: str/list[str], 模型文件/文件夹地址, 默认值None表示不加载预训练模型
-    :param model: str, 加载的模型结构, 这里Model也可以基于nn.Module自定义后传入, 默认为'bert'
-    :param application: str, 模型应用, 支持encoder, lm和unilm格式, 默认为'encoder'
-    :param segment_vocab_size: int, type_token_ids数量, 默认为2, 如不传入segment_ids则需设置为0
-    :param with_pool: bool, 是否包含Pool部分, 默认为False
-    :param with_nsp: bool, 是否包含NSP部分, 默认为False
-    :param with_mlm: bool, 是否包含MLM部分, 默认为False
-    :param output_all_encoded_layers: bool, 是否返回所有hidden_state层, 默认为False
-    :param additional_embs: bool, 是否有额外的embedding输入
-    :param keep_tokens: list[int], 精简词表, 保留的id的序号如：[0, 100, 101, 102, 106, 107, ...]
-    :param pad_token_id: int, 默认为0, 部分模型padding不是0时在这里指定, 用于attention_mask生成, 如设置成-100
-    :param custom_position_ids: bool, 是否自行传入位置id, True表示传入, False表示不传入, 'start_at_padding'表示从padding_idx+1开始, 默认为False
-    :param custom_attention_mask: bool, 是否自行传入attention_mask, 默认为False
-    :param shared_segment_embeddings: bool, 若True, 则segment跟token共用embedding, 默认为False
-    :param conditional_size: conditional layer_norm, 默认为None
-    :param compound_tokens: 扩展Embedding, 默认为None
-    :param residual_attention_scores: bool, Attention矩阵加残差, 默认为False
-    :param ignore_invalid_weights: bool, 允许跳过不存在的权重, 默认为False
-    :param keep_hidden_layers: 保留的hidden_layer层的id, 默认为None表示全部使用
-    :param hierarchical_position_alpha: 是否层次分解位置编码, 默认为None表示不使用
-    :param gradient_checkpoint: bool, 是否使用gradient_checkpoint, 默认为False
-    :param add_trainer: bool, 指定从BaseModel继承, 若build_transformer_model后需直接compile()、fit()需设置为True, 默认为None
-    :param verbose: int, 是否显示加载权重的[WARNING]信息, 默认为1表示显示未加载的, 2表示显示所有不匹配的, 0表示不显示
-
-    > 大模型参数
-    :param skip_init/low_cpu_mem_usage: bool, 是否初始化, 默认为False
-    :param device_map: None/str/dict, 为不同Module指定不同的device, 默认为None表示加载到cpu中, 不同于transformer自动分配, 这里需手动指定dict
-    :param torch_dtype: 指定权重的dtype
-    :param flash_attention: bool/str, 是否使用flash_attention, 默认为None
-    :param use_logn_attn: bool, 在attention模块中是否使用logn_attn
-    :param num_key_value_heads: int, 使用MQA的头数
-    :param ntk_alpha: float, rope外推使用ntk方法时的alhpa参数
-
-    :return: A pytorch model instance
-
-    Examples(支持几种加载方式):
-    ```python
-    >>> # 1. 仅指定config_path: 从头初始化模型结构, 不加载预训练模型
-    >>> model = build_transformer_model('./model/bert4torch_config.json')
-
-    >>> # 2. 仅指定checkpoint_path: 
-    >>> # 2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json/config.json文件
-    >>> model = build_transformer_model(checkpoint_path='./model')
-
-    >>> # 2.2 文件路径/列表: 文件路径即权重路径/列表, config会从同级目录下寻找
-    >>> model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
-
-    >>> # 2.3 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
-    >>> model = build_transformer_model(checkpoint_path='google-bert/bert-base-chinese')
-
-    >>> # 3. 同时指定config_path和checkpoint_path(本地路径名或model_name排列组合): 
-    >>> config_path = './model/bert4torch_config.json'  # 或'google-bert/bert-base-chinese'
-    >>> checkpoint_path = './model/pytorch_model.bin'  # 或'google-bert/bert-base-chinese'
-    >>> model = build_transformer_model(config_path, checkpoint_path)
-    ```
-    """
-    # 校验checkpoint_path, config_path
-    config_path = get_config_path(config_path if config_path is not None else checkpoint_path, **kwargs)
-    checkpoint_path = get_checkpoint_path(checkpoint_path, **kwargs)
-    if (config_path is None) and (checkpoint_path is not None):
-        # 没有找到bert4torch_config.json，则从local的checkpoint_path去找
-        config_path = get_config_path(checkpoint_path, **kwargs)
-
-    # config的修改
-    config = check_update_config(config_path, **kwargs)
-    config['add_trainer'] = add_trainer
-
-    device_map = config.pop('device_map', None)
-    skip_init = config.pop('skip_init', False) or config.pop('low_cpu_mem_usage', False)
-    skip_init = True if device_map is not None else skip_init  # 指定了device_map, 就必须skip_init
-    torch_dtype = config.pop('torch_dtype', None)
-    checkpoint_path = checkpoint_path or config.get('checkpoint_path')
-
-    model = model or config.get('model', config.get('model_type', 'bert'))
-    if isinstance(model, str):  # string表示使用自带的模型
-        MODEL = MODEL_FACTORY[model.lower()]
-        if model.endswith('t5.1.1'):
-            config['version'] = model
-    elif isinstance(model, type) and issubclass(model, PreTrainedModel): # nn.Module表示使用自定义的模型：
-        MODEL = model
-    else:
-        raise ValueError('Args `model` type should be string or PreTrainedModel')
-
-    # 使用 lm/unilm
-    application = (application or config.get('application', 'encoder')).lower()
-    if application in ['lm', 'unilm'] and model in ['electra', 't5', ]:
-        raise ValueError(f'"{model}" model can not be used as "{application}" application.\n')
-    if application == 'lm':
-        MODEL = extend_with_language_model(MODEL)
-    elif application == 'unilm':
-        MODEL = extend_with_unified_language_model(MODEL)
-
-    # 动态继承BaseModel, 直接加载预训练模型训练时使用
-    if add_trainer:
-        MODEL = extend_with_base_model(MODEL)
-
-    # 指定默认权重类型
-    if torch_dtype is not None:
-        torch_dtype = set_default_torch_dtype(torch_dtype, model, config)
-
-    # 生成网络结构
-    if skip_init and (checkpoint_path is not None):
-        with init_empty_weights():
-            transformer = MODEL(**config)
-    if not skip_init:
-        transformer = MODEL(**config)
-        transformer.apply(transformer.init_model_weights)  # 初始化权重
-
-    transformer.config = config
-    # 预训练模型是否已量化, 加载量化后的权重使用, 如果是加载原权重再自行量化这里不需要设置
-    pre_quantized = hasattr(config, "quantization_config")
-    if pre_quantized:
-        transformer = transformer.quantize(device_map=device_map, torch_dtype=torch_dtype, 
-                                           **config.pop('quantization_config'))
-    
-    # 权重加载
-    transformer.checkpoint_path = checkpoint_path
-    if checkpoint_path is not None:
-        # 根据模型尺寸和硬件(gpu, cpu)的大小来确定device_map
-        device_map = get_device_map(transformer, device_map, torch_dtype, **config)
-        transformer.from_pretrained(checkpoint_path, mapping=config.pop('mapping', None), 
-                                    device_map=device_map, torch_dtype=torch_dtype, verbose=verbose, **config)
-    
-    # 权重tie, 若skip_init则模型结构中的tie_weights会失效, 这里重新tie_weights一下
-    transformer.tie_weights()
-
-    # meta device则报错
-    if device_map is None:
-        has_meta_param(transformer, verbose=True)
-
-    if hasattr(transformer, 'quantizer'):
-        transformer.quantizer.postprocess_model(transformer, config=config)
-
-    return transformer
-
-
-def check_update_config(config_path:str, **kwargs):
-    '''对config做一些参数检查和更新操作'''
-
-    config = dict()
-    if config_path is not None:
-        config.update(json.load(open(config_path, encoding='utf-8')))
-    config.update(kwargs)
-    if 'max_position_embeddings' not in config:
-        config['max_position_embeddings'] = config.get('max_position_embeddings', 512)
-    if 'dropout_rate' not in config:
-        config['dropout_rate'] = config.get('hidden_dropout_prob')
-    if 'segment_vocab_size' not in config:
-        config['segment_vocab_size'] = config.get('type_vocab_size', 2)
-
-    # 获取_attn_implementation的配置项, 自动进行一些设置
-    _attn_implementation = config.get('_attn_implementation', config.get('flash_attention'))  # 兼容老配置文件
-    if _attn_implementation is None:
-        config['_attn_implementation'] = 'eager'
-    elif (_attn_implementation in {True, 'sdpa'}) and (not is_torch_sdpa_available()):
-        log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
-        config['_attn_implementation'] = 'eager'
-    elif (_attn_implementation == 'xformers') and (not is_xformers_available()):
-        log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
-        config['_attn_implementation'] = 'eager'
-    elif (_attn_implementation == 'flash_attn_2') and (not is_flash_attn_available()):
-        log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
-        config['_attn_implementation'] = 'eager'
-
-    return DotDict(config)
+from .albert import *
+from .auto import *
+from .baichuan import *
+from .bart import *
+from .base import *
+from .bert import *
+from .bloom import *
+from .deberta import *
+from .deepseek_ocr import *
+from .deepseek_ocr2 import *
+from .deepseek_v2 import *
+from .electra import *
+from .ernie import *
+from .ernie4_5 import *
+from .falcon import *
+from .gau_alpha import *
+from .glm import *
+from .glm2 import *
+from .glm4 import *
+from .glm4v import *
+from .glm_ocr import *
+from .gpt import *
+from .gpt2 import *
+from .gpt2_ml import *
+from .internlm import *
+from .internlm2 import *
+from .internvl import *
+from .llama import *
+from .minicpm import *
+from .minicpmv import *
+from .mllama import *
+from .modernbert import *
+from .nezha import *
+from .paddleocr_vl import *
+from .__pycache__ import *
+from .qwen import *
+from .qwen2 import *
+from .qwen2_5_vl import *
+from .qwen2_vl import *
+from .qwen3 import *
+from .qwen3_moe import *
+from .qwen3_vl import *
+from .roformer import *
+from .t5 import *
+from .transformer_xl import *
+from .uie import *
+from .xlnet import *

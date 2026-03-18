@@ -28,7 +28,7 @@ import sentencepiece as spm
 
 from ...tokenizers.convert_slow_tokenizer import import_protobuf
 from ...tokenizers.tokenization_utils import AddedToken, PreTrainedTokenizer, register_tokenizer
-from ...snippets import logging
+from ...utils import logging
 
 
 if TYPE_CHECKING:

@@ -33,7 +33,7 @@ import numpy as np
 from packaging import version
 from enum import Enum
 from ..dynamic_module_utils import custom_object_save
-from ..snippets import (
+from ..utils import (
     CHAT_TEMPLATE_DIR,
     CHAT_TEMPLATE_FILE,
     PushToHubMixin,
@@ -56,45 +56,10 @@ from ..snippets import (
     to_py_obj,
     is_package_available
 )
-from ..snippets.chat_template_utils import render_jinja_template
-from ..snippets.import_utils import PROTOBUF_IMPORT_ERROR
-from ..snippets.misc import create_registrar
-
-
-class ExplicitEnum(str, Enum):
-    """
-    Enum with more explicit error message for missing values.
-    """
-
-    @classmethod
-    def _missing_(cls, value):
-        raise ValueError(
-            f"{value} is not a valid {cls.__name__}, please select one of {list(cls._value2member_map_.keys())}"
-        )
-
-
-class PaddingStrategy(ExplicitEnum):
-    """
-    Possible values for the `padding` argument in [`PreTrainedTokenizerBase.__call__`]. Useful for tab-completion in an
-    IDE.
-    """
-
-    LONGEST = "longest"
-    MAX_LENGTH = "max_length"
-    DO_NOT_PAD = "do_not_pad"
-
-
-class TensorType(ExplicitEnum):
-    """
-    Possible values for the `return_tensors` argument in [`PreTrainedTokenizerBase.__call__`]. Useful for
-    tab-completion in an IDE.
-    """
-
-    PYTORCH = "pt"
-    TENSORFLOW = "tf"
-    NUMPY = "np"
-    JAX = "jax"
-    MLX = "mlx"
+from ..utils.chat_template_utils import render_jinja_template
+from ..utils.import_utils import PROTOBUF_IMPORT_ERROR
+from ..utils.misc import create_registrar
+from ..utils import ExplicitEnum, PaddingStrategy, TensorType
 
 
 if TYPE_CHECKING:
@@ -4219,5 +4184,5 @@ if PreTrainedTokenizerBase.push_to_hub.__doc__ is not None:
     )
 
 
-TOKENIZER_MAPPING: Dict[str, Type[PreTrainedTokenizerBase]] = {}
+TOKENIZER_MAPPING: Dict[str, Type[PreTrainedTokenizerBase]] = {"PreTrainedTokenizerBase": PreTrainedTokenizerBase}
 register_tokenizer = create_registrar(TOKENIZER_MAPPING)

@@ -43,7 +43,7 @@ from .tokenization_utils_base import (
     PaddingStrategy,
     register_tokenizer
 )
-from ..snippets import add_end_docstrings, logging
+from ..utils import add_end_docstrings, logging
 
 
 logger = logging.get_logger(__name__)
@@ -77,6 +77,7 @@ VOCAB_FILES_NAMES = {"tokenizer_file": TOKENIZER_FILE, "vocab_file": TIKTOKEN_VO
 
 
 @add_end_docstrings(INIT_TOKENIZER_DOCSTRING)
+@register_tokenizer()
 class PreTrainedTokenizerFast(PreTrainedTokenizerBase):
     """
     Base class for all fast tokenizers (wrapping HuggingFace tokenizers library).

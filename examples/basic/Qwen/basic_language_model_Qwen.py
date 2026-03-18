@@ -6,7 +6,7 @@ bert4torch_config.json见readme
 - [Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
 """
 from bert4torch.pipelines import Chat
-from bert4torch.snippets.openai_client import OpenaiClient, OpenaiClientSseclient
+from bert4torch.utils import OpenaiClient, OpenaiClientSseclient
 
 
 model_name = 'default'

@@ -21,7 +21,7 @@ import warnings
 from typing import Any, Optional, Union
 from ...dynamic_module_utils import get_class_from_dynamic_module, resolve_trust_remote_code
 from ...tokenizers.tokenization_utils_base import TOKENIZER_CONFIG_FILE, TOKENIZER_MAPPING
-from ...snippets import (
+from ...utils import (
     cached_file,
     extract_commit_hash,
     logging,

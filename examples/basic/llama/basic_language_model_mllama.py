@@ -3,10 +3,9 @@
 基本测试: 原生llama模型的测试
 """
 
-from bert4torch.models import build_transformer_model
+from bert4torch import build_transformer_model, AutoProcessor
 import requests
 from PIL import Image
-from transformers import AutoProcessor
 from bert4torch.pipelines import Chat
 
 

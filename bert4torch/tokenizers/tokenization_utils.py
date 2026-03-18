@@ -42,7 +42,7 @@ from .tokenization_utils_base import (
     PaddingStrategy,
     register_tokenizer
 )
-from ..snippets import add_end_docstrings, logging
+from ..utils import add_end_docstrings, logging
 
 
 logger = logging.get_logger(__name__)
@@ -408,6 +408,7 @@ def _insert_one_token_to_ordered_list(token_list: list[str], new_token: str):
 
 
 @add_end_docstrings(INIT_TOKENIZER_DOCSTRING)
+@register_tokenizer()
 class PreTrainedTokenizer(PreTrainedTokenizerBase):
     """
     Base class for all slow tokenizers.

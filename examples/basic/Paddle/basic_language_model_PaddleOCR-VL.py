@@ -4,8 +4,7 @@
 
 from PIL import Image
 from bert4torch.pipelines import Chat
-from bert4torch.models import build_transformer_model
-from transformers import AutoProcessor
+from bert4torch import build_transformer_model, AutoProcessor
 import torch
 
 root_dir = '/data/pretrain_ckpt/PaddlePaddle'

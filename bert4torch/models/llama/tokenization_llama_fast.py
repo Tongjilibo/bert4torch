@@ -17,7 +17,7 @@ from shutil import copyfile
 from typing import Optional
 from tokenizers import processors
 from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast, register_tokenizer
-from ...snippets import is_sentencepiece_available, logging
+from ...utils import is_sentencepiece_available, logging
 
 
 if is_sentencepiece_available():

@@ -23,7 +23,7 @@ from typing import Optional
 import regex as re
 
 from ...tokenizers.tokenization_utils import AddedToken, PreTrainedTokenizer, register_tokenizer
-from ...snippets import logging
+from ...utils import logging
 
 
 logger = logging.get_logger(__name__)

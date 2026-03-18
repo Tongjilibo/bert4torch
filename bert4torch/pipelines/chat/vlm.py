@@ -15,6 +15,7 @@ from typing import Union, Optional, List, Tuple, Literal, Dict, Type
 from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.internvl.vision_process import fetch_image
+from bert4torch.models.auto import AutoProcessor
 from bert4torch.snippets import (
     log_warn_once, 
     get_config_path, 
@@ -64,8 +65,6 @@ else:
     import bert4torch.snippets as st
     st.cache_resource = st.delete_arguments
 
-if is_transformers_available():
-    from transformers import AutoProcessor
 
 __all__ = [
     'ChatVLBase',
