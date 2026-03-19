@@ -62,7 +62,6 @@ def build_transformer_model(
     :param device_map: None/str/dict, 为不同Module指定不同的device, 默认为None表示加载到cpu中, 不同于transformer自动分配, 这里需手动指定dict
     :param torch_dtype: 指定权重的dtype
     :param flash_attention: bool/str, 是否使用flash_attention, 默认为None
-    :param use_logn_attn: bool, 在attention模块中是否使用logn_attn
     :param num_key_value_heads: int, 使用MQA的头数
     :param ntk_alpha: float, rope外推使用ntk方法时的alhpa参数
 

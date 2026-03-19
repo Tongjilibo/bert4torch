@@ -219,7 +219,7 @@ class AutoProcessor:
         #     if hasattr(config, "auto_map") and "AutoProcessor" in config.auto_map:
         #         processor_auto_map = config.auto_map["AutoProcessor"]
 
-        if processor_class is not None:
+        if processor_class is not None and processor_class in PROCESSOR_MAPPING:
             processor_class = PROCESSOR_MAPPING[processor_class]
 
         has_remote_code = processor_auto_map is not None

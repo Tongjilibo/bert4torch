@@ -255,6 +255,55 @@ def is_openai_available():
     return is_package_available("openai")
 
 
+@lru_cache
+def is_torch_mlu_available(check_device=False):
+    """
+    Checks if `mlu` is available via an `cndev-based` check which won't trigger the drivers and leave mlu
+    uninitialized.
+    """
+    if not is_torch_available() or importlib.util.find_spec("torch_mlu") is None:
+        return False
+
+    import torch
+    import torch_mlu  # noqa: F401
+
+    pytorch_cndev_based_mlu_check_previous_value = os.environ.get("PYTORCH_CNDEV_BASED_MLU_CHECK")
+    try:
+        os.environ["PYTORCH_CNDEV_BASED_MLU_CHECK"] = str(1)
+        available = torch.mlu.is_available()
+    finally:
+        if pytorch_cndev_based_mlu_check_previous_value:
+            os.environ["PYTORCH_CNDEV_BASED_MLU_CHECK"] = pytorch_cndev_based_mlu_check_previous_value
+        else:
+            os.environ.pop("PYTORCH_CNDEV_BASED_MLU_CHECK", None)
+
+    return available
+
+
+def is_flash_attn_2_available():
+    if not is_torch_available():
+        return False
+
+    if not is_package_available("flash_attn"):
+        return False
+
+    # Let's add an extra check to see if cuda is available
+    import torch
+
+    if not (torch.cuda.is_available() or is_torch_mlu_available()):
+        return False
+
+    if torch.version.cuda:
+        return version.parse(importlib.metadata.version("flash_attn")) >= version.parse("2.1.0")
+    elif torch.version.hip:
+        # TODO: Bump the requirement to 2.1.0 once released in https://github.com/ROCmSoftwarePlatform/flash-attention
+        return version.parse(importlib.metadata.version("flash_attn")) >= version.parse("2.0.4")
+    elif is_torch_mlu_available():
+        return version.parse(importlib.metadata.version("flash_attn")) >= version.parse("2.3.3")
+    else:
+        return False
+    
+
 def get_valid_subdirs(root_dir: str) -> List[str]:
     """获取所有包含 __init__.py 的有效子目录"""
     subdirs = []

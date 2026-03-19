@@ -30,6 +30,7 @@ from .internvl import *
 from .llama import *
 from .minicpm import *
 from .minicpmv import *
+from .minicpm_lama3_v import *
 from .mllama import *
 from .modernbert import *
 from .nezha import *

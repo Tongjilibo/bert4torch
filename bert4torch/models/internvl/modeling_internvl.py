@@ -1,9 +1,9 @@
 from typing import List, Optional, Tuple, Union
 from ..qwen2 import Qwen2
 from ..llama import LLaMA
-from ..modeling_utils import inference_mode
 from ..base import PreTrainedModelForDecoder, register_model
-from bert4torch.snippets import DotDict, log_warn_once
+from bert4torch.snippets import DotDict, log_warn_once, is_flash_attn_2_available
+from .modeling_intern_vit import InternVisionModel
 import torch
 from torch import nn
 
@@ -17,14 +17,13 @@ class InternVL(PreTrainedModelForDecoder):
         self.config = DotDict(config)
         self.select_layer = self.config.select_layer
         self.downsample_ratio = self.config.downsample_ratio
-        use_flash_attn = has_flash_attn if has_flash_attn else False
+        use_flash_attn = getattr(config, 'use_flash_attn', None) and is_flash_attn_2_available()
         self.config.vision_config.use_flash_attn = True if use_flash_attn else False
         self.config._attn_implementation = 'flash_attention_2' if use_flash_attn else 'eager'
         self.ps_version = self.config.ps_version
         self.img_context_token_id = self.config.img_context_token_id
 
         # 模型结构
-        from .modeling_intern_vit import InternVisionModel, has_flash_attn
         self.vision_model = InternVisionModel(self.config.vision_config)
         if self.config.model_llm == 'llama':
             self.language_model = LLaMA(**self.config)

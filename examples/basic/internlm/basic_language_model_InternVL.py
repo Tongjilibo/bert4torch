@@ -8,9 +8,7 @@ bert4torch_config.json见readme
 
 from bert4torch.pipelines import Chat
 from bert4torch.snippets import log_info
-from bert4torch.models import build_transformer_model
 from PIL import Image
-import requests
 
 
 # InternVL2_5-1B
@@ -18,8 +16,8 @@ import requests
 # InternVL2_5-4B
 # InternVL2_5-8B
 model_dir = '/data/pretrain_ckpt/OpenGVLab/InternVL2_5-1B'
-image1 = Image.open(requests.get("https://hf-mirror.com/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg", stream=True).raw).convert('RGB')
-image2 = Image.open(requests.get("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg", stream=True).raw).convert('RGB')
+image1 = Image.open('./data/images/rabbit.jpg').convert('RGB')
+image2 = Image.open('./data/images/beach.jpeg').convert('RGB')
 
 
 def chat_demo():
@@ -30,15 +28,13 @@ def chat_demo():
         'top_k': 40
     }
 
-    system_prompt = """You are an AI assistant whose name is InternLM (书生·浦语).
-    - InternLM (书生·浦语) is a conversational language model that is developed by Shanghai AI Laboratory (上海人工智能实验室). It is designed to be helpful, honest, and harmless.
-    - InternLM (书生·浦语) can understand and communicate fluently in the language chosen by the user such as English and 中文."""
+    system_prompt = """你是书生·万象，英文名是InternVL，是由上海人工智能实验室、清华大学及多家合作单位联合开发的多模态大语言模型。"""
 
     demo = Chat(model_dir, 
-                    system=system_prompt,
-                    generation_config=generation_config,
-                    mode='raw'
-                    )
+                system=system_prompt,
+                generation_config=generation_config,
+                mode='raw'
+                )
     log_info('pure-text conversation (纯文本对话)')
     question = '你是谁'
     response = demo.chat(question)

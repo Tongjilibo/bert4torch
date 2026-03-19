@@ -664,6 +664,7 @@ class MiniCPMV(ChatVLBase):
         history = self.update_history(history, query_list, image_list, raw_images=images)
         return inputs
 
+
 @register_vlm(name='qwen2_vl')
 @register_vlm(name='qwen2_5_vl')
 @register_vlm(name='qwen3_vl')
@@ -904,9 +905,9 @@ class InternVL(ChatVLBase):
 
         history = self.update_history(history, query_list, image_list, raw_images=images)
         self.tokenizer.padding_side = 'left'
-        inputs = self.tokenizer(query_input, return_tensors='pt', padding=True).to(self.device)
+        model_inputs = self.tokenizer(query_input, return_tensors='pt', padding=True).to(self.device)
         if all([i is not None for i in pixel_values_list]):
-            inputs['pixel_values'] = torch.cat(pixel_values_list, dim=0)
+            model_inputs['pixel_values'] = torch.cat(pixel_values_list, dim=0)
         else:
-            inputs['pixel_values'] = None
-        return inputs
+            model_inputs['pixel_values'] = None
+        return model_inputs

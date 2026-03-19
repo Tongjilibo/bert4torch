@@ -365,6 +365,20 @@ def get_weight_decay_optim_groups(module:nn.Module, weight_decay:float) -> dict:
     return optim_groups
 
 
+def _prepare_4d_attention_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    """
+    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+    """
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+
+    inverted_mask = torch.tensor(1.0, dtype=dtype) - expanded_mask
+
+    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+
+
 if version.parse(torch.__version__) >= version.parse("1.10.0"):
     inference_mode = torch.inference_mode
 else:

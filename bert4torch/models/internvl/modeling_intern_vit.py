@@ -9,29 +9,17 @@ import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
-from bert4torch.snippets import log_warn, log_info, safe_import
-
-with safe_import():
-    from transformers.activations import ACT2FN
-    from transformers.modeling_outputs import (BaseModelOutput, BaseModelOutputWithPooling)
-    from transformers.modeling_utils import PreTrainedModel
-    from transformers.configuration_utils import PretrainedConfig
-
-
+from bert4torch.snippets import log_warn, log_info, safe_import, is_flash_attn_2_available, DotDict
+from bert4torch.activations import ACT2FN
 try:
     from einops import rearrange
 except:
     pass
 
 
-try:
+if is_flash_attn_2_available():
     from flash_attn.bert_padding import pad_input, unpad_input
-    from flash_attn.flash_attn_interface import \
-        flash_attn_varlen_qkvpacked_func
-    has_flash_attn = True
-except:
-    # print('FlashAttention2 is not installed.')
-    has_flash_attn = False
+    from flash_attn.flash_attn_interface import flash_attn_varlen_qkvpacked_func
 
 
 def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
@@ -219,9 +207,12 @@ class InternAttention(nn.Module):
         self.config = config
         self.embed_dim = config.hidden_size
         self.num_heads = config.num_attention_heads
-        self.use_flash_attn = config.use_flash_attn and has_flash_attn
-        if config.use_flash_attn and not has_flash_attn:
-            print('Warning: Flash Attention is not available, use_flash_attn is set to False.')
+        self.use_flash_attn =  False
+        if getattr(config, 'use_flash_attn', None):
+            if not is_flash_attn_2_available():
+                print('Warning: Flash Attention is not available, use_flash_attn is set to False.')
+            else:
+                self.use_flash_attn =  True
         self.head_dim = self.embed_dim // self.num_heads
         if self.head_dim * self.num_heads != self.embed_dim:
             raise ValueError(
@@ -356,7 +347,7 @@ class InternVisionEncoder(nn.Module):
             inputs_embeds,
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutput]:
+    ):
         r"""
         Args:
             inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
@@ -393,19 +384,17 @@ class InternVisionEncoder(nn.Module):
 
         if not return_dict:
             return tuple(v for v in [hidden_states, encoder_states] if v is not None)
-        return BaseModelOutput(
-            last_hidden_state=hidden_states, hidden_states=encoder_states
-        )
+        return DotDict(last_hidden_state=hidden_states, hidden_states=encoder_states)
 
 
-class InternVisionModel(PreTrainedModel):
+class InternVisionModel(nn.Module):
     main_input_name = 'pixel_values'
     _supports_flash_attn_2 = True
     _no_split_modules = ['InternVisionEncoderLayer']
 
     def __init__(self, config):
-        config = PretrainedConfig(**config)
-        super().__init__(config)
+        super().__init__()
+        config = DotDict(config)
         self.config = config
 
         self.embeddings = InternVisionEmbeddings(config)
@@ -432,7 +421,7 @@ class InternVisionModel(PreTrainedModel):
             output_hidden_states: Optional[bool] = None,
             return_dict: Optional[bool] = None,
             pixel_embeds: Optional[torch.FloatTensor] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPooling]:
+    ):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -459,9 +448,8 @@ class InternVisionModel(PreTrainedModel):
         if not return_dict:
             return (last_hidden_state, pooled_output) + encoder_outputs[1:]
 
-        return BaseModelOutputWithPooling(
+        return DotDict(
             last_hidden_state=last_hidden_state,
             pooler_output=pooled_output,
-            hidden_states=encoder_outputs.hidden_states,
-            attentions=encoder_outputs.attentions,
+            hidden_states=encoder_outputs.hidden_states
         )

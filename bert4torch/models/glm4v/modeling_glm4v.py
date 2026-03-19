@@ -1,5 +1,6 @@
 from bert4torch.models.glm4 import Glm4
 from ..base import PreTrainedModelForDecoder, register_model
+from .visual import EVA2CLIPModel
 from bert4torch.snippets import DotDict
 import torch
 from typing import Optional, List
@@ -21,7 +22,6 @@ class Glm4v(PreTrainedModelForDecoder):
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DotDict(config)
-        from .visual import EVA2CLIPModel
         self.vision = EVA2CLIPModel(self.config)
         self.llm = Glm4(**config)
 

@@ -18,14 +18,10 @@ from bert4torch.layers.position_encoding import (
 )
 from bert4torch.layers.layer_norm import LayerNorm, RMSNorm
 from bert4torch.activations import get_activation
-from bert4torch.snippets import log_warn_once, is_xformers_available, create_registrar
-from bert4torch.layers.attention.attention_utils import eager_attention_forward, sdpa_attention_forward, flash_attention_forward
+from bert4torch.snippets import log_warn_once, create_registrar
+from bert4torch.layers.attention.attention_utils import eager_attention_forward, ALL_ATTENTION_FUNCTIONS
 from typing import Literal, Optional, Tuple, Dict, Type
 import copy
-
-
-if is_xformers_available():
-    from xformers import ops as xops
 
 
 ATTENTION_MAP: Dict[str, Type[nn.Module]] = {}
@@ -43,7 +39,6 @@ class MultiHeadAttention(nn.Module):
     :param output_attentions: bool，是否返回attention_scores，默认为False
     :param bias: bool, qkvo的weight是否包含bias，默认为True
     :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
-    :param use_logn_attn: bool，是否使用use_logn_attn, 默认为None
     :param layer_idx: int，transformer block的层序号
     '''
     def __init__(self, 
@@ -54,7 +49,6 @@ class MultiHeadAttention(nn.Module):
                  attention_scale:bool=True,
                  output_attentions:bool=False, 
                  _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
-                 use_logn_attn:bool=None, 
                  layer_idx:int=None,
                  num_key_value_heads:int=None,
                  **kwargs):
@@ -71,7 +65,6 @@ class MultiHeadAttention(nn.Module):
         self.sliding_window = kwargs.get('sliding_window')
         self.max_window_layers = kwargs.get('max_window_layers')
         self._attn_implementation = _attn_implementation  # attention的实现
-        self.use_logn_attn = use_logn_attn # 使用logn_attn
         self.max_position_embeddings = kwargs.get('max_position_embeddings')
         # t5_pegasus_small中hidden_size/num_attention_heads != 0
         # 苏神的roberta small中qk的维度和v不同
@@ -140,10 +133,6 @@ class MultiHeadAttention(nn.Module):
         # key_states shape: [batch_size, num_attention_heads, key_len, attention_head_size]
         # value_states shape: [batch_size, num_attention_heads, value_len, attention_head_size]
 
-        # 使用logn_attn
-        if self.use_logn_attn:
-            query_states *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position_embeddings)).clip(1).to(query_states.dtype)
-
         # past_key_values
         if self.is_decoder and (not self.training):  # 仅推理是记录
             past_key_value = (key_states, value_states)
@@ -170,20 +159,18 @@ class MultiHeadAttention(nn.Module):
     def attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                           attention_mask:torch.Tensor, past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, **kwargs):
         '''各类attention的实现, 方便继承'''
-        if (self._attn_implementation == 'xformers') and self.training:
-            # xformers
-            context_layer = xops.memory_efficient_attention(query_states, key_states, value_states, attn_bias=xops.LowerTriangularMask())
-            attention_scores = None
-        elif self._attn_implementation in {True, 'sdpa'}:
-            # SDPA
-            context_layer, attention_scores = sdpa_attention_forward(self, query_states, key_states, value_states, attention_mask)
-        elif self._attn_implementation == 'flash_attn_2':
-            # flash_attn
-            context_layer, attention_scores = flash_attention_forward(self, query_states, key_states, value_states, attention_mask, 
-                                                                      past_key_value=past_key_value)
-        if self._attn_implementation in {None, 'eager'}:
-            # torch原生实现
-            context_layer, attention_scores = eager_attention_forward(self, query_states, key_states, value_states, attention_mask)
+        attention_interface = ALL_ATTENTION_FUNCTIONS[self._attn_implementation]
+        context_layer, attention_scores = attention_interface(
+            self,
+            query_states,
+            key_states,
+            value_states,
+            attention_mask,
+            dropout=0.0 if not self.training else self.attention_probs_dropout_prob,
+            scaling=self.scaling,
+            past_key_value=past_key_value,
+            **kwargs,
+        )
         return context_layer, attention_scores
 
     def repeat_kv(self, hidden_states):
@@ -212,10 +199,6 @@ class MultiHeadAttention(nn.Module):
             new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
-   
-    def apply_attention_scale(self, attention_scores):
-        '''方便子类继承'''
-        return attention_scores * self.scaling
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         return attention_scores
@@ -362,6 +345,8 @@ class AlibiAttention(MultiHeadAttention):
     '''alibi相对位置编码'''
     def init_position_encoding(self, **kwargs):
         self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
+        self.scaling_raw = self.scaling_raw
+        self.scaling = 1.0
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         attention_scores = self.apply_alibi_pos_emb(attention_scores, key_states)
@@ -369,7 +354,7 @@ class AlibiAttention(MultiHeadAttention):
     
     def apply_alibi_pos_emb(self, attention_scores, key_states):
         ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
-        attention_scores = self.apply_attention_scale(attention_scores)
+        attention_scores = attention_scores * self.scaling_raw
         key_position_scores_r_t = self.relative_positions_encoding(key_states)
         attention_scores = attention_scores + key_position_scores_r_t
         attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
@@ -476,6 +461,22 @@ class RopeAttention(MultiHeadAttention):
             key_states = torch.cat([past_key_value[0], key_states], dim=2)
             value_states = torch.cat([past_key_value[1], value_states], dim=2)
 
+        return query_states, key_states, value_states, attention_mask
+
+
+@register_attn()
+class QwenAttention(RopeAttention):
+    '''Qwen1使用的logn attention'''
+    def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
+        query_states, key_states, value_states, attention_mask = super()._get_qkv_states(
+            hidden_states=hidden_states, 
+            attention_mask=attention_mask, 
+            encoder_hidden_states=encoder_hidden_states, 
+            encoder_attention_mask=encoder_attention_mask, 
+            past_key_value=past_key_value, 
+            position_ids=position_ids
+        )
+        query_states *= ((position_ids + 1)[:, None, :, None].log() / np.log(self.max_position_embeddings)).clip(1).to(query_states.dtype)
         return query_states, key_states, value_states, attention_mask
 
 

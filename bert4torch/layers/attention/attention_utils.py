@@ -1,8 +1,17 @@
 import torch
 import torch.nn.functional as F
-from typing import List, Optional, Tuple, Union
-from bert4torch.snippets import log_warn_once, is_flash_attn_available
+from typing import List, Optional, Tuple, Union, Dict, Type, Callable
+from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
 import inspect
+from bert4torch.snippets import create_registrar
+
+
+if is_xformers_available():
+    from xformers import ops as xops
+
+
+ALL_ATTENTION_FUNCTIONS: Dict[str, Type[Callable]] = {}
+regiister_attn_forward = create_registrar(ALL_ATTENTION_FUNCTIONS)
 
 
 if is_flash_attn_available():
@@ -27,83 +36,92 @@ def is_causal_mask(attention_mask_4d:torch.Tensor, ignore_left_padding=True):
     return torch.all(tril_mask_fill_left0 == attention_mask_4d.int())
 
 
+@regiister_attn_forward(name='eager')
 def eager_attention_forward(
     module: torch.nn.Module,
-    query_states: torch.FloatTensor, 
-    key_states: torch.FloatTensor, 
-    value_states: torch.FloatTensor, 
+    query: torch.FloatTensor, 
+    key: torch.FloatTensor, 
+    value: torch.FloatTensor, 
     attention_mask: torch.Tensor,
+    scaling: float,
+    dropout: float = 0.0,
     return_dict_name: List[str] = None,
     **kwargs,
 ) -> torch.Tensor:
     '''qkv attention: torch原生实现'''
     # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
-    attention_scores = torch.matmul(query_states, key_states.transpose(-1, -2))
+    attention_scores = torch.matmul(query, key.transpose(-1, -2))
 
     # 相对位置编码
-    attention_scores = module.apply_relative_pos_emb(query_states, key_states, attention_scores)
+    attention_scores = module.apply_relative_pos_emb(query, key, attention_scores)
 
-    if module.attention_scale:
-        # 是否进行attention scale
-        attention_scores = module.apply_attention_scale(attention_scores)
+    # scaling
+    attention_scores = attention_scores * scaling
     
     # 执行attention mask，对于mask为0部分的attention mask，
     # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
     if attention_mask is not None:
         # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
         # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
-        attention_mask = (1.0 - attention_mask) * torch.finfo(query_states.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
+        attention_mask = (1.0 - attention_mask) * torch.finfo(query.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
         attention_scores = attention_scores + attention_mask
 
     # 将attention score 归一化到0-1
-    attention_probs = F.softmax(attention_scores, dim=-1, dtype=torch.float32).to(query_states.dtype)
+    attention_probs = F.softmax(attention_scores, dim=-1, dtype=torch.float32).to(query.dtype)
     attention_probs = module.dropout(attention_probs)
-    context_layer = torch.matmul(attention_probs, value_states)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+    context_layer = torch.matmul(attention_probs, value)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
     if return_dict_name:
         return {name: locals()[name] for name in return_dict_name}
     return context_layer, attention_scores
     
 
+@regiister_attn_forward(name='sdpa')
 def sdpa_attention_forward(
     module: torch.nn.Module,
-    query_states: torch.FloatTensor, 
-    key_states: torch.FloatTensor, 
-    value_states: torch.FloatTensor, 
+    query: torch.FloatTensor, 
+    key: torch.FloatTensor, 
+    value: torch.FloatTensor, 
     attention_mask: torch.Tensor,
+    dropout: float = 0.0,
+    scaling: Optional[float] = None,
     **kwargs,
 ) -> torch.Tensor:
     '''sdpa: torch2.0新特性'''
     # 适用于qlen=klen, 测试下来is_causal=True训练更快
-    query_states = query_states.contiguous()
-    key_states = key_states.contiguous()
-    value_states = value_states.contiguous()
+    query = query.contiguous()
+    key = key.contiguous()
+    value = value.contiguous()
     is_causal = False
-    if (key_states.shape[2] == query_states.shape[2]) and \
+    if (key.shape[2] == query.shape[2]) and \
         (torch.all(attention_mask == 1) or is_causal_mask(attention_mask, ignore_left_padding=False)):
         is_causal = True
-    min_dtype = torch.finfo(query_states.dtype).min
+    min_dtype = torch.finfo(query.dtype).min
     attention_mask = (1.0 - attention_mask) * min_dtype
     attention_mask = attention_mask.mul(~torch.all(attention_mask == min_dtype, dim=-1, keepdim=True))  # 将padding部分的mask值变为0
     context_layer = F.scaled_dot_product_attention(
-        query_states, 
-        key_states, 
-        value_states, 
+        query, 
+        key, 
+        value, 
         attn_mask = None if is_causal else attention_mask,
-        dropout_p = module.attention_probs_dropout_prob if module.training else 0.0,
-        scale = module.scaling,
+        dropout_p = dropout,
+        scale = scaling,
         is_causal = is_causal
         )
     return context_layer, None
 
 
+@regiister_attn_forward(name='flash_attention')
 def flash_attention_forward(
     module: torch.nn.Module,
-    query_states: torch.FloatTensor, 
-    key_states: torch.FloatTensor, 
-    value_states: torch.FloatTensor, 
+    query: torch.FloatTensor, 
+    key: torch.FloatTensor, 
+    value: torch.FloatTensor, 
     attention_mask: torch.Tensor, 
-    past_key_value: Union[Tuple[torch.Tensor]], 
+    dropout: float = 0.0,
+    scaling: Optional[float] = None,
+    sliding_window: Optional[int] = None,
+    past_key_value: Union[Tuple[torch.Tensor]]=None, 
     **kwargs,
 ) -> torch.Tensor:
     """ flash_attn，参考transformers中的调用
@@ -142,8 +160,8 @@ def flash_attention_forward(
         if (module.max_window_layers is not None) and (module.layer_idx >= module.max_window_layers):
             return False
 
-        kv_seq_len = key_states.shape[1]  # [btz, n_heads, seq_len, d_head]
-        use_sliding_windows = (_flash_supports_window_size and module.sliding_window is not None and kv_seq_len > module.sliding_window)
+        kv_seq_len = key.shape[1]  # [btz, n_heads, seq_len, d_head]
+        use_sliding_windows = (_flash_supports_window_size and sliding_window is not None and kv_seq_len > sliding_window)
 
         if use_sliding_windows and not _flash_supports_window_size:
             log_warn_once(
@@ -159,15 +177,15 @@ def flash_attention_forward(
     def _run_sliding_windows(key_states, value_states, past_key_value, attention_mask):
         '''sliding_window部分'''
         # Activate slicing cache only if the config has a value `sliding_windows` attribute
-        slicing_tokens = -module.sliding_window
+        slicing_tokens = -sliding_window
 
         past_key = past_key_value[0][:, :, slicing_tokens:, :].contiguous()
         past_value = past_key_value[1][:, :, slicing_tokens:, :].contiguous()
         past_key_value = (past_key, past_value)
 
-        if past_key.shape[-2] != module.sliding_window:
+        if past_key.shape[-2] != sliding_window:
             raise ValueError(
-                f"past key must have a shape of (`batch_size, num_heads, module.sliding_window-1, head_dim`), got"
+                f"past key must have a shape of (`batch_size, num_heads, sliding_window-1, head_dim`), got"
                 f" {past_key.shape}"
             )
 
@@ -184,49 +202,47 @@ def flash_attention_forward(
         key_states = key_states.transpose(1,2)
         value_states = value_states.transpose(1,2)
         return query_states, key_states, value_states
-    
-    dropout = 0.0 if not module.training else module.attention_probs_dropout_prob
-    
+        
     is_causal = is_causal_mask(attention_mask)
-    query_length = query_states.shape[-2]  # [batch_size, num_attention_heads, query_len, attention_head_size]
+    query_length = query.shape[-2]  # [batch_size, num_attention_heads, query_len, attention_head_size]
     if (not is_causal) and (attention_mask.shape[1:3] == torch.Size([1,1])):
-        query_states, key_states, value_states = _transpose(query_states, key_states, value_states)
+        query, key, value = _transpose(query, key, value)
         use_sliding_windows = _use_sliding_windows()
         if use_sliding_windows:
-            key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
+            key, value, past_key_value, attention_mask = _run_sliding_windows(key, value, past_key_value, attention_mask)
 
         # flash attention目前仅支持key_padding_mask
         attn_mask = attention_mask[:,0,0,:]  # 将4维的attention_mask降低为2维
-        batch_size = query_states.shape[0]
-        query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
-            module, query_states, key_states, value_states, attn_mask, query_length)
+        batch_size = query.shape[0]
+        query, key, value, indices_q, cu_seq_lens, max_seq_lens = _upad_input(
+            module, query, key, value, attn_mask, query_length)
 
         cu_seqlens_q, cu_seqlens_k = cu_seq_lens
         max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
         attn_output_unpad = flash_attn_varlen_func(
-            query_states, 
-            key_states, 
-            value_states, 
+            query, 
+            key, 
+            value, 
             cu_seqlens_q=cu_seqlens_q, 
             cu_seqlens_k=cu_seqlens_k, 
             max_seqlen_q=max_seqlen_in_batch_q,
             max_seqlen_k=max_seqlen_in_batch_k, 
             dropout_p=dropout, 
-            softmax_scale=module.scaling, 
+            softmax_scale=scaling, 
             causal=False, 
-            window_size=(module.sliding_window, module.sliding_window) if use_sliding_windows else (-1, -1)
+            window_size=(sliding_window, sliding_window) if use_sliding_windows else (-1, -1)
         )
         attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
 
     elif is_causal:
-        query_states, key_states, value_states = _transpose(query_states, key_states, value_states)
+        query, key, value = _transpose(query, key, value)
         # attention_mask满足下三角的causal
         use_sliding_windows = _use_sliding_windows()
         if use_sliding_windows:
-            key_states, value_states, past_key_value, attention_mask = _run_sliding_windows(key_states, value_states, past_key_value, attention_mask)
+            key, value, past_key_value, attention_mask = _run_sliding_windows(key, value, past_key_value, attention_mask)
 
-        attn_output = flash_attn_func(query_states, key_states, value_states, dropout, softmax_scale=module.scaling, causal=True,
-                                        window_size=(module.sliding_window, module.sliding_window) if use_sliding_windows else (-1, -1))
+        attn_output = flash_attn_func(query, key, value, dropout, softmax_scale=scaling, causal=True,
+                                        window_size=(sliding_window, sliding_window) if use_sliding_windows else (-1, -1))
     
     elif is_causal:
         # 使用torch的attention计算
@@ -235,3 +251,17 @@ def flash_attention_forward(
         return attn_output, None
 
     return attn_output.transpose(1,2), None
+
+
+def xformers_attention_forward(
+    module: torch.nn.Module,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    scaling: float,
+    dropout: float = 0.0,
+    **kwargs,
+):
+    context_layer = xops.memory_efficient_attention(query, key, value, attn_bias=xops.LowerTriangularMask())
+    return context_layer, None

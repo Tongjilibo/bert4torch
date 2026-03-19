@@ -1,18 +1,19 @@
 from PIL import Image
-from bert4torch.pipelines.chat.big_modeling_vlm import MiniCPMV
+from bert4torch.pipelines.big_modeling_vlm import MiniCPMV
 from bert4torch.snippets import log_info
 import requests
 from bert4torch.pipelines import Chat
 
 
-# model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-Llama3-V-2_5"
-model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-V-2_6"
+model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-Llama3-V-2_5"
+# model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-V-2_6"
+
 
 def chat_demo1():
     query1 = '介绍一下这张图片的内容？'
     query2 = '图片中的主体对象是什么？'
-    image1 = Image.open(requests.get("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg", stream=True).raw).convert('RGB')
-    image2 = Image.open(requests.get("https://picx.zhimg.com/v2-87a5a6d5a1536368eb6b2412d1c0a985_b.jpg", stream=True).raw).convert('RGB')
+    image1 = Image.open('./data/images/rabbit.jpg').convert('RGB')
+    image2 = Image.open('./data/images/beach.jpeg').convert('RGB')
 
     demo = MiniCPMV(model_dir)
 

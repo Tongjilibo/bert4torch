@@ -240,7 +240,7 @@ class AutoFeatureExtractor:
             feature_extractor_auto_map = config_dict["auto_map"]["AutoFeatureExtractor"]
 
 
-        if feature_extractor_class is not None:
+        if feature_extractor_class is not None and feature_extractor_class not in FEATURE_EXTRACTOR_MAPPING:
             feature_extractor_class = FEATURE_EXTRACTOR_MAPPING[feature_extractor_class]
 
         has_remote_code = feature_extractor_auto_map is not None

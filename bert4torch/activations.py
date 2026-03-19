@@ -13,7 +13,8 @@ ACT2FN = {
     "relu": nn.functional.relu,
     "tanh": torch.tanh,
     "sigmoid": torch.sigmoid,
-    "softmax": nn.Softmax(dim=-1)
+    "softmax": nn.Softmax(dim=-1),
+    "gelu_pytorch_tanh": lambda input: nn.functional.gelu(input, approximate="tanh")
 }
 register_act = create_registrar(ACT2FN)
 
