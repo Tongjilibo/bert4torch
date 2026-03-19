@@ -11,7 +11,7 @@ import pytest
 @pytest.mark.parametrize("model_name", ['google-bert/bert-base-chinese',
                                         "hfl/chinese-bert-wwm-ext"])
 def test_hf_download(model_name):
-    model = build_transformer_model(checkpoint_path=model_name, with_mlm='softmax')
+    model = build_transformer_model(model_name, with_mlm='softmax')
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     inputtext = "今天[MASK]情很好"

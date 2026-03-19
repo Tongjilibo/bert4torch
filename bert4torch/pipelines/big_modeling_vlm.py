@@ -12,7 +12,7 @@
 
 import torch
 from typing import Union, Optional, List, Tuple, Literal, Dict, Type
-from .llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
+from .big_modeling_llm import ChatBase, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi
 from bert4torch.models.qwen2_vl.vision_process import MIN_PIXELS, MAX_PIXELS
 from bert4torch.models.internvl.vision_process import fetch_image
 from bert4torch.models.auto import AutoProcessor
@@ -148,7 +148,7 @@ class ChatVLBase(ChatBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.return_tensorDict_from_build_prompt = True  # build_prompt返回的是字典
-        self.processor = AutoProcessor.from_pretrained(self.checkpoint_path, trust_remote_code=True)
+        self.processor = AutoProcessor.from_pretrained(self.pretrained_model_name_or_path, trust_remote_code=True)
 
     @staticmethod
     def trans_history_format(history, format:Literal['openai', 'raw']='openai'):

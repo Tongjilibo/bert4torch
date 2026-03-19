@@ -44,7 +44,7 @@ from contextlib import asynccontextmanager
 import threading
 import re
 import copy
-from .conversation import Conversation
+from .big_modeling_conversation import Conversation
 from bert4torch.models.auto import AutoTokenizer
 
 
@@ -107,7 +107,7 @@ If a question does not make any sense, or is not factually coherent, explain why
 """
 
 CHAT_START_DOCSTRING = r"""
-    :param checkpoint_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
+    :param pretrained_model_name_or_path: str, 模型权重地址，可以是所在文件夹、文件地址、文件地址列表
     :param torch_dtype: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quant_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
@@ -120,15 +120,14 @@ CHAT_START_DOCSTRING = r"""
 # ==========================================================================================
 @add_start_docstrings(CHAT_START_DOCSTRING)
 class ChatBase(PipeLineBase):
-    def __init__(self, checkpoint_path:str, config_path:str=None, 
+    def __init__(self, pretrained_model_name_or_path:str, 
                  torch_dtype:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, generation_config:dict=None, 
                  create_model_at_startup:bool=True, system:str=None, **kwargs):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.checkpoint_path = checkpoint_path
-        self.config_path = config_path or checkpoint_path
+        self.pretrained_model_name_or_path = pretrained_model_name_or_path
         # generation_config顺序：config -> 显式传入generation_config -> kwargs
-        config_path_tmp = get_config_path(self.config_path, allow_none=True)
+        config_path_tmp = get_config_path(self.pretrained_model_name_or_path, allow_none=True)
         if config_path_tmp is not None:
             self.config = JsonConfig(config_path_tmp)
             self.generation_config = self.config.get('generation_config', dict())
@@ -161,17 +160,7 @@ class ChatBase(PipeLineBase):
         '''初始化tokenizer'''
         init_kwargs = {'additional_special_tokens'}
         new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
-        try:
-            return AutoTokenizer.from_pretrained(self.checkpoint_path, trust_remote_code=True, **new_kwargs)
-        except Exception as e:
-            _, transformer_version = is_package_available('transformers', return_version=True)
-            config_tmp = os.path.join(self.checkpoint_path, 'config.json')
-            request_version = JsonConfig(config_tmp).get('transformers_version') if os.path.exists(config_tmp) else None
-            if request_version is not None:
-                log_error(f'Please check your transformers=={transformer_version}, while transformers=={request_version} requested.')
-            else:
-                log_error(f'Please check your transformers=={transformer_version}, which may not compatible.')
-            raise e
+        return AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path, trust_remote_code=True, **new_kwargs)
         
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         '''对response和histry进行后处理
@@ -1839,7 +1828,7 @@ class ChineseLlamaAlpaca(ChatBase):
 @register_llm(name="belle")
 class Belle(ChatBase):
     def build_tokenizer(self, **kwargs):
-        return AutoTokenizer.from_pretrained(self.checkpoint_path, use_fast=False)
+        return AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path, use_fast=False)
     
     def build_prompt(self, query:str, history:List[dict], functions:List[dict]=None) -> str:
         if functions is not None: 

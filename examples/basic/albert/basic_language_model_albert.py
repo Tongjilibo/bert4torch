@@ -10,14 +10,8 @@ inputtext = "天气不[MASK]，想出去玩玩"
 
 
 # ==========================bert4torch调用==========================
-# 加载模型，请更换成自己的路径
-vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert4torch_config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
-
-# 建立分词器
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
+tokenizer = Tokenizer(root_model_path + "/vocab.txt", do_lower_case=True)
+model = build_transformer_model(root_model_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode(inputtext)
 print(''.join(tokenizer.ids_to_tokens(token_ids)))

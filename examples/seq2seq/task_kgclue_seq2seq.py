@@ -198,7 +198,7 @@ valid_data = load_data('F:/data/corpus/kg/KgCLUE/dev.json')
 test_data = load_data('F:/data/corpus/kg/KgCLUE/test_public.json')
 
 
-model = build_transformer_model(config_path, checkpoint_path, model='roformer', application='unilm', add_trainer=True).to(device)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model='roformer', application='unilm', add_trainer=True).to(device)
 model.compile(loss=CausalLMLoss(offset=True, logits_index=1, ignore_index=0), optimizer=optim.Adam(model.parameters(), 5e-6))
 
 class AutoQA(AutoRegressiveDecoder):

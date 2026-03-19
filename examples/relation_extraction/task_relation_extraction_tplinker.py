@@ -117,7 +117,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
         self.combine_fc = nn.Linear(768*2, 768)
         self.ent_fc = nn.Linear(768, 2)
         self.head_rel_fc = nn.Linear(768, len(predicate2id)*3)

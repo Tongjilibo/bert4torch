@@ -20,6 +20,7 @@ from bert4torch.snippets import (
 
 @restore_default_torch_dtype
 def build_transformer_model(
+        pretrained_model_name_or_path: Union[str, os.PathLike]=None,
         config_path: Union[str, os.PathLike] = None, 
         checkpoint_path: Union[str, os.PathLike, list] = None, 
         model: Union[str, PreTrainedModel] = None, 
@@ -30,6 +31,7 @@ def build_transformer_model(
         ) -> Union[PreTrainedModel, BertBase, Transformer, Trainer]:
     """根据配置文件构建模型, 可选加载checkpoint权重, 类似AutoModel.from_pretrained(...)
 
+    :param pretrained_model_name_or_path: str, 模型名称或地址, 默认为None, 模型将使用默认配置构建
     :param config_path: str, 模型的config文件地址, 大部分模型都提供了bert4torch_config.json
     :param checkpoint_path: str/list[str], 模型文件/文件夹地址, 默认值None表示不加载预训练模型
     :param model: str, 加载的模型结构, 这里Model也可以基于nn.Module自定义后传入, 默认为'bert'
@@ -68,31 +70,30 @@ def build_transformer_model(
 
     Examples(支持几种加载方式):
     ```python
-    >>> # 1. 仅指定config_path: 从头初始化模型结构, 不加载预训练模型
-    >>> model = build_transformer_model('./model/bert4torch_config.json')
+    >>> # 1. 仅指定pretrained_model_name_or_path: 
+    >>> # 1.1 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
+    >>> model = build_transformer_model('google-bert/bert-base-chinese')
 
-    >>> # 2. 仅指定checkpoint_path: 
-    >>> # 2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json/config.json文件
-    >>> model = build_transformer_model(checkpoint_path='./model')
+    >>> # 1.2 本地文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json文件，需提前下载到本地
+    >>> model = build_transformer_model('/data/pretrained_models/google-bert/bert-base-chinese')
+    
+    >>> # 2. 同时指定config_path和checkpoint_path 
+    >>> config_path = './model/bert4torch_config.json'
+    >>> checkpoint_path = './model/pytorch_model.bin'
+    >>> model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 
-    >>> # 2.2 文件路径/列表: 文件路径即权重路径/列表, config会从同级目录下寻找
-    >>> model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
-
-    >>> # 2.3 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
-    >>> model = build_transformer_model(checkpoint_path='google-bert/bert-base-chinese')
-
-    >>> # 3. 同时指定config_path和checkpoint_path(本地路径名或model_name排列组合): 
-    >>> config_path = './model/bert4torch_config.json'  # 或'google-bert/bert-base-chinese'
-    >>> checkpoint_path = './model/pytorch_model.bin'  # 或'google-bert/bert-base-chinese'
-    >>> model = build_transformer_model(config_path, checkpoint_path)
+    >>> # 3. 仅指定config_path: 从头初始化模型结构, 不加载预训练模型
+    >>> model = build_transformer_model(config_path='./model/bert4torch_config.json')
     ```
     """
+    if pretrained_model_name_or_path is not None:
+        assert config_path is None and checkpoint_path is None, 'pretrained_model_name_or_path is not None, config_path and checkpoint_path should be None'
+    else:
+        assert config_path is not None, 'pretrained_model_name_or_path is None, config_path should not be None'
+
     # 校验checkpoint_path, config_path
-    config_path = get_config_path(config_path if config_path is not None else checkpoint_path, **kwargs)
-    checkpoint_path = get_checkpoint_path(checkpoint_path, **kwargs)
-    if (config_path is None) and (checkpoint_path is not None):
-        # 没有找到bert4torch_config.json，则从local的checkpoint_path去找
-        config_path = get_config_path(checkpoint_path, **kwargs)
+    config_path = get_config_path(pretrained_model_name_or_path or config_path, **kwargs)
+    checkpoint_path = get_checkpoint_path(pretrained_model_name_or_path or checkpoint_path, **kwargs)
 
     # config的修改
     config = check_update_config(config_path, **kwargs)
@@ -196,3 +197,9 @@ def check_update_config(config_path:str, **kwargs):
         config['_attn_implementation'] = 'eager'
 
     return DotDict(config)
+
+
+class AutoModel:
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *inputs, **kwargs):
+        return build_transformer_model(pretrained_model_name_or_path, *inputs, **kwargs)

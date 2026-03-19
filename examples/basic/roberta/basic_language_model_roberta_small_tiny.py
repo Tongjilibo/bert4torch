@@ -17,7 +17,7 @@ checkpoint_path = base_path + '/pytorch_model.bin'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 # 模型
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
 
 
 if __name__ == '__main__':

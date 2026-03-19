@@ -63,9 +63,8 @@ class SequenceClassificationTrainer(AutoTrainer):
     ```python
     >>> from bert4torch.trainer import SequenceClassificationTrainer
     >>> from bert4torch.models import build_transformer_model
-    >>> config_path = ''  # bert4torch_config.json路径
-    >>> checkpoint_path = ''  # 模型文件夹路径
-    >>> bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+    >>> pretrained_model_name_or_path = ''  # 模型路径或名称
+    >>> encoder = build_transformer_model(pretrained_model_name_or_path, with_pool=True)
     >>> model = SequenceClassificationTrainer(bert).to('cuda')
     ```
     '''

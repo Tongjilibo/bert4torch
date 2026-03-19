@@ -12,11 +12,10 @@ import time
 class PipeLineBase:
     '''基类
     '''
-    def __init__(self, checkpoint_path:str, config_path:str=None, device:str=None, 
+    def __init__(self, pretrained_model_name_or_path:str, device:str=None, 
                  torch_dtype:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, tokenizer_type:Literal['b4t', 'hf']='b4t', **kwargs) -> None:        
-        self.checkpoint_path = checkpoint_path
-        self.config_path = config_path or checkpoint_path
+        self.pretrained_model_name_or_path = pretrained_model_name_or_path
         self.torch_dtype = torch_dtype
         self.quantization_config = quantization_config
         if device is None:
@@ -24,7 +23,7 @@ class PipeLineBase:
         else:
             self.device = device
         
-        if (tokenizer_type == 'b4t') and os.path.exists(os.path.join(self.checkpoint_path, 'vocab.txt')):
+        if (tokenizer_type == 'b4t') and os.path.exists(os.path.join(self.pretrained_model_name_or_path, 'vocab.txt')):
             self.tokenizer_type = 'b4t'
         else:
             self.tokenizer_type = 'hf'
@@ -34,17 +33,17 @@ class PipeLineBase:
     
     def build_tokenizer(self, **kwargs):
         # TODO: 默认优先使用默认的Tokenizer，如果没有vocab文件，则使用AutoTokenizer，后续可能修改
-        if self.tokenizer_type == 'b4t':
-            tokenizer = Tokenizer(os.path.join(self.checkpoint_path, 'vocab.txt'), do_lower_case=True)
+        vocab_file = os.path.join(self.pretrained_model_name_or_path, 'vocab.txt')
+        if self.tokenizer_type == 'b4t' and os.path.isfile(vocab_file):
+            return Tokenizer(vocab_file, do_lower_case=True)
         else:
-            tokenizer = AutoTokenizer.from_pretrained(self.checkpoint_path)
-        return tokenizer
+            return AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path)
 
     def build_model(self, **model_init_config):
         '''初始化model, 方便外部继承'''
         if (not hasattr(self, 'model')) or (self.model is None):
             # 初始化
-            model = build_transformer_model(config_path=self.config_path, checkpoint_path=self.checkpoint_path, **model_init_config)
+            model = build_transformer_model(self.pretrained_model_name_or_path, **model_init_config)
             model.eval()
 
             # 精度

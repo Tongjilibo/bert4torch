@@ -21,8 +21,8 @@ import warnings
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Optional, Union
 from ...dynamic_module_utils import get_class_from_dynamic_module, resolve_trust_remote_code
-from ...utils import CONFIG_NAME, VIDEO_PROCESSOR_NAME, cached_file, is_torchvision_available, logging
-from ...utils.import_utils import requires
+from ...snippets import CONFIG_NAME, VIDEO_PROCESSOR_NAME, cached_file, is_torchvision_available, logging
+from ...snippets.import_utils import requires
 from ...processor.video_processing_utils import BaseVideoProcessor, VIDEO_PROCESSOR_MAPPING
 
 
@@ -92,7 +92,7 @@ def get_video_processor_config(
     video_processor_config = get_video_processor_config("FacebookAI/xlm-roberta-base")
 
     # Save a pretrained video processor locally and you can reload its config
-    from transformers import AutoVideoProcessor
+    from bert4torch import AutoVideoProcessor
 
     video_processor = AutoVideoProcessor.from_pretrained("llava-hf/llava-onevision-qwen2-0.5b-ov-hf")
     video_processor.save_pretrained("video-processor-test")
@@ -208,7 +208,7 @@ class AutoVideoProcessor:
         Examples:
 
         ```python
-        >>> from transformers import AutoVideoProcessor
+        >>> from bert4torch import AutoVideoProcessor
 
         >>> # Download video processor from huggingface.co and cache.
         >>> video_processor = AutoVideoProcessor.from_pretrained("llava-hf/llava-onevision-qwen2-0.5b-ov-hf")

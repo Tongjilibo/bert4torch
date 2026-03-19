@@ -33,7 +33,7 @@ import numpy as np
 from packaging import version
 from enum import Enum
 from ..dynamic_module_utils import custom_object_save
-from ..utils import (
+from ..snippets import (
     CHAT_TEMPLATE_DIR,
     CHAT_TEMPLATE_FILE,
     PushToHubMixin,
@@ -56,10 +56,10 @@ from ..utils import (
     to_py_obj,
     is_package_available
 )
-from ..utils.chat_template_utils import render_jinja_template
-from ..utils.import_utils import PROTOBUF_IMPORT_ERROR
-from ..utils.misc import create_registrar
-from ..utils import ExplicitEnum, PaddingStrategy, TensorType
+from ..snippets.chat_template_utils import render_jinja_template
+from ..snippets.import_utils import PROTOBUF_IMPORT_ERROR
+from ..snippets.misc import create_registrar
+from ..snippets import ExplicitEnum, PaddingStrategy, TensorType
 
 
 if TYPE_CHECKING:

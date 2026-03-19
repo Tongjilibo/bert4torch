@@ -30,7 +30,7 @@ print(predicted_token, logit_prob[predicted_index])
 
 
 # ==========================bert4torch调用==========================
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
 
 token_ids = tokenizer.encode(input_text)
 segments_ids = [0] * len(token_ids)

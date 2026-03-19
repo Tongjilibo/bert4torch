@@ -12,7 +12,7 @@ from .base import PipeLineBase
 
 class Text2Vec(PipeLineBase):
     '''句向量, 目前支持m3e, bge, simbert, text2vec-base-chinese
-    :param checkpoint_path: str, 模型所在文件夹地址
+    :param pretrained_model_name_or_path: str, 模型所在文件夹地址
     :param device: str, cpu/cuda
     :param model_config: dict, build_transformer_model时候用到的一些参数
 
@@ -20,15 +20,15 @@ class Text2Vec(PipeLineBase):
     >>> from bert4torch.pipelines import Text2Vec
     >>> sentences_1 = ["样例数据-1", "样例数据-2"]
     >>> sentences_2 = ["样例数据-3", "样例数据-4"]
-    >>> text2vec = Text2Vec(checkpoint_path='bge-small-zh-v1.5', device='cuda')
+    >>> text2vec = Text2Vec(pretrained_model_name_or_path='bge-small-zh-v1.5', device='cuda')
     >>> embeddings_1 = text2vec.encode(sentences_1, normalize_embeddings=True)
     >>> embeddings_2 = text2vec.encode(sentences_2, normalize_embeddings=True)
     >>> similarity = embeddings_1 @ embeddings_2.T
     >>> print(similarity)
     ```
     '''
-    def __init__(self, checkpoint_path:str, config_path:str=None, device:str=None, **kwargs) -> None:
-        super().__init__(checkpoint_path, config_path=config_path, device=device, **kwargs)
+    def __init__(self, pretrained_model_name_or_path:str, device:str=None, **kwargs) -> None:
+        super().__init__(pretrained_model_name_or_path, device=device, **kwargs)
         pooling = self.config.get('pooling', {})
         self.pool_strategy = self.config.get('pool_strategy', pooling.get('pool_strategy', 'cls'))  # 兼容老版本
         self.prompts = pooling.get('prompts', {})

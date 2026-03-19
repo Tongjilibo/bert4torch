@@ -1,5 +1,5 @@
 '''测试openai接口'''
-from bert4torch.utils import OpenaiClient, OpenaiClientSseclient, OpenaiClientAsync
+from bert4torch.snippets import OpenaiClient, OpenaiClientSseclient, OpenaiClientAsync
 from bert4torch.snippets import log_info
 import time
 import asyncio

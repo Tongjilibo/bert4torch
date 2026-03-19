@@ -36,7 +36,7 @@ from ...processor.image_utils import (
     SizeDict,
 )
 from ...processor.processing_utils import Unpack
-from ...utils import (
+from ...snippets import (
     TensorType,
     is_torch_available,
     is_torchvision_available,

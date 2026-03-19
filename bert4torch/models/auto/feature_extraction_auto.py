@@ -22,7 +22,7 @@ from typing import Optional, Union
 # Build the list of all feature extractors
 from ...dynamic_module_utils import get_class_from_dynamic_module, resolve_trust_remote_code
 from ...processor.feature_extraction_utils import FeatureExtractionMixin, FEATURE_EXTRACTOR_MAPPING
-from ...utils import CONFIG_NAME, FEATURE_EXTRACTOR_NAME, cached_file, logging
+from ...snippets import CONFIG_NAME, FEATURE_EXTRACTOR_NAME, cached_file, logging
 
 
 logger = logging.get_logger(__name__)
@@ -91,7 +91,7 @@ def get_feature_extractor_config(
     tokenizer_config = get_tokenizer_config("FacebookAI/xlm-roberta-base")
 
     # Save a pretrained tokenizer locally and you can reload its config
-    from transformers import AutoTokenizer
+    from bert4torch import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
     tokenizer.save_pretrained("tokenizer-test")
@@ -209,7 +209,7 @@ class AutoFeatureExtractor:
         Examples:
 
         ```python
-        >>> from transformers import AutoFeatureExtractor
+        >>> from bert4torch import AutoFeatureExtractor
 
         >>> # Download feature extractor from huggingface.co and cache.
         >>> feature_extractor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h")

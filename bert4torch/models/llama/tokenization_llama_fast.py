@@ -17,7 +17,7 @@ from shutil import copyfile
 from typing import Optional
 from tokenizers import processors
 from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast, register_tokenizer
-from ...utils import is_sentencepiece_available, logging
+from ...snippets import is_sentencepiece_available, logging
 
 
 if is_sentencepiece_available():
@@ -49,7 +49,7 @@ class LlamaTokenizerFast(PreTrainedTokenizerFast):
     This uses notably ByteFallback and no normalization.
 
     ```python
-    >>> from transformers import LlamaTokenizerFast
+    >>> from bert4torch import LlamaTokenizerFast
 
     >>> tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
     >>> tokenizer.encode("Hello this is a test")
@@ -96,7 +96,7 @@ class LlamaTokenizerFast(PreTrainedTokenizerFast):
 
             - `legacy=True`:
             ```python
-            >>> from transformers import LlamaTokenizerFast
+            >>> from bert4torch import LlamaTokenizerFast
 
             >>> tokenizer = LlamaTokenizerFast.from_pretrained("huggyllama/llama-7b", legacy=True, from_slow=True)
             >>> tokenizer.encode("Hello <s>.") # 869 is '▁.'
@@ -104,7 +104,7 @@ class LlamaTokenizerFast(PreTrainedTokenizerFast):
             ```
             - `legacy=False`:
             ```python
-            >>> from transformers import LlamaTokenizerFast
+            >>> from bert4torch import LlamaTokenizerFast
 
             >>> tokenizer = LlamaTokenizerFast.from_pretrained("huggyllama/llama-7b", legacy=False, from_slow=True)
             >>> tokenizer.encode("Hello <s>.")  # 29889 is '.'

@@ -33,7 +33,7 @@ from ...processor.image_utils import (
     get_image_size,
 )
 from ...processor.processing_utils import Unpack, VideosKwargs
-from ...utils import (
+from ...snippets import (
     TensorType,
     add_start_docstrings,
     is_torch_available,
@@ -41,7 +41,7 @@ from ...utils import (
     is_torchvision_v2_available,
     is_vision_available,
 )
-from ...utils.import_utils import requires
+from ...snippets.import_utils import requires
 from ...processor.video_processing_utils import (
     BASE_VIDEO_PROCESSOR_DOCSTRING,
     BaseVideoProcessor,

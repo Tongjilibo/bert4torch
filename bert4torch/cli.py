@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import sys
-from .pipelines.chat import run_llm_serve
+from .pipelines.chat.big_modeling_entrypoint import run_llm_serve
 from enum import Enum, unique
 
 

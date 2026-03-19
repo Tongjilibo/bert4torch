@@ -25,8 +25,8 @@ from packaging import version
 from tokenizers import AddedToken, Regex, Tokenizer, decoders, normalizers, pre_tokenizers, processors
 from tokenizers.models import BPE, Unigram, WordPiece
 
-from ..utils import is_protobuf_available, is_sentencepiece_available, logging
-from ..utils.import_utils import PROTOBUF_IMPORT_ERROR
+from ..snippets import is_protobuf_available, is_sentencepiece_available, logging
+from ..snippets.import_utils import PROTOBUF_IMPORT_ERROR
 
 
 logger = logging.get_logger(__name__)

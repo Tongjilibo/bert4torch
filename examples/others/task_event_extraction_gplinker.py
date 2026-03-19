@@ -138,7 +138,7 @@ valid_dataset = MyDataset(valid_path)
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert = build_transformer_model(config_path, checkpoint_path)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
         self.argu_output = EfficientGlobalPointer(hidden_size=768, heads=len(labels), head_size=64)
         self.head_output = EfficientGlobalPointer(hidden_size=768, heads=1, head_size=64, RoPE=False)
         self.tail_output = EfficientGlobalPointer(hidden_size=768, heads=1, head_size=64, RoPE=False)

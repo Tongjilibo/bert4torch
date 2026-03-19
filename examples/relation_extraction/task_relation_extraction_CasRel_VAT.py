@@ -149,7 +149,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert = build_transformer_model(config_path, checkpoint_path)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
         self.linear1 = nn.Linear(768, 2)
         self.condLayerNorm = ConditionalLayerNorm(hidden_size=768, conditional_size=768 * 2)
         self.linear2 = nn.Linear(768, len(predicate2id) * 2)

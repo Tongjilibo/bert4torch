@@ -2,7 +2,7 @@ import collections
 import unicodedata
 from io import open
 import re
-from .base import TokenizerBase
+from .tokenization_b4t_base import TokenizerBase
 from typing import List, Union
 from bert4torch.snippets import is_string, lowercase_and_normalize
 import six

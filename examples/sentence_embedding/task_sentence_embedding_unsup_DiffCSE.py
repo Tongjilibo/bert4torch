@@ -162,7 +162,7 @@ def collate_fn_eval(batch):
 valid_dataloader = DataLoader(ListDataset(data=all_texts), batch_size=batch_size, collate_fn=collate_fn_eval)
 
 # 定义generator
-generator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate, with_mlm=True, add_trainer=True)
+generator = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate, with_mlm=True, add_trainer=True)
 generator.to(device)
 generator.eval()
 
@@ -212,10 +212,10 @@ class Model(BaseModel):
         self.pool_method = pool_method
         with_pool = 'linear' if pool_method == 'pooler' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
-        self.bert = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         self.mlp = ProjectionMLP(self.bert.config['hidden_size'])
-        self.discriminator = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate)
+        self.discriminator = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate)
         self.electra_head = nn.Linear(self.bert.config['hidden_size'], 2)
         self.sim = Similarity(temp=0.05)
     

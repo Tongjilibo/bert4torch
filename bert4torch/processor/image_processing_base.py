@@ -23,7 +23,7 @@ import numpy as np
 import requests
 from ..dynamic_module_utils import custom_object_save
 from .feature_extraction_utils import BatchFeature as BaseBatchFeature
-from ..utils import (
+from ..snippets import (
     IMAGE_PROCESSOR_NAME,
     PushToHubMixin,
     cached_file,

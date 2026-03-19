@@ -25,7 +25,7 @@ import numpy as np
 import requests
 from .image_transforms import PaddingMode, to_channel_dimension_format
 from .image_utils import ChannelDimension, infer_channel_dimension_format, is_valid_image
-from ..utils import (
+from ..snippets import (
     is_av_available,
     is_cv2_available,
     is_decord_available,

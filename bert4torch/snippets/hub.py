@@ -25,6 +25,7 @@ import tempfile
 LEGACY_PROCESSOR_CHAT_TEMPLATE_FILE = "chat_template.json"
 CHAT_TEMPLATE_FILE = "chat_template.jinja"
 CHAT_TEMPLATE_DIR = "additional_chat_templates"
+BERT4TORCH_CONFIG_NAME = "bert4torch_config.json"
 
 
 if os.environ.get('SAFETENSORS_FIRST', False):
@@ -600,7 +601,7 @@ def snapshot_download(
         return resolved_file
 
 
-def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwargs) -> str:
+def get_config_path(pretrained_model_name_or_path:Union[str, os.PathLike], allow_none=False, **kwargs) -> str:
     '''获取local文件夹下的config文件路径
     
     :param pretrained_model_name_or_path: str, 预训练权重的本地路径，或者是model_name
@@ -611,35 +612,33 @@ def get_config_path(pretrained_model_name_or_path:str, allow_none=False, **kwarg
     '''
     if pretrained_model_name_or_path is None:
         return pretrained_model_name_or_path
-    elif isinstance(pretrained_model_name_or_path, (tuple,list)):
-        pretrained_model_name_or_path = os.path.dirname(pretrained_model_name_or_path[0])
 
     config_path = None       
-    # 传入bert4torch_config路径
-    if pretrained_model_name_or_path.endswith('bert4torch_config.json'):
+    # 传入bert4torch_config.json路径
+    if pretrained_model_name_or_path.endswith(BERT4TORCH_CONFIG_NAME):
         if os.path.isfile(pretrained_model_name_or_path):
-            # 本地存在bert4torch_config.json
+            # 文件存在
             config_path = pretrained_model_name_or_path
         elif not allow_none:
             raise FileNotFoundError(f'{pretrained_model_name_or_path} not exists, please check your local path or model_name.')
 
     # 传入文件夹路径
     elif os.path.isdir(pretrained_model_name_or_path):
-        config_path_tmp = os.path.join(pretrained_model_name_or_path, 'bert4torch_config.json')
+        config_path_tmp = os.path.join(pretrained_model_name_or_path, BERT4TORCH_CONFIG_NAME)
         if os.path.isfile(config_path_tmp):
-            # bert4torch_config.json存在
+            # 文件存在
             config_path = config_path_tmp
         elif not allow_none:
             raise FileNotFoundError(f'{config_path_tmp} not exists, please check your local path or model_name.')
 
-    # model_name: 从hf下载bert4torch_config.json文件
+    # model_name: 从hf下载
     elif len(re.findall('/', pretrained_model_name_or_path)) <= 1 and not re.search(r'\\', pretrained_model_name_or_path):
         if pretrained_model_name_or_path.startswith('Tongjilibo/'):
             # 独立的repo
-            config_path = snapshot_download(pretrained_model_name_or_path, filename='bert4torch_config.json', **kwargs)
+            config_path = snapshot_download(pretrained_model_name_or_path, filename=BERT4TORCH_CONFIG_NAME, **kwargs)
         else:
             # 单独下载bert4torch_config.json文件
-            filename = '/'.join(pretrained_model_name_or_path.split('/')[-2:]) + '/bert4torch_config.json'
+            filename = '/'.join(pretrained_model_name_or_path.split('/')[-2:]) + f'/{BERT4TORCH_CONFIG_NAME}'
             config_path = snapshot_download('Tongjilibo/bert4torch_config', filename=filename, **kwargs)
 
     return config_path
@@ -867,7 +866,7 @@ class PushToHubMixin:
         Examples:
 
         ```python
-        from transformers import {object_class}
+        from bert4torch import {object_class}
 
         {object} = {object_class}.from_pretrained("google-bert/bert-base-cased")
 

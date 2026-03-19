@@ -28,12 +28,12 @@ from pathlib import Path
 from typing import Any, Optional, TypedDict, TypeVar, Union, Dict, Type
 import numpy as np
 import typing_extensions
-from ..utils import is_torch_available, create_registrar
+from ..snippets import is_torch_available, create_registrar
 from .audio_utils import load_audio
 from ..dynamic_module_utils import custom_object_save
 from .feature_extraction_utils import BatchFeature
 from .image_utils import ChannelDimension, is_vision_available, load_image
-from ..utils.chat_template_utils import render_jinja_template
+from ..snippets.chat_template_utils import render_jinja_template
 from .video_utils import VideoMetadata, load_video
 
 
@@ -48,7 +48,7 @@ from ..tokenizers.tokenization_utils_base import (
     TextInput,
     TruncationStrategy,
 )
-from ..utils import (
+from ..snippets import (
     AUDIO_TOKENIZER_NAME,
     CHAT_TEMPLATE_DIR,
     CHAT_TEMPLATE_FILE,

@@ -31,7 +31,7 @@ from .image_utils import (
     validate_kwargs,
 )
 from .processing_utils import Unpack, VideosKwargs
-from ..utils import (
+from ..snippets import (
     VIDEO_PROCESSOR_NAME,
     TensorType,
     add_start_docstrings,
@@ -47,7 +47,7 @@ from ..utils import (
     logging,
     create_registrar
 )
-from ..utils.import_utils import requires
+from ..snippets.import_utils import requires
 from .video_utils import (
     VideoInput,
     VideoMetadata,

@@ -125,7 +125,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 class Model(BaseModel):
     def __init__(self):
         super().__init__()
-        self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0)
         self.handshaking_kernel = TplinkerHandshakingKernel(768, shaking_type='cln_plus', inner_enc_type='lstm')
         self.fc = nn.Linear(768, len(tag2id))
 

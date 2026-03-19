@@ -16,15 +16,13 @@ import torch
 import time
 
 # bert配置
-config_path = f'{ckpt_dir}/bert4torch_config.json'
-checkpoint_path = f'{ckpt_dir}/pytorch_model.bin'
 dict_path = f'{ckpt_dir}/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 top_k = 4
 mode = 'beam_search'
 maxlen = 20
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path).to(device)
+model = build_transformer_model(ckpt_dir).to(device)
 
 # print('==============自定义单条样本================')
 class AutoTitle(AutoRegressiveDecoder):

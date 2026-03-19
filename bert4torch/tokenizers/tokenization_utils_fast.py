@@ -43,7 +43,7 @@ from .tokenization_utils_base import (
     PaddingStrategy,
     register_tokenizer
 )
-from ..utils import add_end_docstrings, logging
+from ..snippets import add_end_docstrings, logging
 
 
 logger = logging.get_logger(__name__)

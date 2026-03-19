@@ -19,7 +19,7 @@ inputtext = "今天[MASK]情很好"
 # ==========================bert4torch调用=========================
 # 建立分词器
 tokenizer = Tokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax').to(device)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode(inputtext)
 

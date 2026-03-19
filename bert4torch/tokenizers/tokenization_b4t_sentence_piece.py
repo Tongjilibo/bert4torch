@@ -1,4 +1,4 @@
-from .base import TokenizerBase
+from .tokenization_b4t_base import TokenizerBase
 import unicodedata
 
 

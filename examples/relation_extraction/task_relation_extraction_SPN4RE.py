@@ -404,7 +404,7 @@ class DecoderLayer(nn.Module):
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.encoder = build_transformer_model(config_path, checkpoint_path)
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
         self.encoder.embeddings.word_embeddings.weight.requires_grad = False
         self.encoder.embeddings.position_embeddings.weight.requires_grad = False
         self.encoder.embeddings.segment_embeddings.weight.requires_grad = False

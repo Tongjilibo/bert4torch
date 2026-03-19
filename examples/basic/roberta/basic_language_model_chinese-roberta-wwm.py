@@ -15,7 +15,7 @@ checkpoint_path = base_path + '/pytorch_model.bin'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 # 模型
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode("科学[MASK][MASK]是第一生产力")
 print(''.join(tokenizer.ids_to_tokens(token_ids)))

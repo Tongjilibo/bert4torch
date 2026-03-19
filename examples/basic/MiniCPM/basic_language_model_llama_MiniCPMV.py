@@ -1,5 +1,5 @@
 from PIL import Image
-from bert4torch.pipelines.chat.vlm import MiniCPMV
+from bert4torch.pipelines.chat.big_modeling_vlm import MiniCPMV
 from bert4torch.snippets import log_info
 import requests
 from bert4torch.pipelines import Chat

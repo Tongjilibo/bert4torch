@@ -4,7 +4,7 @@ sentences = ['That is a happy person', 'That is a very happy person']
 
 print('=========================================bert4torch====================================')
 from bert4torch.pipelines import Text2Vec
-text2vec = Text2Vec(checkpoint_path=root_model_path, device='cuda')
+text2vec = Text2Vec(pretrained_model_name_or_path=root_model_path, device='cuda')
 embeddings = text2vec.encode(sentences, normalize_embeddings=True)
 similarity = embeddings[0] @ embeddings[1].T
 print(embeddings)

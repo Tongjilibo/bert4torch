@@ -4,7 +4,7 @@
 """
 
 from bert4torch.pipelines import Chat
-from bert4torch.utils import OpenaiClient
+from bert4torch.snippets import OpenaiClient
 from bert4torch import build_transformer_model, AutoProcessor
 from PIL import Image
 import base64

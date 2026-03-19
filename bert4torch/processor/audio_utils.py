@@ -26,7 +26,7 @@ from typing import Any, Optional, Union
 import numpy as np
 import requests
 
-from ..utils import (
+from ..snippets import (
     is_librosa_available,
     is_numpy_array,
     is_soundfile_available,

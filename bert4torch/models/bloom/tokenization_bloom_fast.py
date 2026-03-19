@@ -18,7 +18,7 @@ import pickle
 from typing import Optional
 from ...tokenizers.tokenization_utils_base import BatchEncoding
 from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast, register_tokenizer
-from ...utils import logging
+from ...snippets import logging
 
 
 logger = logging.get_logger(__name__)
@@ -36,7 +36,7 @@ class BloomTokenizerFast(PreTrainedTokenizerFast):
     be encoded differently whether it is at the beginning of the sentence (without space) or not:
 
     ```python
-    >>> from transformers import BloomTokenizerFast
+    >>> from bert4torch import BloomTokenizerFast
 
     >>> tokenizer = BloomTokenizerFast.from_pretrained("bigscience/bloom")
     >>> tokenizer("Hello world")["input_ids"]

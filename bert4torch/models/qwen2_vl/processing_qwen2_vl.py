@@ -28,7 +28,7 @@ from ...processor.image_utils import ImageInput
 from ...processor.processing_utils import ImagesKwargs, MultiModalData, ProcessingKwargs, ProcessorMixin, Unpack, register_processor
 from ...processor.video_utils import VideoInput
 from ...tokenizers.tokenization_utils_base import PreTokenizedInput, TextInput
-from ...utils import logging
+from ...snippets import logging
 
 
 logger = logging.get_logger(__name__)

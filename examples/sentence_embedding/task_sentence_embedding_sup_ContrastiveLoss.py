@@ -76,7 +76,7 @@ class Model(BaseModel):
         self.pool_method = pool_method
         with_pool = 'linear' if pool_method == 'pooler' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
-        self.bert = build_transformer_model(config_path, checkpoint_path, segment_vocab_size=0,
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, segment_vocab_size=0,
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
 
     def forward(self, token1_ids, token2_ids):

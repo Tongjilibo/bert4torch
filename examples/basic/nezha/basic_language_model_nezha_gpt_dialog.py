@@ -17,7 +17,7 @@ dict_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog/vocab.txt'
 tokenizer = Tokenizer(dict_path, do_lower_case=True)
 
 # 建立并加载模型
-model = build_transformer_model(config_path, checkpoint_path)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 
 
 class ChatBot(AutoRegressiveDecoder):

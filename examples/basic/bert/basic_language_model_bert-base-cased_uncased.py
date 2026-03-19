@@ -31,7 +31,7 @@ mask_pos = encoded_input['input_ids'][0].tolist().index(103)
 
 # ==========================bert4torch调用==========================
 # 建立分词器
-model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
 
 # 需要传入参数with_mlm
 model.eval()

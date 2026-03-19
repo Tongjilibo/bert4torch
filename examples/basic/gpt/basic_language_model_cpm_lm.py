@@ -34,7 +34,7 @@ tokenizer = SpTokenizer(
     token_translate={u'\u2583': '<cls>'}  # '\n'替换成<cls>
 )  # 建立分词器
 
-model = build_transformer_model(config_path, checkpoint_path).to(device)
+model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
 
 
 class TextExpansion(AutoRegressiveDecoder):

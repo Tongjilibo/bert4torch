@@ -1,10 +1,10 @@
-from .llm import CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
-from .llm import LLM_MAPPING, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, PretrainedTextContinuation
-from .vlm import VLM_MAPPING, ChatVLCli, ChatVLWebGradio, ChatVLWebStreamlit, ChatVLOpenaiApi
+from .big_modeling_llm import CHAT_START_DOCSTRING, OPENAI_START_DOCSTRING
+from .big_modeling_llm import LLM_MAPPING, ChatCli, ChatWebGradio, ChatWebStreamlit, ChatOpenaiApi, PretrainedTextContinuation
+from .big_modeling_vlm import VLM_MAPPING, ChatVLCli, ChatVLWebGradio, ChatVLWebStreamlit, ChatVLOpenaiApi
 from argparse import REMAINDER, ArgumentParser
 from typing import List, Literal
 import json
-from bert4torch.snippets import get_config_path, log_info_once, add_start_docstrings
+from bert4torch.snippets import get_config_path, log_info_once, add_start_docstrings, BERT4TORCH_CONFIG_NAME
 
 
 class Chat:
@@ -12,7 +12,7 @@ class Chat:
     部署类似OpenAi的api server端
 
     ### 基础参数
-    :param checkpoint_path: str, 模型所在的文件夹地址
+    :param pretrained_model_name_or_path: str, 模型所在的文件夹地址
     :param torch_dtype: bool, 精度, 'double', 'float', 'half', 'float16', 'bfloat16'
     :param quantization_config: dict, 模型量化使用到的参数, eg. {'quant_method':'cpm_kernels', 'quantization_bit':8}
     :param generation_config: dict, genrerate使用到的参数, eg. {'mode':'random_sample', 'max_length':2048, 'default_rtype':'logits', 'use_states':True}
@@ -50,20 +50,19 @@ class Chat:
     ```python
     >>> from bert4torch.pipelines import Chat
 
-    >>> checkpoint_path = "E:/data/pretrain_ckpt/glm/chatglm2-6b"
+    >>> pretrained_model_name_or_path = "E:/data/pretrain_ckpt/glm/chatglm2-6b"
     >>> generation_config  = {'mode':'random_sample',
     ...                     'max_length':2048, 
     ...                     'default_rtype':'logits', 
     ...                     'use_states':True
     ...                     }
-    >>> chat = Chat(checkpoint_path, generation_config=generation_config, mode='cli')
+    >>> chat = Chat(pretrained_model_name_or_path, generation_config=generation_config, mode='cli')
     >>> chat.run()
     ```
     """
     def __init__(self, 
                  # 基类使用
-                 checkpoint_path:str, 
-                 config_path:str=None,
+                 pretrained_model_name_or_path:str, 
                  torch_dtype:Literal['double', 'float', 'half', 'float16', 'bfloat16', None]=None, 
                  quantization_config:dict=None, 
                  generation_config:dict=None, 
@@ -90,12 +89,11 @@ class Chat:
         if kwargs.get('template') is not None:
             template = kwargs.pop('template')
         else:
-            config_path = kwargs['config_path'] if kwargs.get('config_path') is not None else args[0]
-            config = json.load(open(get_config_path(config_path, allow_none=True), encoding='utf-8'))
+            config = json.load(open(get_config_path(args[0], allow_none=True), encoding='utf-8'))
             template = config.get('template', config.get('model', config.get('model_type')))
 
         if template is None:
-            raise ValueError('template/model/model_type not found in bert4torch_config.json')
+            raise ValueError(f'template/model/model_type not found in {BERT4TORCH_CONFIG_NAME}')
         elif template in LLM_MAPPING:
             # 大语言模型
             ChatTemplate = LLM_MAPPING[template]
@@ -137,9 +135,7 @@ def get_args_parser() -> ArgumentParser:
 
     parser = ArgumentParser(description="Bert4torch Pipelines LLM Server Launcher")
 
-    parser.add_argument("--checkpoint_path", type=str, help="pretrained model name or path")
-    parser.add_argument("--config_path", type=str, default=None, 
-                        help="bert4torch_config.json file path or pretrained_model_name_or_path, if not set use `checkpoint_path` instead")
+    parser.add_argument("pretrained_model_name_or_path", type=str, help="pretrained model name or path")
     parser.add_argument("--mode", type=str, choices=['cli', 'gradio', 'openai'], default='cli', 
                         help="deploy model in cli / gradio / openai mode")
     parser.add_argument("--torch_dtype", type=str, choices=['double', 'float', 'half', 'float16', 'bfloat16', None], default=None, 
@@ -199,10 +195,9 @@ def run_llm_serve():
     '''命令行bert4torch serve直接部署模型'''
     args = get_args_parser()
 
-    demo = Chat(args.checkpoint_path, 
+    demo = Chat(args.pretrained_model_name_or_path, 
                 mode = args.mode,
                 system = args.system,
-                config_path = getattr(args, 'config_path', None),
                 generation_config = args.generation_config,
                 quantization_config = getattr(args, 'quantization_config', None),
                 model_name=args.model_name,

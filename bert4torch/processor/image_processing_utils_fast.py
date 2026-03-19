@@ -41,7 +41,7 @@ from .image_utils import (
     validate_preprocess_arguments,
 )
 from .processing_utils import Unpack
-from ..utils import (
+from ..snippets import (
     TensorType,
     is_torch_available,
     is_torchvision_available,
@@ -49,7 +49,7 @@ from ..utils import (
     is_vision_available,
     logging,
 )
-from ..utils.import_utils import is_rocm_platform
+from ..snippets.import_utils import is_rocm_platform
 
 
 if is_vision_available():

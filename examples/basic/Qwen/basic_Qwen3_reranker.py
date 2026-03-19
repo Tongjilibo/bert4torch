@@ -12,7 +12,7 @@ tokenizer = AutoTokenizer.from_pretrained(root_model_path, padding_side='left')
 # model = AutoModelForCausalLM.from_pretrained(root_model_path).eval()
 
 # bert4torch
-model = build_transformer_model(checkpoint_path=root_model_path, return_dict=True).float().eval()
+model = build_transformer_model(root_model_path, return_dict=True).float().eval()
 
 def format_instruction(instruction, query, doc):
     if instruction is None:

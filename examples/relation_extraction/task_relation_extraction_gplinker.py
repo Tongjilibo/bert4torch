@@ -127,7 +127,7 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, collate_fn=c
 class Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
-        self.bert = build_transformer_model(config_path, checkpoint_path)
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
         self.entity_output = GlobalPointer(hidden_size=768, heads=2, head_size=64)
         self.head_output = GlobalPointer(hidden_size=768, heads=len(predicate2id), head_size=64, RoPE=False, tril_mask=False)
         self.tail_output = GlobalPointer(hidden_size=768, heads=len(predicate2id), head_size=64, RoPE=False, tril_mask=False)

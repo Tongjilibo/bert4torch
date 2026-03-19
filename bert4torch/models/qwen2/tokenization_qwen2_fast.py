@@ -17,7 +17,7 @@
 from typing import Optional
 from ...tokenizers.tokenization_utils import AddedToken
 from ...tokenizers.tokenization_utils_fast import PreTrainedTokenizerFast, register_tokenizer
-from ...utils import logging
+from ...snippets import logging
 from .tokenization_qwen2 import Qwen2Tokenizer
 
 

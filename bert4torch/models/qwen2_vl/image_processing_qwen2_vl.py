@@ -45,7 +45,7 @@ from ...processor.image_utils import (
     valid_images,
     validate_preprocess_arguments,
 )
-from ...utils import TensorType, logging
+from ...snippets import TensorType, logging
 from ...processor.video_utils import VideoInput, make_batched_videos
 
 

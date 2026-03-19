@@ -21,8 +21,8 @@ import numpy as np
 from .image_processing_base import BatchFeature, ImageProcessingMixin, register_image_processor
 from .image_transforms import center_crop, normalize, rescale
 from .image_utils import ChannelDimension, get_image_size
-from ..utils import logging
-from ..utils.import_utils import requires
+from ..snippets import logging
+from ..snippets.import_utils import requires
 
 
 logger = logging.get_logger(__name__)

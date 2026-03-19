@@ -27,7 +27,7 @@ from ...processor.image_processing_utils import ImageProcessingMixin
 from ...processor.processing_utils import ProcessorMixin, PROCESSOR_MAPPING
 from ...processor.video_processing_utils import BaseVideoProcessor
 from ...tokenizers.tokenization_utils import TOKENIZER_CONFIG_FILE
-from ...utils import FEATURE_EXTRACTOR_NAME, PROCESSOR_NAME, VIDEO_PROCESSOR_NAME, cached_file, logging
+from ...snippets import FEATURE_EXTRACTOR_NAME, PROCESSOR_NAME, VIDEO_PROCESSOR_NAME, cached_file, logging
 from .feature_extraction_auto import AutoFeatureExtractor
 from .image_processing_auto import AutoImageProcessor
 from .tokenization_auto import AutoTokenizer

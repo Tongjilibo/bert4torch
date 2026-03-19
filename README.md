@@ -89,24 +89,21 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 - 本地 / 联网加载
   ```shell
   # 联网下载全部文件
-  bert4torch serve --checkpoint_path Qwen2-0.5B-Instruct
-
-  # 加载本地大模型，联网下载bert4torch_config.json
-  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --config_path Qwen/Qwen2-0.5B-Instruct
+  bert4torch serve Qwen/Qwen2-0.5B-Instruct
 
   # 加载本地大模型，且bert4torch_config.json已经下载并放于同名目录下
-  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct
+  bert4torch serve /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct
   ```
 - 命令行 / gradio网页 / openai_api
   ```shell
   # 命令行
-  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode cli
+  bert4torch serve /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode cli
 
   # gradio网页
-  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode gradio
+  bert4torch serve /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode gradio
 
   # openai_api
-  bert4torch serve --checkpoint_path /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode openai
+  bert4torch serve /data/pretrain_ckpt/Qwen/Qwen2-0.5B-Instruct --mode openai
   ```
 - 命令行聊天示例
   ![命令行聊天](./docs/pics/cli_chat.gif)
@@ -134,24 +131,20 @@ pip install git+https://github.com/Tongjilibo/bert4torch
   ```python
   from bert4torch.models import build_transformer_model
 
-  # 1. 仅指定config_path: 从头初始化模型结构, 不加载预训练模型
-  model = build_transformer_model('./model/bert4torch_config.json')
+  # 1. 仅指定pretrained_model_name_or_path: 
+  # 1.1 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
+  model = build_transformer_model('google-bert/bert-base-chinese')
 
-  # 2. 仅指定checkpoint_path: 
-  ## 2.1 文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + 需把bert4torch_config.json下载并放于该目录下
-  model = build_transformer_model(checkpoint_path='./model')
+  # 1.2 本地文件夹路径: 自动寻找路径下的*.bin/*.safetensors权重文件 + bert4torch_config.json文件，需提前下载到本地
+  model = build_transformer_model('/data/pretrained_models/google-bert/bert-base-chinese')
+  
+  # 2. 同时指定config_path和checkpoint_path，和1效果一样
+  config_path = './model/bert4torch_config.json'
+  checkpoint_path = './model/pytorch_model.bin'
+  model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 
-  ## 2.2 文件路径/列表: 文件路径即权重路径/列表, bert4torch_config.json会从同级目录下寻找
-  model = build_transformer_model(checkpoint_path='./pytorch_model.bin')
-
-  ## 2.3 model_name: hf上预训练权重名称, 会自动下载hf权重以及bert4torch_config.json文件
-  model = build_transformer_model(checkpoint_path='google-bert/bert-base-chinese')
-
-  # 3. 同时指定config_path和checkpoint_path(本地路径名或model_name排列组合): 
-  #    本地路径从本地加载，pretrained_model_name会联网下载
-  config_path = './model/bert4torch_config.json'  # 或'google-bert/bert-base-chinese'
-  checkpoint_path = './model/pytorch_model.bin'  # 或'google-bert/bert-base-chinese'
-  model = build_transformer_model(config_path, checkpoint_path)
+  # 3. 仅指定config_path: 从头初始化模型结构, 不加载预训练模型
+  model = build_transformer_model(config_path='./model/bert4torch_config.json')
   ```
 
 ## 5.2 权重链接

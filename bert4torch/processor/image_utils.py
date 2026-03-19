@@ -23,7 +23,7 @@ import numpy as np
 import requests
 from packaging import version
 
-from ..utils import (
+from ..snippets import (
     ExplicitEnum,
     is_jax_tensor,
     is_numpy_array,
@@ -36,7 +36,7 @@ from ..utils import (
     requires_backends,
     to_numpy,
 )
-from ..utils import (  # noqa: F401
+from ..snippets import (  # noqa: F401
     IMAGENET_DEFAULT_MEAN,
     IMAGENET_DEFAULT_STD,
     IMAGENET_STANDARD_MEAN,

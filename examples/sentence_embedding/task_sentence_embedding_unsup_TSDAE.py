@@ -127,7 +127,7 @@ class Model(BaseModel):
         super().__init__()
         with_pool = 'linear' if pool_method == 'pooler' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
-        self.encoder = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+        self.encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
                                                with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         # 用bert的权重来初始化decoder，crossAttn部分是随机初始化的
         self.decoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, application='lm', dropout_rate=dropout_rate, 

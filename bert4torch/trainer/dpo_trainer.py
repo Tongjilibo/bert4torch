@@ -65,13 +65,13 @@ class DPOModel(BaseModel):
                 "You passed a model_id to the DPOTrainer. This will automatically create an "
                 "`build_transformer_model` or a `PeftModel` (if you passed a `peft_config`) for you."
             )
-            model: BaseModel = build_transformer_model(checkpoint_path=model, **model_init_kwargs).to(self.device)
+            model: BaseModel = build_transformer_model(model, **model_init_kwargs).to(self.device)
 
         if isinstance(ref_model, str):
             warnings.warn(
                 "You passed a ref model_id to the DPOTrainer. This will automatically create an `build_transformer_model`"
             )
-            ref_model = build_transformer_model(checkpoint_path=ref_model, **ref_model_init_kwargs)
+            ref_model = build_transformer_model(ref_model, **ref_model_init_kwargs)
 
         self._peft_has_been_casted_to_bf16 = False
 
@@ -186,9 +186,8 @@ class DPOTrainer(AutoTrainer):
     ```python
     >>> from bert4torch.trainer import DPOTrainer
     >>> from bert4torch.models import build_transformer_model
-    >>> config_path = ''  # bert4torch_config.json路径
-    >>> checkpoint_path = ''  # 模型文件夹路径
-    >>> net = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_pool=True)
+    >>> pretrained_model_name_or_path = ''  # 模型名称或路径
+    >>> net = build_transformer_model(pretrained_model_name_or_path, with_pool=True)
     >>> model = DPOTrainer(net, ref_model=copy.deepcopy(net))
     >>> model.to('cuda')
     ```

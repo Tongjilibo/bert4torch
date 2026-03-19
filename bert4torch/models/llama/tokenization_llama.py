@@ -28,7 +28,7 @@ import sentencepiece as spm
 
 from ...tokenizers.convert_slow_tokenizer import import_protobuf
 from ...tokenizers.tokenization_utils import AddedToken, PreTrainedTokenizer, register_tokenizer
-from ...utils import logging
+from ...snippets import logging
 
 
 if TYPE_CHECKING:
@@ -105,7 +105,7 @@ class LlamaTokenizer(PreTrainedTokenizer):
 
             - `legacy=True`:
             ```python
-            >>> from transformers import LlamaTokenizerFast
+            >>> from bert4torch import LlamaTokenizerFast
 
             >>> tokenizer = LlamaTokenizerFast.from_pretrained("huggyllama/llama-7b", legacy=True, from_slow=True)
             >>> tokenizer.encode("Hello <s>.") # 869 is '▁.'
@@ -113,7 +113,7 @@ class LlamaTokenizer(PreTrainedTokenizer):
             ```
             - `legacy=False`:
             ```python
-            >>> from transformers import LlamaTokenizerFast
+            >>> from bert4torch import LlamaTokenizerFast
 
             >>> tokenizer = LlamaTokenizerFast.from_pretrained("huggyllama/llama-7b", legacy=False, from_slow=True)
             >>> tokenizer.encode("Hello <s>.")  # 29889 is '.'

@@ -23,7 +23,7 @@ from collections import UserDict
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, Union, Dict, Type
 import numpy as np
 from ..dynamic_module_utils import custom_object_save
-from ..utils import (
+from ..snippets import (
     FEATURE_EXTRACTOR_NAME,
     PushToHubMixin,
     TensorType,

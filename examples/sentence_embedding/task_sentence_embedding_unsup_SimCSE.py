@@ -117,7 +117,7 @@ class Model(BaseModel):
         self.pool_method = pool_method
         with_pool = 'linear' if pool_method == 'pooler' else True
         output_all_encoded_layers = True if pool_method == 'first-last-avg' else False
-        self.bert = build_transformer_model(config_path, checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
+        self.bert = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, model=model_name, segment_vocab_size=0, dropout_rate=dropout_rate,
                                             with_pool=with_pool, output_all_encoded_layers=output_all_encoded_layers)
         self.scale = scale
     
