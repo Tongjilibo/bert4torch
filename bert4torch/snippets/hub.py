@@ -20,6 +20,7 @@ from torch4keras.snippets import (
     check_url_available_cached
 )
 import tempfile
+from .import_utils import ENV_VARS_TRUE_VALUES
 
 
 LEGACY_PROCESSOR_CHAT_TEMPLATE_FILE = "chat_template.json"
@@ -55,7 +56,6 @@ default_assets_cache_path = os.path.join(HF_HOME, "assets")
 # Legacy env variables
 HUGGINGFACE_HUB_CACHE = os.getenv("HUGGINGFACE_HUB_CACHE", default_cache_path)
 
-ENV_VARS_TRUE_VALUES = {"1", "ON", "YES", "TRUE"}
 
 def _is_true(value: Optional[str]) -> bool:
     if value is None:

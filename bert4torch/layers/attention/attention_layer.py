@@ -35,7 +35,6 @@ class MultiHeadAttention(nn.Module):
     :param num_attention_heads: int, 多头注意力的多头数
     :param attention_probs_dropout_prob: float，softmax后的dropout rate
     :param dropout_rate: float, pos_dropout对应的dropout rate, 目前仅在deverta中使用，默认为0.1
-    :param attention_scale: bool, 是否对attention_scores进行缩放，默认为True
     :param output_attentions: bool，是否返回attention_scores，默认为False
     :param bias: bool, qkvo的weight是否包含bias，默认为True
     :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
@@ -46,7 +45,7 @@ class MultiHeadAttention(nn.Module):
                  num_attention_heads:int, 
                  attention_probs_dropout_prob:float, 
                  dropout_rate:float=0.1, 
-                 attention_scale:bool=True,
+                 scaling:float=None,
                  output_attentions:bool=False, 
                  _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
                  layer_idx:int=None,
@@ -58,7 +57,6 @@ class MultiHeadAttention(nn.Module):
         self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.dropout_rate = dropout_rate
         self.is_decoder = kwargs.get('is_decoder', False)
-        self.attention_scale = attention_scale
         self.output_attentions = output_attentions
         self.bias = kwargs.get('attention_bias', kwargs.get('use_bias', True))
         self.layer_idx = layer_idx
@@ -70,7 +68,7 @@ class MultiHeadAttention(nn.Module):
         # 苏神的roberta small中qk的维度和v不同
         self.attention_head_size = kwargs.get('attention_head_size', hidden_size//num_attention_heads)  # Attention中V的head_size
         self.attention_key_size = kwargs.get('attention_key_size', self.attention_head_size)  # Attention中Q,K的head_size
-        self.scaling = self.attention_head_size ** (-0.5)
+        self.scaling = scaling or self.attention_head_size ** (-0.5)
         q_inner_dim = k_inner_dim = self.attention_key_size * num_attention_heads
         v_inner_dim = self.attention_head_size * num_attention_heads
 
@@ -79,6 +77,7 @@ class MultiHeadAttention(nn.Module):
             self.num_key_value_heads = num_key_value_heads
             k_inner_dim_tmp = self.attention_head_size * self.num_key_value_heads
             v_inner_dim_tmp = k_inner_dim_tmp
+            self.num_key_value_groups = self.num_attention_heads // self.num_key_value_heads
 
         self.q = nn.Linear(hidden_size, q_inner_dim, bias=self.bias)
         self.k = nn.Linear(hidden_size, k_inner_dim_tmp if hasattr(self, 'num_key_value_heads') else k_inner_dim, bias=self.bias)
@@ -137,30 +136,22 @@ class MultiHeadAttention(nn.Module):
         if self.is_decoder and (not self.training):  # 仅推理是记录
             past_key_value = (key_states, value_states)
 
-        # multi_query_attention
-        if hasattr(self, 'num_key_value_heads') and self.num_key_value_heads > 1:
-            key_states = self.repeat_kv(key_states)
-            value_states = self.repeat_kv(value_states)
-
-            
         # ====================================attention的多类实现====================================
-        context_layer, attention_scores = self.attention_forward(query_states, key_states, value_states, attention_mask, past_key_value)
+        # attn_output shape: [batch_size, query_len, num_attention_heads, attention_head_size]
+        attn_output, attention_scores = self.attention_forward(query_states, key_states, value_states, attention_mask, past_key_value)
 
-
-        # context_layer shape: [batch_size, num_attention_heads, query_len, attention_head_size]
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (context_layer.size()[-2]*context_layer.size()[-1],)
-        context_layer = context_layer.reshape(*new_context_layer_shape).contiguous()
+        new_attn_output_shape = attn_output.size()[:-2] + (attn_output.size()[-2]*attn_output.size()[-1],)
+        attn_output = attn_output.reshape(*new_attn_output_shape).contiguous()
 
         # 是否返回attention scores
-        outputs = (self.o(context_layer), attention_scores) if self.output_attentions else (self.o(context_layer),)
+        outputs = (self.o(attn_output), attention_scores) if self.output_attentions else (self.o(attn_output),)
         return outputs + (past_key_value,) if self.is_decoder else outputs
     
     def attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                           attention_mask:torch.Tensor, past_key_value:Optional[Tuple[Tuple[torch.FloatTensor]]]=None, **kwargs):
         '''各类attention的实现, 方便继承'''
         attention_interface = ALL_ATTENTION_FUNCTIONS[self._attn_implementation]
-        context_layer, attention_scores = attention_interface(
+        attn_output, attention_scores = attention_interface(
             self,
             query_states,
             key_states,
@@ -171,13 +162,7 @@ class MultiHeadAttention(nn.Module):
             past_key_value=past_key_value,
             **kwargs,
         )
-        return context_layer, attention_scores
-
-    def repeat_kv(self, hidden_states):
-        hidden_states = hidden_states.unsqueeze(2)
-        hidden_states = hidden_states.expand(-1, -1, self.num_attention_heads // self.num_key_value_heads, -1, -1)
-        hidden_states = hidden_states.contiguous().view(hidden_states.shape[:1] + (self.num_attention_heads,) + hidden_states.shape[-2:])
-        return hidden_states
+        return attn_output, attention_scores
 
     def transpose_for_q_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_key_size)
@@ -214,15 +199,14 @@ class LongloraGroupAttention(MultiHeadAttention):
 
     def attention_forward(self, query_states, key_states, value_states, attention_mask, past_key_value = None, **kwargs):
         query_states, key_states, value_states, attention_mask = self.longlora_shift(query_states, key_states, value_states, attention_mask)
-        context_layer, attention_scores = super().attention_forward(query_states, key_states, value_states, attention_mask, past_key_value, **kwargs)
+        attn_output, attention_scores = super().attention_forward(query_states, key_states, value_states, attention_mask, past_key_value, **kwargs)
         
         bsz, q_len = query_states.shape[:2]
-        context_layer = context_layer.transpose(1, 2).contiguous()
-        context_layer = context_layer.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
+        attn_output = attn_output.reshape(bsz, q_len, self.num_attention_heads, self.attention_head_size)
         # shift back
-        context_layer[:, :, self.num_attention_heads//2:] = context_layer[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
-        context_layer = context_layer.reshape(bsz, q_len, self.hidden_size)
-        return context_layer, attention_scores
+        attn_output[:, :, self.num_attention_heads//2:] = attn_output[:, :, self.num_attention_heads//2:].roll(self.longlora_group_size//2, dims=1)
+        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+        return attn_output, attention_scores
 
     def longlora_shift(self, query_states, key_states, value_states, attention_mask):
         # query_states shape: [batch_size, num_attention_heads, query_len, attention_head_size]
@@ -268,13 +252,14 @@ class DebertaV2Attention(MultiHeadAttention):
         if "layer_norm" in self.norm_rel_ebd:
             self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
         self.pos_dropout = nn.Dropout(self.dropout_rate)
+        self.scaling = 1.0
+        self._attn_implementation = 'eager'
 
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         if not hasattr(self, 'relative_positions_encoding'):
             return attention_scores
         
         # ==================== deberta_v2相对位置编码 ====================
-        self.attention_scale = False  # deberta_v2使用自己的attention_scale
         scale_factor = 1
         if "c2p" in self.pos_att_type:
             scale_factor += 1
@@ -347,18 +332,18 @@ class AlibiAttention(MultiHeadAttention):
         self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
         self.scaling_raw = self.scaling_raw
         self.scaling = 1.0
+        self._attn_implementation = 'eager'
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         attention_scores = self.apply_alibi_pos_emb(attention_scores, key_states)
         return attention_scores
     
     def apply_alibi_pos_emb(self, attention_scores, key_states):
-        ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
+        ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行scale的 '''
         attention_scores = attention_scores * self.scaling_raw
         key_position_scores_r_t = self.relative_positions_encoding(key_states)
         attention_scores = attention_scores + key_position_scores_r_t
         attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
-        self.attention_scale = False
         return attention_scores
 
 
@@ -394,8 +379,8 @@ class NezhaTypicalRelativeAttention(MultiHeadAttention):
     def attention_forward(self, query_states:torch.FloatTensor, key_states:torch.FloatTensor, value_states:torch.FloatTensor, 
                           attention_mask:torch.Tensor, *args, **kwargs):
         '''qkv attention: torch原生实现'''
-        output = eager_attention_forward(self, query_states, key_states, value_states, attention_mask, 
-                                         return_dict_name=['context_layer', 'attention_scores', 'attention_probs'])
+        output = eager_attention_forward(self, query_states, key_states, value_states, attention_mask, scaling=self.scaling,
+                                         return_dict_name=['attn_output', 'attention_scores', 'attention_probs'])
 
         # ==================== nezha相对位置编码 ====================
         relations_values = self.relative_positions_encoding(output['attention_scores'].shape[-1], output['attention_scores'].shape[-1])
@@ -407,9 +392,9 @@ class NezhaTypicalRelativeAttention(MultiHeadAttention):
         # value_position_scores_r_t = value_position_scores_r.permute(1, 2, 0, 3)
         # 新实现
         value_position_scores_r_t = torch.einsum('bnij,ijh->bnih', output['attention_probs'], relations_values)
-        context_layer = output['context_layer'] + value_position_scores_r_t
+        attn_output = output['attn_output'] + value_position_scores_r_t.transpose(1,2)
 
-        return context_layer, output['attention_scores']
+        return attn_output, output['attention_scores']
 
 
 @register_attn
@@ -464,7 +449,7 @@ class RopeAttention(MultiHeadAttention):
         return query_states, key_states, value_states, attention_mask
 
 
-@register_attn()
+@register_attn
 class QwenAttention(RopeAttention):
     '''Qwen1使用的logn attention'''
     def _get_qkv_states(self, hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, past_key_value, position_ids):
@@ -508,11 +493,10 @@ class GatedAttention(nn.Module):
     '''
     
     def __init__(self, hidden_size, attention_key_size, intermediate_size, attention_probs_dropout_prob, hidden_act, 
-                 is_dropout=False, attention_scale=True, normalization='softmax_plus', **kwargs):
+                 is_dropout=False, normalization='softmax_plus', **kwargs):
         super().__init__()
         self.intermediate_size = intermediate_size
         self.attention_head_size = attention_key_size
-        self.attention_scale = attention_scale
         self.is_dropout = is_dropout
         self.normalization = normalization
         self.hidden_fn = get_activation(hidden_act)
@@ -539,10 +523,7 @@ class GatedAttention(nn.Module):
 
         # Attention
         attention_scores = torch.einsum('b i d, b j d -> b i j', q, k)  # [btz, seq_len, seq_len]
-        if self.attention_scale:
-            # seq_len = hidden_states.shape[1]
-            # attention_scores = F.relu(attention_scores/seq_len) ** 2
-             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
         if attention_mask is not None:
             attention_mask = (1.0 - attention_mask) * -1e12
@@ -676,8 +657,7 @@ class TransformerxlMultiHeadAttn(MultiHeadAttention):
 
         # # [btz, n_head, q_len, k_len]
         attention_scores = AC + BD + EF
-        if self.attention_scale:
-            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
         #### compute attention probability
         if attention_mask is not None and attention_mask.any().item():
@@ -801,6 +781,8 @@ class T5Attention(MultiHeadAttention):
             relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
             is_decoder=kwargs.get('is_decoder'))
         self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
+        if not hasattr(self, 'relative_positions_encoding'):
+            self._attn_implementation = 'eager'
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         if not hasattr(self, 'relative_positions_encoding'):  # 外部可能会变更

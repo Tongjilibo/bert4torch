@@ -188,7 +188,7 @@ class DefaultFastImageProcessorKwargs(TypedDict, total=False):
     disable_grouping: Optional[bool]
 
 
-@register_image_processor()
+@register_image_processor
 class BaseImageProcessorFast(BaseImageProcessor):
     resample = None
     image_mean = None

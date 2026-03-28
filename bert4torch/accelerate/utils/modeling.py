@@ -20,6 +20,7 @@ from collections import OrderedDict, defaultdict
 from typing import Optional, Union
 import torch
 from torch import nn
+import os
 from .dataclasses import CustomDtype
 from .offload import offload_weight
 from .imports import (
@@ -33,6 +34,9 @@ from .imports import (
 )
 from .memory import clear_device_cache
 from .versions import is_torch_version
+
+
+MEMORY_USAGE_RATIO = os.environ.get("MEMORY_SHRINK_RATIO", 0.85)
 
 
 logger = logging.getLogger(__name__)
@@ -875,9 +879,9 @@ def get_balanced_memory(
         if user_not_set_max_memory:
             for key in max_memory.keys():
                 if isinstance(key, int):
-                    max_memory[key] *= 0.9  # 90% is a good compromise
+                    max_memory[key] *= MEMORY_USAGE_RATIO
                     logger.info(
-                        f"We will use 90% of the memory on device {key} for storing the model, and 10% for the buffer to avoid OOM. "
+                        f"We will use {MEMORY_USAGE_RATIO*100:.0f}% of the memory on device {key} for storing the model, and 10% for the buffer to avoid OOM. "
                         "You can set `max_memory` in to a higher value to use more memory (at your own risk)."
                     )
                     break  # only one device

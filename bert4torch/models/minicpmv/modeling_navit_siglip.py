@@ -16,137 +16,32 @@
 # Copied from  HuggingFaceM4/siglip-so400m-14-980-flash-attn2-navit and add tgt_sizes
 
 
-import os
 import math
 import warnings
-from dataclasses import dataclass
 from typing import Any, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.utils.checkpoint
 from torch import nn
 from torch.nn.init import _calculate_fan_in_and_fan_out
-from bert4torch.snippets import is_flash_attn_available, add_start_docstrings, add_start_docstrings_to_model_forward
+from ..modeling_utils import _prepare_4d_attention_mask
+from ...activations import ACT2FN
+from ...snippets import (
+    is_flash_attn_available, 
+    add_start_docstrings, 
+    add_start_docstrings_to_model_forward,
+    logging
+)
+from ...snippets import DotDict
 
 
-try:
-    from transformers.activations import ACT2FN
-    from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
-    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
-    from transformers.modeling_utils import PreTrainedModel
-    from transformers.configuration_utils import PretrainedConfig
-    from transformers.utils import ModelOutput, logging
-
-    logger = logging.get_logger(__name__)
-except:
-    class BaseModelOutput: pass
-    class BaseModelOutputWithPooling: pass
-    class PreTrainedModel: pass
-    class PretrainedConfig: pass
-    class ModelOutput: pass
+logger = logging.get_logger(__name__)
 
 
 if is_flash_attn_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
 
-
-class SiglipVisionConfig(PretrainedConfig):
-    r"""
-    This is the configuration class to store the configuration of a [`SiglipVisionModel`]. It is used to instantiate a
-    Siglip vision encoder according to the specified arguments, defining the model architecture. Instantiating a
-    configuration with the defaults will yield a similar configuration to that of the vision encoder of the Siglip
-    [google/siglip-base-patch16-224](https://huggingface.co/google/siglip-base-patch16-224) architecture.
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
-    documentation from [`PretrainedConfig`] for more information.
-    Args:
-        hidden_size (`int`, *optional*, defaults to 768):
-            Dimensionality of the encoder layers and the pooler layer.
-        intermediate_size (`int`, *optional*, defaults to 3072):
-            Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder.
-        num_hidden_layers (`int`, *optional*, defaults to 12):
-            Number of hidden layers in the Transformer encoder.
-        num_attention_heads (`int`, *optional*, defaults to 12):
-            Number of attention heads for each attention layer in the Transformer encoder.
-        num_channels (`int`, *optional*, defaults to 3):
-            Number of channels in the input images.
-        image_size (`int`, *optional*, defaults to 224):
-            The size (resolution) of each image.
-        patch_size (`int`, *optional*, defaults to 16):
-            The size (resolution) of each patch.
-        hidden_act (`str` or `function`, *optional*, defaults to `"gelu_pytorch_tanh"`):
-            The non-linear activation function (function or string) in the encoder and pooler. If string, `"gelu"`,
-            `"relu"`, `"selu"` and `"gelu_new"` ``"quick_gelu"` are supported.
-        layer_norm_eps (`float`, *optional*, defaults to 1e-06):
-            The epsilon used by the layer normalization layers.
-        attention_dropout (`float`, *optional*, defaults to 0.0):
-            The dropout ratio for the attention probabilities.
-    Example:
-    ```python
-    >>> from transformers import SiglipVisionConfig, SiglipVisionModel
-    >>> # Initializing a SiglipVisionConfig with google/siglip-base-patch16-224 style configuration
-    >>> configuration = SiglipVisionConfig()
-    >>> # Initializing a SiglipVisionModel (with random weights) from the google/siglip-base-patch16-224 style configuration
-    >>> model = SiglipVisionModel(configuration)
-    >>> # Accessing the model configuration
-    >>> configuration = model.config
-    ```"""
-
-    model_type = "siglip_vision_model"
-
-    def __init__(
-        self,
-        hidden_size=768,
-        intermediate_size=3072,
-        num_hidden_layers=12,
-        num_attention_heads=12,
-        num_channels=3,
-        image_size=224,
-        patch_size=16,
-        hidden_act="gelu_pytorch_tanh",
-        layer_norm_eps=1e-6,
-        attention_dropout=0.0,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-
-        self.hidden_size = hidden_size
-        self.intermediate_size = intermediate_size
-        self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
-        self.num_channels = num_channels
-        self.patch_size = patch_size
-        self.image_size = image_size
-        self.attention_dropout = attention_dropout
-        self.layer_norm_eps = layer_norm_eps
-        self.hidden_act = hidden_act
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs) -> "PretrainedConfig":
-        cls._set_token_in_kwargs(kwargs)
-
-        config_dict, kwargs = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
-
-        # get the vision config dict if we are loading from SiglipConfig
-        if config_dict.get("model_type") == "siglip":
-            config_dict = config_dict["vision_config"]
-
-        if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
-            logger.warning(
-                f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
-                f"{cls.model_type}. This is not supported for all configurations of models and can yield errors."
-            )
-
-        return cls.from_dict(config_dict, **kwargs)
-        
-
-_CHECKPOINT_FOR_DOC = "google/siglip-base-patch16-224"
-
-SIGLIP_PRETRAINED_MODEL_ARCHIVE_LIST = [
-    "google/siglip-base-patch16-224",
-    # See all SigLIP models at https://huggingface.co/models?filter=siglip
-]
 
 # Copied from transformers.models.llama.modeling_llama._get_unpad_data
 def _get_unpad_data(attention_mask):
@@ -267,35 +162,8 @@ def default_flax_embed_init(tensor):
     variance_scaling_(tensor, mode="fan_in", distribution="normal")
 
 
-@dataclass
-# Copied from transformers.models.clip.modeling_clip.CLIPVisionModelOutput with CLIP->Siglip
-class SiglipVisionModelOutput(ModelOutput):
-    """
-    Base class for vision model's outputs that also contains image embeddings of the pooling of the last hidden states.
-    Args:
-        image_embeds (`torch.FloatTensor` of shape `(batch_size, output_dim)` *optional* returned when model is initialized with `with_projection=True`):
-            The image embeddings obtained by applying the projection layer to the pooler_output.
-        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
-            Sequence of hidden-states at the output of the last layer of the model.
-        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
-            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
-            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
-        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
-            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
-            sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
-    """
-
-    image_embeds: Optional[torch.FloatTensor] = None
-    last_hidden_state: torch.FloatTensor = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-    attentions: Optional[Tuple[torch.FloatTensor]] = None
-
-
 class SiglipVisionEmbeddings(nn.Module):
-    def __init__(self, config: SiglipVisionConfig):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
@@ -452,8 +320,6 @@ class SiglipFlashAttention2(SiglipAttention):
         use_cache: bool = False,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        output_attentions = False
-
         bsz, q_len, _ = hidden_states.size()
 
         query_states = self.q_proj(hidden_states)
@@ -636,7 +502,7 @@ class SiglipMLP(nn.Module):
 
 # Copied from transformers.models.clip.modeling_clip.CLIPEncoderLayer with CLIP->Siglip
 class SiglipEncoderLayer(nn.Module):
-    def __init__(self, config: SiglipVisionConfig):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.embed_dim = config.hidden_size
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
@@ -688,47 +554,6 @@ class SiglipEncoderLayer(nn.Module):
         return outputs
 
 
-class SiglipPreTrainedModel(PreTrainedModel):
-    """
-    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
-    models.
-    """
-
-    config_class = SiglipVisionConfig
-    base_model_prefix = "siglip"
-    supports_gradient_checkpointing = True
-
-    def _init_weights(self, module):
-        """Initialize the weights"""
-
-        if isinstance(module, SiglipVisionEmbeddings):
-            width = self.config.hidden_size
-            nn.init.normal_(module.position_embedding.weight, std=1 / np.sqrt(width))
-        elif isinstance(module, nn.Embedding):
-            default_flax_embed_init(module.weight)
-        elif isinstance(module, SiglipAttention):
-            nn.init.normal_(module.q_proj.weight)
-            nn.init.normal_(module.k_proj.weight)
-            nn.init.normal_(module.v_proj.weight)
-            nn.init.normal_(module.out_proj.weight)
-            nn.init.zeros_(module.q_proj.bias)
-            nn.init.zeros_(module.k_proj.bias)
-            nn.init.zeros_(module.v_proj.bias)
-            nn.init.zeros_(module.out_proj.bias)
-        elif isinstance(module, SiglipMLP):
-            nn.init.normal_(module.fc1.weight)
-            nn.init.normal_(module.fc2.weight)
-            nn.init.normal_(module.fc1.bias, std=1e-6)
-            nn.init.normal_(module.fc2.bias, std=1e-6)
-        elif isinstance(module, (nn.Linear, nn.Conv2d)):
-            lecun_normal_(module.weight)
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-
-
 SIGLIP_START_DOCSTRING = r"""
     This model inherits from [`PreTrainedModel`]. Check the superclass documentation for the generic methods the
     library implements for all its model (such as downloading or saving, resizing the input embeddings, pruning heads
@@ -737,7 +562,7 @@ SIGLIP_START_DOCSTRING = r"""
     Use it as a regular PyTorch Module and refer to the PyTorch documentation for all matter related to general usage
     and behavior.
     Parameters:
-        config ([`SiglipVisionConfig`]): Model configuration class with all the parameters of the model.
+        config ([`DotDict`]): Model configuration class with all the parameters of the model.
             Initializing with a config file does not load the weights associated with the model, only the
             configuration. Check out the [`~PreTrainedModel.from_pretrained`] method to load the model weights.
 """
@@ -768,7 +593,7 @@ class SiglipEncoder(nn.Module):
         config: SiglipConfig
     """
 
-    def __init__(self, config: SiglipVisionConfig):
+    def __init__(self, config: DotDict):
         super().__init__()
         self.config = config
         self.layers = nn.ModuleList([SiglipEncoderLayer(config) for _ in range(config.num_hidden_layers)])
@@ -779,10 +604,10 @@ class SiglipEncoder(nn.Module):
         self,
         inputs_embeds,
         attention_mask: Optional[torch.Tensor] = None,
-        output_attentions: Optional[bool] = None,
+        output_attentions: Optional[bool] = False,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutput]:
+        return_dict: Optional[bool] = True,
+    ) -> Union[Tuple, DotDict]:
         r"""
         Args:
             inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
@@ -803,11 +628,6 @@ class SiglipEncoder(nn.Module):
             return_dict (`bool`, *optional*):
                 Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         encoder_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -840,7 +660,7 @@ class SiglipEncoder(nn.Module):
 
         if not return_dict:
             return tuple(v for v in [hidden_states, encoder_states, all_attentions] if v is not None)
-        return BaseModelOutput(
+        return DotDict(
             last_hidden_state=hidden_states, hidden_states=encoder_states, attentions=all_attentions
         )
 
@@ -848,14 +668,14 @@ class SiglipEncoder(nn.Module):
     """The vision model from SigLIP without any head or projection on top.""",
     SIGLIP_START_DOCSTRING
 )
-class SiglipVisionTransformer(SiglipPreTrainedModel):
-    config_class = SiglipVisionConfig
+class SiglipVisionTransformer(nn.Module):
+    config_class = DotDict
     main_input_name = "pixel_values"
     _supports_flash_attn_2 = True
 
-    def __init__(self, config: SiglipVisionConfig):
-        config = SiglipVisionConfig(**config)
-        super().__init__(config)
+    def __init__(self, config: DotDict):
+        super().__init__()
+        config = DotDict(**config)
         self.config = config
         embed_dim = config.hidden_size
 
@@ -864,8 +684,6 @@ class SiglipVisionTransformer(SiglipPreTrainedModel):
         self.post_layernorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
 
-        # Initialize weights and apply final processing
-        self.post_init()
 
     def get_input_embeddings(self) -> nn.Module:
         return self.embeddings.patch_embedding
@@ -878,16 +696,11 @@ class SiglipVisionTransformer(SiglipPreTrainedModel):
         tgt_sizes: Optional[torch.IntTensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPooling]:
+        return_dict: Optional[bool] = True,
+    ) -> Union[Tuple, DotDict]:
         r"""
         Returns:
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         batch_size = pixel_values.size(0)
         if patch_attention_mask is None:
@@ -924,13 +737,13 @@ class SiglipVisionTransformer(SiglipPreTrainedModel):
             return_dict=return_dict,
         )
 
-        last_hidden_state = encoder_outputs[0]
+        last_hidden_state = encoder_outputs.last_hidden_state
         last_hidden_state = self.post_layernorm(last_hidden_state)
 
         if not return_dict:
             return (last_hidden_state, None) + encoder_outputs[1:]
 
-        return BaseModelOutputWithPooling(
+        return DotDict(
             last_hidden_state=last_hidden_state,
             pooler_output=None,
             hidden_states=encoder_outputs.hidden_states,

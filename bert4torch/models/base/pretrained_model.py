@@ -5,13 +5,12 @@
 import torch
 from torch import nn
 from bert4torch.layers import LayerNorm
-from bert4torch.models.modeling_utils import load_state_dict_into_meta_model, has_meta_param
+from bert4torch.models.modeling_utils import load_state_dict_into_meta_model, has_meta_param, get_parameter_device, get_parameter_dtype
 from bert4torch.snippets import (
     JsonConfig, 
     log_warn, 
     find_tied_parameters, 
-    print_trainable_parameters,
-    get_parameter_device, 
+    print_trainable_parameters, 
     load_checkpoint, 
     save_checkpoint, 
     copytree, 
@@ -53,7 +52,7 @@ class PreTrainedModel(nn.Module):
         self.position_bias = None
         self.quantized = False
         self.add_trainer = kwargs.get('add_trainer', False)
-        self.dtype = None
+        # self.dtype = None
         self.config = None
 
     def tie_weights(self):
@@ -266,7 +265,7 @@ class PreTrainedModel(nn.Module):
         **kwargs
     ):
         """加载预训练模型(单个/多个ckpt)"""
-        self.dtype = torch_dtype
+        # self.dtype = torch_dtype
         
         # 单个权重文件
         if isinstance(checkpoints, str):
@@ -546,6 +545,13 @@ class PreTrainedModel(nn.Module):
     def device(self) -> torch.device:
         """获取model所在的device"""
         return get_parameter_device(self)
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """
+        `torch.dtype`: The dtype of the module (assuming that all the module parameters have the same dtype).
+        """
+        return get_parameter_dtype(self)
 
 
 def extend_with_base_model(InputModel):

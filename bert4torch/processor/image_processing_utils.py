@@ -35,7 +35,7 @@ INIT_SERVICE_KWARGS = [
 
 
 @requires(backends=("vision",))
-@register_image_processor()
+@register_image_processor
 class BaseImageProcessor(ImageProcessingMixin):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

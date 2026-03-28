@@ -408,7 +408,7 @@ def _insert_one_token_to_ordered_list(token_list: list[str], new_token: str):
 
 
 @add_end_docstrings(INIT_TOKENIZER_DOCSTRING)
-@register_tokenizer()
+@register_tokenizer
 class PreTrainedTokenizer(PreTrainedTokenizerBase):
     """
     Base class for all slow tokenizers.

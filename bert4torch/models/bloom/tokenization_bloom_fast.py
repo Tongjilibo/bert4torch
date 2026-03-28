@@ -26,7 +26,7 @@ logger = logging.get_logger(__name__)
 VOCAB_FILES_NAMES = {"tokenizer_file": "tokenizer.json"}
 
 
-@register_tokenizer()
+@register_tokenizer
 class BloomTokenizerFast(PreTrainedTokenizerFast):
     """
     Construct a "fast" Bloom tokenizer (backed by HuggingFace's *tokenizers* library). Based on byte-level

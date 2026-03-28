@@ -36,6 +36,19 @@ def is_causal_mask(attention_mask_4d:torch.Tensor, ignore_left_padding=True):
     return torch.all(tril_mask_fill_left0 == attention_mask_4d.int())
 
 
+def is_01_mask(attention_mask:torch.Tensor) -> bool:
+    '''是否是01的mask, bert4torch的, transformers是已经使用min填充后的'''
+    return ((attention_mask == 0) | (attention_mask == 1)).all().item()
+
+
+def repeat_kv(hidden_states:torch.Tensor, n_rep:int) -> torch.Tensor:
+    if n_rep == 1:
+        return hidden_states
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
+
 @regiister_attn_forward(name='eager')
 def eager_attention_forward(
     module: torch.nn.Module,
@@ -49,6 +62,11 @@ def eager_attention_forward(
     **kwargs,
 ) -> torch.Tensor:
     '''qkv attention: torch原生实现'''
+    # multi_query_attention
+    if hasattr(module, 'num_key_value_groups'):
+        key = repeat_kv(key, module.num_key_value_groups)
+        value = repeat_kv(value, module.num_key_value_groups)
+
     # 交换k的最后两个维度，然后q和k执行点积, 获得attention score
     attention_scores = torch.matmul(query, key.transpose(-1, -2))
 
@@ -61,19 +79,21 @@ def eager_attention_forward(
     # 执行attention mask，对于mask为0部分的attention mask，
     # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
     if attention_mask is not None:
-        # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
-        # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
-        attention_mask = (1.0 - attention_mask) * torch.finfo(query.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
+        if is_01_mask(attention_mask):
+            # attention_mask = attention_mask * attention_mask.squeeze(-2).unsqueeze(-1)  # deberta_v2中使用，但是不使用也不影响
+            # attention_scores = attention_scores.masked_fill(attention_mask == 0, -1e10)  # 下一行的另一种写法
+            attention_mask = (1.0 - attention_mask) * torch.finfo(query.dtype).min  # 原来逻辑是-10000，所以传入的mask的非padding部分为1, padding部分为0
         attention_scores = attention_scores + attention_mask
 
     # 将attention score 归一化到0-1
     attention_probs = F.softmax(attention_scores, dim=-1, dtype=torch.float32).to(query.dtype)
     attention_probs = module.dropout(attention_probs)
-    context_layer = torch.matmul(attention_probs, value)  # [batch_size, num_attention_heads, query_len, attention_head_size]
+    attn_output = torch.matmul(attention_probs, value)  # [batch_size, num_attention_heads, query_len, attention_head_size]
 
+    attn_output = attn_output.transpose(1, 2).contiguous()
     if return_dict_name:
         return {name: locals()[name] for name in return_dict_name}
-    return context_layer, attention_scores
+    return attn_output, attention_scores
     
 
 @regiister_attn_forward(name='sdpa')
@@ -85,21 +105,34 @@ def sdpa_attention_forward(
     attention_mask: torch.Tensor,
     dropout: float = 0.0,
     scaling: Optional[float] = None,
+    is_causal: Optional[bool] = None,
     **kwargs,
 ) -> torch.Tensor:
     '''sdpa: torch2.0新特性'''
-    # 适用于qlen=klen, 测试下来is_causal=True训练更快
+    if hasattr(module, 'num_key_value_groups'):
+        key = repeat_kv(key, module.num_key_value_groups)
+        value = repeat_kv(value, module.num_key_value_groups)
+
     query = query.contiguous()
     key = key.contiguous()
     value = value.contiguous()
-    is_causal = False
-    if (key.shape[2] == query.shape[2]) and \
-        (torch.all(attention_mask == 1) or is_causal_mask(attention_mask, ignore_left_padding=False)):
-        is_causal = True
-    min_dtype = torch.finfo(query.dtype).min
-    attention_mask = (1.0 - attention_mask) * min_dtype
-    attention_mask = attention_mask.mul(~torch.all(attention_mask == min_dtype, dim=-1, keepdim=True))  # 将padding部分的mask值变为0
-    context_layer = F.scaled_dot_product_attention(
+
+    if attention_mask is not None and is_01_mask(attention_mask):
+        # bert4torch风格的attention_mask
+        if is_causal is None:
+            # 测试下来is_causal=True训练更快
+            is_causal = (query.shape[2] == key.shape[2]) and (torch.all(attention_mask == 1).item() \
+                        or is_causal_mask(attention_mask, ignore_left_padding=False).item())
+
+        min_dtype = torch.finfo(query.dtype).min
+        attention_mask = (1.0 - attention_mask) * min_dtype
+        attention_mask = attention_mask.mul(~torch.all(attention_mask == min_dtype, dim=-1, keepdim=True))  # 将padding部分的mask值变为0
+    
+    # transformer格式的attention_mask, 包含attention_mask为None
+    if is_causal is None:
+        is_causal = query.shape[2] > 1 and attention_mask is None
+
+    attn_output = F.scaled_dot_product_attention(
         query, 
         key, 
         value, 
@@ -108,7 +141,8 @@ def sdpa_attention_forward(
         scale = scaling,
         is_causal = is_causal
         )
-    return context_layer, None
+    attn_output = attn_output.transpose(1, 2).contiguous()
+    return attn_output, None
 
 
 @regiister_attn_forward(name='flash_attention')
@@ -250,7 +284,7 @@ def flash_attention_forward(
         module._attn_implementation = 'eager'
         return attn_output, None
 
-    return attn_output.transpose(1,2), None
+    return attn_output, None
 
 
 def xformers_attention_forward(
@@ -263,5 +297,6 @@ def xformers_attention_forward(
     dropout: float = 0.0,
     **kwargs,
 ):
-    context_layer = xops.memory_efficient_attention(query, key, value, attn_bias=xops.LowerTriangularMask())
-    return context_layer, None
+    attn_output = xops.memory_efficient_attention(query, key, value, attn_bias=xops.LowerTriangularMask())
+    attn_output = attn_output.transpose(1, 2).contiguous()
+    return attn_output, None

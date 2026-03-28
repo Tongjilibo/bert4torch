@@ -1,10 +1,13 @@
 import torch
 from torch import nn
 import gc
+import os
 import inspect
+from torch import Tensor
 from torch.utils.checkpoint import CheckpointFunction
 from torch4keras.snippets import log_info, log_warn, log_error, is_accelerate_available, find_tied_parameters, log_warn_once
-from typing import Union, Optional, List
+from ..snippets import ENV_VARS_TRUE_VALUES
+from typing import Union, Optional, List, Tuple
 from functools import partial, wraps
 from packaging import version
 from bert4torch.accelerate.utils.modeling import (
@@ -15,6 +18,11 @@ from bert4torch.accelerate.utils.modeling import (
     set_module_tensor_to_device, 
     offload_weight
 )
+from bert4torch.accelerate.utils import is_torch_xla_available
+
+
+XLA_USE_BF16 = os.environ.get("XLA_USE_BF16", "0").upper()
+XLA_DOWNCAST_BF16 = os.environ.get("XLA_DOWNCAST_BF16", "0").upper()
 
 
 def cal_ts_num(tensor_shape):
@@ -195,7 +203,7 @@ def get_device_map(pretrained_model, device_map, torch_dtype, **kwargs):
         else:
             max_memory = get_max_memory(max_memory)
         
-        max_memory = {k:v*0.95 for k, v in max_memory.items()}  # 0.9*0.95=0.855
+        max_memory = {k:v for k, v in max_memory.items()}
         device_map_kwargs["max_memory"] = max_memory
 
         # Make sure tied weights are tied before creating the device map.
@@ -377,6 +385,71 @@ def _prepare_4d_attention_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: 
     inverted_mask = torch.tensor(1.0, dtype=dtype) - expanded_mask
 
     return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+
+
+def get_parameter_device(parameter):
+    '''获取device, 从transformers包迁移过来'''
+    try:
+        return next(parameter.parameters()).device
+    except StopIteration:
+        # For nn.DataParallel compatibility in PyTorch 1.5
+
+        def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
+            tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
+            return tuples
+
+        gen = parameter._named_members(get_members_fn=find_tensor_attributes)
+        first_tuple = next(gen)
+        return first_tuple[1].device
+
+
+def get_parameter_dtype(parameter: Union[nn.Module, "ModuleUtilsMixin"]):
+    """
+    Returns the first found floating dtype in parameters if there is one, otherwise returns the last dtype it found.
+    """
+    last_dtype = None
+    for t in parameter.parameters():
+        last_dtype = t.dtype
+        if t.is_floating_point():
+            # Adding fix for https://github.com/pytorch/xla/issues/4152
+            # Fixes issue where the model code passes a value that is out of range for XLA_USE_BF16=1
+            # and XLA_DOWNCAST_BF16=1 so the conversion would cast it to -inf
+            # NOTE: `is_torch_xla_available()` is checked last as it induces a graph break in torch dynamo
+            if XLA_USE_BF16 in ENV_VARS_TRUE_VALUES and is_torch_xla_available():
+                return torch.bfloat16
+            if XLA_DOWNCAST_BF16 in ENV_VARS_TRUE_VALUES and is_torch_xla_available():
+                if t.dtype == torch.float:
+                    return torch.bfloat16
+                if t.dtype == torch.double:
+                    return torch.float32
+            return t.dtype
+
+    if last_dtype is not None:
+        # if no floating dtype was found return whatever the first dtype is
+        return last_dtype
+
+    # For nn.DataParallel compatibility in PyTorch > 1.5
+    def find_tensor_attributes(module: nn.Module) -> list[tuple[str, Tensor]]:
+        tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
+        return tuples
+
+    gen = parameter._named_members(get_members_fn=find_tensor_attributes)
+    last_tuple = None
+    for gen_tuple in gen:
+        last_tuple = gen_tuple
+        if gen_tuple[1].is_floating_point():
+            return gen_tuple[1].dtype
+
+    if last_tuple is not None:
+        # fallback to the last dtype
+        return last_tuple[1].dtype
+
+    # fallback to buffer dtype
+    for t in parameter.buffers():
+        last_dtype = t.dtype
+        if t.is_floating_point():
+            return t.dtype
+    return last_dtype
 
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):

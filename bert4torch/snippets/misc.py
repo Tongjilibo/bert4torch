@@ -123,25 +123,29 @@ def create_registrar(target_map: Dict[str, Type]) -> Callable:
     返回:
         专用的注册装饰器函数
     """
-    def register(cls=None, name: str = None):
+    def register(callable_or_str=None, name: str = None):
         """
         为指定映射字典服务的注册装饰器
         
         参数:
-            cls: 要注册的类（装饰器自动传入）
+            callable_or_str: 要注册的类/函数/name（装饰器自动传入）
             name: 可选，自定义注册到字典中的key，默认使用类名
         """
-        def decorator(cls):
+        if callable_or_str is not None and isinstance(callable_or_str, str):  # @register("CustomName")
+            name = callable_or_str
+            callable_or_str = None
+
+        def decorator(callable):
             # 确定注册的key，优先使用自定义name，否则使用类名
-            register_name = name or cls.__name__
+            register_name = name or callable.__name__
             # 将类注册到指定的目标字典中
-            target_map[register_name] = cls
+            target_map[register_name] = callable
             # 返回原类，不改变类的功能
-            return cls
+            return callable
         
         # 处理两种使用方式：@register 或 @register(name="CustomName")
-        if cls is not None:
-            return decorator(cls)
+        if callable_or_str is not None:
+            return decorator(callable_or_str)
         return decorator
     
     return register

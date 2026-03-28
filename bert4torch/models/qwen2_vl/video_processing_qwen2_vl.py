@@ -96,7 +96,7 @@ class Qwen2VLVideoProcessorInitKwargs(VideosKwargs):
     """,
 )
 @requires(backends=("torchvision",))
-@register_video_processor()
+@register_video_processor
 class Qwen2VLVideoProcessor(BaseVideoProcessor):
     resample = PILImageResampling.BICUBIC
     size = {"shortest_edge": 128 * 28 * 28, "longest_edge": 28 * 28 * 768}

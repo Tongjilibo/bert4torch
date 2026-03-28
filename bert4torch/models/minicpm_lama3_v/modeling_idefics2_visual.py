@@ -329,7 +329,7 @@ class Idefics2Encoder(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = True,
     ) -> Union[tuple, DotDict]:
         r"""
         Args:
@@ -357,7 +357,6 @@ class Idefics2Encoder(nn.Module):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         encoder_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -414,7 +413,7 @@ class Idefics2VisionTransformer(PreTrainedModel):
         patch_attention_mask: Optional[torch.BoolTensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        return_dict: Optional[bool] = True,
     ) -> Union[tuple, DotDict]:
         r"""
         patch_attention_mask (`torch.BoolTensor` of shape `(batch_size, num_patches_height, num_patches_width)`, *optional*):
@@ -424,7 +423,6 @@ class Idefics2VisionTransformer(PreTrainedModel):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         batch_size = pixel_values.size(0)
         if patch_attention_mask is None:
@@ -457,7 +455,7 @@ class Idefics2VisionTransformer(PreTrainedModel):
             return_dict=return_dict,
         )
 
-        last_hidden_state = encoder_outputs[0]
+        last_hidden_state = encoder_outputs.last_hidden_state
         last_hidden_state = self.post_layernorm(last_hidden_state)
 
         if not return_dict:

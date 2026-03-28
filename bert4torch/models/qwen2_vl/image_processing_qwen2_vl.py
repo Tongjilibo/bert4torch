@@ -81,7 +81,7 @@ def smart_resize(
     return h_bar, w_bar
 
 
-@register_image_processor()
+@register_image_processor
 class Qwen2VLImageProcessor(BaseImageProcessor):
     r"""
     Constructs a Qwen2-VL image processor that dynamically resizes images based on the original images.

@@ -27,7 +27,7 @@ from ...processor.image_processing_utils import ImageProcessingMixin
 from ...processor.processing_utils import ProcessorMixin, PROCESSOR_MAPPING
 from ...processor.video_processing_utils import BaseVideoProcessor
 from ...tokenizers.tokenization_utils import TOKENIZER_CONFIG_FILE
-from ...snippets import FEATURE_EXTRACTOR_NAME, PROCESSOR_NAME, VIDEO_PROCESSOR_NAME, cached_file, logging
+from ...snippets import FEATURE_EXTRACTOR_NAME, PROCESSOR_NAME, VIDEO_PROCESSOR_NAME, BERT4TORCH_CONFIG_NAME, cached_file, logging
 from .feature_extraction_auto import AutoFeatureExtractor
 from .image_processing_auto import AutoImageProcessor
 from .tokenization_auto import AutoTokenizer
@@ -198,6 +198,20 @@ class AutoProcessor:
             # Next, let's check whether the processor class is saved in a tokenizer
             tokenizer_config_file = cached_file(
                 pretrained_model_name_or_path, TOKENIZER_CONFIG_FILE, **cached_file_kwargs
+            )
+            if tokenizer_config_file is not None:
+                with open(tokenizer_config_file, encoding="utf-8") as reader:
+                    config_dict = json.load(reader)
+
+                processor_class = config_dict.get("processor_class", None)
+                if "AutoProcessor" in config_dict.get("auto_map", {}):
+                    processor_auto_map = config_dict["auto_map"]["AutoProcessor"]
+
+        # 从bert4torch_config.json中获取
+        if processor_class is None:
+            # Next, let's check whether the processor class is saved in a tokenizer
+            tokenizer_config_file = cached_file(
+                pretrained_model_name_or_path, BERT4TORCH_CONFIG_NAME, **cached_file_kwargs
             )
             if tokenizer_config_file is not None:
                 with open(tokenizer_config_file, encoding="utf-8") as reader:

@@ -8,7 +8,6 @@ import operator
 import re
 from enum import Enum
 from types import ModuleType
-from collections import OrderedDict
 import sys
 if sys.version_info < (3, 8):
     import importlib_metadata
@@ -303,6 +302,10 @@ def is_flash_attn_2_available():
     else:
         return False
     
+
+def is_kernels_available():
+    return is_package_available("kernels")
+
 
 def get_valid_subdirs(root_dir: str) -> List[str]:
     """获取所有包含 __init__.py 的有效子目录"""

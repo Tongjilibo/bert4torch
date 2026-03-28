@@ -81,7 +81,7 @@ class Qwen2VLFastImageProcessorKwargs(DefaultFastImageProcessorKwargs):
     merge_size: Optional[int]
 
 
-@register_image_processor()
+@register_image_processor
 class Qwen2VLImageProcessorFast(BaseImageProcessorFast):
     do_resize = True
     resample = PILImageResampling.BICUBIC

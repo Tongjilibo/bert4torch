@@ -41,7 +41,7 @@ correct. If you don't know the answer to a question, please don't share false in
 # fmt: on
 
 
-@register_tokenizer()
+@register_tokenizer
 class LlamaTokenizerFast(PreTrainedTokenizerFast):
     """
     Construct a Llama tokenizer. Based on byte-level Byte-Pair-Encoding.

@@ -4,11 +4,14 @@ from typing import List, Optional, Tuple, Union
 from bert4torch.layers import MllamaCrossAttentionDecoderLayer
 from bert4torch.models.llama import LLaMA
 from ..base import PreTrainedModelForDecoder, register_model
+from .visual import MllamaVisionModel
 from bert4torch.snippets import DotDict
 from torch import nn
 import torch
 
+
 __all__ = ['Mllama']
+
 
 class MllamaTextModel(LLaMA):
     '''Mllama的语音模型，主要区别是部分layer是cross_attention的'''
@@ -24,16 +27,13 @@ class Mllama(PreTrainedModelForDecoder):
     _no_split_modules = [
         "MllamaVisionEncoderLayer",
         "MllamaCrossAttentionDecoderLayer",
-        "BertLayer",
+        "LLMLayer",
     ]
     passed_kwargs = PreTrainedModelForDecoder.passed_kwargs | {'pixel_values', 'aspect_ratio_ids', 'aspect_ratio_mask', 'cross_attention_mask'}
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DotDict(config)
-        from transformers.models.mllama.modeling_mllama import MllamaVisionModel
-        from transformers.models.mllama.configuration_mllama import MllamaConfig, MllamaVisionConfig
-        vision_config = MllamaVisionConfig.from_dict(self.config.vision_config)
-        self.vision_model = MllamaVisionModel._from_config(vision_config)
+        self.vision_model = MllamaVisionModel(self.config.vision_config)
         self.language_model = MllamaTextModel(**self.config.text_config)
         # word_embedding部分是vocab_size+8
         self.language_model.embeddings.word_embeddings = nn.Embedding(self.config.text_config.vocab_size+8, self.config.text_config.hidden_size)
@@ -64,11 +64,8 @@ class Mllama(PreTrainedModelForDecoder):
                 pixel_values=pixel_values,
                 aspect_ratio_ids=aspect_ratio_ids,
                 aspect_ratio_mask=aspect_ratio_mask,
-                output_hidden_states=False,
-                output_attentions=False,
-                return_dict=False,
             )
-            cross_attention_states = vision_outputs[0]
+            cross_attention_states = vision_outputs.last_hidden_state
             cross_attention_states = self.multi_modal_projector(cross_attention_states).reshape(
                 -1, cross_attention_states.shape[-2], self.config.text_config.hidden_size)
         else:

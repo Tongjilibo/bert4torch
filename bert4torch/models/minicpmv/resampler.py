@@ -9,10 +9,8 @@ from torch import Tensor
 import torch.nn.functional as F
 from torch.nn.functional import *
 from torch.nn.modules.activation import *
-from torch.nn.init import trunc_normal_, constant_, xavier_normal_, xavier_uniform_
-
+from torch.nn.init import trunc_normal_
 try:
-    from transformers.integrations import is_deepspeed_zero3_enabled
     from torch._numpy._dtypes import DType
 except:
     class DType:
@@ -112,8 +110,6 @@ class Resampler(nn.Module):
         self._set_2d_pos_cache(self.max_size)
 
     def _set_2d_pos_cache(self, max_size, device='cpu'):
-        if is_deepspeed_zero3_enabled():
-            device='cuda'
         pos_embed = torch.from_numpy(get_2d_sincos_pos_embed(self.embed_dim, max_size)).float().to(device)
         self.register_buffer("pos_embed", pos_embed, persistent=False)
 

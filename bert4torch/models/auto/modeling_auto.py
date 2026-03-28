@@ -182,10 +182,11 @@ def check_update_config(config_path:str, **kwargs):
         config['segment_vocab_size'] = config.get('type_vocab_size', 2)
 
     # 获取_attn_implementation的配置项, 自动进行一些设置
-    _attn_implementation = config.get('_attn_implementation', config.get('flash_attention'))  # 兼容老配置文件
+    _attn_implementation = config.get('_attn_implementation', None)  # 兼容老配置文件
     if _attn_implementation is None:
-        config['_attn_implementation'] = 'eager'
-    elif (_attn_implementation in {True, 'sdpa'}) and (not is_torch_sdpa_available()):
+        config['_attn_implementation'] = 'sdpa'
+    
+    if _attn_implementation == 'sdpa' and (not is_torch_sdpa_available()):
         log_warn_once('`F.scaled_dot_product_attention` only supported in torch 2.0')
         config['_attn_implementation'] = 'eager'
     elif (_attn_implementation == 'xformers') and (not is_xformers_available()):

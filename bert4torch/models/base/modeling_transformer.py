@@ -32,6 +32,7 @@ class Encoder(BertBase):
 class PreTrainedModelForDecoder(PreTrainedModel):
     passed_kwargs = {'use_states', 'position_ids', 'past_token_ids', 'attention_mask_2d', 
                      'attention_mask', 'past_key_values', 'cross_past_key_values'}
+    _no_split_modules = ["LLMLayer"]
 
     def __init__(self, *args, **kwargs):
         kwargs['is_decoder'] = True
