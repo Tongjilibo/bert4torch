@@ -26,7 +26,7 @@ from ...processor.feature_extraction_utils import FeatureExtractionMixin
 from ...processor.image_processing_utils import ImageProcessingMixin
 from ...processor.processing_utils import ProcessorMixin, PROCESSOR_MAPPING
 from ...processor.video_processing_utils import BaseVideoProcessor
-from ...tokenizers.tokenization_utils import TOKENIZER_CONFIG_FILE
+from ...tokenizers.tokenization_python import TOKENIZER_CONFIG_FILE
 from ...snippets import FEATURE_EXTRACTOR_NAME, PROCESSOR_NAME, VIDEO_PROCESSOR_NAME, BERT4TORCH_CONFIG_NAME, cached_file, logging
 from .feature_extraction_auto import AutoFeatureExtractor
 from .image_processing_auto import AutoImageProcessor
@@ -34,6 +34,13 @@ from .tokenization_auto import AutoTokenizer
 
 
 logger = logging.get_logger(__name__)
+
+
+def processor_class_from_name(processor_class: str):
+    if processor_class in PROCESSOR_MAPPING:
+        return PROCESSOR_MAPPING[processor_class]
+
+    return None
 
 
 class AutoProcessor:
@@ -233,8 +240,8 @@ class AutoProcessor:
         #     if hasattr(config, "auto_map") and "AutoProcessor" in config.auto_map:
         #         processor_auto_map = config.auto_map["AutoProcessor"]
 
-        if processor_class is not None and processor_class in PROCESSOR_MAPPING:
-            processor_class = PROCESSOR_MAPPING[processor_class]
+        if processor_class is not None:
+            processor_class = processor_class_from_name(processor_class)
 
         has_remote_code = processor_auto_map is not None
         has_local_code = processor_class is not None or type(config).__name__ in PROCESSOR_MAPPING

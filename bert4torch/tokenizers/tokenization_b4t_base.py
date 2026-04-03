@@ -7,7 +7,7 @@ from bert4torch.snippets import truncate_sequences, is_string, lowercase_and_nor
 from collections import OrderedDict
 import torch
 import numpy as np
-from .tokenization_utils import Trie
+from .tokenization_python import Trie
 
 
 class TokenizerDictOutput(dict):

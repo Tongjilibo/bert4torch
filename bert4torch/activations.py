@@ -33,6 +33,7 @@ def gelu(x):
         return nn.functional.gelu(x)
 
 
+@register_act(name='gelu_new')
 @register_act(name='_gelu_new')
 def _gelu_new(x):
     """

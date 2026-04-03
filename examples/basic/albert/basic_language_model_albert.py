@@ -11,10 +11,11 @@ inputtext = "天气不[MASK]，想出去玩玩"
 
 # ==========================bert4torch调用==========================
 tokenizer = Tokenizer(root_model_path + "/vocab.txt", do_lower_case=True)
-model = build_transformer_model(root_model_path, with_mlm='softmax')
+model = build_transformer_model(root_model_path, with_mlm='softmax',_attn_implementation='eager')
 
 token_ids, segments_ids = tokenizer.encode(inputtext)
 print(''.join(tokenizer.ids_to_tokens(token_ids)))
+maskpos = token_ids.index(tokenizer.mask_token_id)
 
 tokens_ids_tensor = torch.tensor([token_ids])
 segment_ids_tensor = torch.tensor([segments_ids])
@@ -23,7 +24,7 @@ print('====bert4torch output====')
 model.eval()
 with torch.no_grad():
     _, probas = model([tokens_ids_tensor, segment_ids_tensor])
-    result = torch.argmax(probas[0, 3:4], dim=-1).numpy()
+    result = torch.argmax(probas[0, maskpos:maskpos+1], dim=-1).numpy()
     print(tokenizer.decode(result))
 
 

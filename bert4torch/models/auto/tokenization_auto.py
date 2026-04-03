@@ -25,10 +25,30 @@ from ...snippets import (
     cached_file,
     extract_commit_hash,
     logging,
+    is_tokenizers_available
 )
 
 
+if is_tokenizers_available():
+    from ...tokenizers.tokenization_utils_tokenizers import TokenizersBackend
+else:
+    TokenizersBackend = None
+
+
 logger = logging.get_logger(__name__)
+
+
+def tokenizer_class_from_name(class_name: str) -> type[Any] | None:
+    # Bloom tokenizer classes were removed but should map to the fast backend for BC
+
+    if class_name in TOKENIZER_MAPPING:
+        return TOKENIZER_MAPPING[class_name]
+
+    # BC v5: If a XxxFast class is not found, retry without 'Fast' for tokenizers saved pre-v5.
+    if class_name.endswith("Fast"):
+        return tokenizer_class_from_name(class_name[:-4])
+
+    return None
 
 
 def get_tokenizer_config(
@@ -247,17 +267,14 @@ class AutoTokenizer:
         config = kwargs.pop("config", None)
         kwargs["_from_auto"] = True
 
-        use_fast = kwargs.pop("use_fast", True)
+        # V5: Always use fast tokenizers, ignore use_fast parameter
+        _ = kwargs.pop("use_fast", None)
         tokenizer_type = kwargs.pop("tokenizer_type", None)
         trust_remote_code = kwargs.pop("trust_remote_code", None)
 
         # First, let's see whether the tokenizer_type is passed so that we can leverage it
         if tokenizer_type is not None:
-            if use_fast:
-                tokenizer_class = TOKENIZER_MAPPING.get(tokenizer_type+'Fast', None)
-
-            if tokenizer_class is None:
-                tokenizer_class = TOKENIZER_MAPPING.get(tokenizer_type, None)
+            tokenizer_class = tokenizer_class_from_name(tokenizer_type)
 
             if tokenizer_class is None:
                 raise ValueError(f"Tokenizer class {tokenizer_type} is not currently imported.")
@@ -268,7 +285,7 @@ class AutoTokenizer:
         tokenizer_config = get_tokenizer_config(pretrained_model_name_or_path, **kwargs)
         if "_commit_hash" in tokenizer_config:
             kwargs["_commit_hash"] = tokenizer_config["_commit_hash"]
-        config_tokenizer_class = tokenizer_config.get("tokenizer_class")
+        tokenizer_config_class = tokenizer_config.get("tokenizer_class")
         tokenizer_auto_map = None
         if "auto_map" in tokenizer_config:
             if isinstance(tokenizer_config["auto_map"], (tuple, list)):
@@ -279,14 +296,14 @@ class AutoTokenizer:
 
         has_remote_code = tokenizer_auto_map is not None
         has_local_code = type(config).__name__ in TOKENIZER_MAPPING or (
-            config_tokenizer_class is not None
+            tokenizer_config_class is not None
             and (
-                TOKENIZER_MAPPING.get(config_tokenizer_class) is not None
-                or TOKENIZER_MAPPING.get(config_tokenizer_class + "Fast") is not None
+                tokenizer_class_from_name(tokenizer_config_class) is not None
+                or tokenizer_class_from_name(tokenizer_config_class + "Fast") is not None
             )
         )
         if has_remote_code:
-            if use_fast and tokenizer_auto_map[1] is not None:
+            if tokenizer_auto_map[1] is not None:
                 class_ref = tokenizer_auto_map[1]
             else:
                 class_ref = tokenizer_auto_map[0]
@@ -305,18 +322,17 @@ class AutoTokenizer:
             return tokenizer_class.from_pretrained(
                 pretrained_model_name_or_path, *inputs, trust_remote_code=trust_remote_code, **kwargs
             )
-        elif config_tokenizer_class is not None:
-            tokenizer_class = None
-            if use_fast and not config_tokenizer_class.endswith("Fast"):
-                tokenizer_class_candidate = f"{config_tokenizer_class}Fast"
-                tokenizer_class = TOKENIZER_MAPPING[tokenizer_class_candidate]
+        elif tokenizer_config_class is not None:
+            tokenizer_class_candidate = tokenizer_config_class
+            tokenizer_class = tokenizer_class_from_name(tokenizer_class_candidate)
+            if tokenizer_class is None and not tokenizer_class_candidate.endswith("Fast"):
+                tokenizer_class = tokenizer_class_from_name(tokenizer_class_candidate + "Fast")
+            if tokenizer_class is not None and tokenizer_class.__name__ == "PythonBackend":
+                tokenizer_class = TokenizersBackend
+            # Fallback to TokenizersBackend if the class wasn't found
             if tokenizer_class is None:
-                tokenizer_class_candidate = config_tokenizer_class
-                tokenizer_class = TOKENIZER_MAPPING[tokenizer_class_candidate]
-            if tokenizer_class is None:
-                raise ValueError(
-                    f"Tokenizer class {tokenizer_class_candidate} does not exist or is not currently imported."
-                )
+                tokenizer_class = TokenizersBackend
+
             return tokenizer_class.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
 
 

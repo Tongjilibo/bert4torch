@@ -27,18 +27,22 @@ def is_causal_mask(attention_mask_4d:torch.Tensor, ignore_left_padding=True):
     '''
     if ignore_left_padding:
         # left padding的下三角mask认为是True
-        return torch.all(torch.tril(attention_mask_4d) == attention_mask_4d)
+        return torch.all(torch.tril(attention_mask_4d) == attention_mask_4d).item()
     
     # 对1左侧的0全部补齐为1
     cummax = torch.cummax(attention_mask_4d, dim=-1)[0]
     not_all_0 = (attention_mask_4d.sum(dim=-1, keepdim=True) > 0).int()
     tril_mask_fill_left0 = (cummax < 1).int() * not_all_0 | torch.tril(attention_mask_4d.int())
-    return torch.all(tril_mask_fill_left0 == attention_mask_4d.int())
+    return torch.all(tril_mask_fill_left0 == attention_mask_4d.int()).item()
 
 
 def is_01_mask(attention_mask:torch.Tensor) -> bool:
     '''是否是01的mask, bert4torch的, transformers是已经使用min填充后的'''
     return ((attention_mask == 0) | (attention_mask == 1)).all().item()
+
+
+def is_1_mask(attention_mask:torch.Tensor) -> bool:
+    return torch.all(attention_mask == 1).item()
 
 
 def repeat_kv(hidden_states:torch.Tensor, n_rep:int) -> torch.Tensor:
@@ -73,8 +77,8 @@ def eager_attention_forward(
     # 相对位置编码
     attention_scores = module.apply_relative_pos_emb(query, key, attention_scores)
 
-    # scaling
-    attention_scores = attention_scores * scaling
+    # scaling, 这里融合到apply_relative_pos_emb中去
+    # attention_scores = attention_scores * scaling
     
     # 执行attention mask，对于mask为0部分的attention mask，
     # 值为-1e10，经过softmax后，attention_probs几乎为0，所以不会attention到mask为0的部分
@@ -118,17 +122,23 @@ def sdpa_attention_forward(
     value = value.contiguous()
 
     if attention_mask is not None and is_01_mask(attention_mask):
-        # bert4torch风格的attention_mask
-        if is_causal is None:
-            # 测试下来is_causal=True训练更快
-            is_causal = (query.shape[2] == key.shape[2]) and (torch.all(attention_mask == 1).item() \
-                        or is_causal_mask(attention_mask, ignore_left_padding=False).item())
+        # 1. bert4torch风格的attention_mask：0为padding，1为非padding
+        if is_1_mask(attention_mask):
+            # 1.1 bert的全为1的attention_mask: [[[[1,1,1,1,1,1]]]]
+            is_causal = False
+        elif is_causal is None:
+            # 1.2 为01格式的4d_attention_mask, 需要判断是否满足causal的下三角格式
+            # 1.2.1 extend_with_language_model会修改mask为下三角
+            # 1.2.2 extend_with_unified_language_model会修改mask为UniLM的左侧为1，右边是下三角的形式
+            # 对于CausalModel，当且仅当step=1，即prefill阶段是is_causal=True
+            is_causal = (query.shape[2] == key.shape[2]) and is_causal_mask(attention_mask, ignore_left_padding=False)
 
         min_dtype = torch.finfo(query.dtype).min
         attention_mask = (1.0 - attention_mask) * min_dtype
         attention_mask = attention_mask.mul(~torch.all(attention_mask == min_dtype, dim=-1, keepdim=True))  # 将padding部分的mask值变为0
     
-    # transformer格式的attention_mask, 包含attention_mask为None
+    # 2.1 attention_mask为None时，is_causal=True
+    # 2.2 attention_mask不为None, 是transformer格式的4d_attention_mask, 0和-inf组成
     if is_causal is None:
         is_causal = query.shape[2] > 1 and attention_mask is None
 
@@ -139,7 +149,7 @@ def sdpa_attention_forward(
         attn_mask = None if is_causal else attention_mask,
         dropout_p = dropout,
         scale = scaling,
-        is_causal = is_causal
+        is_causal = is_causal  # is_causal速度更块
         )
     attn_output = attn_output.transpose(1, 2).contiguous()
     return attn_output, None

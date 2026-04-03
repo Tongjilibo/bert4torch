@@ -15,7 +15,7 @@ class Falcon(Decoder):
     _no_split_modules = ["BertLayer", "FalconParallelAttnLayer"]
     def __init__(self, *args, **kwargs):
         if kwargs.get('pos_emb_type') == 'alibi':
-            AlibiAttention.apply_alibi_pos_emb = apply_alibi_pos_emb
+            AlibiAttention.apply_relative_pos_emb = apply_relative_pos_emb
         super().__init__(*args, **kwargs)
         self.multi_query_attention = kwargs.get('num_key_value_heads') is not None
         del self.embeddings.layerNorm
@@ -95,13 +95,13 @@ class Falcon(Decoder):
         return mapping
 
 
-def apply_alibi_pos_emb(self, attention_scores, key_layer):
+def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
     ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行attention_scale的 '''
     input_dtype = attention_scores.dtype
     if input_dtype == torch.float16 or input_dtype == torch.bfloat16:
         attention_scores = attention_scores.to(torch.float32)
         
-    key_position_scores_r_t = self.relative_positions_encoding(key_layer)
+    key_position_scores_r_t = self.relative_positions_encoding(key_states)
     attention_scores = attention_scores + key_position_scores_r_t
     attention_scores = attention_scores / math.sqrt(self.attention_head_size)
     return attention_scores

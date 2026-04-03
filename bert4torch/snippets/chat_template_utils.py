@@ -14,7 +14,8 @@ from typing import (
     Union,
     get_args,
     get_origin,
-    get_type_hints,
+    get_type_hints, 
+    no_type_check
 )
 
 from packaging import version
@@ -349,6 +350,21 @@ def get_json_schema(func: Callable) -> dict:
     if return_dict is not None:
         output["return"] = return_dict
     return {"type": "function", "function": output}
+
+
+@lru_cache
+@no_type_check
+def _get_template_variables(chat_template: str) -> frozenset[str]:
+    """Return the set of undeclared variables referenced by a chat template.
+
+    Uses ``jinja2.meta.find_undeclared_variables`` so that callers can
+    automatically distinguish template-level kwargs from processor kwargs
+    without maintaining a manual allowlist. Needed only to support BC as we
+    allowed all `kwargs` to be merged into one in the past
+    """
+    compiled = _compile_jinja_template(chat_template)
+    ast = compiled.environment.parse(chat_template)
+    return frozenset(jinja2.meta.find_undeclared_variables(ast))
 
 
 def _render_with_assistant_indices(

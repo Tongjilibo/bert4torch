@@ -20,6 +20,7 @@ from .glm import *
 from .glm2 import *
 from .glm4 import *
 from .glm4v import *
+from .glm46v import *
 from .glm_ocr import *
 from .gpt import *
 from .gpt2 import *

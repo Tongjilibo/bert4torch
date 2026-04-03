@@ -75,8 +75,8 @@ valid_dataset = MyDataset('F:/data/corpus/seq2seq/summary/csl_title_public/csl_t
 test_dataset = MyDataset('F:/data/corpus/seq2seq/summary/csl_title_public/csl_title_test.json')
 
 model = build_transformer_model(
-    config_path,
-    checkpoint_path,
+    config_path=config_path,
+    checkpoint_path=checkpoint_path,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
     pad_token_id=pad_token_id,  # 也可以指定custom_attention_mask并传入attention_mask来实现
     add_trainer=True

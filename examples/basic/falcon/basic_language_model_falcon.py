@@ -34,6 +34,9 @@ if __name__ == '__main__':
     print("Welcome to use falcon model，type `clear` to clear history，type `stop` to stop program")
     while True:
         query = input("\nUser：")
+        if query.strip() == "":
+            query = "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:"
+
         if query == "stop":
             break
         if query == "clear":
@@ -41,8 +44,7 @@ if __name__ == '__main__':
             os.system(command)
             print("Welcome to use falcon model，type `clear` to clear history，type `stop` to stop program")
             continue
-        # 官方测试用例
-        # query = "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:"
+
         response = generation.generate(query, top_k=10, include_input=include_input)      
         torch.cuda.empty_cache()  # 清理显存
         print(f"\nfalcon：{response}")

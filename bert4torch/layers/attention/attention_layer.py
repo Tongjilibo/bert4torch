@@ -186,7 +186,7 @@ class MultiHeadAttention(nn.Module):
         return x.permute(0, 2, 1, 3)
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
-        return attention_scores
+        return attention_scores * self.scaling
 
 
 @register_attn
@@ -252,7 +252,6 @@ class DebertaV2Attention(MultiHeadAttention):
         if "layer_norm" in self.norm_rel_ebd:
             self.layernorm = nn.LayerNorm(self.hidden_size, kwargs.get('layer_norm_eps', 1e-12), elementwise_affine=True)
         self.pos_dropout = nn.Dropout(self.dropout_rate)
-        self.scaling = 1.0
         self._attn_implementation = 'eager'
 
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
@@ -330,17 +329,11 @@ class AlibiAttention(MultiHeadAttention):
     '''alibi相对位置编码'''
     def init_position_encoding(self, **kwargs):
         self.relative_positions_encoding = ALiBiPositionsEncoding(self.num_attention_heads)
-        self.scaling_raw = self.scaling_raw
-        self.scaling = 1.0
         self._attn_implementation = 'eager'
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
-        attention_scores = self.apply_alibi_pos_emb(attention_scores, key_states)
-        return attention_scores
-    
-    def apply_alibi_pos_emb(self, attention_scores, key_states):
-        ''' 执行alibi相对位置编码，单独拎出来主要是falcon是在+之后再执行scale的 '''
-        attention_scores = attention_scores * self.scaling_raw
+        '''先scale后relative_positions_encoding'''
+        attention_scores = attention_scores * self.scaling
         key_position_scores_r_t = self.relative_positions_encoding(key_states)
         attention_scores = attention_scores + key_position_scores_r_t
         attention_scores = torch.max(attention_scores, torch.tensor(torch.finfo(attention_scores.dtype).min))  # baichuan-13b逻辑
@@ -781,8 +774,7 @@ class T5Attention(MultiHeadAttention):
             relative_attention_num_buckets=kwargs.get('relative_attention_num_buckets'), 
             is_decoder=kwargs.get('is_decoder'))
         self.relative_positions_encoding = nn.Embedding(kwargs.get('relative_attention_num_buckets'), self.num_attention_heads)
-        if not hasattr(self, 'relative_positions_encoding'):
-            self._attn_implementation = 'eager'
+        self._attn_implementation = 'eager'
     
     def apply_relative_pos_emb(self, query_states, key_states, attention_scores):
         if not hasattr(self, 'relative_positions_encoding'):  # 外部可能会变更

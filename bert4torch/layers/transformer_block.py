@@ -234,6 +234,8 @@ class LLMLayer(BertLayer):
     """LLM的Encoder的主体是基于Self-Attention的模块: PreLayerNorm
     顺序：LN --> Att --> Add --> LN --> FFN --> Add
     """
+    def __init__(self, *args, is_decoder=False, **kwargs):
+        super().__init__(*args, is_decoder=is_decoder, **kwargs)
     
     def _process_before_self_attention(self, hidden_states, conditional_emb):
         '''self attention前处理'''
