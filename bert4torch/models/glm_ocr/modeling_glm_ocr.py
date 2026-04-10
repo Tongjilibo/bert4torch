@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Union
 from bert4torch.models.glm4 import Glm4
 from ..base import PreTrainedModelForDecoder, register_model
 from bert4torch.snippets import DotDict
-from .visual import GlmOcrVisionModel, GlmOcrVisionConfig
+from .visual import GlmOcrVisionModel
 import torch
 import itertools
 
@@ -13,8 +13,8 @@ class GlmOcr(PreTrainedModelForDecoder):
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DotDict(config)
-        vision_config = GlmOcrVisionConfig.from_dict(self.config.vision_config)
-        self.visual = GlmOcrVisionModel._from_config(vision_config)
+        self.config.vision_config._attn_implementation = self.config._attn_implementation
+        self.visual = GlmOcrVisionModel(self.config.vision_config)
         self.language_model = Glm4(**self.config.text_config)
         self.language_model.passed_kwargs = GlmOcr.passed_kwargs
 

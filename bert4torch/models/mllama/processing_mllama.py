@@ -181,7 +181,7 @@ class MllamaProcessor(ProcessorMixin):
     information.
     The preferred way of passing kwargs is as a dictionary per modality, see usage example below.
         ```python
-        from transformers import MllamaProcessor
+        from bert4torch import MllamaProcessor
         from PIL import Image
 
         processor = MllamaProcessor.from_pretrained("meta-llama/Llama-3.2-11B-Vision")

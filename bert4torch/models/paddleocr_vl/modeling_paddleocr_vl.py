@@ -6,6 +6,7 @@ from bert4torch.activations import ACT2FN
 import torch
 from torch import nn
 import numpy as np
+from .visual import SiglipVisionModel
 
 
 class Projector(nn.Module):
@@ -73,8 +74,8 @@ class PaddleOCR_VL(PreTrainedModelForDecoder):
     def __init__(self, **config):
         super().__init__(**config)
         self.config = DotDict(config)
+        self.config.vision_config._attn_implementation = self.config._attn_implementation
         self.mlp_AR = Projector(self.config, self.config.vision_config)
-        from .visual import SiglipVisionModel
         self.visual = SiglipVisionModel(self.config.vision_config)
         self.model = Qwen2(**config)
         self.model.passed_kwargs = PaddleOCR_VL.passed_kwargs

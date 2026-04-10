@@ -29,7 +29,7 @@ def demo_generate():
 
     image = Image.open(image_path).convert("RGB")
 
-    processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(model_dir) #, trust_remote_code=True)
     model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir).to("cuda")
 
     messages = [

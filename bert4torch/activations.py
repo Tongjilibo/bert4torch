@@ -19,7 +19,7 @@ ACT2FN = {
 register_act = create_registrar(ACT2FN)
 
 
-@register_act(name='gelu')
+@register_act
 def gelu(x):
     """
     Original Implementation of the GELU activation function in Google BERT repo when initially created. For
@@ -34,7 +34,7 @@ def gelu(x):
 
 
 @register_act(name='gelu_new')
-@register_act(name='_gelu_new')
+@register_act
 def _gelu_new(x):
     """
     Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT). Also see
@@ -43,17 +43,17 @@ def _gelu_new(x):
     return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
 
 
-@register_act(name='gelu_fast')
+@register_act
 def gelu_fast(x):
     return 0.5 * x * (1.0 + torch.tanh(x * 0.7978845608 * (1.0 + 0.044715 * x * x)))
 
 
-@register_act(name='quick_gelu')
+@register_act
 def quick_gelu(x):
     return x * torch.sigmoid(1.702 * x)
 
 
-@register_act(name='silu')
+@register_act
 @register_act(name='swish')
 def silu(x):
     """
@@ -69,7 +69,7 @@ def silu(x):
         return nn.functional.silu(x)
 
 
-@register_act(name='mish')
+@register_act
 def mish(x):
     """
     See Mish: A Self-Regularized Non-Monotonic Activation Function (Misra., https://arxiv.org/abs/1908.08681). Also
@@ -86,7 +86,7 @@ def linear_act(x):
     return x
 
 
-@register_act(name='swiglu')
+@register_act
 def swiglu(x, dim=-1):
     x = torch.chunk(x, 2, dim=dim)
     return silu(x[0]) * x[1]

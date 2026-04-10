@@ -3,28 +3,10 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn import LayerNorm
 from collections.abc import Callable
-try:
-    from transformers import initialization as init
-    from transformers.activations import ACT2FN
-    from transformers.cache_utils import Cache, DynamicCache
-    from transformers.generation import GenerationMixin
-    from transformers.integrations import use_kernel_forward_from_hub
-    from transformers.masking_utils import create_causal_mask
-    from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
-    from transformers.modeling_layers import GradientCheckpointingLayer
-    from transformers.modeling_outputs import BaseModelOutputWithPast, BaseModelOutputWithPooling, ModelOutput
-    from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_update
-    from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
-    from transformers.processing_utils import Unpack
-    from transformers.utils import TransformersKwargs, auto_docstring, can_return_tuple, torch_compilable_check
-    from transformers.utils.generic import is_flash_attention_requested, maybe_autocast, merge_with_config_defaults
-    from transformers.utils.output_capturing import capture_outputs
-    from transformers.models.glm_ocr.configuration_glm_ocr import GlmOcrConfig, GlmOcrTextConfig, GlmOcrVisionConfig
-except:
-    PreTrainedModel = object
-    GradientCheckpointingLayer = object
-    GlmOcrConfig = object
-    GlmOcrVisionConfig = object
+from ...snippets import DotDict, is_flash_attention_requested
+from ...activations import ACT2FN
+from ...layers.attention import ALL_ATTENTION_FUNCTIONS
+from ...models import PreTrainedModel
 
 
 class GlmOcrRMSNorm(nn.Module):
@@ -172,9 +154,7 @@ class GlmOcrVisionAttention(nn.Module):
         key_states = key_states.transpose(0, 1).unsqueeze(0)
         value_states = value_states.transpose(0, 1).unsqueeze(0)
 
-        attention_interface: Callable = ALL_ATTENTION_FUNCTIONS.get_interface(
-            self.config._attn_implementation, eager_attention_forward
-        )
+        attention_interface: Callable = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
 
         if is_flash_attention_requested(self.config):
             # Flash Attention: Use cu_seqlens for variable length attention
@@ -222,7 +202,7 @@ class GlmOcrVisionAttention(nn.Module):
         return attn_output
 
 
-class GlmOcrVisionBlock(GradientCheckpointingLayer):
+class GlmOcrVisionBlock(nn.Module):
     def __init__(self, config) -> None:
         super().__init__()
         self.norm1 = GlmOcrRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
@@ -286,33 +266,9 @@ class GlmOcrVisionPatchEmbed(nn.Module):
         return hidden_states
 
 
-class GlmOcrPreTrainedModel(PreTrainedModel):
-    config: GlmOcrConfig
-    base_model_prefix = "model"
-    input_modalities = ("image", "video", "text")
-    supports_gradient_checkpointing = True
-    _no_split_modules = ["GlmOcrTextDecoderLayer", "GlmOcrVisionBlock"]
-    _skip_keys_device_placement = "past_key_values"
-    _supports_flash_attn = True
-    _supports_sdpa = True
 
-    _can_compile_fullgraph = True
-    _supports_attention_backend = True
-    _can_record_outputs = {}
-    #     "hidden_states": GlmOcrTextDecoderLayer,
-    #     "attentions": GlmOcrTextAttention,
-    # }
-    _keys_to_ignore_on_load_unexpected = [r"model\.language_model\.layers\.16.*"]
-
-    def _init_weights(self, module):
-        super()._init_weights(module)
-        if isinstance(module, GlmOcrVisionRotaryEmbedding):
-            inv_freq = 1.0 / (module.theta ** (torch.arange(0, module.dim, 2, dtype=torch.float) / module.dim))
-            init.copy_(module.inv_freq, inv_freq)
-
-
-class GlmOcrVisionModel(GlmOcrPreTrainedModel):
-    config: GlmOcrVisionConfig
+class GlmOcrVisionModel(PreTrainedModel):
+    config: DotDict
     input_modalities = ("image", "video")
     _no_split_modules = ["GlmOcrVisionBlock"]
     _can_record_outputs = {
@@ -344,7 +300,7 @@ class GlmOcrVisionModel(GlmOcrPreTrainedModel):
         self.post_layernorm = GlmOcrRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
         self.gradient_checkpointing = False
-        self.post_init()
+        self.config = config
 
     def rot_pos_emb(self, grid_thw):
         pos_ids = []
@@ -416,7 +372,7 @@ class GlmOcrVisionModel(GlmOcrPreTrainedModel):
         hidden_states = self.downsample(hidden_states).view(-1, self.config.out_hidden_size)
 
         merged_hidden_states = self.merger(hidden_states)
-        return BaseModelOutputWithPooling(
+        return DotDict(
             last_hidden_state=hidden_states,
             pooler_output=merged_hidden_states,
         )

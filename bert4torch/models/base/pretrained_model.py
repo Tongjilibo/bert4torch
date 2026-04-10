@@ -128,7 +128,7 @@ class PreTrainedModel(nn.Module):
             self.eval()
         return self.forward(*inputs, **model_kwargs)
 
-    def init_model_weights(self, module):
+    def _init_weights(self, module):
         """ 初始化权重 """
         if isinstance(module, (nn.Linear, nn.Embedding)) and (module.weight.requires_grad):
             # bert参数初始化, tf版本在linear和Embedding层使用的是截断正太分布, pytorch没有实现该函数,
@@ -552,6 +552,10 @@ class PreTrainedModel(nn.Module):
         `torch.dtype`: The dtype of the module (assuming that all the module parameters have the same dtype).
         """
         return get_parameter_dtype(self)
+
+    def post_init(self):
+        """初始化后"""
+        pass
 
 
 def extend_with_base_model(InputModel):

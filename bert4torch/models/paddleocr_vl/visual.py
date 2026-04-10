@@ -5,20 +5,20 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Callable, List, Optional, Tuple, Union
-from bert4torch.snippets import DotDict, safe_import
+from bert4torch.snippets import DotDict
 from torch.nn.init import _calculate_fan_in_and_fan_out
-with safe_import():
-    from transformers.activations import ACT2FN
-    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
-    from transformers.modeling_utils import PreTrainedModel, sdpa_attention_forward
-    from transformers.utils import is_flash_attn_2_available, torch_int
-    from transformers.configuration_utils import PretrainedConfig
-    if is_flash_attn_2_available():
-        from flash_attn import flash_attn_varlen_func
-        from flash_attn.layers.rotary import apply_rotary_emb
-    else:
-        flash_attn_varlen_func = None
-        apply_rotary_emb = None
+from ...activations import ACT2FN
+from ..base import PreTrainedModel
+from ...layers.attention import sdpa_attention_forward
+from ...snippets import is_flash_attn_2_available, torch_int
+
+
+if is_flash_attn_2_available():
+    from flash_attn import flash_attn_varlen_func
+    from flash_attn.layers.rotary import apply_rotary_emb
+else:
+    flash_attn_varlen_func = None
+    apply_rotary_emb = None
 
 
 def _trunc_normal_(tensor, mean, std, a, b):
@@ -638,7 +638,7 @@ class SiglipEncoder(nn.Module):
         use_rope: Optional[bool] = False,
         window_size: Optional[bool] = -1,
         vision_or_text: str = "vision",
-    ) -> BaseModelOutput:
+    ) -> DotDict:
         r"""
         Args:
             inputs_embeds (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
@@ -666,16 +666,6 @@ class SiglipEncoder(nn.Module):
         assert vision_or_text in ["vision", "text"]
         use_window_attn = window_size > 0 and vision_or_text == "vision"
         use_rope = (use_rope is True) and (vision_or_text == "vision")
-        output_attentions = (
-            output_attentions
-            if output_attentions is not None
-            else self.config.output_attentions
-        )
-        output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
-        )
 
         encoder_states = () if output_hidden_states else None
         all_attentions = () if output_attentions else None
@@ -782,7 +772,7 @@ class SiglipEncoder(nn.Module):
         if output_hidden_states:
             encoder_states = encoder_states + (hidden_states,)
 
-        return BaseModelOutput(
+        return DotDict(
             last_hidden_state=hidden_states,
             hidden_states=encoder_states,
             attentions=all_attentions,
@@ -826,21 +816,12 @@ class SiglipVisionTransformer(nn.Module):
         return_pooler_output: Optional[bool] = True,
         use_rope: Optional[bool] = False,
         window_size: Optional[bool] = -1,
-    ) -> BaseModelOutputWithPooling:
+    ) -> DotDict:
         r"""
         Returns:
 
         """
-        output_attentions = (
-            output_attentions
-            if output_attentions is not None
-            else self.config.output_attentions
-        )
-        output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
-        )
+
         hidden_states = self.embeddings(
             pixel_values,
             interpolate_pos_encoding=interpolate_pos_encoding,
@@ -848,7 +829,7 @@ class SiglipVisionTransformer(nn.Module):
             image_grid_thw=image_grid_thw,
         )
 
-        encoder_outputs: BaseModelOutput = self.encoder(
+        encoder_outputs: DotDict = self.encoder(
             inputs_embeds=hidden_states,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
@@ -915,7 +896,7 @@ class SiglipVisionTransformer(nn.Module):
                     pooler_output = torch.concat(pooler_output, dim=0)
                     sample_hidden_state = sample_hidden_state_list
 
-                return BaseModelOutputWithPooling(
+                return DotDict(
                     last_hidden_state=sample_hidden_state,
                     pooler_output=pooler_output,
                     hidden_states=encoder_outputs.hidden_states,
@@ -924,7 +905,7 @@ class SiglipVisionTransformer(nn.Module):
             else:
                 pooler_output = self.head(last_hidden_state) if self.use_head else None
 
-            return BaseModelOutputWithPooling(
+            return DotDict(
                 last_hidden_state=last_hidden_state,
                 pooler_output=pooler_output,
                 hidden_states=encoder_outputs.hidden_states,
@@ -939,7 +920,7 @@ class SiglipVisionTransformer(nn.Module):
             tensor = last_hidden_state[:, start:end, :].squeeze(0)
             sample_hidden_state.append(tensor)
 
-        return BaseModelOutputWithPooling(
+        return DotDict(
             last_hidden_state=sample_hidden_state,
             pooler_output=None,
             hidden_states=encoder_outputs.hidden_states,
@@ -980,13 +961,11 @@ class SiglipVisionModel(SiglipPreTrainedModel):
     main_input_name = "pixel_values"
 
     def __init__(self, config: DotDict):
-        config = PretrainedConfig(**config)
+        config = DotDict(**config)
         super().__init__(config)
 
         self.vision_model = SiglipVisionTransformer(config)
 
-        # Initialize weights and apply final processing
-        self.post_init()
 
     def get_input_embeddings(self) -> nn.Module:
         return self.vision_model.embeddings.patch_embedding
@@ -1008,7 +987,7 @@ class SiglipVisionModel(SiglipPreTrainedModel):
         return_pooler_output: Optional[bool] = True,
         use_rope: Optional[bool] = False,
         window_size: Optional[bool] = -1,
-    ) -> BaseModelOutputWithPooling:
+    ) -> DotDict:
         r"""
         Returns:
 

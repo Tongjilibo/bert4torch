@@ -6,6 +6,7 @@ from .hub import *
 from .generic import *
 from .openai_client import *
 
+
 CONFIG_NAME = "config.json"
 FEATURE_EXTRACTOR_NAME = "preprocessor_config.json"
 IMAGE_PROCESSOR_NAME = "preprocessor_config.json"
@@ -21,3 +22,10 @@ IMAGENET_STANDARD_MEAN = [0.5, 0.5, 0.5]
 IMAGENET_STANDARD_STD = [0.5, 0.5, 0.5]
 OPENAI_CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
 OPENAI_CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
+
+
+def auto_docstring(cls):
+    """
+    自动文档字符串装饰器（占位版本，无实际逻辑）
+    """
+    return cls

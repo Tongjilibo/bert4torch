@@ -137,7 +137,7 @@ def build_transformer_model(
             transformer = MODEL(**config)
     if not skip_init:
         transformer = MODEL(**config)
-        transformer.apply(transformer.init_model_weights)  # 初始化权重
+        transformer.apply(transformer._init_weights)  # 初始化权重
 
     transformer.config = config
     # 预训练模型是否已量化, 加载量化后的权重使用, 如果是加载原权重再自行量化这里不需要设置
