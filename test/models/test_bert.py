@@ -2,7 +2,7 @@
 import pytest
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from transformers import BertConfig, BertTokenizer, BertModel
 import os
 

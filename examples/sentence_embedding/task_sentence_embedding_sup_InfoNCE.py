@@ -3,7 +3,7 @@
 # 样本都是正负样本对，因此构造(正，正，负)的三元组时候，正样本对(正，正1)随机抽样负样本为（正，正1，负）
 # 负样本对（正，负）重复正样本对（正，正，负）
 
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, get_pool_emb, seed_everything
@@ -36,7 +36,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # ===========================数据预处理===========================
 # 训练

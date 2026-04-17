@@ -4,7 +4,7 @@
 
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder, SeqGeneration
 import os
 import time
@@ -22,7 +22,7 @@ top_k = 50
 eos_token_id = 50256  # 50256:open-end generation, 511:表示句号
 mode = 'random_sample'
 
-tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
+tokenizer = BertTokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
 
 print('==============自定义单条样本================')

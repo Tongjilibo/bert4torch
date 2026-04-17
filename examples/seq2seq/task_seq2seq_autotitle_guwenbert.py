@@ -4,7 +4,7 @@
 # 介绍链接：https://kexue.fm/archives/6933
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
@@ -29,7 +29,7 @@ checkpoint_path = '/data/pretrain_ckpt/ethanyt/guwenbert-base/pytorch_model.bin'
 dict_path = '/data/pretrain_ckpt/ethanyt/guwenbert-base/vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 class MyDataset(ListDataset):
     @staticmethod

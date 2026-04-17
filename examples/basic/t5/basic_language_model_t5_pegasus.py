@@ -3,7 +3,7 @@
 
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 from bert4torch.generation import AutoRegressiveDecoder, Seq2SeqGeneration
 import jieba
 jieba.initialize()
@@ -17,7 +17,7 @@ dict_path = model_dir + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
-tokenizer = Tokenizer(
+tokenizer = BertTokenizer(
     dict_path,
     do_lower_case=True,
     pre_tokenize=lambda s: jieba.cut(s, HMM=False)

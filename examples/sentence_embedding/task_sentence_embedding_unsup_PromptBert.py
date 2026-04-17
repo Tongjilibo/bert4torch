@@ -21,7 +21,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from tqdm import tqdm
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import ListDataset, sequence_padding
 from bert4torch.callbacks import Callback
@@ -73,7 +73,7 @@ prompt_templates = ['"{}" 的意思为[MASK]'.format(replace_token), '"{}"这句
 tao = 0.05
 token_dict = load_vocab(dict_path)
 token_dict[replace_token] = token_dict.pop('[unused1]')  # 替换一个token
-tokenizer = Tokenizer(token_dict, do_lower_case=True, add_special_tokens='[X]',
+tokenizer = BertTokenizer(token_dict, do_lower_case=True, add_special_tokens='[X]',
                       pre_tokenize=(lambda s: jieba.lcut(s, HMM=False)) if model_type in ['RoFormer'] else None)
 
 # 加载数据集

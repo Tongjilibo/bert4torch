@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate
 from bert4torch.callbacks import AdversarialTraining
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.losses import FocalLoss
 from tqdm import tqdm
@@ -110,7 +110,7 @@ class MyDataset(ListDataset):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     batch_extra, batch_token_ids, batch_entity_ids, batch_entity_labels = [], [], [], []

@@ -6,7 +6,7 @@ import json
 import random
 import numpy as np
 from bert4torch.layers import ConditionalLayerNorm
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, ListDataset
 from bert4torch.callbacks import Callback
@@ -34,7 +34,7 @@ with open('F:/data/corpus/relation_extraction/chip2020/53_schemas.json', encodin
             predicate2id[l['predicate']] = len(predicate2id)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 解析样本
 def get_spoes(text, spo_list):

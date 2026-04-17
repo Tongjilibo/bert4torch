@@ -7,7 +7,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from torch.optim import Adam
 from bert4torch.snippets import sequence_padding, ListDataset, log_warn_once
@@ -49,7 +49,7 @@ train_data = train_data[:num_labeled]
 # train_data = train_data + unlabeled_data
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 对应的任务描述
 mask_idx = 5

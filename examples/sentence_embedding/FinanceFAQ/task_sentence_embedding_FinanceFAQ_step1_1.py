@@ -1,7 +1,7 @@
 #! -*- coding:utf-8 -*-
 # loss: MultiNegativeRankingLoss, 和simcse一样，以batch中其他样本作为负样本
 
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, get_pool_emb, seed_everything
@@ -28,7 +28,7 @@ choice = 'mul_ce'
 print(f'using {choice} mode in step1 model'.center(60, '-'))
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 if choice in {'raw', 'mul_ce'}:
     # 原始模式，可能同一个batch中会出现重复标问

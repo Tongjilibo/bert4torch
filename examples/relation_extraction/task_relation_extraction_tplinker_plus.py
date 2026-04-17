@@ -4,7 +4,7 @@
 # 数据集：http://ai.baidu.com/broad/download?dataset=sked
 
 import json
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset
@@ -35,7 +35,7 @@ with open('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_sch
             predicate2id[l['predicate']] = len(predicate2id)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 
 # 加载数据集

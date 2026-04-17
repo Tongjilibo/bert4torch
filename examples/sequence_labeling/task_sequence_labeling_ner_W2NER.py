@@ -12,7 +12,7 @@ from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm, ConditionalLayerNorm
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -59,7 +59,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 相对距离设置
 dis2idx = np.zeros((1000), dtype='int64')

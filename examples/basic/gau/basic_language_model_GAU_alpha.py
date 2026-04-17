@@ -5,7 +5,7 @@
 # 权重转换脚本：./examples/basic/gau
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
@@ -15,7 +15,7 @@ dict_path = '/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/vo
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode("近期正是上市公司财报密集披露的时间，但有多家龙头公司的业绩令投资者失望")

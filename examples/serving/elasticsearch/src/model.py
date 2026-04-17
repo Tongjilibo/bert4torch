@@ -2,7 +2,7 @@
 # 基础测试：mlm预测
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.snippets import sequence_padding, get_pool_emb
 from torch.utils.data import DataLoader, TensorDataset
 import torch
@@ -16,7 +16,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)
+tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
 
 class BertClient(object):
     def __init__(self, batch_size=10, maxlen=128, use_tqdm=False):

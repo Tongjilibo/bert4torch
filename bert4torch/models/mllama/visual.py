@@ -413,7 +413,7 @@ class MllamaVisionModel(PreTrainedModel):
         ```python
         >>> from PIL import Image
         >>> import requests
-        >>> from transformers import AutoProcessor, MllamaVisionModel
+        >>> from bert4torch import AutoProcessor, MllamaVisionModel
 
         >>> checkpoint = "meta-llama/Llama-3.2-11B-Vision"
         >>> model = MllamaVisionModel.from_pretrained(checkpoint)

@@ -14,7 +14,7 @@ from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, seed_everything
 from bert4torch.callbacks import AdversarialTraining
 from bert4torch.optimizers import get_linear_schedule_with_warmup
-from bert4torch.tokenizers import Tokenizer, SpTokenizer
+from bert4torch.tokenizers import BertTokenizer, SpTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 import transformers

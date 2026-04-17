@@ -1,10 +1,10 @@
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.snippets import sequence_padding
 import numpy as np
 
 dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def preprocess(text_list):
     batch_token_ids, batch_segment_ids = [], []

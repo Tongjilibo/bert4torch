@@ -10,7 +10,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate
 from bert4torch.snippets import truncate_sequences, get_pool_emb
 from bert4torch.callbacks import Callback
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import json
 import glob
 
@@ -26,7 +26,7 @@ dict_path = '/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base/vocab.txt
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def split(text):
     """分割句子

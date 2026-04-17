@@ -12,7 +12,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, get_pool_emb, truncate_sequences
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import jieba
 jieba.initialize()
 
@@ -27,7 +27,7 @@ dict_path = '/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base/vocab.txt
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 这里语料和stage1保持一致
 class MyDataset(ListDataset):
@@ -81,7 +81,7 @@ sim_checkpoint_path = '/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base/pytor
 sim_dict_path = '/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base/vocab.txt'
 
 # 建立分词器
-sim_tokenizer = Tokenizer(sim_dict_path, do_lower_case=True)  # 建立分词器
+sim_tokenizer = BertTokenizer(sim_dict_path, do_lower_case=True)  # 建立分词器
 
 # 建立加载模型
 simbert = build_transformer_model(sim_config_path, sim_checkpoint_path, with_pool='linear', application='unilm', add_trainer=True).to(device)

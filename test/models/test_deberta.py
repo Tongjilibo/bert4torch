@@ -2,7 +2,7 @@
 import pytest
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from transformers import BertConfig, AutoTokenizer, AutoModel
 import os
 
@@ -16,7 +16,7 @@ def get_bert4torch_model(model_dir):
         config_path = model_dir + "/config.json"
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
-    tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
+    tokenizer = BertTokenizer(vocab_path, do_lower_case=True)  # 建立分词器
     model = build_transformer_model(config_path, checkpoint_path, model='deberta_v2')
     return model.to(device), tokenizer
 

@@ -2,7 +2,7 @@ from typing import List, Union, Dict, Literal
 import os
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import gc
 from bert4torch.snippets import log_free, cuda_empty_cache
 from bert4torch.models.auto import AutoTokenizer
@@ -35,7 +35,7 @@ class PipeLineBase:
         # TODO: 默认优先使用默认的Tokenizer，如果没有vocab文件，则使用AutoTokenizer，后续可能修改
         vocab_file = os.path.join(self.pretrained_model_name_or_path, 'vocab.txt')
         if self.tokenizer_type == 'b4t' and os.path.isfile(vocab_file):
-            return Tokenizer(vocab_file, do_lower_case=True)
+            return BertTokenizer(vocab_file, do_lower_case=True)
         else:
             return AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path)
 

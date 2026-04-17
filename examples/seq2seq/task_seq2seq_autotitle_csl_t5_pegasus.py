@@ -5,7 +5,7 @@
 
 import json, os
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 from bert4torch.snippets import sequence_padding, seed_everything, ListDataset
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
@@ -48,7 +48,7 @@ class MyDataset(ListDataset):
                 D.append((title, content))
         return D
 
-tokenizer = Tokenizer(
+tokenizer = BertTokenizer(
     dict_path,
     do_lower_case=True,
     pre_tokenize=lambda s: jieba.cut(s, HMM=False)

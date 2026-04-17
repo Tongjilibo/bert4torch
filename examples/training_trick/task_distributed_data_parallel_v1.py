@@ -7,7 +7,7 @@
 import os
 # 也可命令行传入
 os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModelDDP
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything
@@ -34,7 +34,7 @@ dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 seed_everything(42)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 加载数据集
 class MyDataset(ListDataset):

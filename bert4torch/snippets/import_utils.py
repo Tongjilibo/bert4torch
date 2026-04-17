@@ -25,7 +25,7 @@ ENV_VARS_TRUE_AND_AUTO_VALUES = ENV_VARS_TRUE_VALUES.union({"AUTO"})
 USE_TF = os.environ.get("USE_TF", "AUTO").upper()
 USE_TORCH = os.environ.get("USE_TORCH", "AUTO").upper()
 USE_JAX = os.environ.get("USE_FLAX", "AUTO").upper()
-
+BITSANDBYTES_MIN_VERSION = "0.46.1"
 
 FORCE_TF_AVAILABLE = os.environ.get("FORCE_TF_AVAILABLE", "AUTO").upper()
 
@@ -38,7 +38,7 @@ if FORCE_TF_AVAILABLE in ENV_VARS_TRUE_VALUES:
     _tf_available = True
 else:
     if USE_TF in ENV_VARS_TRUE_AND_AUTO_VALUES and USE_TORCH not in ENV_VARS_TRUE_VALUES:
-        # Note: _is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
+        # Note: is_package_available("tensorflow") fails for tensorflow-cpu. Please test any changes to the line below
         # with tensorflow-cpu to make sure it still works!
         _tf_available = importlib.util.find_spec("tensorflow") is not None
         if _tf_available:
@@ -303,6 +303,11 @@ def is_flash_attn_2_available():
         return False
     
 
+@lru_cache
+def is_gptqmodel_available() -> bool:
+    return is_package_available("gptqmodel")[0]
+
+
 def is_kernels_available():
     return is_package_available("kernels")
 
@@ -319,7 +324,247 @@ def is_torchdynamo_compiling() -> bool:
     except Exception:
         return False
     
-    
+
+@lru_cache
+def get_torch_version() -> str:
+    _, torch_version = is_package_available("torch", return_version=True)
+    return torch_version
+
+
+@lru_cache
+def is_bitsandbytes_available(min_version: str = BITSANDBYTES_MIN_VERSION) -> bool:
+    is_available, bitsandbytes_version = is_package_available("bitsandbytes", return_version=True)
+    return is_available and version.parse(bitsandbytes_version) >= version.parse(min_version)
+
+
+@lru_cache
+def is_torch_cuda_available() -> bool:
+    if is_torch_available():
+        import torch
+
+        return torch.cuda.is_available()
+    return False
+
+
+@lru_cache
+def is_torch_mps_available(min_version: str | None = None) -> bool:
+    if is_torch_available():
+        import torch
+
+        backend_available = torch.backends.mps.is_available() and torch.backends.mps.is_built()
+        if min_version is not None:
+            flag = version.parse(get_torch_version()) >= version.parse(min_version)
+            backend_available = backend_available and flag
+        return backend_available
+    return False
+
+
+@lru_cache
+def is_torch_mps_available(min_version: str | None = None) -> bool:
+    if is_torch_available():
+        import torch
+
+        backend_available = torch.backends.mps.is_available() and torch.backends.mps.is_built()
+        if min_version is not None:
+            flag = version.parse(get_torch_version()) >= version.parse(min_version)
+            backend_available = backend_available and flag
+        return backend_available
+    return False
+
+
+@lru_cache
+def is_torch_npu_available(check_device=False) -> bool:
+    "Checks if `torch_npu` is installed and potentially if a NPU is in the environment"
+    if not is_torch_available() or not is_package_available("torch_npu")[0]:
+        return False
+
+    import torch
+    import torch_npu  # noqa: F401
+
+    if check_device:
+        try:
+            # Will raise a RuntimeError if no NPU is found
+            if hasattr(torch, "npu"):
+                _ = torch.npu.device_count()
+                return torch.npu.is_available()
+            return False
+        except RuntimeError:
+            return False
+    return hasattr(torch, "npu") and torch.npu.is_available()
+
+
+@lru_cache
+def is_torch_xpu_available(check_device: bool = False) -> bool:
+    """
+    Checks if XPU acceleration is available via stock PyTorch (>=2.6) and
+    potentially if a XPU is in the environment.
+    """
+    if not is_torch_available():
+        return False
+
+    torch_version = version.parse(get_torch_version())
+    if torch_version.major == 2 and torch_version.minor < 6:
+        return False
+
+    import torch
+
+    if check_device:
+        try:
+            # Will raise a RuntimeError if no XPU is found
+            _ = torch.xpu.device_count()
+            return torch.xpu.is_available()
+        except RuntimeError:
+            return False
+    return hasattr(torch, "xpu") and torch.xpu.is_available()
+
+
+@lru_cache
+def is_torch_mlu_available() -> bool:
+    """
+    Checks if `mlu` is available via an `cndev-based` check which won't trigger the drivers and leave mlu
+    uninitialized.
+    """
+    if not is_torch_available() or not is_package_available("torch_mlu")[0]:
+        return False
+
+    import torch
+    import torch_mlu  # noqa: F401
+
+    pytorch_cndev_based_mlu_check_previous_value = os.environ.get("PYTORCH_CNDEV_BASED_MLU_CHECK")
+    try:
+        os.environ["PYTORCH_CNDEV_BASED_MLU_CHECK"] = str(1)
+        available = torch.mlu.is_available() if hasattr(torch, "mlu") else False
+    finally:
+        if pytorch_cndev_based_mlu_check_previous_value:
+            os.environ["PYTORCH_CNDEV_BASED_MLU_CHECK"] = pytorch_cndev_based_mlu_check_previous_value
+        else:
+            os.environ.pop("PYTORCH_CNDEV_BASED_MLU_CHECK", None)
+
+    return available
+
+
+@lru_cache
+def is_torch_musa_available(check_device=False) -> bool:
+    "Checks if `torch_musa` is installed and potentially if a MUSA is in the environment"
+    if not is_torch_available() or not is_package_available("torch_musa")[0]:
+        return False
+
+    import torch
+    import torch_musa  # noqa: F401
+
+    torch_musa_min_version = "0.33.0"
+    accelerate_available, accelerate_version = is_package_available("accelerate", return_version=True)
+    if accelerate_available and version.parse(accelerate_version) < version.parse(torch_musa_min_version):
+        return False
+
+    if check_device:
+        try:
+            # Will raise a RuntimeError if no MUSA is found
+            if hasattr(torch, "musa"):
+                _ = torch.musa.device_count()
+                return torch.musa.is_available()
+            return False
+        except RuntimeError:
+            return False
+    return hasattr(torch, "musa") and torch.musa.is_available()
+
+
+@lru_cache
+def is_torch_hpu_available() -> bool:
+    "Checks if `torch.hpu` is available and potentially if a HPU is in the environment"
+    if (
+        not is_torch_available()
+        or not is_package_available("habana_frameworks")[0]
+        or not is_package_available("habana_frameworks.torch")[0]
+    ):
+        return False
+
+    torch_hpu_min_accelerate_version = "1.5.0"
+    accelerate_available, accelerate_version = is_package_available("accelerate", return_version=True)
+    if accelerate_available and version.parse(accelerate_version) < version.parse(torch_hpu_min_accelerate_version):
+        return False
+
+    import torch
+
+    if os.environ.get("PT_HPU_LAZY_MODE", "1") == "1":
+        # import habana_frameworks.torch in case of lazy mode to patch torch with torch.hpu
+        import habana_frameworks.torch  # noqa: F401
+
+    if not hasattr(torch, "hpu") or not torch.hpu.is_available():
+        return False
+
+    # We patch torch.gather for int64 tensors to avoid a bug on Gaudi
+    # Graph compile failed with synStatus 26 [Generic failure]
+    # This can be removed once bug is fixed but for now we need it.
+    original_gather = torch.gather
+
+    def patched_gather(input: torch.Tensor, dim: int, index: torch.LongTensor) -> torch.Tensor:
+        if input.dtype == torch.int64 and input.device.type == "hpu":
+            return original_gather(input.to(torch.int32), dim, index).to(torch.int64)
+        else:
+            return original_gather(input, dim, index)
+
+    torch.gather = patched_gather
+    torch.Tensor.gather = patched_gather
+
+    original_take_along_dim = torch.take_along_dim
+
+    def patched_take_along_dim(input: torch.Tensor, indices: torch.LongTensor, dim: int | None = None) -> torch.Tensor:
+        if input.dtype == torch.int64 and input.device.type == "hpu":
+            return original_take_along_dim(input.to(torch.int32), indices, dim).to(torch.int64)
+        else:
+            return original_take_along_dim(input, indices, dim)
+
+    torch.take_along_dim = patched_take_along_dim
+
+    original_cholesky = torch.linalg.cholesky
+
+    def safe_cholesky(A, *args, **kwargs):
+        output = original_cholesky(A, *args, **kwargs)
+
+        if torch.isnan(output).any():
+            jitter_value = 1e-9
+            diag_jitter = torch.eye(A.size(-1), dtype=A.dtype, device=A.device) * jitter_value
+            output = original_cholesky(A + diag_jitter, *args, **kwargs)
+
+        return output
+
+    torch.linalg.cholesky = safe_cholesky
+
+    original_scatter = torch.scatter
+
+    def patched_scatter(
+        input: torch.Tensor, dim: int, index: torch.Tensor, src: torch.Tensor, *args, **kwargs
+    ) -> torch.Tensor:
+        if input.device.type == "hpu" and input is src:
+            return original_scatter(input, dim, index, src.clone(), *args, **kwargs)
+        else:
+            return original_scatter(input, dim, index, src, *args, **kwargs)
+
+    torch.scatter = patched_scatter
+    torch.Tensor.scatter = patched_scatter
+
+    # IlyasMoutawwakil: we patch torch.compile to use the HPU backend by default
+    # https://github.com/huggingface/transformers/pull/38790#discussion_r2157043944
+    # This is necessary for cases where torch.compile is used as a decorator (defaulting to inductor)
+    # https://github.com/huggingface/transformers/blob/af6120b3eb2470b994c21421bb6eaa76576128b0/src/transformers/models/modernbert/modeling_modernbert.py#L204
+    original_compile = torch.compile
+
+    def hpu_backend_compile(*args, **kwargs):
+        if kwargs.get("backend") not in ["hpu_backend", "eager"]:
+            logger.warning(
+                f"Calling torch.compile with backend={kwargs.get('backend')} on a Gaudi device is not supported. "
+                "We will override the backend with 'hpu_backend' to avoid errors."
+            )
+            kwargs["backend"] = "hpu_backend"
+
+        return original_compile(*args, **kwargs)
+
+    torch.compile = hpu_backend_compile
+
+    return True
+
+
 def get_valid_subdirs(root_dir: str) -> List[str]:
     """获取所有包含 __init__.py 的有效子目录"""
     subdirs = []

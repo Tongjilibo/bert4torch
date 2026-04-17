@@ -1039,3 +1039,40 @@ def list_repo_templates(
     if not templates_dir.is_dir():
         return []
     return [entry.stem for entry in templates_dir.iterdir() if entry.is_file() and entry.name.endswith(".jinja")]
+
+
+def create_repo(*args, **kwargs):
+    from huggingface_hub import create_repo
+    return create_repo(*args, **kwargs)
+
+
+def is_offline_mode(*args, **kwargs):
+    try:
+        from huggingface_hub import is_offline_mode
+        return is_offline_mode(*args, **kwargs)
+    except ImportError:  # Huggingface hub not installed
+        return False
+
+
+def validate_typed_dict(*args, **kwargs):
+    from huggingface_hub.dataclasses import validate_typed_dict
+    return validate_typed_dict(*args, **kwargs)
+
+
+def as_validated_field(*args, **kwargs):
+    from huggingface_hub.dataclasses import as_validated_field
+    return as_validated_field(*args, **kwargs)
+
+
+def model_info(*args, **kwargs):
+    from huggingface_hub import model_info
+    return model_info(*args, **kwargs)
+
+def list_repo_tree(*args, **kwargs):
+    from huggingface_hub import list_repo_tree
+    return list_repo_tree(*args, **kwargs)
+
+
+def list_repo_files(*args, **kwargs):
+    from huggingface_hub import list_repo_files
+    return list_repo_files(*args, **kwargs)

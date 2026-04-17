@@ -10,7 +10,7 @@ import torch.optim as optim
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from bert4torch.layers import CRF
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 import re
@@ -58,7 +58,7 @@ train_data = [data[j] for i, j in enumerate(random_order) if i % 10 != 0]
 valid_data = [data[j] for i, j in enumerate(random_order) if i % 10 == 0]
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     """标签含义

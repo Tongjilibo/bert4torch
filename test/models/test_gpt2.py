@@ -3,7 +3,7 @@ import pytest
 import torch
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import cuda_empty_cache
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from transformers import TextGenerationPipeline, AutoTokenizer, AutoModelWithLMHead
 import os
 
@@ -70,7 +70,7 @@ def test_gpt2_ml(model_dir):
     checkpoint_path = os.path.join(model_dir, 'pytorch_model.bin')
     dict_path = os.path.join(model_dir, 'vocab.txt')
 
-    tokenizer = Tokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
+    tokenizer = BertTokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
     model = build_transformer_model(config_path, checkpoint_path)
     model.eval()
 

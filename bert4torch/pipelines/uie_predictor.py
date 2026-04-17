@@ -4,7 +4,7 @@ import numpy as np
 import math
 import os
 import torch
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model
 from bert4torch.snippets import sequence_padding
 import re
@@ -20,7 +20,7 @@ class UIEPredictor(object):
         self._batch_size = batch_size
         self._split_sentence = split_sentence
         self.set_schema(schema)
-        self._tokenizer = Tokenizer(os.path.join(pretrained_model_name_or_path, 'vocab.txt'), do_lower_case=True)
+        self._tokenizer = BertTokenizer(os.path.join(pretrained_model_name_or_path, 'vocab.txt'), do_lower_case=True)
         self.model = build_transformer_model(pretrained_model_name_or_path, with_pool=True).to(self._device)
 
     def set_schema(self, schema):

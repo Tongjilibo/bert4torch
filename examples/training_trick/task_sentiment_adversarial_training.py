@@ -13,7 +13,7 @@ import torch.optim as optim
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, get_pool_emb, seed_everything
 from bert4torch.callbacks import AdversarialTraining
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 
 maxlen = 256
 batch_size = 16
@@ -26,7 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 加载数据集
 class MyDataset(ListDataset):

@@ -26,6 +26,11 @@ logger = logging.get_logger(__name__)
 
 if is_jinja_available():
     import jinja2
+    import jinja2.exceptions
+    import jinja2.ext
+    import jinja2.meta
+    import jinja2.nodes
+    import jinja2.runtime
     from jinja2.ext import Extension
     from jinja2.sandbox import ImmutableSandboxedEnvironment
 else:

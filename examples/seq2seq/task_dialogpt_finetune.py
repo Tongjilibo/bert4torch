@@ -15,7 +15,7 @@ from bert4torch.models import build_transformer_model
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.snippets import ListDataset, sequence_padding
 from bert4torch.callbacks import Callback
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 
 # 一些基础配置
 base_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog'
@@ -30,7 +30,7 @@ batch_size = 32
 epochs = 30
 
 # 分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 建立模型
 model = build_transformer_model(

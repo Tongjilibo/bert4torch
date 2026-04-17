@@ -7,7 +7,7 @@ import numpy as np
 from itertools import groupby
 from tqdm import tqdm
 from bert4torch.losses import SparseMultilabelCategoricalCrossentropy
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.layers import EfficientGlobalPointer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, ListDataset
@@ -48,7 +48,7 @@ with open(schema_path, 'r', encoding='utf-8') as f:
             labels.append((t, r))
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 
 # 加载数据集

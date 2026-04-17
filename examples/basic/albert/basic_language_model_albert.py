@@ -2,16 +2,16 @@
 # 基础测试：mlm预测
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 
 root_model_path = "/data/pretrain_ckpt/voidful/albert_chinese_base"
-inputtext = "天气不[MASK]，想出去玩玩"
+inputtext = "天气不[MASK]，想在家"
 
 
 # ==========================bert4torch调用==========================
-tokenizer = Tokenizer(root_model_path + "/vocab.txt", do_lower_case=True)
-model = build_transformer_model(root_model_path, with_mlm='softmax',_attn_implementation='eager')
+tokenizer = BertTokenizer(root_model_path + "/vocab.txt", do_lower_case=True)
+model = build_transformer_model(root_model_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode(inputtext)
 print(''.join(tokenizer.ids_to_tokens(token_ids)))

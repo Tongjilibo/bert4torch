@@ -1,7 +1,7 @@
 '''测试bert和transformer的结果比对'''
 import pytest
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 from transformers import AutoTokenizer, AlbertForMaskedLM
 from torch.nn.functional import softmax
@@ -20,7 +20,7 @@ def test_albert(model_dir):
     checkpoint_path = model_dir + '/pytorch_model.bin'
 
     # 建立分词器
-    tokenizer = Tokenizer(vocab_path, do_lower_case=True)
+    tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
     model = build_transformer_model(config_path, checkpoint_path, with_mlm='softmax')
 
     token_ids, segments_ids = tokenizer.encode(inputtext)

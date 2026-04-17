@@ -4,7 +4,7 @@
 # 已转换的权重下载：https://huggingface.co/Tongjilibo/nezha_gpt_dialog
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 import torch
 
@@ -14,7 +14,7 @@ checkpoint_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog/pytorch_model
 dict_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog/vocab.txt'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 建立并加载模型
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)

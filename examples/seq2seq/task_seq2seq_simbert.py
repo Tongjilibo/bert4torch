@@ -12,7 +12,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, get_pool_emb
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.callbacks import Callback
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 
 # 基本信息
 maxlen = 32
@@ -31,7 +31,7 @@ token_dict, keep_tokens = load_vocab(
     simplified=True,
     startswith=['[PAD]', '[UNK]', '[CLS]', '[SEP]'],
 )
-tokenizer = Tokenizer(token_dict, do_lower_case=True)
+tokenizer = BertTokenizer(token_dict, do_lower_case=True)
 
 class MyDataset(ListDataset):
     @staticmethod

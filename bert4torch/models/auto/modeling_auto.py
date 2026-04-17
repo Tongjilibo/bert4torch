@@ -192,7 +192,7 @@ def check_update_config(config_path:str, **kwargs):
     elif (_attn_implementation == 'xformers') and (not is_xformers_available()):
         log_warn_once("Xformers is not installed correctly. use `pip install xformers`.")
         config['_attn_implementation'] = 'eager'
-    elif (_attn_implementation == 'flash_attn_2') and (not is_flash_attn_available()):
+    elif (_attn_implementation == 'flash_attention_2') and (not is_flash_attn_available()):
         log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention")
         config['_attn_implementation'] = 'eager'
 

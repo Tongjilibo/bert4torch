@@ -2,7 +2,7 @@
 '''
 
 from tqdm import tqdm
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 import numpy as np
 from bert4torch.snippets import parallel_apply, parallel_apply_concurrent, TimeitContextManager
@@ -38,7 +38,7 @@ def convert_text_to_index(text):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 maxlen = 256
 def load_data(filename):

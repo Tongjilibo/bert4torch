@@ -3,7 +3,7 @@
 
 import json
 import numpy as np
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.layers import MultiHeadAttention, PositionWiseFeedForward
 from bert4torch.callbacks import Callback
@@ -53,7 +53,7 @@ with open('F:/data/corpus/relation_extraction/BD_Knowledge_Extraction/all_50_sch
 num_classes = len(predicate2id)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # ==========================================================数据读取==========================================================
 # 解析样本

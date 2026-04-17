@@ -1,7 +1,7 @@
 #! -*- coding:utf-8 -*-
 # 二阶段训练: 基于困难负样本的进一步精排
 
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.losses import ContrastiveLoss
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
@@ -24,7 +24,7 @@ batch_size = 64
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     tokens_ids_list = [[] for _ in range(2)]

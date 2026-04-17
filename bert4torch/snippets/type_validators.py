@@ -1,9 +1,7 @@
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any, Union, cast
-
-from huggingface_hub.dataclasses import as_validated_field
-
+from .hub import as_validated_field
 from ..tokenizers.tokenization_utils_base import PaddingStrategy, TruncationStrategy
 from ..processor.video_utils import VideoMetadataType
 from .generic import TensorType

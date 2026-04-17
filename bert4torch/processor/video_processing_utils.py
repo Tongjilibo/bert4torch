@@ -19,8 +19,6 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any, Dict, Type
 import numpy as np
-from huggingface_hub import create_repo, is_offline_mode
-from huggingface_hub.dataclasses import validate_typed_dict
 from ..dynamic_module_utils import custom_object_save
 from .image_processing_backends import TorchvisionBackend
 from .image_processing_utils import BatchFeature
@@ -45,7 +43,7 @@ from ..snippets import (
     safe_load_json_file,
     create_registrar
 )
-from ..snippets.hub import cached_file
+from ..snippets.hub import cached_file, create_repo, is_offline_mode, validate_typed_dict
 from ..snippets.import_utils import requires
 from .video_utils import (
     VideoInput,
@@ -809,7 +807,7 @@ class BaseVideoProcessor(TorchvisionBackend):
         if not isinstance(auto_class, str):
             auto_class = auto_class.__name__
 
-        import transformers.models.auto as auto_module
+        import bert4torch.models.auto as auto_module
 
         if not hasattr(auto_module, auto_class):
             raise ValueError(f"{auto_class} is not a valid auto class.")

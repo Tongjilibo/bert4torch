@@ -4,7 +4,7 @@
 # 当训练速度超过文件生成速度时候，可开启多个数据生成脚本
 
 import numpy as np
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import json, glob, re
 from tqdm import tqdm
 import collections
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'  # 字典文件
     dir_training_data = 'E:/Github/bert4torch/data/pretrain'  # 保存的文件目录
     dir_corpus = 'F:/data/corpus/pretrain'  # 读入的语料地址
-    tokenizer = Tokenizer(dict_path, do_lower_case=True)
+    tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
     def some_texts():
         '''挑选语料

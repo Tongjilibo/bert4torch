@@ -11,7 +11,7 @@ from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from bert4torch.optimizers import get_linear_schedule_with_warmup
 from bert4torch.layers import LayerNorm
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 from sklearn.metrics import precision_recall_fscore_support
@@ -46,7 +46,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 seed_everything(42)
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 加载数据集
 class MyDataset(ListDataset):

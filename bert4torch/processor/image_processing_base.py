@@ -17,7 +17,6 @@ import json
 import os
 from typing import Any, TypeVar, Dict, Type
 import numpy as np
-from huggingface_hub import create_repo, is_offline_mode
 from ..dynamic_module_utils import custom_object_save
 from .feature_extraction_utils import BatchFeature as BaseBatchFeature
 from .image_utils import is_valid_image, load_image
@@ -30,7 +29,7 @@ from ..snippets import (
     safe_load_json_file,
     create_registrar
 )
-from ..snippets.hub import cached_file
+from ..snippets.hub import cached_file, create_repo, is_offline_mode
 
 
 ImageProcessorType = TypeVar("ImageProcessorType", bound="ImageProcessingMixin")
@@ -462,7 +461,7 @@ class ImageProcessingMixin(PushToHubMixin):
         if not isinstance(auto_class, str):
             auto_class = auto_class.__name__
 
-        import transformers.models.auto as auto_module
+        import bert4torch.models.auto as auto_module
 
         if not hasattr(auto_module, auto_class):
             raise ValueError(f"{auto_class} is not a valid auto class.")

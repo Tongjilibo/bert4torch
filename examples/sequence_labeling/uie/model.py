@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BertBase
 
 
@@ -10,7 +10,7 @@ checkpoint_path = '/data/pretrain_ckpt/Tongjilibo/uie-base/pytorch_model.bin'
 dict_path = '/data/pretrain_ckpt/Tongjilibo/uie-base/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 
 class UIE(BertBase):

@@ -2,7 +2,7 @@
 # 情感分类例子，超长文本采用hierarchical_position层次分解位置编码，spaces.ac.cn/archives/7947
 
 import numpy as np
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset
@@ -20,7 +20,7 @@ dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 加载数据集
 class MyDataset(ListDataset):

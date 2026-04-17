@@ -2,7 +2,7 @@
 '''
 import pytest
 from transformers import BertTokenizer, XLNetTokenizer, XLNetTokenizerFast
-from bert4torch.tokenizers import Tokenizer, SpTokenizer
+from bert4torch.tokenizers import BertTokenizer, SpTokenizer
 from tqdm import tqdm
 import os
 
@@ -23,7 +23,7 @@ def test_bert_tokenizer(model_dir, data_path):
     '''测试bert的tokenizer'''
     print('Test BertTokenizer')
     tokenizer = BertTokenizer.from_pretrained(model_dir)
-    tokenizer_b4t = Tokenizer(os.path.join(model_dir, 'vocab.txt'), do_lower_case=True, do_tokenize_unk=True)
+    tokenizer_b4t = BertTokenizer(os.path.join(model_dir, 'vocab.txt'), do_lower_case=True, do_tokenize_unk=True)
     compare(data_path, tokenizer, tokenizer_b4t, truncation=True)
 
 

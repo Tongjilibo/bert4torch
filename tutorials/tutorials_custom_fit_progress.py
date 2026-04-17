@@ -2,7 +2,7 @@
 # 自定义fit()训练过程
 
 from itertools import cycle
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, ProgbarLogger
 import torch.nn as nn
@@ -21,7 +21,7 @@ dict_path = 'E:/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 加载数据集
 class MyDataset(ListDataset):

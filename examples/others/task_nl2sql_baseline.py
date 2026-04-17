@@ -23,7 +23,7 @@
 }
 '''
 
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.snippets import sequence_padding
 from bert4torch.callbacks import Callback
@@ -80,7 +80,7 @@ with codecs.open(dict_path, 'r', 'utf8') as reader:
     for line in reader:
         token = line.strip()
         token_dict[token] = len(token_dict)
-class OurTokenizer(Tokenizer):
+class OurTokenizer(BertTokenizer):
     def _tokenize(self, text):
         R = []
         for c in text:

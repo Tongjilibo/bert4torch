@@ -16,9 +16,6 @@ class MiniCPMLlama3V(MiniCPMV):
         self.embed_dim = self.llm.hidden_size
 
     def init_vision_module(self):
-        # from transformers.models.idefics2.modeling_idefics2 import Idefics2VisionTransformer
-        # from transformers.models.idefics2.configuration_idefics2 import Idefics2VisionConfig
-        # vision_config = Idefics2VisionConfig(**self.config.vision_config)
         model = Idefics2VisionTransformer(DotDict(self.config.vision_config))
         if self.config.drop_vision_last_layer:
             model.encoder.layers = model.encoder.layers[:-1]

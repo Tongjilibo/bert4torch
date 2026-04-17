@@ -5,7 +5,7 @@
 
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
 root_path = '/data/pretrain_ckpt/thu-coai/CDial-GPT_LCCC-base'
@@ -16,7 +16,7 @@ checkpoint_path = root_path + '/pytorch_model.bin'
 dict_path = root_path + '/bert4torch_vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)  # 建立分词器
 speakers = [tokenizer.token_to_id('[speaker1]'), tokenizer.token_to_id('[speaker2]')]
 
 # config中设置shared_segment_embeddings=True，segment embedding用word embedding的权重生成

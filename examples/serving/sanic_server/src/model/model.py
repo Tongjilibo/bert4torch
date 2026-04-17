@@ -2,7 +2,7 @@ from src.utils import loggers
 import src.config.constants as constants
 from src.utils.configs import Configuration
 import traceback
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.snippets import sequence_padding
 import numpy as np
 
@@ -17,7 +17,7 @@ class BertModel():
         try:
             import onnxruntime
             self.model = onnxruntime.InferenceSession(self.model_path)
-            self.tokenizer = Tokenizer(self.vocab_path, do_lower_case=True)
+            self.tokenizer = BertTokenizer(self.vocab_path, do_lower_case=True)
         except Exception as ex:
             loggers.get_error_log().error("An exception occured while load model: {}".format(traceback.format_exc()))
 

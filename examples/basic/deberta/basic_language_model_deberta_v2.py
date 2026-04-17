@@ -2,7 +2,7 @@
 # 基础测试：deberta_v2的mlm预测
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
@@ -16,7 +16,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 
 # 建立分词器
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)
+tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode("科学[MASK][MASK]是第一生产力")

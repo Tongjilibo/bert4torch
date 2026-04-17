@@ -11,7 +11,7 @@ import torch.optim as optim
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
 from bert4torch.layers import CRF
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 import jieba.posseg as psg
@@ -56,7 +56,7 @@ class MyDataset(ListDataset):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 psg_map = {v: i+1 for i, v in enumerate(['a', 'ad', 'ag', 'an', 'b', 'c', 'd', 'df', 'dg', 'e', 'f', 'g', 'h', 'i', 'j', 
 'k', 'l', 'm', 'mg', 'mq', 'n', 'ng', 'nr', 'nrfg', 'nrt', 'ns', 'nt', 'nz', 'o', 'p', 'q', 'r', 'rg', 'rr', 'rz', 's', 't',
  'tg', 'u', 'ud', 'ug', 'uj', 'ul', 'uv', 'uz', 'v', 'vd', 'vg', 'vi', 'vn', 'vq', 'x', 'y', 'z', 'zg'])}

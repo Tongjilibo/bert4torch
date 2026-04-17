@@ -10,7 +10,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model
 from torch.optim import Adam
 import torch.nn.functional as F
@@ -54,7 +54,7 @@ elif choice == 'semi-sup':  # 少量监督数据和全量无监督数据做半�
     train_data = train_data + unlabeled_data
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 对应的任务描述
 prefix = u'很满意。'

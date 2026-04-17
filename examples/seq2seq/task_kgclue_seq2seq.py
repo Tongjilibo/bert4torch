@@ -7,7 +7,7 @@
 import os, json
 import numpy as np
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch.optim as optim
 import torch.nn as nn
 import torch
@@ -151,7 +151,7 @@ dict_path = '/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_ft_base/vocab.
 device =  'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 转换知识库
 KG = Trie()

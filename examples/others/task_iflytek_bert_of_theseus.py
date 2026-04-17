@@ -8,7 +8,7 @@ import json
 from bert4torch.models import build_transformer_model, BaseModel, BertBase
 from bert4torch.snippets import sequence_padding, ListDataset
 from bert4torch.callbacks import Callback
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.layers import BertLayer
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -49,7 +49,7 @@ class MyDataset(ListDataset):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     batch_token_ids, batch_segment_ids, batch_labels = [], [], []

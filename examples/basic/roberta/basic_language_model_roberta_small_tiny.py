@@ -2,7 +2,7 @@
 
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 
 
 # 加载模型
@@ -14,7 +14,7 @@ config_path = base_path + '/bert4torch_config.json'
 checkpoint_path = base_path + '/pytorch_model.bin'
 
 # 分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 模型
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')

@@ -7,7 +7,7 @@
 
 import json
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
@@ -49,7 +49,7 @@ class MyDataset(ListDataset):
 # 建立分词器
 chars = [u'[PAD]'] + list(u'0123456789abcdefghi')
 token_dict = dict(zip(chars, range(len(chars))))
-tokenizer = Tokenizer(token_dict)
+tokenizer = BertTokenizer(token_dict)
 tokenizer._token_unk_id = 0
 bert_token_dict = load_vocab(dict_path)
 keep_tokens = [bert_token_dict[c] for c in chars]

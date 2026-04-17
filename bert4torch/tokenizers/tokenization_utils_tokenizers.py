@@ -24,7 +24,6 @@ from collections.abc import Iterable
 from shutil import copyfile
 from typing import Any
 import tokenizers.pre_tokenizers as pre_tokenizers_fast
-from huggingface_hub import is_offline_mode
 from tokenizers import AddedToken, processors
 from tokenizers import Encoding as EncodingFast
 from tokenizers import Tokenizer as TokenizerFast
@@ -42,6 +41,7 @@ from .tokenization_utils_base import (
     generate_merges,
     register_tokenizer
 )
+from ..snippets.hub import is_offline_mode
 from ..snippets import PaddingStrategy, add_end_docstrings, logging
 
 
@@ -1264,11 +1264,8 @@ class TokenizersBackend(PreTrainedTokenizerBase):
                 >> Tags including `base_model:.*mistralai`
         """
         import re
-
-        from huggingface_hub import model_info
         from packaging import version
-
-        from ..snippets.hub import cached_file
+        from ..snippets.hub import cached_file, model_info
 
         def is_base_mistral(model_id: str) -> bool:
             model = model_info(model_id)

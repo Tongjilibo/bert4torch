@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, Union, Dict, Type
 import numpy as np
-from huggingface_hub import create_repo, is_offline_mode, list_repo_files
+from ..snippets.hub import create_repo, is_offline_mode, list_repo_files
 from packaging import version
 from ..dynamic_module_utils import custom_object_save
 from ..snippets import (
@@ -2936,7 +2936,7 @@ class PreTrainedTokenizerBase(PushToHubMixin):
         if not isinstance(auto_class, str):
             auto_class = auto_class.__name__
 
-        import transformers.models.auto as auto_module
+        import bert4torch.models.auto as auto_module
 
         if not hasattr(auto_module, auto_class):
             raise ValueError(f"{auto_class} is not a valid auto class.")
@@ -3326,13 +3326,13 @@ class PreTrainedTokenizerBase(PushToHubMixin):
 
 def get_fast_tokenizer_file(tokenization_files: list[str]) -> str:
     """
-    Get the tokenization file to use for this version of transformers.
+    Get the latest tokenization file from the available versioned files.
 
     Args:
         tokenization_files (`list[str]`): The list of available configuration files.
 
     Returns:
-        `str`: The tokenization file to use.
+        `str`: The latest tokenization file, or FULL_TOKENIZER_FILE if no versioned files found.
     """
     tokenizer_files_map = {}
     for file_name in tokenization_files:
@@ -3340,20 +3340,13 @@ def get_fast_tokenizer_file(tokenization_files: list[str]) -> str:
         if search is not None:
             v = search.groups()[0]
             tokenizer_files_map[v] = file_name
-    available_versions = sorted(tokenizer_files_map.keys())
 
-    # Defaults to FULL_TOKENIZER_FILE and then try to look at some newer versions.
-    tokenizer_file = FULL_TOKENIZER_FILE
-    from transformers import __version__
-    transformers_version = version.parse(__version__)
-    for v in available_versions:
-        if version.parse(v) <= transformers_version:
-            tokenizer_file = tokenizer_files_map[v]
-        else:
-            # No point going further since the versions are sorted.
-            break
+    if not tokenizer_files_map:
+        return FULL_TOKENIZER_FILE
 
-    return tokenizer_file
+    # Sort by version and return the latest
+    available_versions = sorted(tokenizer_files_map.keys(), key=version.parse)
+    return tokenizer_files_map[available_versions[-1]]
 
 
 # Shared helper to locate a SentencePiece model file for a repo/path
@@ -3400,7 +3393,7 @@ def find_sentencepiece_model_file(pretrained_model_name_or_path, **kwargs):
     # Hub listing if allowed
     if not local_files_only:
         try:
-            from huggingface_hub import list_repo_tree
+            from ..snippets.hub import list_repo_tree
 
             entries = list_repo_tree(
                 repo_id=pretrained_model_name_or_path,

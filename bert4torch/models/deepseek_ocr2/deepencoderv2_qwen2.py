@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 import copy
 from typing import Optional, Tuple
-import transformers
 from typing import Optional, Tuple, Type
 from functools import partial
 
@@ -42,6 +41,7 @@ class CustomQwen2Decoder(nn.Module):
             )
         
         # load
+        import transformers
         Qwen2Model = getattr(transformers.models.qwen2.modeling_qwen2, 'Qwen2Model')
         Qwen2Config = getattr(transformers, 'Qwen2Config')
         

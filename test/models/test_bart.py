@@ -2,7 +2,7 @@
 # 权重地址：https://github.com/fastnlp/CPT
 from transformers import BertTokenizer, BartForConditionalGeneration
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder, Seq2SeqGeneration
 import os
 import torch
@@ -34,7 +34,7 @@ def test_bart(ckpt_dir):
     top_k = 1
     mode = 'random_sample'
     maxlen = 20
-    tokenizer = Tokenizer(dict_path, do_lower_case=True)
+    tokenizer = BertTokenizer(dict_path, do_lower_case=True)
     model = build_transformer_model(config_path, checkpoint_path).to(device)
 
     print('==============自定义单条样本================')

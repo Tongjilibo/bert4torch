@@ -2,7 +2,7 @@
 import pytest
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
 
@@ -15,7 +15,7 @@ def get_bert4torch_model(root_path):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     encoder = build_transformer_model(config_path, checkpoint_path).to(device)
 
-    tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
+    tokenizer = BertTokenizer(dict_path, do_lower_case=True)  # 建立分词器
     encoder.eval()
     return encoder.to(device), tokenizer
 

@@ -9,7 +9,7 @@ texts = ["北京是[MASK]的首都", "今天的天气是[MASK]，可以正常出
 
 # ==============================bert4torch=====================================
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder, Seq2SeqGeneration
 import os
 import torch
@@ -21,7 +21,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 top_k = 4
 mode = 'beam_search'
 maxlen = 20
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 model = build_transformer_model(ckpt_dir).to(device)
 
 # print('==============自定义单条样本================')

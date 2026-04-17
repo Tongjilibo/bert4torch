@@ -12,7 +12,7 @@ import torch.optim as optim
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything, get_pool_emb
 from bert4torch.layers import CRF
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 import yaml
@@ -105,7 +105,7 @@ class RASADataset(ListDataset):
 intents_categories,entity_categories = RASADataset(file_path=dataset).intent_entity_labels
 print(intents_categories,entity_categories)
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     batch_token_ids, batch_labels, batch_entity_ids, batch_entity_labels = [], [], [], []

@@ -3,7 +3,7 @@
 # 基本思路：将英文单词大写化后添加到词表中，并修改模型Embedding层
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, load_vocab
 import torch
 
 root_model_path = "/data/pretrain_ckpt/google-bert/bert-base-chinese"
@@ -29,7 +29,7 @@ for t, i in sorted(token_dict.items(), key=lambda s: s[1]):
             compound_tokens.append([i])
             new_token_dict[token] = len(new_token_dict)
 
-tokenizer = Tokenizer(new_token_dict, do_lower_case=False)
+tokenizer = BertTokenizer(new_token_dict, do_lower_case=False)
 
 model = build_transformer_model(
     config_path,

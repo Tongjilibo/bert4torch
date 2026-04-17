@@ -155,6 +155,9 @@ def sdpa_attention_forward(
     return attn_output, None
 
 
+@regiister_attn_forward(name='flash_attention_4')
+@regiister_attn_forward(name='flash_attention_3')
+@regiister_attn_forward(name='flash_attention_2')
 @regiister_attn_forward(name='flash_attention')
 def flash_attention_forward(
     module: torch.nn.Module,
@@ -297,6 +300,7 @@ def flash_attention_forward(
     return attn_output, None
 
 
+@regiister_attn_forward
 def xformers_attention_forward(
     module: torch.nn.Module,
     query: torch.Tensor,

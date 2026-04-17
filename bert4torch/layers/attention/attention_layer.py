@@ -37,7 +37,7 @@ class MultiHeadAttention(nn.Module):
     :param dropout_rate: float, pos_dropout对应的dropout rate, 目前仅在deverta中使用，默认为0.1
     :param output_attentions: bool，是否返回attention_scores，默认为False
     :param bias: bool, qkvo的weight是否包含bias，默认为True
-    :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attn_2', "eager"等, 默认为None
+    :param _attn_implementation: Literal枚举值，计算attention score的方式，支持'sdpa', 'xformers', 'flash_attention_2', "eager"等, 默认为None
     :param layer_idx: int，transformer block的层序号
     '''
     def __init__(self, 
@@ -47,7 +47,7 @@ class MultiHeadAttention(nn.Module):
                  dropout_rate:float=0.1, 
                  scaling:float=None,
                  output_attentions:bool=False, 
-                 _attn_implementation:Literal['sdpa', 'xformers', 'flash_attn_2', 'eager']='eager', 
+                 _attn_implementation:Literal['sdpa', 'xformers', 'flash_attention_2', 'eager']='eager', 
                  layer_idx:int=None,
                  num_key_value_heads:int=None,
                  **kwargs):

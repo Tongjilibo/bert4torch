@@ -14,7 +14,7 @@ from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, text_segmentate, seed_everything
 from bert4torch.callbacks import AdversarialTraining
 from bert4torch.optimizers import get_linear_schedule_with_warmup
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from tqdm import tqdm
 from sklearn.metrics import f1_score, classification_report, accuracy_score
@@ -69,7 +69,7 @@ def search(tokens, start_idx=0):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     batch_token_ids, batch_entity_ids, batch_entity_labels = [], [], []

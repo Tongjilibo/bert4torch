@@ -2,7 +2,7 @@
 # 基础测试：mlm预测
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 
 # 加载模型，请更换成自己的路径, 以下两个权重是一样的，一个是tf用转换命令转的，一个是hf上的bert_base_chinese
@@ -18,7 +18,7 @@ inputtext = "今天[MASK]情很好"
 
 # ==========================bert4torch调用=========================
 # 建立分词器
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)
+tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode(inputtext)

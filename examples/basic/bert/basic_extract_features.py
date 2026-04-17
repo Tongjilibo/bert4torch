@@ -3,14 +3,14 @@
 from bert4torch.models.glm import *
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 
 root_model_path = "/data/pretrain_ckpt/google-bert/bert-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
 config_path = root_model_path + "/bert4torch_config.json"
 checkpoint_path = root_model_path + '/pytorch_model.bin'
 
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)  # 建立分词器
+tokenizer = BertTokenizer(vocab_path, do_lower_case=True)  # 建立分词器
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
 
 # 编码测试

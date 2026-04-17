@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from bert4torch.snippets import get_pool_emb
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 import time
 from tqdm import tqdm
@@ -19,7 +19,7 @@ checkpoint_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_mod
 dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 
 
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 class Model(BaseModel):
     def __init__(self, pool_method='cls') -> None:

@@ -6,7 +6,7 @@ import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from bert4torch.models import build_transformer_model, AccelerateTrainer
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, text_segmentate, ListDataset, seed_everything, get_pool_emb
 from bert4torch.optimizers import get_linear_schedule_with_warmup
@@ -49,7 +49,7 @@ config_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/bert4torch_conf
 checkpoint_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/pytorch_model.bin'
 dict_path = '/data/pretrain_ckpt/google-bert/bert-base-chinese/vocab.txt'
 
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 
 class MyDataset(ListDataset):

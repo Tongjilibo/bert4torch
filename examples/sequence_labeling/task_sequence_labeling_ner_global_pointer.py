@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, seed_everything
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.losses import MultilabelCategoricalCrossentropy
 from bert4torch.layers import GlobalPointer
 
@@ -62,7 +62,7 @@ class MyDataset(ListDataset):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def collate_fn(batch):
     batch_token_ids, batch_labels = [], []

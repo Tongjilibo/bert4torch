@@ -8,7 +8,7 @@ from bert4torch.models import build_transformer_model, BaseModel
 from torch.utils.data import DataLoader
 from bert4torch.snippets import sequence_padding, ListDataset
 from bert4torch.callbacks import Callback, EarlyStopping, AdversarialTraining
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch.nn.functional as F
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
@@ -45,7 +45,7 @@ def load_data(df):
 
 
 # 建立分词器
-tokenizer = Tokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 def sentence_split(words):
     """句子截断。"""

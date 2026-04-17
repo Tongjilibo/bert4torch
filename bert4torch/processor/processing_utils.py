@@ -28,10 +28,7 @@ from typing import Annotated, Any, Literal, TypedDict, TypeVar, Union, Type, Dic
 
 import numpy as np
 import typing_extensions
-from huggingface_hub import create_repo, is_offline_mode
-from huggingface_hub.dataclasses import validate_typed_dict
-from huggingface_hub.errors import EntryNotFoundError
-
+from ..snippets.hub import create_repo, is_offline_mode, validate_typed_dict
 from .audio_utils import AudioInput, load_audio
 from ..dynamic_module_utils import custom_object_save
 from .feature_extraction_utils import BatchFeature
@@ -971,7 +968,7 @@ class ProcessorMixin(PushToHubMixin):
                     ):
                         template = template.removesuffix(".jinja")
                         additional_chat_template_files[template] = f"{CHAT_TEMPLATE_DIR}/{template}.jinja"
-                except EntryNotFoundError:
+                except Exception:
                     pass  # No template dir means no template files
             processor_file = PROCESSOR_NAME
 
@@ -1460,7 +1457,7 @@ class ProcessorMixin(PushToHubMixin):
         if not isinstance(auto_class, str):
             auto_class = auto_class.__name__
 
-        import transformers.models.auto as auto_module
+        import bert4torch.models.auto as auto_module
 
         if not hasattr(auto_module, auto_class):
             raise ValueError(f"{auto_class} is not a valid auto class.")

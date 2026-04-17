@@ -2,7 +2,7 @@
 import pytest
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer, SpTokenizer, load_vocab
+from bert4torch.tokenizers import BertTokenizer, SpTokenizer, load_vocab
 import os
 import jieba
 import re
@@ -68,7 +68,7 @@ def test_t5_pegasus(model_dir):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # 加载并精简词表，建立分词器
-    tokenizer = Tokenizer(
+    tokenizer = BertTokenizer(
         dict_path,
         do_lower_case=True,
         pre_tokenize=lambda s: jieba.cut(s, HMM=False)
@@ -102,7 +102,7 @@ def test_t5_ner(model_dir):
         simplified=False,
         startswith=['[PAD]', '[UNK]', '[CLS]', '[SEP]'],
     )
-    tokenizer = Tokenizer(token_dict, do_lower_case=True)
+    tokenizer = BertTokenizer(token_dict, do_lower_case=True)
     model = build_transformer_model(config_path, checkpoint_path).to(device)
 
     generation_config = {

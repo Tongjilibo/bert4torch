@@ -10,7 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 from bert4torch.losses import CausalLMLoss
 import glob
@@ -29,7 +29,7 @@ checkpoint_path = root_path + 'pytorch_model.bin'
 dict_path = root_path + 'bert4torch_vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = Tokenizer(dict_path, do_lower_case=True)  # 建立分词器
+tokenizer = BertTokenizer(dict_path, do_lower_case=True)  # 建立分词器
 
 class MyDataset(ListDataset):
     @staticmethod

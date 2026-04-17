@@ -5,7 +5,7 @@
 # | CT_In_Batch_Neg |  32.47  | 47.09|  68.56  |  27.50  |  74.00  |
 
 
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 from bert4torch.models import build_transformer_model, BaseModel
 from bert4torch.callbacks import Callback
 from bert4torch.snippets import sequence_padding, ListDataset, get_pool_emb
@@ -58,9 +58,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # =============================加载数据集=============================
 # 建立分词器
 if model_type in ['RoFormer']:
-    tokenizer = Tokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
+    tokenizer = BertTokenizer(dict_path, do_lower_case=True, pre_tokenize=lambda s: jieba.lcut(s, HMM=False))
 else:
-    tokenizer = Tokenizer(dict_path, do_lower_case=True)
+    tokenizer = BertTokenizer(dict_path, do_lower_case=True)
 
 # 读数据
 all_names = [f'{data_path}{task_name}/{task_name}.{f}.data' for f in ['train', 'valid', 'test']]

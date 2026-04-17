@@ -2,7 +2,7 @@
 # 基础测试：mlm预测，特别的是guwenbert的padding是1，并且position_ids从2开始
 
 from bert4torch.models import build_transformer_model
-from bert4torch.tokenizers import Tokenizer
+from bert4torch.tokenizers import BertTokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
@@ -13,7 +13,7 @@ checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 
 # 建立分词器
-tokenizer = Tokenizer(vocab_path, do_lower_case=True)
+tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
 model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode("晋太元中，武陵人捕鱼为业。")
