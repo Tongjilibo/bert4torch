@@ -26,7 +26,7 @@ from torch import nn
 from PIL import Image, ImageOps
 from ...processor.image_processing_backends import TorchvisionBackend
 from ...processor.image_processing_utils import BatchFeature, register_image_processor
-from ...processor.image_transforms import group_images_by_shape, reorder_images
+from ...processor.image_processing_base import load_image
 from ...processor.image_utils import (
     OPENAI_CLIP_MEAN,
     OPENAI_CLIP_STD,
@@ -47,7 +47,7 @@ class DeepseekOcrImageProcessorKwargs(ImagesKwargs, total=False):
     r"""
     crop_mode (`bool`, *optional*, defaults to `True`):
         Whether to use crop mode for image processing.
-    base_size (`int`, *optional*, defaults to `1024`):
+    self.base_size (`int`, *optional*, defaults to `1024`):
         The base size for the global view image.
     crop_thread (`int`, *optional*, defaults to `768`):
         The threshold size for cropping images.
@@ -205,16 +205,15 @@ class DeepseekOcrImageProcessor(TorchvisionBackend):
         self.crop_thread = kwargs.pop("crop_thread", self.crop_thread)
         self.image_size = kwargs.pop("image_size", self.image_size)
         self.dynamic_preprocess_max_num = kwargs.pop("dynamic_preprocess_max_num", self.dynamic_preprocess_max_num)
-
         size = kwargs.pop("size", None)
         size = self.size if size is None else size
-
         super().__init__(size=size, **kwargs)
 
 
     def preprocess(
         self,
         images: ImageInput,
+        add_image_token_id: list[int] | None = None,
         **kwargs: Unpack[DeepseekOcrImageProcessorKwargs],
     ) -> BatchFeature:
         """Preprocess images for DeepSeek-OCR.
@@ -228,71 +227,113 @@ class DeepseekOcrImageProcessor(TorchvisionBackend):
                 - images_crop: Cropped/local view images
                 - images_spatial_crop: Spatial crop information [width_crop_num, height_crop_num]
         """
+        image_transform = BasicImageTransform(mean=self.image_mean, std=self.image_std, normalize=True)
         # Parse images input
-        images = self._prepare_images_structure(images)
-
-        images_list = []
-        images_crop_list = []
+        images_list, images_crop_list, images_seq_mask = [], [], []
         images_spatial_crop = []
+        valid_img_tokens = 0
 
-        image_transform=BasicImageTransform(mean=self.image_mean, std=self.image_std, normalize=True)
         for image in images:
-            image_draw = image.copy()
-            w, h = image_draw.size
+            image = load_image(image)
+            w,h = image.size
             ratio = 1 - ((max(w, h) - min(w, h)) / (max(w, h)))
 
             if self.crop_mode:
+
                 if image.size[0] <= self.crop_thread and image.size[1] <= self.crop_thread:
                     crop_ratio = [1, 1]
-                else:
-                    images_crop_raw, crop_ratio = dynamic_preprocess(
-                        image, max_num=self.dynamic_preprocess_max_num, image_size=self.image_size
-                    )
 
-                # Process global view
-                global_view = ImageOps.pad(
-                    image, (self.base_size, self.base_size),
-                    color=tuple(int(x * 255) for x in image_transform.mean)
-                )
+                else:
+                    if self.crop_mode:
+                        # best_width, best_height = select_best_resolution(image.size, self.candidate_resolutions)
+                        images_crop_raw, crop_ratio = dynamic_preprocess(image, max_num=self.dynamic_preprocess_max_num, image_size=self.image_size)
+                    else:
+                        # best_width, best_height = self.image_size, self.image_size
+                        crop_ratio = [1, 1]
+                
+                """process the global view"""
+                global_view = ImageOps.pad(image, (self.base_size, self.base_size),
+                                        color=tuple(int(x * 255) for x in image_transform.mean))
+                
+                if self.base_size == 1024:
+                    valid_img_tokens += int(256 * ratio)
+                elif self.base_size == 1280:
+                    valid_img_tokens += int(400 * ratio)
+                # elif self.base_size == 640:
+                #     valid_img_tokens += int(100 * ratio)
+                
                 images_list.append(image_transform(global_view).to(torch.bfloat16))
+
+                # global_view_tensor = image_transform(global_view).to(torch.bfloat16)
 
                 width_crop_num, height_crop_num = crop_ratio
+
+                images_spatial_crop.append([width_crop_num, height_crop_num])
+                
+                
+                if width_crop_num > 1 or height_crop_num > 1:
+                    """process the local views"""
+                    
+                    for i in range(len(images_crop_raw)):
+                        images_crop_list.append(image_transform(images_crop_raw[i]).to(torch.bfloat16))
+                
+                if self.image_size == self.crop_thread:
+                    valid_img_tokens += len(images_crop_list) * 144
+
+                num_queries = math.ceil((self.image_size // self.patch_size) / self.downsample_ratio)
+                num_queries_base = math.ceil((self.base_size // self.patch_size) / self.downsample_ratio)
+
+                """add image tokens"""
+                tokenized_image = ([self.image_token_id] * num_queries_base + add_image_token_id) * num_queries_base
+                tokenized_image += [self.image_token_id]
+                if width_crop_num > 1 or height_crop_num > 1:
+                    tokenized_image += ([self.image_token_id] * (num_queries * width_crop_num) + add_image_token_id) * (
+                                num_queries * height_crop_num)
+                images_seq_mask += [True] * len(tokenized_image)
+                # num_image_tokens.append(len(tokenized_image))
+
+            else:
+                """process the global view"""
+                if self.image_size <= self.crop_thread:
+                    print('directly resize')
+                    image = image.resize((self.image_size, self.image_size))
+                # else:
+                global_view = ImageOps.pad(image, (self.image_size, self.image_size),
+                                        color=tuple(int(x * 255) for x in image_transform.mean))
+                images_list.append(image_transform(global_view).to(torch.bfloat16))
+
+                if self.base_size == 1024:
+                    valid_img_tokens += int(256 * ratio)
+                elif self.base_size == 1280:
+                    valid_img_tokens += int(400 * ratio)
+                elif self.base_size == 640:
+                    valid_img_tokens += int(100 * 1)
+                elif self.base_size == 512:
+                    valid_img_tokens += int(64 * 1)
+                elif self.base_size == 768:
+                    valid_img_tokens += int(144 * 1)
+
+                width_crop_num, height_crop_num = 1, 1
+
                 images_spatial_crop.append([width_crop_num, height_crop_num])
 
-                # Process local views if needed
-                if width_crop_num > 1 or height_crop_num > 1:
-                    for i in range(len(images_crop_raw)):
-                        images_crop_list.append(
-                            image_transform(images_crop_raw[i]).to(torch.bfloat16)
-                        )
-            else:
-                # Non-crop mode
-                if self.image_size <= self.crop_thread:
-                    image = image.resize((self.image_size, self.image_size))
-                global_view = ImageOps.pad(
-                    image, (self.image_size, self.image_size),
-                    color=tuple(int(x * 255) for x in image_transform.mean)
-                )
-                images_list.append(image_transform(global_view).to(torch.bfloat16))
-                images_spatial_crop.append([1, 1])
 
-        # Stack results
-        if len(images_list) == 0:
-            images_ori = torch.zeros((1, 3, self.image_size, self.image_size))
-            images_spatial_crop_tensor = torch.zeros((1, 2), dtype=torch.long)
-            images_crop = torch.zeros((1, 3, self.base_size, self.base_size))
-        else:
-            images_ori = torch.stack(images_list, dim=0)
-            images_spatial_crop_tensor = torch.tensor(images_spatial_crop, dtype=torch.long)
-            if images_crop_list:
-                images_crop = torch.stack(images_crop_list, dim=0)
-            else:
-                images_crop = torch.zeros((1, 3, self.base_size, self.base_size))
+                """add image tokens"""
+                num_queries = math.ceil((self.image_size // self.patch_size) / self.downsample_ratio)
 
+                tokenized_image = ([self.image_token_id] * num_queries + add_image_token_id) * num_queries
+                tokenized_image += [self.image_token_id]
+                # tokenized_image += ([self.image_token_id] * (num_queries * width_crop_num) + [self.image_token_id]) * (
+                #             num_queries * height_crop_num)
+                images_seq_mask += [True] * len(tokenized_image)
+                # num_image_tokens.append(len(tokenized_image))
+        
         return BatchFeature(data={
-            "images_ori": images_ori,
-            "images_crop": images_crop,
-            "images_spatial_crop": images_spatial_crop_tensor,
+            "images_list": images_list,
+            "images_crop_list": images_crop_list,
+            "images_spatial_crop": images_spatial_crop,
+            "tokenized_image": tokenized_image,
+            "images_seq_mask": images_seq_mask
         })
 
     def get_number_of_image_patches(self, height: int, width: int, images_kwargs=None):

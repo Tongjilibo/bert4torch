@@ -5,14 +5,16 @@
 root_model_path = "/data/pretrain_ckpt/shibing624/text2vec-base-chinese"
 sentences = ['如何更换花呗绑定银行卡', '花呗更改绑定银行卡']
 
+print('=========================================bert4torch====================================')
+from bert4torch.pipelines import Text2Vec
+text2vec = Text2Vec(root_model_path)
+sentence_embeddings = text2vec.encode(sentences)
+print(sentence_embeddings)
+
+
 print('=========================================sentence transformer====================================')
 from sentence_transformers import SentenceTransformer
 m = SentenceTransformer(root_model_path)
 sentence_embeddings = m.encode(sentences)
 print(sentence_embeddings)
 
-print('=========================================bert4torch====================================')
-from bert4torch.pipelines import Text2Vec
-text2vec = Text2Vec(root_model_path)
-sentence_embeddings = text2vec.encode(sentences)
-print(sentence_embeddings)

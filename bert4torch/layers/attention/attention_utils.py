@@ -1,16 +1,22 @@
 import torch
 import torch.nn.functional as F
 from typing import List, Optional, Tuple, Union, Dict, Type, Callable
-from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available
+from bert4torch.snippets import log_warn_once, is_flash_attn_available, is_xformers_available, create_registrar
+from bert4torch.models.modeling_utils import get_proper_attn_implementation
 import inspect
-from bert4torch.snippets import create_registrar
 
 
 if is_xformers_available():
     from xformers import ops as xops
 
 
-ALL_ATTENTION_FUNCTIONS: Dict[str, Type[Callable]] = {}
+class AttentionFunctionDict(Dict[str, Type[Callable]]):
+    def __getitem__(self, key):
+        key = get_proper_attn_implementation(key)
+        return super().__getitem__(key)
+
+
+ALL_ATTENTION_FUNCTIONS: AttentionFunctionDict = AttentionFunctionDict()
 regiister_attn_forward = create_registrar(ALL_ATTENTION_FUNCTIONS)
 
 

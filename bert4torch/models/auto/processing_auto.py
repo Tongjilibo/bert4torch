@@ -156,16 +156,27 @@ class AutoProcessor:
             }
         )
 
-        # Let's start by checking whether the processor class is saved in a processor config
-        processor_config_file = cached_file(pretrained_model_name_or_path, PROCESSOR_NAME, **cached_file_kwargs)
-        if processor_config_file is not None:
-            config_dict, _ = ProcessorMixin.get_processor_dict(pretrained_model_name_or_path, **kwargs)
+        # 1. 从bert4torch_config.json中获取寻找processor_class字段，最高优先级
+        bert4torch_config_file = cached_file(pretrained_model_name_or_path, BERT4TORCH_CONFIG_NAME, **cached_file_kwargs)
+        if bert4torch_config_file is not None:
+            config_dict = json.load(open(bert4torch_config_file, encoding="utf-8"))
+            if 'processor_config' in config_dict:  # 允许使用processor_config字段嵌套
+                config_dict = config_dict['processor_config']
             processor_class = config_dict.get("processor_class", None)
             if "AutoProcessor" in config_dict.get("auto_map", {}):
                 processor_auto_map = config_dict["auto_map"]["AutoProcessor"]
 
+        # 2. 在processor_config.json中寻找processor_class字段
         if processor_class is None:
-            # If not found, let's check whether the processor class is saved in an image processor config
+            processor_config_file = cached_file(pretrained_model_name_or_path, PROCESSOR_NAME, **cached_file_kwargs)
+            if processor_config_file is not None:
+                config_dict, _ = ProcessorMixin.get_processor_dict(pretrained_model_name_or_path, **kwargs)
+                processor_class = config_dict.get("processor_class", None)
+                if "AutoProcessor" in config_dict.get("auto_map", {}):
+                    processor_auto_map = config_dict["auto_map"]["AutoProcessor"]
+
+        # 3. 在preprocessor_config.json中寻找processor_class字段
+        if processor_class is None:
             preprocessor_config_file = cached_file(
                 pretrained_model_name_or_path, FEATURE_EXTRACTOR_NAME, **cached_file_kwargs
             )
@@ -200,25 +211,12 @@ class AutoProcessor:
                     processor_class = config_dict.get("processor_class", None)
                     if "AutoProcessor" in config_dict.get("auto_map", {}):
                         processor_auto_map = config_dict["auto_map"]["AutoProcessor"]
-
+        
+        # 4. 在tokenizer_config.json中寻找processor_class字段
         if processor_class is None:
             # Next, let's check whether the processor class is saved in a tokenizer
             tokenizer_config_file = cached_file(
                 pretrained_model_name_or_path, TOKENIZER_CONFIG_FILE, **cached_file_kwargs
-            )
-            if tokenizer_config_file is not None:
-                with open(tokenizer_config_file, encoding="utf-8") as reader:
-                    config_dict = json.load(reader)
-
-                processor_class = config_dict.get("processor_class", None)
-                if "AutoProcessor" in config_dict.get("auto_map", {}):
-                    processor_auto_map = config_dict["auto_map"]["AutoProcessor"]
-
-        # 从bert4torch_config.json中获取
-        if processor_class is None:
-            # Next, let's check whether the processor class is saved in a tokenizer
-            tokenizer_config_file = cached_file(
-                pretrained_model_name_or_path, BERT4TORCH_CONFIG_NAME, **cached_file_kwargs
             )
             if tokenizer_config_file is not None:
                 with open(tokenizer_config_file, encoding="utf-8") as reader:

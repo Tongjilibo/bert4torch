@@ -25,7 +25,6 @@ import typing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypedDict, TypeVar, Union, Type, Dict
-
 import numpy as np
 import typing_extensions
 from ..snippets.hub import create_repo, is_offline_mode, validate_typed_dict
@@ -54,7 +53,8 @@ from ..snippets import (
     is_torch_available,
     list_repo_templates,
     logging,
-    create_registrar
+    create_registrar,
+    get_config_path
 )
 from ..snippets.chat_template_utils import _get_template_variables, render_jinja_template
 from ..snippets.type_validators import (
@@ -973,7 +973,10 @@ class ProcessorMixin(PushToHubMixin):
             processor_file = PROCESSOR_NAME
 
             try:
-                # Load from local folder or from cache or download from model Hub and cache
+                # [bert4torch_config.json]
+                resolved_bert4torch_file = get_config_path(pretrained_model_name_or_path)
+
+                # [processor_config.json]
                 resolved_processor_file = cached_file(
                     pretrained_model_name_or_path,
                     processor_file,
@@ -988,8 +991,7 @@ class ProcessorMixin(PushToHubMixin):
                     _raise_exceptions_for_missing_entries=False,
                 )
 
-                # chat_template.json is a legacy file used by the processor class
-                # a raw chat_template.jinja is preferred in future
+                # [chat_template.json] is a legacy file used by the processor class
                 resolved_chat_template_file = cached_file(
                     pretrained_model_name_or_path,
                     LEGACY_PROCESSOR_CHAT_TEMPLATE_FILE,
@@ -1004,6 +1006,7 @@ class ProcessorMixin(PushToHubMixin):
                     _raise_exceptions_for_missing_entries=False,
                 )
 
+                # [chat_template.jinja] is preferred in future
                 resolved_raw_chat_template_file = cached_file(
                     pretrained_model_name_or_path,
                     CHAT_TEMPLATE_FILE,
@@ -1018,6 +1021,7 @@ class ProcessorMixin(PushToHubMixin):
                     _raise_exceptions_for_missing_entries=False,
                 )
 
+                # [additional_chat_templates文件夹]
                 resolved_additional_chat_template_files = {
                     template_name: cached_file(
                         pretrained_model_name_or_path,
@@ -1035,6 +1039,7 @@ class ProcessorMixin(PushToHubMixin):
                     for template_name, template_file in additional_chat_template_files.items()
                 }
 
+                # [audio_tokenizer_config.json]
                 resolved_audio_tokenizer_file = cached_file(
                     pretrained_model_name_or_path,
                     AUDIO_TOKENIZER_NAME,
@@ -1060,10 +1065,10 @@ class ProcessorMixin(PushToHubMixin):
                     f" same name. Otherwise, make sure '{pretrained_model_name_or_path}' is the correct path to a"
                     f" directory containing a {PROCESSOR_NAME} file"
                 )
-
+        # ====读取chat_template====
         # Add chat template as kwarg before returning because most models don't have processor config
         if resolved_chat_template_file is not None:
-            # This is the legacy path
+            # [chat_template.json]为准，This is the legacy path
             with open(resolved_chat_template_file, encoding="utf-8") as reader:
                 chat_template_json = json.loads(reader.read())
                 chat_templates = {"default": chat_template_json["chat_template"]}
@@ -1075,6 +1080,7 @@ class ProcessorMixin(PushToHubMixin):
                         "with a modern chat_template.jinja file."
                     )
         else:
+            # [additional_chat_templates文件夹]为辅
             chat_templates = {
                 template_name: open(template_file, "r", encoding="utf-8").read()
                 for template_name, template_file in resolved_additional_chat_template_files.items()
@@ -1082,6 +1088,7 @@ class ProcessorMixin(PushToHubMixin):
             if resolved_raw_chat_template_file is not None:
                 with open(resolved_raw_chat_template_file, "r", encoding="utf-8") as reader:
                     chat_templates["default"] = reader.read()
+        
         if isinstance(chat_templates, dict) and "default" in chat_templates and len(chat_templates) == 1:
             chat_templates = chat_templates["default"]  # Flatten when we just have a single template/file
 
@@ -1089,12 +1096,13 @@ class ProcessorMixin(PushToHubMixin):
         # updated afterward), and we need to keep `from_pretrained` work. So here it fallbacks to the empty dict.
         # (`cached_file` called using `_raise_exceptions_for_missing_entries=False` to avoid exception)
         # However, for models added in the future, we won't get the expected error if this file is missing.
+        # [processor_config.json] 优先加载
         if resolved_processor_file is None:
             # In any case we need to pass `chat_template` if it is available
             processor_dict = {}
         else:
             try:
-                # Load processor dict
+                # Load processor dict, 从processor.json中加载processor字典
                 with open(resolved_processor_file, encoding="utf-8") as reader:
                     text = reader.read()
                 processor_dict = json.loads(text)
@@ -1133,6 +1141,22 @@ class ProcessorMixin(PushToHubMixin):
                 audio_tokenizer_path, **audio_tokenizer_kwargs
             )
 
+        # ====读取bert4torch_config.json====
+        if resolved_bert4torch_file is not None:
+            bert4torch_config = json.loads(open(resolved_bert4torch_file, encoding='utf-8').read())
+            # 以bert4torch_config.json为主更新
+            # 允许零散着写
+            for key, value in bert4torch_config.items():
+                if key in processor_dict:
+                    processor_dict[key] = value
+            
+            # 更新chat_template
+            if 'chat_template' in bert4torch_config:
+                processor_dict['chat_template'] = bert4torch_config['chat_template']
+            
+            # 更新processor_config
+            if 'processor_config' in bert4torch_config:
+                processor_dict.update(bert4torch_config['processor_config'])
         return processor_dict, kwargs
 
     @classmethod

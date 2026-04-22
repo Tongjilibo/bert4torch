@@ -675,13 +675,13 @@ class TransformerxlMultiHeadAttn(MultiHeadAttention):
 @register_attn
 class DeepseekV2Attention(MultiHeadAttention):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.q_lora_rank = kwargs.get('q_lora_rank')
         self.kv_lora_rank = kwargs.get('kv_lora_rank')
         self.qk_nope_head_dim = kwargs.get('qk_nope_head_dim')
         self.qk_rope_head_dim = kwargs.get('qk_rope_head_dim')
         self.q_head_dim = self.qk_nope_head_dim + self.qk_rope_head_dim
         layer_norm_eps = kwargs.get('layer_norm_eps', 1e-6)
+        super().__init__(*args, **kwargs)
         if self.q_lora_rank is None:
             self.q = nn.Linear(self.hidden_size, self.num_attention_heads * self.q_head_dim, bias=self.bias)
         else:
@@ -697,6 +697,8 @@ class DeepseekV2Attention(MultiHeadAttention):
                               (self.q_head_dim - self.qk_rope_head_dim + self.attention_head_size), bias=self.bias)
         self.o = nn.Linear(self.num_attention_heads * self.attention_head_size, self.hidden_size, bias=self.bias)
 
+    def init_position_encoding(self, **kwargs):
+        '''这里dim为qk_rope_head_dim所以重新初始化了'''
         self.scaling = self.q_head_dim ** (-0.5)
         self.rope_parameters = kwargs.get('rope_parameters') or kwargs.get('rope_scaling')
         if self.rope_parameters is not None:
@@ -705,9 +707,7 @@ class DeepseekV2Attention(MultiHeadAttention):
             if mscale_all_dim:
                 mscale = 1.0 if scaling_factor <= 1 else 0.1 * mscale_all_dim * math.log(scaling_factor) + 1.0
                 self.scaling = self.scaling * mscale * mscale
-        
-    def init_position_encoding(self, **kwargs):
-        '''这里dim为qk_rope_head_dim所以重新初始化了'''
+
         rope_parameters = copy.deepcopy(self.rope_parameters)
         scaling_type = rope_parameters.pop("rope_type", rope_parameters.pop('type', 'default'))
         scaling_factor = rope_parameters.pop("factor", None)

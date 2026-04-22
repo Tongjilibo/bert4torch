@@ -337,12 +337,12 @@ class AutoImageProcessor:
                         "This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. "
                         "Note that this behavior will be extended to all models in a future release."
                     )
-                if not use_fast:
-                    logger.warning_once(
-                        "Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. "
-                        "`use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. "
-                        "This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`."
-                    )
+                # if not use_fast:
+                #     logger.warning_once(
+                #         "Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. "
+                #         "`use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. "
+                #         "This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`."
+                #     )
             if use_fast and not image_processor_type.endswith("Fast"):
                 image_processor_type += "Fast"
             if use_fast and not is_torchvision_available():

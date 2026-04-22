@@ -9,14 +9,10 @@ import torch
 
 
 root_model_path = "/data/pretrain_ckpt/google-bert/bert-base-chinese"
-vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert4torch_config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
 
-tokenizer = BertTokenizer(vocab_path, do_lower_case=True)  # 建立分词器
-model = build_transformer_model(
-    config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax'
-)
+
+tokenizer = BertTokenizer(root_model_path + "/vocab.txt", do_lower_case=True)  # 建立分词器
+model = build_transformer_model(root_model_path, with_mlm='softmax')
 
 sentences = []
 init_sent = u'科学技术是第一生产力。'  # 给定句子或者None

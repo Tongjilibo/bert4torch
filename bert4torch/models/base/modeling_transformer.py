@@ -96,6 +96,7 @@ class PreTrainedModelForDecoder(PreTrainedModel):
 @register_model(name="decoder")
 class Decoder(LM_Mask, BertBase, PreTrainedModelForDecoder):
     '''所有decoder模型的基类(含大模型)'''
+    _no_split_modules = ['BertLayer', "LLMLayer"]
     @delete_arguments('with_pool', 'with_mlm', 'with_nsp')
     @insert_arguments(with_lm=True)
     def __init__(self, *args, logit_scale:Union[bool,int,float]=False, final_layernorm:bool=False, **kwargs):

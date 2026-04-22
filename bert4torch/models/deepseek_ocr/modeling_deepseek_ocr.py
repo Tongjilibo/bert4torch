@@ -109,7 +109,7 @@ class DeepSeekOCR(PreTrainedModelForDecoder):
                 
                 if images_in_this_batch:
                     images_in_this_batch = torch.cat(images_in_this_batch, dim=0)
-                    inputs_embeds[idx].masked_scatter_(images_seq_mask[idx].unsqueeze(-1).cuda(), images_in_this_batch)
+                    inputs_embeds[idx].masked_scatter_(images_seq_mask[idx].unsqueeze(-1).to(inputs_embeds.device), images_in_this_batch)
 
                 idx += 1
         return inputs_embeds

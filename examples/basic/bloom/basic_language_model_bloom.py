@@ -12,7 +12,8 @@ from bert4torch.generation import SeqGeneration
 from bert4torch import build_transformer_model, AutoTokenizer
 
 
-model_dir = '/data/pretrain_ckpt/bigscience/bloomz-560m'  # bloom-560m  bloomz-560m
+model_dir = '/data/pretrain_ckpt/bigscience/bloom-560m'
+# model_dir = '/data/pretrain_ckpt/bigscience/bloomz-560m'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)

@@ -27,7 +27,8 @@ from ..snippets import (
     copy_func,
     logging,
     safe_load_json_file,
-    create_registrar
+    create_registrar,
+    get_config_path
 )
 from ..snippets.hub import cached_file, create_repo, is_offline_mode
 
@@ -276,7 +277,11 @@ class ImageProcessingMixin(PushToHubMixin):
             is_local = True
         else:
             image_processor_file = image_processor_filename
-            try:
+            try: 
+                # bert4torch_config.json
+                resolved_bert4torch_file = get_config_path(pretrained_model_name_or_path)
+
+                # processor_config.json
                 resolved_processor_file = cached_file(
                     pretrained_model_name_or_path,
                     filename=PROCESSOR_NAME,
@@ -289,7 +294,9 @@ class ImageProcessingMixin(PushToHubMixin):
                     revision=revision,
                     subfolder=subfolder,
                     _raise_exceptions_for_missing_entries=False,
-                )
+                )  
+                
+                # preprocessor_config.json
                 resolved_image_processor_file = cached_file(
                     pretrained_model_name_or_path,
                     filename=image_processor_file,
@@ -316,15 +323,23 @@ class ImageProcessingMixin(PushToHubMixin):
                     f" directory containing a {image_processor_filename} file"
                 )
 
+        # [bert4torch_config.json] 优先加载
+        image_processor_dict = None
+        if resolved_bert4torch_file is not None:
+            bert4torch_config = safe_load_json_file(resolved_bert4torch_file)
+            if "preprocessor_config" in bert4torch_config:
+                image_processor_dict = bert4torch_config["preprocessor_config"]
+
         # Load image_processor dict. Priority goes as (nested config if found -> image processor config)
         # We are downloading both configs because almost all models have a `processor_config.json` but
         # not all of these are nested. We need to check if it was saved recebtly as nested or if it is legacy style
-        image_processor_dict = None
-        if resolved_processor_file is not None:
+        # [processor_config.json] 优先加载
+        if resolved_processor_file is not None and image_processor_dict is None:
             processor_dict = safe_load_json_file(resolved_processor_file)
             if "image_processor" in processor_dict:
                 image_processor_dict = processor_dict["image_processor"]
 
+        # [preprocessor_config.json] 其次加载
         if resolved_image_processor_file is not None and image_processor_dict is None:
             image_processor_dict = safe_load_json_file(resolved_image_processor_file)
 

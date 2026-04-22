@@ -5,7 +5,17 @@ import os
 import inspect
 from torch import Tensor
 from torch.utils.checkpoint import CheckpointFunction
-from torch4keras.snippets import log_info, log_warn, log_error, is_accelerate_available, find_tied_parameters, log_warn_once
+from ..snippets import (
+    log_info, 
+    log_warn, 
+    log_error, 
+    is_accelerate_available,     
+    is_flash_attn_available, 
+    is_xformers_available, 
+    is_torch_sdpa_available,
+    find_tied_parameters, 
+    log_warn_once
+)
 from ..snippets import ENV_VARS_TRUE_VALUES
 from typing import Union, Optional, List, Tuple
 from functools import partial, wraps
@@ -450,6 +460,22 @@ def get_parameter_dtype(parameter: Union[nn.Module, "ModuleUtilsMixin"]):
         if t.is_floating_point():
             return t.dtype
     return last_dtype
+
+
+def get_proper_attn_implementation(_attn_implementation:str=None, **kwargs):
+    if _attn_implementation is None:
+        _attn_implementation = 'sdpa'
+    
+    if _attn_implementation == 'sdpa' and (not is_torch_sdpa_available()):
+        log_warn_once("`F.scaled_dot_product_attention` only supported in torch 2.0. use _attn_implementation = 'eager' instead.")
+        _attn_implementation = 'eager'
+    elif (_attn_implementation == 'xformers') and (not is_xformers_available()):
+        log_warn_once("Xformers is not installed correctly. use `pip install xformers`. use _attn_implementation = 'eager' instead.")
+        _attn_implementation = 'eager'
+    elif (_attn_implementation == 'flash_attention_2') and (not is_flash_attn_available()):
+        log_warn_once("flash_attn is not installed correctly. please visit https://github.com/Dao-AILab/flash-attention. use _attn_implementation = 'eager' instead.")
+        _attn_implementation = 'eager'
+    return _attn_implementation
 
 
 if version.parse(torch.__version__) >= version.parse("1.10.0"):

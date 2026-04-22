@@ -8,8 +8,6 @@ import torch
 
 root_model_path = "/data/pretrain_ckpt/google-bert/bert-base-chinese"
 vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert4torch_config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
 
 
 token_dict = load_vocab(vocab_path)
@@ -31,11 +29,7 @@ for t, i in sorted(token_dict.items(), key=lambda s: s[1]):
 
 tokenizer = BertTokenizer(new_token_dict, do_lower_case=False)
 
-model = build_transformer_model(
-    config_path,
-    checkpoint_path,
-    compound_tokens=compound_tokens,  # 增加新token，用旧token平均来初始化
-)
+model = build_transformer_model(root_model_path, compound_tokens=compound_tokens)
 
 text = u'Welcome to BEIJING.'
 tokens = tokenizer.tokenize(text)

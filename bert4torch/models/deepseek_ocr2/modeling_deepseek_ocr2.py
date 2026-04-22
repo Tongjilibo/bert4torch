@@ -5,7 +5,8 @@ language_model: deepseekv2
 from ..deepseek_v2 import DeepSeekV2
 from ..base import PreTrainedModelForDecoder, register_model
 from ..deepseek_ocr.deepencoder_common import build_sam_vit_b, MlpProjector
-from .deepencoderv2_qwen2 import build_qwen2_decoder_as_encoder
+from .deepencoderv2_qwen2_old import build_qwen2_decoder_as_encoder
+from .deepencoderv2_qwen2 import Qwen2Decoder2Encoder
 import torch
 from torch import nn
 from bert4torch.snippets import DotDict
@@ -20,11 +21,19 @@ class DeepSeekOCR2(PreTrainedModelForDecoder):
         self.config = DotDict(kwargs)
 
         self.sam_model = build_sam_vit_b(**self.config.vision_config.width.sam_vit_b)
-        self.vision_model = build_qwen2_decoder_as_encoder()
+        self.vision_model_decoder_layer = 24
+        self.vision_model = Qwen2Decoder2Encoder(
+            decoder_layer=self.vision_model_decoder_layer,
+            hidden_dimension=896,
+            num_attention_heads=14,
+            num_key_value_heads=2,
+            intermediate_size=4864,
+            max_query = 400
+        )
+        # self.vision_model = build_qwen2_decoder_as_encoder()
         n_embed = 1280
         self.projector =  MlpProjector(DotDict(projector_type="linear", input_dim=896, n_embed=n_embed))
         embed_std = 1 / torch.sqrt(torch.tensor(n_embed, dtype=torch.float32))
-        # self.image_newline = nn.Parameter(torch.randn(n_embed) * embed_std)
         self.view_seperator = nn.Parameter(torch.randn(n_embed) * embed_std)
         self.model = DeepSeekV2(**self.config.language_config)
 
@@ -96,7 +105,7 @@ class DeepSeekOCR2(PreTrainedModelForDecoder):
 
                 if images_in_this_batch:
                     images_in_this_batch = torch.cat(images_in_this_batch, dim=0)
-                    inputs_embeds[idx].masked_scatter_(images_seq_mask[idx].unsqueeze(-1).cuda(), images_in_this_batch)
+                    inputs_embeds[idx].masked_scatter_(images_seq_mask[idx].unsqueeze(-1).to(inputs_embeds.device), images_in_this_batch)
 
                 idx += 1
         return inputs_embeds
@@ -116,10 +125,33 @@ class DeepSeekOCR2(PreTrainedModelForDecoder):
         new_mapping = {'model.'+new_key: old_key for new_key, old_key in self.model.variable_mapping().items()}
         name_module = {
             ('sam_model', 'sam_model'): self.sam_model.named_parameters(),
-            ('qwen2_model', 'vision_model'): self.vision_model.named_parameters(),
+            # ('qwen2_model', 'vision_model'): self.vision_model.named_parameters(),
             ('projector', 'projector'): self.projector.named_parameters()
         }
         for (old_name, new_name), named_parameters in name_module.items():
             new_mapping.update({f'{new_name}.{model_key}':f'model.{old_name}.{model_key}' for model_key, _ in named_parameters})
         new_mapping[f'view_seperator'] = f'model.view_seperator'
+
+
+        for i in range(self.vision_model_decoder_layer):
+            new_mapping.update( 
+            {
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.q.weight': f'model.qwen2_model.model.model.layers.{i}.self_attn.q_proj.weight',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.q.bias': f'model.qwen2_model.model.model.layers.{i}.self_attn.q_proj.bias',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.k.weight': f'model.qwen2_model.model.model.layers.{i}.self_attn.k_proj.weight',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.k.bias': f'model.qwen2_model.model.model.layers.{i}.self_attn.k_proj.bias',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.v.weight': f'model.qwen2_model.model.model.layers.{i}.self_attn.v_proj.weight',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.v.bias': f'model.qwen2_model.model.model.layers.{i}.self_attn.v_proj.bias',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.o.weight': f'model.qwen2_model.model.model.layers.{i}.self_attn.o_proj.weight',
+            f'vision_model.decoderLayer.{i}.multiHeadAttention.o.bias': f'model.qwen2_model.model.model.layers.{i}.self_attn.o_proj.bias',
+            f'vision_model.decoderLayer.{i}.attnLayerNorm.weight': f'model.qwen2_model.model.model.layers.{i}.input_layernorm.weight',
+            f'vision_model.decoderLayer.{i}.feedForward.intermediateDense.weight': f'model.qwen2_model.model.model.layers.{i}.mlp.gate_proj.weight',
+            f'vision_model.decoderLayer.{i}.feedForward.intermediateDense2.weight': f'model.qwen2_model.model.model.layers.{i}.mlp.up_proj.weight',
+            f'vision_model.decoderLayer.{i}.feedForward.outputDense.weight': f'model.qwen2_model.model.model.layers.{i}.mlp.down_proj.weight',
+            f'vision_model.decoderLayer.{i}.ffnLayerNorm.weight': f'model.qwen2_model.model.model.layers.{i}.post_attention_layernorm.weight'
+            })
+
+        new_mapping["vision_model.LayerNormFinal.weight"] = "model.qwen2_model.model.model.norm.weight"
+        new_mapping["vision_model.query_768.weight"] = "model.qwen2_model.query_768.weight"
+        new_mapping["vision_model.query_1024.weight"] = "model.qwen2_model.query_1024.weight"
         return new_mapping

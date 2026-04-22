@@ -25,7 +25,9 @@ from ...snippets import (
     cached_file,
     extract_commit_hash,
     logging,
-    is_tokenizers_available
+    is_tokenizers_available,
+    get_config_path,
+    JsonConfig
 )
 
 
@@ -272,7 +274,7 @@ class AutoTokenizer:
         tokenizer_type = kwargs.pop("tokenizer_type", None)
         trust_remote_code = kwargs.pop("trust_remote_code", None)
 
-        # First, let's see whether the tokenizer_type is passed so that we can leverage it
+        # 1. 用户强制制定了tokenizer类型
         if tokenizer_type is not None:
             tokenizer_class = tokenizer_class_from_name(tokenizer_type)
 
@@ -281,11 +283,22 @@ class AutoTokenizer:
 
             return tokenizer_class.from_pretrained(pretrained_model_name_or_path, *inputs, **kwargs)
 
-        # Next, let's try to use the tokenizer_config file to get the tokenizer class.
+        # 2. 加载bert4torch_config.json，获取里面的tokenizer_class，优先级第二
+        tokenizer_config_class = None
+        b4t_config_path = get_config_path(pretrained_model_name_or_path)
+        if b4t_config_path is not None:
+            b4t_config = JsonConfig(b4t_config_path)
+            # 允许{"tokenizer_config": "tokenizer_class": "TokenizersBackend"}嵌套
+            if 'tokenizer_config' in b4t_config:
+                b4t_config = b4t_config['tokenizer_config']
+            tokenizer_config_class = b4t_config.get("tokenizer_class")
+
+        # 3. 加载tokenizer_config.json，获取里面的tokenizer_class，优先级第三
         tokenizer_config = get_tokenizer_config(pretrained_model_name_or_path, **kwargs)
-        if "_commit_hash" in tokenizer_config:
-            kwargs["_commit_hash"] = tokenizer_config["_commit_hash"]
-        tokenizer_config_class = tokenizer_config.get("tokenizer_class")
+        if tokenizer_config_class is None:
+            tokenizer_config_class = tokenizer_config.get("tokenizer_class")
+
+        # 提前检查 auto_map，以便正确处理动态分词器
         tokenizer_auto_map = None
         if "auto_map" in tokenizer_config:
             if isinstance(tokenizer_config["auto_map"], (tuple, list)):
@@ -293,6 +306,9 @@ class AutoTokenizer:
                 tokenizer_auto_map = tokenizer_config["auto_map"]
             else:
                 tokenizer_auto_map = tokenizer_config["auto_map"].get("AutoTokenizer", None)
+        
+        if "_commit_hash" in tokenizer_config:
+            kwargs["_commit_hash"] = tokenizer_config["_commit_hash"]
 
         has_remote_code = tokenizer_auto_map is not None
         has_local_code = type(config).__name__ in TOKENIZER_MAPPING or (

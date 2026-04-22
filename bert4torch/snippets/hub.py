@@ -1055,8 +1055,11 @@ def is_offline_mode(*args, **kwargs):
 
 
 def validate_typed_dict(*args, **kwargs):
-    from huggingface_hub.dataclasses import validate_typed_dict
-    return validate_typed_dict(*args, **kwargs)
+    try:
+        from huggingface_hub.dataclasses import validate_typed_dict
+        return validate_typed_dict(*args, **kwargs)
+    except ImportError:  # Huggingface hub not installed
+        return None
 
 
 def as_validated_field(*args, **kwargs):
