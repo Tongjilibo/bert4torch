@@ -43,8 +43,8 @@ from ..snippets import (
 if is_vision_available():
     import PIL.Image
 
-    if is_torchvision_available():
-        from torchvision import io as torchvision_io
+if is_torchvision_available():
+    from torchvision import io as torchvision_io
 
 if is_torch_available():
     import torch

@@ -402,3 +402,251 @@ class BitsAndBytesConfig(QuantizationConfigMixin):
                 serializable_config_dict[key] = value
 
         return serializable_config_dict
+
+
+@dataclass
+class GPTQConfig(QuantizationConfigMixin):
+    """
+    This is a wrapper class about all possible attributes and features that you can play with a model that has been
+    loaded using `optimum` api for GPTQ quantization relying on the gptqmodel backend.
+
+    Args:
+        bits (`int`):
+            The number of bits to quantize to, supported numbers are (2, 3, 4, 8).
+        tokenizer (`str` or `PreTrainedTokenizerBase`, *optional*):
+            The tokenizer used to process the dataset. You can pass either:
+                - A custom tokenizer object.
+                - A string, the *model id* of a predefined tokenizer hosted inside a model repo on huggingface.co.
+                - A path to a *directory* containing vocabulary files required by the tokenizer, for instance saved
+                    using the [`~PreTrainedTokenizer.save_pretrained`] method, e.g., `./my_model_directory/`.
+        dataset (`Union[list[str]]`, *optional*):
+            The dataset used for quantization. You can provide your own dataset in a list of string or just use the
+            original datasets used in GPTQ paper ['wikitext2','c4','c4-new']
+        group_size (`int`, *optional*, defaults to 128):
+            The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
+        damp_percent (`float`, *optional*, defaults to 0.1):
+            The percent of the average Hessian diagonal to use for dampening. Recommended value is 0.1.
+        desc_act (`bool`, *optional*, defaults to `False`):
+            Whether to quantize columns in order of decreasing activation size. Setting it to False can significantly
+            speed up inference but the perplexity may become slightly worse. Also known as act-order.
+        act_group_aware (`bool`, *optional*, defaults to `True`):
+            Use GAR (group aware activation order) during quantization. Has measurable positive impact on quantization
+            quality. Only applicable when `desc_act = False`. Will forced to be `False` when `desc_act = True`.
+        sym (`bool`, *optional*, defaults to `True`):
+            Whether to use symmetric quantization.
+        true_sequential (`bool`, *optional*, defaults to `True`):
+            Whether to perform sequential quantization even within a single Transformer block. Instead of quantizing
+            the entire block at once, we perform layer-wise quantization. As a result, each layer undergoes
+            quantization using inputs that have passed through the previously quantized layers.
+        format (`str`, *optional*, defaults to `"gptq"`):
+            GPTQ weight format. `gptq` (v1) is supported by gptqmodel. `gptq_v2` is gptqmodel only.
+        meta (`dict[str, any]`, *optional*):
+            Properties, such as tooling:version, that do not directly contributes to quantization or quant inference are stored in meta.
+            i.e. `meta.quantizer`: ["optimum:_version_", "gptqmodel:_version_"]
+        backend (`str`, *optional*):
+            Controls which kernel to use. Valid values for gptqmodel are `auto`, `auto_trainable` and more. Ref gptqmodel backends:
+            https://github.com/ModelCloud/GPTQModel/blob/main/gptqmodel/utils/backend.py
+        model_seqlen (`int`, *optional*):
+            The maximum sequence length that the model can take.
+        block_name_to_quantize (`str`, *optional*):
+            The transformers block name to quantize. If None, we will infer the block name using common patterns (e.g. model.layers)
+        module_name_preceding_first_block (`list[str]`, *optional*):
+            The layers that are preceding the first Transformer block.
+        batch_size (`int`, *optional*, defaults to 1):
+            The batch size used when processing the dataset
+        pad_token_id (`int`, *optional*):
+            The pad token id. Needed to prepare the dataset when `batch_size` > 1.
+        max_input_length (`int`, *optional*):
+            The maximum input length. This is needed to initialize a buffer that depends on the maximum expected input
+            length. It is specific to the exllama backend with act-order.
+        cache_block_outputs (`bool`, *optional*, defaults to `True`):
+            Whether to cache block outputs to reuse as inputs for the succeeding block.
+        modules_in_block_to_quantize (`list[list[str]]`, *optional*):
+            List of list of module names to quantize in the specified block. This argument is useful to exclude certain linear modules from being quantized.
+            The block to quantize can be specified by setting `block_name_to_quantize`. We will quantize each list sequentially. If not set, we will quantize all linear layers.
+            Example: `modules_in_block_to_quantize =[["self_attn.k_proj", "self_attn.v_proj", "self_attn.q_proj"], ["self_attn.o_proj"]]`.
+            In this example, we will first quantize the q,k,v layers simultaneously since they are independent.
+            Then, we will quantize `self_attn.o_proj` layer with the q,k,v layers quantized. This way, we will get
+            better results since it reflects the real input `self_attn.o_proj` will get when the model is quantized.
+    """
+
+    def __init__(
+        self,
+        bits: int,
+        tokenizer: Any = None,
+        dataset: list[str] | str | None = None,
+        group_size: int = 128,
+        damp_percent: float = 0.1,
+        desc_act: bool = False,
+        act_group_aware: bool = True,
+        sym: bool = True,
+        true_sequential: bool = True,
+        format: str = "gptq",
+        meta: dict[str, Any] | None = None,
+        backend: str | None = None,
+        model_seqlen: int | None = None,
+        block_name_to_quantize: str | None = None,
+        module_name_preceding_first_block: list[str] | None = None,
+        batch_size: int = 1,
+        pad_token_id: int | None = None,
+        max_input_length: int | None = None,
+        cache_block_outputs: bool = True,
+        modules_in_block_to_quantize: list[list[str]] | None = None,
+        **kwargs,
+    ):
+        self.quant_method = QuantizationMethod.GPTQ
+        self.bits = bits
+        self.tokenizer = tokenizer
+        self.dataset = dataset
+        self.group_size = group_size
+        self.damp_percent = damp_percent
+        self.desc_act = desc_act
+        self.act_group_aware = act_group_aware
+        self.sym = sym
+        self.true_sequential = true_sequential
+        self.format = format.lower()
+        # Compatible with legacy field: checkpoint_format
+        if kwargs.get("checkpoint_format") is not None:
+            self.format = kwargs.pop("checkpoint_format").lower()
+        self.meta = meta
+        self.backend = backend.lower() if isinstance(backend, str) else backend
+        self.model_seqlen = model_seqlen
+        self.block_name_to_quantize = block_name_to_quantize
+        self.module_name_preceding_first_block = module_name_preceding_first_block
+        self.batch_size = batch_size
+        self.pad_token_id = pad_token_id
+        self.max_input_length = max_input_length
+        self.cache_block_outputs = cache_block_outputs
+        self.modules_in_block_to_quantize = modules_in_block_to_quantize
+        self.post_init()
+
+    def get_loading_attributes(self):
+        attributes_dict = copy.deepcopy(self.__dict__)
+        loading_attributes = ["max_input_length", "backend"]
+        loading_attributes_dict = {i: j for i, j in attributes_dict.items() if i in loading_attributes}
+        return loading_attributes_dict
+
+    def post_init(self):
+        r"""
+        Safety checker that arguments are correct
+        """
+        if self.bits not in [2, 3, 4, 8]:
+            raise ValueError(f"Only support quantization to [2,3,4,8] bits but found {self.bits}")
+        if self.group_size != -1 and self.group_size <= 0:
+            raise ValueError("group_size must be greater than 0 or equal to -1")
+        if not (0 < self.damp_percent < 1):
+            raise ValueError("damp_percent must between 0 and 1.")
+        if self.dataset is not None:
+            if isinstance(self.dataset, str):
+                if self.dataset not in ["wikitext2", "c4", "c4-new"]:
+                    raise ValueError(
+                        f"""You have entered a string value for dataset. You can only choose between
+                        ['wikitext2','c4','c4-new'], but we found {self.dataset}"""
+                    )
+            elif not isinstance(self.dataset, list):
+                raise ValueError(
+                    f"""dataset needs to be either a list of string or a value in
+                    ['wikitext2','c4','c4-new'], but we found {self.dataset}"""
+                )
+
+        # act_group_order is only applicable when `desc_act = False`
+        if self.desc_act and self.act_group_aware:
+            self.act_group_aware = False
+            logger.warning("`act_group_aware` has been auto-disabled as it is not compatible with `desc_act = True`.")
+
+        # make sure backend default stays consistent with gptqmodel expectations
+        if self.backend is None:
+            self.backend = "auto"
+        if self.modules_in_block_to_quantize is not None:
+            optimum_version = version.parse(importlib.metadata.version("optimum"))
+            if optimum_version < version.parse("1.15.0"):
+                raise ValueError(
+                    "You current version of `optimum` does not support `modules_in_block_to_quantize` quantization argument, please upgrade `optimum` package to a version superior than 1.15.0 ."
+                )
+
+    def to_dict(self) -> dict[str, Any]:
+        config_dict = super().to_dict()
+        # Compatible with legacy field: checkpoint_format
+        config_dict["checkpoint_format"] = self.format
+        return config_dict
+
+    def to_dict_optimum(self):
+        """
+        Get compatible dict for optimum gptq config
+        """
+        return self.to_dict()
+
+    @classmethod
+    def from_dict_optimum(cls, config_dict):
+        """
+        Get compatible class with optimum gptq config dict
+        """
+
+        config = cls(**config_dict)
+        return config
+
+
+@dataclass
+class AwqConfig(GPTQConfig):
+    """
+    This is a wrapper class about all possible attributes and features that you can play with a model that has been
+    loaded using `auto-awq` library awq quantization relying on auto_awq backend.
+
+    Args:
+        bits (`int`, *optional*, defaults to 4):
+            The number of bits to quantize to.
+        group_size (`int`, *optional*, defaults to 128):
+            The group size to use for quantization. Recommended value is 128 and -1 uses per-column quantization.
+        zero_point (`bool`, *optional*, defaults to `True`):
+            Whether to use zero point quantization.
+        backend (`AwqBackend`, *optional*, defaults to `AwqBackend.AUTO`):
+            The quantization backend.
+        modules_to_not_convert (`list`, *optional*, default to `None`):
+            The list of modules to not quantize, useful for quantizing models that explicitly require to have
+            some modules left in their original precision (e.g. Whisper encoder, Llava encoder, Mixtral gate layers).
+            Note you cannot quantize directly with transformers, please refer to `AutoAWQ` documentation for quantizing HF models.
+    """
+
+    def __init__(
+        self,
+        bits: int = 4,
+        group_size: int = 128,
+        zero_point: bool = True,
+        backend: AwqBackend = AwqBackend.AUTO,
+        modules_to_not_convert: list | None = None,
+        **kwargs,
+    ):
+        format = kwargs.pop("format", AwqFormat.GEMM)
+        # Compatible with legacy field: version
+        if kwargs.get("version") is not None:
+            format = kwargs.pop("version").lower()
+        # Compatible with legacy backend
+        if backend == AwqBackend.LEGACY_AWQ:
+            backend = AwqBackend.AUTO
+        self.zero_point = zero_point
+        self.modules_to_not_convert = modules_to_not_convert
+
+        super().__init__(bits=bits, group_size=group_size, backend=backend, format=format, **kwargs)
+        self.quant_method = QuantizationMethod.AWQ
+
+    def post_init(self):
+        r"""
+        Safety checker that arguments are correct
+        """
+
+        if self.backend == "llm-awq":
+            self.format = AwqFormat.LLM_AWQ
+            self.backend = AwqBackend.AUTO
+
+        if self.format not in AwqFormat.__members__.values():
+            raise ValueError(f"Invalid format '{self.format}'. Must be one of: {[b.value for b in AwqFormat]}")
+
+        if self.backend not in AwqBackend.__members__.values():
+            raise ValueError(f"Invalid backend '{self.backend}'. Must be one of: {[b.value for b in AwqBackend]}")
+
+    def to_dict(self) -> dict[str, Any]:
+        config_dict = super().to_dict()
+        config_dict.pop("checkpoint_format")
+        # Compatible with legacy field: version
+        config_dict["version"] = self.format
+        return config_dict

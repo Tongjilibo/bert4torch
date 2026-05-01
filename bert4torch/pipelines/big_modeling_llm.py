@@ -156,11 +156,11 @@ class ChatBase(PipeLineBase):
             return Conversation(**{**self.template_config, **kwargs}).copy()
         return None
     
-    def build_tokenizer(self, **kwargs):
+    def build_tokenizer(self, trust_remote_code=False, **kwargs):
         '''初始化tokenizer'''
         init_kwargs = {'additional_special_tokens'}
         new_kwargs = {k:v for k, v in kwargs.items() if k in init_kwargs}
-        return AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path, trust_remote_code=True, **new_kwargs)
+        return AutoTokenizer.from_pretrained(self.pretrained_model_name_or_path, trust_remote_code=trust_remote_code, **new_kwargs)
         
     def process_response_history(self, response:Union[str,tuple,list], history:List[dict]=None) -> str:
         '''对response和histry进行后处理

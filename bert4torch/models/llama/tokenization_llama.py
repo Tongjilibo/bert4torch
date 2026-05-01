@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tokenizers import Tokenizer, decoders, pre_tokenizers
-from tokenizers.models import BPE
 from ...tokenizers.tokenization_utils_base import _get_prepend_scheme
 from ...tokenizers.tokenization_utils_tokenizers import TokenizersBackend, register_tokenizer
-from ...snippets import logging
+from ...snippets import logging, is_tokenizers_available
+if is_tokenizers_available():
+    from tokenizers import Tokenizer, decoders, pre_tokenizers
+    from tokenizers.models import BPE
 
 
 logger = logging.get_logger(__name__)

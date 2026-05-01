@@ -21,7 +21,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 tokenizer = AutoTokenizer.from_pretrained(model_dir)
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir)
+model = build_transformer_model(model_dir)
 # model = model.quantize(quant_method='cpm_kernels', quantization_bit=8)
 model = model.to(device)
 

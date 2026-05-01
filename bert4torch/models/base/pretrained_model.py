@@ -24,7 +24,6 @@ from bert4torch.snippets import (
 from torch4keras.model import BaseModel, add_trainer
 import warnings
 from typing import Union, Literal, Callable, List, Type, Dict
-from tqdm import tqdm
 import gc
 import copy
 import re
@@ -275,17 +274,13 @@ class PreTrainedModel(nn.Module):
         # 多个权重文件
         elif isinstance(checkpoints, (tuple, list)):
             all_needed_keys, all_missing_keys, all_over_keys = [], [], []
-            tqdm_checkpoints = tqdm(checkpoints)
-            for checkpoint in tqdm_checkpoints:
-                tqdm_checkpoints.set_description(f'Loading {os.path.basename(checkpoint)}')
+            for checkpoint in checkpoints:
                 missing_keys, over_keys, needed_keys = \
                     self.from_pretrained_single(checkpoint, mapping=mapping, device_map=device_map, torch_dtype=torch_dtype, verbose=0)
                 all_needed_keys.extend(needed_keys)
                 all_missing_keys.extend(missing_keys)
                 all_over_keys.extend(over_keys)
-                if checkpoint == checkpoints[-1]:
-                    tqdm_checkpoints.set_description('Loading checkpoint shards')
-                                             
+
             # 打印mixmatch keys
             all_missing_keys = set(all_missing_keys).difference(set(all_needed_keys))
             all_over_keys = set(all_over_keys).difference(set(all_needed_keys))

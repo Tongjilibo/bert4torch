@@ -5,7 +5,6 @@ language_model: deepseekv2
 from ..deepseek_v2 import DeepSeekV2
 from ..base import PreTrainedModelForDecoder, register_model
 from ..deepseek_ocr.deepencoder_common import build_sam_vit_b, MlpProjector
-from .deepencoderv2_qwen2_old import build_qwen2_decoder_as_encoder
 from .deepencoderv2_qwen2 import Qwen2Decoder2Encoder
 import torch
 from torch import nn
@@ -30,7 +29,6 @@ class DeepSeekOCR2(PreTrainedModelForDecoder):
             intermediate_size=4864,
             max_query = 400
         )
-        # self.vision_model = build_qwen2_decoder_as_encoder()
         n_embed = 1280
         self.projector =  MlpProjector(DotDict(projector_type="linear", input_dim=896, n_embed=n_embed))
         embed_std = 1 / torch.sqrt(torch.tensor(n_embed, dtype=torch.float32))

@@ -13,10 +13,11 @@
 # limitations under the License.
 """Tokenization classes for Qwen2."""
 
-from tokenizers import AddedToken, Regex, Tokenizer, decoders, normalizers, pre_tokenizers
-from tokenizers.models import BPE
 from ...tokenizers.tokenization_utils_tokenizers import TokenizersBackend, register_tokenizer
-from ...snippets import logging
+from ...snippets import logging, is_tokenizers_available
+if is_tokenizers_available():
+    from tokenizers import AddedToken, Regex, Tokenizer, decoders, normalizers, pre_tokenizers
+    from tokenizers.models import BPE
 
 
 logger = logging.get_logger(__name__)

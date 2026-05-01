@@ -10,20 +10,17 @@ import os
 import time
 
 
-ckpt_dir = '/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'
+model_dir = '/data/pretrain_ckpt/uer/gpt2-chinese-cluecorpussmall/'
 texts = ['这是很久之前的事情了', '话说当年']
 
 # ===============bert4torch======================
-config_path = ckpt_dir + 'bert4torch_config.json'
-checkpoint_path = ckpt_dir + 'pytorch_model.bin'
-dict_path = ckpt_dir + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 top_k = 50
 eos_token_id = 50256  # 50256:open-end generation, 511:表示句号
 mode = 'random_sample'
 
-tokenizer = BertTokenizer(dict_path, token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
+tokenizer = BertTokenizer(model_dir + 'vocab.txt', token_start=None, token_end=None, do_lower_case=True)  # 建立分词器
+model = build_transformer_model(model_dir).to(device)
 
 print('==============自定义单条样本================')
 class ArticleCompletion(AutoRegressiveDecoder):
@@ -99,8 +96,8 @@ for output in model.stream_generate(text, **generate_configs):
 
 # ===============transformers======================
 from transformers import BertTokenizer, GPT2LMHeadModel, TextGeneration
-tokenizer = BertTokenizer.from_pretrained(ckpt_dir)
-model = GPT2LMHeadModel.from_pretrained(ckpt_dir)
+tokenizer = BertTokenizer.from_pretrained(model_dir)
+model = GPT2LMHeadModel.from_pretrained(model_dir)
 text_generator = TextGeneration(model, tokenizer)   
 output = text_generator(texts, max_length=100, do_sample=True)
 print('====transformers结果====')

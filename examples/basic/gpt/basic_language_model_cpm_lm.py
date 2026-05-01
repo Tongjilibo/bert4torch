@@ -12,9 +12,7 @@ import jieba
 jieba.initialize()
 
 # 模型路径
-config_path = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/pytorch_model.bin'
-spm_path = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate/chinese_vocab.model'
+model_dir = '/data/pretrain_ckpt/TsinghuaAI/CPM-Generate'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def pre_tokenize(text):
@@ -27,14 +25,14 @@ def pre_tokenize(text):
 
 
 tokenizer = SpTokenizer(
-    spm_path,
+    model_dir+'/chinese_vocab.model',
     token_start=None,
     token_end=None,
     pre_tokenize=pre_tokenize,
     token_translate={u'\u2583': '<cls>'}  # '\n'替换成<cls>
 )  # 建立分词器
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
+model = build_transformer_model(model_dir).to(device)
 
 
 class TextExpansion(AutoRegressiveDecoder):

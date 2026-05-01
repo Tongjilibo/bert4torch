@@ -5,7 +5,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Union, Optional, Dict
+from typing import Union, Optional, Dict, Iterable
 import re
 from . import logging
 from requests.exceptions import HTTPError
@@ -466,6 +466,8 @@ def snapshot_download(
     library_name: str = None,
     library_version: str = None,
     user_agent: Union[Dict, str, None] = None,
+    allow_patterns: list[str] | str | None = None,
+    ignore_patterns: list[str] | str | None = None,
     **kwargs
 ) -> str:
     """
@@ -492,7 +494,7 @@ def snapshot_download(
     os.environ['HF_ENDPOINT'] = endpoint
 
     from huggingface_hub import HfApi, hf_hub_download
-    from huggingface_hub.utils import EntryNotFoundError
+    from huggingface_hub.utils import EntryNotFoundError, filter_repo_objects
     from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
 
     if cache_dir is None:
@@ -526,6 +528,13 @@ def snapshot_download(
                 file_names = [i for i in file_names if not i.endswith('.safetensors')]
             os.makedirs(os.path.dirname(b4t_filenames_path), exist_ok=True)
             json.dump(file_names, open(b4t_filenames_path, 'w', encoding='utf-8'), ensure_ascii=False, indent=4)
+        
+        # 过滤文件
+        file_names: Iterable[str] = filter_repo_objects(
+            items=file_names,
+            allow_patterns=allow_patterns,
+            ignore_patterns=ignore_patterns,
+        )
 
         for file_name in file_names:
             # 从cache中恢复

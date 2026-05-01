@@ -1602,12 +1602,12 @@ class PreTrainedTokenizerBase(PushToHubMixin):
             else:
                 # At this point pretrained_model_name_or_path is either a directory or a model identifier name
                 additional_files_names = {
-                    "added_tokens_file": ADDED_TOKENS_FILE,  # kept only for legacy
-                    "special_tokens_map_file": SPECIAL_TOKENS_MAP_FILE,  # kept only for legacy
-                    "tokenizer_config_file": TOKENIZER_CONFIG_FILE,
+                    "added_tokens_file": ADDED_TOKENS_FILE,  # kept only for legacy, added_tokens.json
+                    "special_tokens_map_file": SPECIAL_TOKENS_MAP_FILE,  # kept only for legacy, special_tokens_map.json
+                    "tokenizer_config_file": TOKENIZER_CONFIG_FILE,  # tokenizer_config.json
                     # tokenizer_file used to initialize a slow from a fast. Properly copy the `addedTokens` instead of adding in random orders
-                    "tokenizer_file": FULL_TOKENIZER_FILE,
-                    "chat_template_file": CHAT_TEMPLATE_FILE,
+                    "tokenizer_file": FULL_TOKENIZER_FILE,  # tokenizer.json
+                    "chat_template_file": CHAT_TEMPLATE_FILE,  # chat_template.jinja
                 }
 
             vocab_files = {**cls.vocab_files_names, **additional_files_names}

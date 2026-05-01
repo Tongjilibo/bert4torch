@@ -9,14 +9,12 @@ from bert4torch.tokenizers import BertTokenizer
 import torch
 
 # 加载模型，请更换成自己的路径
-config_path = '/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768/vocab.txt'
+model_dir = '/data/pretrain_ckpt/Tongjilibo/chinese_GAU-alpha-char_L-24_H-768'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = BertTokenizer(dict_path, do_lower_case=True)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax').to(device)
+tokenizer = BertTokenizer(model_dir + '/vocab.txt', do_lower_case=True)
+model = build_transformer_model(model_dir, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode("近期正是上市公司财报密集披露的时间，但有多家龙头公司的业绩令投资者失望")
 token_ids[5] = token_ids[6] = tokenizer._token_mask_id

@@ -23,13 +23,6 @@ from collections import defaultdict
 from collections.abc import Iterable
 from shutil import copyfile
 from typing import Any
-import tokenizers.pre_tokenizers as pre_tokenizers_fast
-from tokenizers import AddedToken, processors
-from tokenizers import Encoding as EncodingFast
-from tokenizers import Tokenizer as TokenizerFast
-from tokenizers.decoders import Decoder as DecoderFast
-from tokenizers.models import BPE, Unigram
-from tokenizers.trainers import BpeTrainer, UnigramTrainer, WordLevelTrainer, WordPieceTrainer
 from .convert_slow_tokenizer import SpmConverter
 from .tokenization_utils_base import (
     INIT_TOKENIZER_DOCSTRING,
@@ -42,7 +35,16 @@ from .tokenization_utils_base import (
     register_tokenizer
 )
 from ..snippets.hub import is_offline_mode
-from ..snippets import PaddingStrategy, add_end_docstrings, logging
+from ..snippets import PaddingStrategy, add_end_docstrings, logging, is_tokenizers_available
+if is_tokenizers_available():
+    import tokenizers.pre_tokenizers as pre_tokenizers_fast
+    from tokenizers import AddedToken, processors
+    from tokenizers import Encoding as EncodingFast
+    from tokenizers import Tokenizer as TokenizerFast
+    from tokenizers.decoders import Decoder as DecoderFast
+    from tokenizers.models import BPE, Unigram
+    from tokenizers.trainers import BpeTrainer, UnigramTrainer, WordLevelTrainer, WordPieceTrainer
+
 
 
 logger = logging.get_logger(__name__)

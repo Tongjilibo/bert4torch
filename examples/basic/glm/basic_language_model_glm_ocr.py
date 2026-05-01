@@ -29,7 +29,7 @@ def demo_generate():
         }
     ]
 
-    processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(model_dir)
 
     inputs = processor.apply_chat_template(
         messages, 

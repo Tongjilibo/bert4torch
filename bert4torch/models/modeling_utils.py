@@ -29,6 +29,8 @@ from bert4torch.accelerate.utils.modeling import (
     offload_weight
 )
 from bert4torch.accelerate.utils import is_torch_xla_available
+from tqdm import tqdm
+import time
 
 
 XLA_USE_BF16 = os.environ.get("XLA_USE_BF16", "0").upper()
@@ -117,8 +119,10 @@ def load_state_dict_into_meta_model(
     """ 把state_dict导入meta_model
     为了代码简洁，这里device_map需要外部手动指定, 形式如{'embeddings.word_embeddings': 0, 'LayerNormFinal': 0, 'lm_head': 0}
     """
-
-    for param_name, param in state_dict.items():
+    last_param_name = [k for k in state_dict.keys()][-1]
+    tqdm_state_dict = tqdm(state_dict.items())
+    for param_name, param in tqdm_state_dict:
+        tqdm_state_dict.set_description(f'Loading {param_name}')
         module_name = param_name
         set_module_kwargs = {"value": param}
         if (device_map is None) or (device_map == 'cpu'):
@@ -145,7 +149,9 @@ def load_state_dict_into_meta_model(
                 # 如果报错，加上参数名称，方便debug
                 e.args = (f'Parameter `{param_name}`: ' + e.args[-1], )
                 raise e
-
+        time.sleep(0.01)
+        if param_name == last_param_name:
+            tqdm_state_dict.set_description('Loading checkpoint shards')
 
 def get_device_map(pretrained_model, device_map, torch_dtype, **kwargs):
     '''获取合适的device_map'''

@@ -9,6 +9,7 @@ from bert4torch.layers import BlockIdentity, GauLayer, LayerNorm
 class GAU_alpha(RoFormerV2):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, layer_type='GauLayer', **kwargs)
+        del self.embeddings.layerNorm
 
     def load_variable(self, variable, ckpt_key, model_key):
         if ckpt_key in {'embeddings.word_embeddings.weight', 'mlmDecoder.weight'}:

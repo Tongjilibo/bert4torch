@@ -9,11 +9,24 @@ bert4torch_config.json见readme
 from bert4torch.pipelines import Chat
 import re
 
-# internlm-7b, internlm-chat-7b
-# internlm2-1_8b, internlm2-chat-1_8b, internlm2-7b, internlm2-chat-7b, internlm2-20b, internlm2-chat-20b
-# internlm2_5-7b, internlm2_5-7b-chat, internlm2_5-7b-chat-1m
+# internlm-7b
+# model_name = 'internlm-chat-7b'
+
+# internlm2-1_8b
+model_name = 'internlm2-chat-1_8b'
+# internlm2-7b
+# internlm2-chat-7b
+# internlm2-20b
+# internlm2-chat-20b
+
+# internlm2_5-7b
+# model_name = 'internlm2_5-7b-chat'
+# internlm2_5-7b-chat-1m
+
 # internlm3-8b-instruct
-model_dir = '/data/pretrain_ckpt/internlm/internlm2-chat-1_8b'
+
+
+model_dir = f'/data/pretrain_ckpt/internlm/{model_name}'
 
 generation_config = {
     'top_p': 0.8, 

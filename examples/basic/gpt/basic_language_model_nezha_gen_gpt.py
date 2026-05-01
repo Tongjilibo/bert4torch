@@ -8,17 +8,13 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import BertTokenizer
 from bert4torch.generation import AutoRegressiveDecoder
 
-config_path = '/data/pretrain_ckpt/Tongjilibo/chinese_nezha_gpt_L-12_H-768_A-12/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/Tongjilibo/chinese_nezha_gpt_L-12_H-768_A-12/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/Tongjilibo/chinese_nezha_gpt_L-12_H-768_A-12/vocab.txt'
+
+model_dir = '/data/pretrain_ckpt/Tongjilibo/chinese_nezha_gpt_L-12_H-768_A-12'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = BertTokenizer(dict_path, do_lower_case=True)  # 建立分词器
 
-model = build_transformer_model(
-    config_path=config_path,
-    checkpoint_path=checkpoint_path
-).to(device)
+tokenizer = BertTokenizer(model_dir+'/vocab.txt', do_lower_case=True)  # 建立分词器
+model = build_transformer_model(model_dir).to(device)
 
 
 class ArticleCompletion(AutoRegressiveDecoder):

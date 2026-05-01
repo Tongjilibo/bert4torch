@@ -19,6 +19,7 @@ from .gau_alpha import *
 from .glm import *
 from .glm2 import *
 from .glm4 import *
+from .glm4v_9b import *
 from .glm4v import *
 from .glm46v import *
 from .glm_ocr import *

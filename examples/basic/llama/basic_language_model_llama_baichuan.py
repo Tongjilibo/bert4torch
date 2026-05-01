@@ -4,9 +4,17 @@
 """
 from bert4torch.pipelines import Chat
 
-# Baichuan-7B Baichuan-13B-Base Baichuan-13B-Chat
-# Baichuan2-7B-Base Baichuan2-7B-Chat Baichuan2-13B-Base Baichuan2-13B-Chat
-model_dir = '/data/pretrain_ckpt/baichuan-inc/Baichuan2-7B-Chat'
+# Baichuan-7B 
+# Baichuan-13B-Base 
+# model_name = 'Baichuan-13B-Chat'
+
+# Baichuan2-7B-Base 
+model_name = 'Baichuan2-7B-Chat' 
+# Baichuan2-13B-Base 
+# Baichuan2-13B-Chat
+
+
+model_dir = f'/data/pretrain_ckpt/baichuan-inc/{model_name}'
 with_prompt = True if 'Chat' in model_dir else False
 
 

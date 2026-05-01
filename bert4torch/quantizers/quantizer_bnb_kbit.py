@@ -76,7 +76,7 @@ class ConversionOps:
         raise NotImplementedError
 
     @property
-    def reverse_op(self) -> ConversionOps:
+    def reverse_op(self):
         raise NotImplementedError
 
 

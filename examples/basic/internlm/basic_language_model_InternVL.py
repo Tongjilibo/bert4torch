@@ -11,11 +11,10 @@ from bert4torch.snippets import log_info
 from PIL import Image
 
 
-# InternVL2_5-1B
+model_dir = '/data/pretrain_ckpt/OpenGVLab/InternVL2_5-1B'
 # InternVL2_5-2B
 # InternVL2_5-4B
 # InternVL2_5-8B
-model_dir = '/data/pretrain_ckpt/OpenGVLab/InternVL2_5-1B'
 image1 = Image.open('./data/images/rabbit.jpg').convert('RGB')
 image2 = Image.open('./data/images/beach.jpeg').convert('RGB')
 
@@ -63,6 +62,7 @@ def chat_demo():
     question = '这两张图片的区别是什么？'
     response, history = demo.chat(question, history=history, return_history=True)
     print(f'User: {question}\nAssistant: {response}')
+
 
 if __name__ == '__main__':
     chat_demo()

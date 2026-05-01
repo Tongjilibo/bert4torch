@@ -145,10 +145,10 @@ def trans_history_format2openai(history, image_key='image', vedio_key='vedio'):
     return messages
 
 class ChatVLBase(ChatBase):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, trust_remote_code=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.return_tensorDict_from_build_prompt = True  # build_prompt返回的是字典
-        self.processor = AutoProcessor.from_pretrained(self.pretrained_model_name_or_path, trust_remote_code=True)
+        self.processor = AutoProcessor.from_pretrained(self.pretrained_model_name_or_path, trust_remote_code=trust_remote_code)
 
     @staticmethod
     def trans_history_format(history, format:Literal['openai', 'raw']='openai'):
@@ -762,8 +762,8 @@ class Mllama(ChatVLBase):
         return inputs
     
 
-@register_vlm(name="glm4v")
-class GLM4V(ChatVLBase):
+@register_vlm(name="glm4v_9b")
+class Glm4v9b(ChatVLBase):
     @staticmethod
     def trans_history_format(history):
         history_messages = []

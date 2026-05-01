@@ -19,12 +19,28 @@
 from bert4torch.pipelines import Chat
 import re
 
-# llama-7b, llama-13b
-# Llama-2-7b-hf  Llama-2-7b-chat-hf  Llama-2-13b-hf  Llama-2-13b-chat-hf
-# Meta-Llama-3-8B  Meta-Llama-3-8B-Instruct
-# Meta-Llama-3.1-8B  Meta-Llama-3.1-8B-Instruct
-# Llama-3.2-1B  Llama-3.2-1B-Instruct  Llama-3.2-3B  Llama-3.2-3B-Instruct
-model_dir = '/data/pretrain_ckpt/meta-llama/Llama-3.2-1B-Instruct'
+# llama-7b
+# llama-13b
+
+# Llama-2-7b-hf  
+# Llama-2-7b-chat-hf  
+# Llama-2-13b-hf  
+# Llama-2-13b-chat-hf
+
+# Meta-Llama-3-8B  
+# Meta-Llama-3-8B-Instruct
+
+# Meta-Llama-3.1-8B  
+# Meta-Llama-3.1-8B-Instruct
+
+# Llama-3.2-1B  
+model_name = 'Llama-3.2-1B-Instruct'
+# Llama-3.2-3B  
+# Llama-3.2-3B-Instruct
+
+model_dir = f'/data/pretrain_ckpt/meta-llama/{model_name}'
+
+
 generation_config = {
     'max_length': 512, 
     'include_input': False if re.search('chat|Instruct', model_dir) else True

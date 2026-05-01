@@ -21,7 +21,7 @@ import os
 # chatglm2-6b, chatglm2-6b-int4, chatglm2-6b-32k
 # chatglm3-6b, chatglm3-6b-32k
 # glm-4-9b, glm-4-9b-chat, glm-4-9b-chat-1m
-model_dir = f"/data/pretrain_ckpt/THUDM/chatglm3-6b"
+model_dir = f"/data/pretrain_ckpt/zai-org/glm-4-9b-chat"
 
 generation_config = {
     'top_p': 0.8, 
