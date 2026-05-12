@@ -11,19 +11,16 @@ jieba.initialize()
 # bert配置
 model_dir = '/data/pretrain_ckpt/Tongjilibo/chinese_t5_pegasus_small/'
 # model_dir = '/data/pretrain_ckpt/Tongjilibo/chinese_t5_pegasus_base/'
-config_path = model_dir + 'bert4torch_config.json'
-checkpoint_path = model_dir + 'pytorch_model.bin'
-dict_path = model_dir + 'vocab.txt'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
 tokenizer = BertTokenizer(
-    dict_path,
+    model_dir + 'vocab.txt',
     do_lower_case=True,
     pre_tokenize=lambda s: jieba.cut(s, HMM=False)
 )
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
+model = build_transformer_model(model_dir).to(device)
 
 
 # 第一种自定义方式

@@ -7,16 +7,13 @@ import torch
 
 
 root_model_path = "/data/pretrain_ckpt/sijunhe/nezha-cn-base"
-vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert4torch_config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 inputtext = "今天[MASK]情很好"
 
 # ==========================bert4torch调用=========================
 # 建立分词器
-tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax').to(device)
+tokenizer = BertTokenizer(root_model_path + "/vocab.txt", do_lower_case=True)
+model = build_transformer_model(root_model_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode(inputtext)
 maskpos = token_ids.index(103)

@@ -22,10 +22,8 @@ except:
 
 
 # ----------------------bert4torch配置----------------------
-config_path = f'{pretrained_model}/bert4torch_config.json'
-checkpoint_path = f'{pretrained_model}/pytorch_model.bin'
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+model = build_transformer_model(pretrained_model)
 print('bert4torch last_hidden_state: \n', model.predict([inputs['input_ids']]))
 # tensor([[[ 0.1027,  0.0604, -0.2585,  ...,  0.3137, -0.2679,  0.1036],
 #          [ 0.3482, -0.0458, -0.4582,  ...,  0.0242, -0.0721,  0.2311],

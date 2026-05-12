@@ -3,8 +3,6 @@ from bert4torch.models import build_transformer_model
 import torch
 
 pretrained_model = "/data/pretrain_ckpt/hfl/chinese-xlnet-base"
-config_path = f'{pretrained_model}/bert4torch_config.json'
-checkpoint_path = f'{pretrained_model}/pytorch_model.bin'
 
 try:
     tokenizer = XLNetTokenizer.from_pretrained(pretrained_model)
@@ -21,8 +19,7 @@ except:
 
 # ----------------------bert4torch----------------------
 model = build_transformer_model(
-    config_path,
-    checkpoint_path,
+    pretrained_model,
     # with_lm=True
     pad_token_id=tokenizer.pad_token_id,
 )

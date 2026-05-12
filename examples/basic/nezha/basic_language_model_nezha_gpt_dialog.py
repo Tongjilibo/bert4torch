@@ -9,15 +9,13 @@ from bert4torch.generation import AutoRegressiveDecoder
 import torch
 
 # nezha配置
-config_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog/pytorch_model.bin'
-dict_path = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog/vocab.txt'
+model_dir = '/data/pretrain_ckpt/Tongjilibo/nezha_gpt_dialog'
 
 # 建立分词器
-tokenizer = BertTokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(model_dir+'/vocab.txt', do_lower_case=True)
 
 # 建立并加载模型
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path)
+model = build_transformer_model(model_dir)
 
 
 class ChatBot(AutoRegressiveDecoder):

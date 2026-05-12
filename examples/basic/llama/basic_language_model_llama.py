@@ -19,21 +19,21 @@
 from bert4torch.pipelines import Chat
 import re
 
-# llama-7b
-# llama-13b
+# model_name = 'llama-7b'
+# model_name = 'llama-13b'
 
-# Llama-2-7b-hf  
-# Llama-2-7b-chat-hf  
+# model_name = 'Llama-2-7b-hf'
+# model_name = 'Llama-2-7b-chat-hf'
 # Llama-2-13b-hf  
 # Llama-2-13b-chat-hf
 
 # Meta-Llama-3-8B  
-# Meta-Llama-3-8B-Instruct
+# model_name = 'Meta-Llama-3-8B-Instruct'
 
-# Meta-Llama-3.1-8B  
-# Meta-Llama-3.1-8B-Instruct
+# model_name = 'Meta-Llama-3.1-8B'
+# model_name = 'Meta-Llama-3.1-8B-Instruct'
 
-# Llama-3.2-1B  
+# Llama-3.2-1B
 model_name = 'Llama-3.2-1B-Instruct'
 # Llama-3.2-3B  
 # Llama-3.2-3B-Instruct

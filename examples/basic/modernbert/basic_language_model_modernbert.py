@@ -1,7 +1,6 @@
 '''基础测试：modernbert的mlm预测'''
 #! -*- coding: utf-8 -*-
-from transformers import AutoTokenizer
-from bert4torch.models import build_transformer_model
+from bert4torch.models import AutoTokenizer, build_transformer_model
 import torch
 
 model_dir = "/data/pretrain_ckpt/answerdotai/ModernBERT-base"
@@ -10,11 +9,10 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 text = "The capital of France is [MASK]."
 
 # ==========================bert4torch调用=========================
-# 建立分词器
 tokenizer = AutoTokenizer.from_pretrained(model_dir)
-model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, with_mlm=True).to(device)
-
 inputs = tokenizer(text, return_tensors="pt").to(device)
+
+model = build_transformer_model(config_path=model_dir, checkpoint_path=model_dir, with_mlm=True).to(device)
 
 # 需要传入参数with_mlm
 model.eval()

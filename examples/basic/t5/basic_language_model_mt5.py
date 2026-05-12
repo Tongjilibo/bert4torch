@@ -20,8 +20,7 @@ steps_per_epoch = None
 pad_token_id = -100
 
 # bert配置
-config_path = '/data/pretrain_ckpt/google/mt5-base/bert4torch_config.json'
-checkpoint_path = '/data/pretrain_ckpt/google/mt5-base/pytorch_model.bin'
+model_dir = '/data/pretrain_ckpt/google/mt5-base'
 # 下面两个config是从bert4keras中拿的，项目连接https://github.com/bojone/t5_in_bert4keras
 spm_path = '/data/pretrain_ckpt/__tensorflow_weights/mt5_bert4keras/sentencepiece_cn.model'
 keep_tokens_path = '/data/pretrain_ckpt/__tensorflow_weights/mt5_bert4keras/sentencepiece_cn_keep_tokens.json'
@@ -31,9 +30,7 @@ tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>')
 keep_tokens = json.load(open(keep_tokens_path))
 
 
-model = build_transformer_model(
-    config_path=config_path,
-    checkpoint_path=checkpoint_path,
+model = build_transformer_model(model_dir,
     keep_tokens=keep_tokens,  # 只保留keep_tokens中的字，精简原字表
     pad_token_id=pad_token_id  # 也可以指定custom_attention_mask并传入attention_mask来实现
 ).to(device)

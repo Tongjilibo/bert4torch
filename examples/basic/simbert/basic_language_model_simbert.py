@@ -29,16 +29,11 @@ model_dir = "/data/pretrain_ckpt/Tongjilibo/simbert-chinese-tiny"  # simbert_tin
 # model_dir = "/data/pretrain_ckpt/Tongjilibo/simbert-chinese-base"  # simbert_base
 # model_dir = "/data/pretrain_ckpt/junnyu/roformer_chinese_sim_char_base"  # simbert_v2
 
-# 加载simbert权重或roformer_v2
-dict_path = model_dir + "/vocab.txt"
-config_path = model_dir + "/bert4torch_config.json"
-checkpoint_path = model_dir + '/pytorch_model.bin'
-
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
 token_dict, keep_tokens = load_vocab(
-    dict_path=dict_path,
+    dict_path=model_dir + "/vocab.txt",
     simplified=True,
     startswith=['[PAD]', '[UNK]', '[CLS]', '[SEP]'],
 )
@@ -49,8 +44,7 @@ tokenizer = BertTokenizer(token_dict, do_lower_case=True)
 class Model(BaseModel):
     def __init__(self, pool_method='cls'):
         super().__init__()
-        self.bert = build_transformer_model(config_path=config_path, 
-                                            checkpoint_path=checkpoint_path, 
+        self.bert = build_transformer_model(model_dir, 
                                             with_pool='linear', 
                                             application='unilm', 
                                             keep_tokens=keep_tokens)

@@ -9,23 +9,32 @@ model_dir = "/data/pretrain_ckpt/01-ai/Yi-1.5-9B-Chat-16K"
 
 
 # print('==========================transformers=============================')
-# query = "There's a place where time stands still. A place of breath taking wonder, but also"
-# tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=True)
-# model = AutoModelForCausalLM.from_pretrained(dir_path, device_map="auto", torch_dtype="auto", trust_remote_code=True)
-# inputs = tokenizer(query, return_tensors="pt")
+# # Load the tokenizer
+# tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
 
-# outputs = model.generate(
-#     inputs.input_ids.cuda(),
-#     max_length=256,
-#     eos_token_id=tokenizer.eos_token_id,
-#     do_sample=True,
-#     repetition_penalty=1.3,
-#     no_repeat_ngram_size=5,
-#     temperature=0.7,
-#     top_k=40,
-#     top_p=0.8,
-# )
-# print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+# # Load the model
+# model = AutoModelForCausalLM.from_pretrained(
+#     model_dir,
+#     device_map="auto",  # Automatically choose available devices
+#     torch_dtype='auto'  # Automatically select suitable data type
+# ).eval()  # Set the model to evaluation mode
+
+# while True:
+#     prompt = input("User: ")
+
+#     messages = [
+#         {"role": "user", "content": prompt}
+#     ]
+
+#     # Convert the conversation to a format the model can understand
+#     input_ids = tokenizer.apply_chat_template(conversation=messages, tokenize=True, add_generation_prompt=True, return_tensors='pt')
+
+#     # Generate a response using the model
+#     output_ids = model.generate(input_ids.to('cuda'))
+
+#     # Decode the model's output
+#     response = tokenizer.decode(output_ids[0][input_ids.shape[1]:], skip_special_tokens=True)
+#     print(f'Bot: {response}')
 
 
 print('==========================bert4torch=============================')

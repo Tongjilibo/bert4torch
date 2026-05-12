@@ -10,14 +10,18 @@ from PIL import Image
 import base64
 import io
 
-# Qwen2-VL-2B-Instruct
-# Qwen2-VL-7B-Instruct
-# Qwen2.5-VL-3B-Instruct
+# model_name = 'Qwen2-VL-2B-Instruct'
+# model_name = 'Qwen2-VL-7B-Instruct'
+# model_name = 'Qwen2.5-VL-3B-Instruct'
 # Qwen2.5-VL-7B-Instruct
-# Qwen3-VL-2B-Instruct Qwen3-VL-2B-Thinking
-# Qwen3-VL-4B-Instruct Qwen3-VL-4B-Thinking
-# Qwen3-VL-8B-Instruct Qwen3-VL-8B-Thinking
-model_dir = '/data/pretrain_ckpt/Qwen/Qwen3-VL-2B-Instruct'
+model_name = 'Qwen3-VL-2B-Instruct'
+# Qwen3-VL-2B-Thinking
+# Qwen3-VL-4B-Instruct 
+# Qwen3-VL-4B-Thinking
+# Qwen3-VL-8B-Instruct 
+# Qwen3-VL-8B-Thinking
+model_dir = f'/data/pretrain_ckpt/Qwen/{model_name}'
+
 
 def chat_demo1():
     device = 'cuda'
@@ -110,6 +114,6 @@ def call_openai():
 
 
 if __name__ == '__main__':
-    # chat_demo1()
-    chat_demo2()
+    chat_demo1()
+    # chat_demo2()
     # call_openai()

@@ -10,15 +10,12 @@ from bert4torch.generation import AutoRegressiveDecoder
 # 配置
 pretrain_model = '/data/pretrain_ckpt/ClueAI/ChatYuan-large-v1/'
 # pretrain_model = '/data/pretrain_ckpt/ClueAI/ChatYuan-large-v2/'
-config_path = pretrain_model + 'bert4torch_config.json'
-checkpoint_path = pretrain_model + 'pytorch_model.bin'
-spm_path = pretrain_model + 'spiece.model'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
-tokenizer = SpTokenizer(spm_path, token_start=None, token_end='</s>', keep_accents=True)
+tokenizer = SpTokenizer(pretrain_model + 'spiece.model', token_start=None, token_end='</s>', keep_accents=True)
 
-encoder = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, pad_token_id=-1).to(device)
+encoder = build_transformer_model(pretrain_model, pad_token_id=-1).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

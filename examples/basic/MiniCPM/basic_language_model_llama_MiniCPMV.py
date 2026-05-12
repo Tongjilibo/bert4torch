@@ -5,8 +5,8 @@ import requests
 from bert4torch.pipelines import Chat
 
 
-# model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-Llama3-V-2_5"
-model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-V-2_6"
+model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-Llama3-V-2_5"
+# model_dir = "/data/pretrain_ckpt/openbmb/MiniCPM-V-2_6"
 
 
 def chat_demo1():
@@ -57,5 +57,5 @@ def chat_demo2():
     demo.run()
 
 if __name__ == '__main__':
-    # chat_demo1()
-    chat_demo2()
+    chat_demo1()
+    # chat_demo2()

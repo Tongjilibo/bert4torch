@@ -842,5 +842,6 @@ class ModernBertAttention(RopeAttention):
         ):
         if self.local_attention != (-1, -1):
             attention_mask = sliding_window_mask
+            self.is_causal = False
         return super().forward(hidden_states, attention_mask, encoder_hidden_states, encoder_attention_mask, 
                                past_key_value=past_key_value, position_ids=position_ids)

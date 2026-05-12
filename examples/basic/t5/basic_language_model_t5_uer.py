@@ -9,21 +9,18 @@ from bert4torch.generation import AutoRegressiveDecoder
 
 # model_dir = '/data/pretrain_ckpt/uer/t5-small-chinese-cluecorpussmall/'
 model_dir = '/data/pretrain_ckpt/uer/t5-base-chinese-cluecorpussmall/'
-config_path = model_dir + 'bert4torch_config.json'
-checkpoint_path = model_dir + 'pytorch_model.bin'
-dict_path = model_dir + 'vocab.txt'
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 加载并精简词表，建立分词器
 token_dict = load_vocab(
-    dict_path=dict_path,
+    dict_path=model_dir + 'vocab.txt',
     simplified=False,
     startswith=['[PAD]', '[UNK]', '[CLS]', '[SEP]'],
 )
 tokenizer = BertTokenizer(token_dict, do_lower_case=True)
 
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path).to(device)
+model = build_transformer_model(model_dir).to(device)
 
 class AutoTitle(AutoRegressiveDecoder):
     """seq2seq解码器

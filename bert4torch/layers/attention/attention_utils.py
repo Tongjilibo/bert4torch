@@ -143,10 +143,12 @@ def sdpa_attention_forward(
         attention_mask = (1.0 - attention_mask) * min_dtype
         attention_mask = attention_mask.mul(~torch.all(attention_mask == min_dtype, dim=-1, keepdim=True))  # 将padding部分的mask值变为0
     
-    # 2.1 attention_mask为None时，is_causal=True
-    # 2.2 attention_mask不为None, 是transformer格式的4d_attention_mask, 0和-inf组成
-    if is_causal is None:
-        is_causal = query.shape[2] > 1 and attention_mask is None
+    else:
+        # 2. transformer风格
+        # 2.1 attention_mask不为None, 且是transformer格式的4d_attention_mask, 0和-inf组成
+        # 2.2 attention_mask为None时，is_causal=True
+        is_causal = is_causal if is_causal is not None else getattr(module, "is_causal", True)
+        is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
 
     attn_output = F.scaled_dot_product_attention(
         query, 

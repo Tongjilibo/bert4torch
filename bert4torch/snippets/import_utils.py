@@ -305,7 +305,7 @@ def is_flash_attn_2_available():
 
 @lru_cache
 def is_gptqmodel_available() -> bool:
-    return is_package_available("gptqmodel")[0]
+    return is_package_available("gptqmodel")
 
 
 def is_kernels_available():

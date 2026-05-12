@@ -1,10 +1,10 @@
 from bert4torch.pipelines import Chat
 
 # MiniCPM-1B-sft-bf16
-# MiniCPM-2B-sft-bf16
-# MiniCPM-2B-dpo-bf16
+# model_name = 'MiniCPM-2B-sft-bf16'
+model_name = 'MiniCPM-2B-dpo-bf16'
 # MiniCPM-2B-128k
-model_dir = '/data/pretrain_ckpt/openbmb/MiniCPM-2B-dpo-bf16'
+model_dir = f'/data/pretrain_ckpt/openbmb/{model_name}'
 generation_config = {
     'max_length': 512, 
     'top_k': 40,

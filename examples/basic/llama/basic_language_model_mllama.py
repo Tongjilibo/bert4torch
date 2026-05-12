@@ -37,7 +37,7 @@ def chat_demo1():
         ).to(device)
 
         output = model.generate(**inputs, max_new_tokens=256)
-        print('Bot: ', processor.decode(output[0]))
+        print('Bot: ', processor.decode(output[0], skip_special_tokens=True))
 
 
 def chat_demo2():

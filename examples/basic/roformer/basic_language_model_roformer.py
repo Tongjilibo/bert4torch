@@ -5,19 +5,14 @@ from bert4torch.models import build_transformer_model
 from bert4torch.tokenizers import BertTokenizer
 import torch
 
-# args_model_path = "/data/pretrain_ckpt/junnyu/roformer_chinese_base/"
-args_model_path = "/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/"
-    
-# 加载模型，请更换成自己的路径
-root_model_path = args_model_path
-vocab_path = root_model_path + "/vocab.txt"
-config_path = root_model_path + "/bert4torch_config.json"
-checkpoint_path = root_model_path + '/pytorch_model.bin'
+# root_model_path = "/data/pretrain_ckpt/junnyu/roformer_chinese_base/"
+root_model_path = "/data/pretrain_ckpt/junnyu/roformer_v2_chinese_char_base/"
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # 建立分词器
-tokenizer = BertTokenizer(vocab_path, do_lower_case=True)
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax').to(device)
+tokenizer = BertTokenizer(root_model_path + "vocab.txt", do_lower_case=True)
+model = build_transformer_model(root_model_path, with_mlm='softmax').to(device)
 
 token_ids, segments_ids = tokenizer.encode("今天[MASK]很好，我[MASK]去公园玩。")
 print(''.join(tokenizer.ids_to_tokens(token_ids)))

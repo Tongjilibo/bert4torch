@@ -99,6 +99,7 @@ class TorchBuildInLayerNorm(LayerNorm):
         return F.layer_norm(hidden_states, self.normalized_shape, self.weight, self.bias, self.eps)
 
 
+@register_layer_norm
 @register_layer_norm(name='roformer_v2')
 @register_layer_norm(name='gau_alpha')
 class RoformerV2LayerNorm(LayerNorm):

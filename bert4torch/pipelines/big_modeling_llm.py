@@ -1705,10 +1705,23 @@ class LLaMA2(ChatBase):
 @add_start_docstrings(CHAT_START_DOCSTRING)
 @register_llm(name="qwen3")
 @register_llm(name="qwen3_moe")
+@register_llm(name="llama3")
 @register_llm(name="apply_chat_template")
 class ApplyChatTemplate(ChatBase):
     '''直接使用self.tokenizer.apply_chat_template来构建输入
     如果模型直接沿用这种方式，则无需做特殊的处理
+
+    llama3不支持function call, llama3.1支持function call
+    
+    ### LLaMA3.1请求的Example
+    ```json
+    [
+        {"role": "system", "content": "You are a bot that responds to weather queries."},
+        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
+        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
+        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
+    ]
+    ```
     '''
     def __init__(self, *args, system:str=None, add_generation_prompt:bool=True, 
                  tokenize:bool=False, tools_in_user_message:bool=False, 
@@ -1741,23 +1754,6 @@ class ApplyChatTemplate(ChatBase):
         except json.JSONDecodeError:
             pass
         return response
-
-@add_start_docstrings(CHAT_START_DOCSTRING)
-@register_llm(name="llama3")
-class LLaMA3(ApplyChatTemplate):
-    '''llama3不支持function call, llama3.1支持function call
-    
-    ### LLaMA3.1请求的Example
-    ```json
-    [
-        {"role": "system", "content": "You are a bot that responds to weather queries."},
-        {"role": "user", "content": "Hey, what's the temperature in Paris right now?"},
-        {"role": "assistant", "tool_calls": [{"type": "function", "function": tool_call}]},
-        {"role": "tool", "name": "get_current_temperature", "content": "22.0"}
-    ]
-    ```
-    '''
-    pass
 
 
 @add_start_docstrings(CHAT_START_DOCSTRING)

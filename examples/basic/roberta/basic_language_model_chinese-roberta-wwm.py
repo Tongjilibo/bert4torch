@@ -6,16 +6,13 @@ from bert4torch.tokenizers import BertTokenizer
 
 
 # 加载模型，
-base_path = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext'
-dict_path = base_path + '/vocab.txt'
-config_path = base_path + '/bert4torch_config.json'
-checkpoint_path = base_path + '/pytorch_model.bin'
+model_dir = '/data/pretrain_ckpt/hfl/chinese-roberta-wwm-ext'
 
 # 分词器
-tokenizer = BertTokenizer(dict_path, do_lower_case=True)
+tokenizer = BertTokenizer(model_dir + '/vocab.txt', do_lower_case=True)
 
 # 模型
-model = build_transformer_model(config_path=config_path, checkpoint_path=checkpoint_path, with_mlm='softmax')
+model = build_transformer_model(model_dir, with_mlm='softmax')
 
 token_ids, segments_ids = tokenizer.encode("科学[MASK][MASK]是第一生产力")
 print(''.join(tokenizer.ids_to_tokens(token_ids)))
