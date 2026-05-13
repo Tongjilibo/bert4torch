@@ -565,6 +565,51 @@ def is_torch_hpu_available() -> bool:
     return True
 
 
+def is_sacremoses_available():
+    return is_package_available("sacremoses")
+
+
+def torch_only_method(fn):
+    def wrapper(*args, **kwargs):
+        if not is_torch_available():
+            raise ImportError(
+                "You need to install pytorch to use this method or class, "
+                "or activate it with environment variables USE_TORCH=1 and USE_TF=0."
+            )
+        else:
+            return fn(*args, **kwargs)
+
+    return wrapper
+
+
+@lru_cache()
+def is_torch_greater_or_equal(library_version: str, accept_dev: bool = False):
+    """
+    Accepts a library version and returns True if the current version of the library is greater than or equal to the
+    given version. If `accept_dev` is True, it will also accept development versions (e.g. 2.7.0.dev20250320 matches
+    2.7.0).
+    """
+    if not is_package_available("torch"):
+        return False
+
+    if accept_dev:
+        return version.parse(version.parse(importlib.metadata.version("torch")).base_version) >= version.parse(
+            library_version
+        )
+    else:
+        return version.parse(importlib.metadata.version("torch")) >= version.parse(library_version)
+
+
+def check_torch_load_is_safe():
+    if not is_torch_greater_or_equal("2.6"):
+        raise ValueError(
+            "Due to a serious vulnerability issue in `torch.load`, even with `weights_only=True`, we now require users "
+            "to upgrade torch to at least v2.6 in order to use the function. This version restriction does not apply "
+            "when loading files with safetensors."
+            "\nSee the vulnerability report here https://nvd.nist.gov/vuln/detail/CVE-2025-32434"
+        )
+
+
 def get_valid_subdirs(root_dir: str) -> List[str]:
     """获取所有包含 __init__.py 的有效子目录"""
     subdirs = []

@@ -1,20 +1,10 @@
 from bert4torch.models import build_transformer_model, AutoTokenizer
-import torch
 
 pretrained_model = "/data/pretrain_ckpt/hfl/chinese-xlnet-base"
 
-try:
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
-    inputs = tokenizer(["你好啊，我叫张三", "天气不错啊"], padding=True, return_tensors="pt")
-except:
-    inputs = {
-        'input_ids': torch.tensor([[   19,  1100,   453, 12864,    17,   378,  1821,   480,    86,     4, 3],
-                                    [    5,     5,     5,     5,    19, 10022,    63,  4856, 12864,     4, 3]]), 
-        'token_type_ids': torch.tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
-                                        [3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 2]]), 
-        'attention_mask': torch.tensor([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                                        [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]])
-    }
+tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+inputs = tokenizer(["你好啊，我叫张三", "天气不错啊"], padding=True, return_tensors="pt")
+
 
 # ----------------------bert4torch----------------------
 model = build_transformer_model(

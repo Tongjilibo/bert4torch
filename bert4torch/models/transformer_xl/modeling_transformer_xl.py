@@ -188,6 +188,10 @@ class Transformer_XL(BertBase):
 
     def load_trans_ckpt(self, checkpoint):
         state_dict = super().load_trans_ckpt(checkpoint)
+        # 排除vocab.bin
+        if not all(isinstance(k, str) and isinstance(v, torch.Tensor) for k,v in state_dict.items()):
+            return {}
+
         for i in range(self.num_hidden_layers):
             qkv_net = state_dict.pop(f'transformer.layers.{i}.dec_attn.qkv_net.weight')
             for k, v in zip(['q', 'k', 'v'], qkv_net.chunk(3, dim=0)):

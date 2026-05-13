@@ -8,17 +8,13 @@
 - 该项目是英文的：只用于bert4torch中transformer_xl的调试模型结构，并未实际用于finetune
 '''
 
-from bert4torch.models import build_transformer_model
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from bert4torch import build_transformer_model, AutoTokenizer
 import torch
 
 pretrained_model = "/data/pretrain_ckpt/transfo-xl/transfo-xl-wt103"
 
-try:
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
-    inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
-except:
-    inputs = {'input_ids': torch.tensor([[14049,     2,   617,  3225,    23, 16072]])}
+tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+inputs = tokenizer("Hello, my dog is cute", return_tensors="pt")
 
 
 # ----------------------bert4torch配置----------------------
@@ -34,6 +30,7 @@ print('bert4torch last_hidden_state: \n', model.predict([inputs['input_ids']]))
 
 
 # ----------------------transformers包----------------------
+from transformers import AutoModelForCausalLM
 model = AutoModelForCausalLM.from_pretrained(pretrained_model)
 model.eval()
 with torch.no_grad():
