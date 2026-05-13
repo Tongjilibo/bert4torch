@@ -1,11 +1,10 @@
-from transformers import XLNetTokenizer, XLNetModel
-from bert4torch.models import build_transformer_model
+from bert4torch.models import build_transformer_model, AutoTokenizer
 import torch
 
 pretrained_model = "/data/pretrain_ckpt/hfl/chinese-xlnet-base"
 
 try:
-    tokenizer = XLNetTokenizer.from_pretrained(pretrained_model)
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
     inputs = tokenizer(["你好啊，我叫张三", "天气不错啊"], padding=True, return_tensors="pt")
 except:
     inputs = {
@@ -27,6 +26,7 @@ print('--------bert4torch last_hidden_state--------\n', model.predict([inputs['i
 
 
 # ----------------------transformers----------------------
+from transformers import XLNetModel
 model = XLNetModel.from_pretrained(pretrained_model)
 outputs = model(**inputs)
 print('--------transformers last_hidden_state--------\n', outputs.last_hidden_state)
