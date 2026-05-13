@@ -1,5 +1,5 @@
 numpy
 tqdm
 torch>1.6
-torch4keras==0.3.3
+torch4keras==0.3.4
 six

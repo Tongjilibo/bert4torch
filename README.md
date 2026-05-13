@@ -114,6 +114,7 @@ pip install git+https://github.com/Tongjilibo/bert4torch
 
 | 更新日期 | bert4torch  | torch4keras | 版本说明                                                               |
 | -------- | ----------- | ----------- | ---------------------------------------------------------------------- |
+| 20260513 | 0.6.2       | 0.3.4       | 增加qwen3_vl、deepseek ocr、glm_ocr; 去除对transformers依赖，增加AutoTokenizer, AutoProcessor|
 | 20260114 | 0.6.1       | 0.3.3       | 增加paddleocr-vl，优化代码结构，去除硬代码模型配置项                   |
 | 20250925 | 0.6.0       | 0.3.2       | 增加 `Qwen3-moe`, 支持 `gptq`、`awq`等主流量化方式，其他代码优化 |
 | 20250721 | 0.5.9.post2 | 0.3.1       | 增加 `Ernie4_5`, 修复hub下载bug, 拆分出 `openai_client`            |
