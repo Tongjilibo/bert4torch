@@ -10,10 +10,10 @@ from bert4torch.snippets import OpenaiClient, OpenaiClientSseclient
 
 # model_name = 'Qwen-1_8B'
 # Qwen-1_8B-Chat
-# model_name = 'Qwen-7B'
+# Qwen-7B
 # model_name = 'Qwen-7B-Chat'
 # Qwen-14B
-# model_name = 'Qwen-14B-Chat'
+# Qwen-14B-Chat
     
 # model_name = 'Qwen1.5-0.5B'
 # model_name = 'Qwen1.5-0.5B-Chat'
@@ -22,7 +22,7 @@ from bert4torch.snippets import OpenaiClient, OpenaiClientSseclient
 # Qwen1.5-7B
 # model_name = 'Qwen1.5-7B-Chat'
 # Qwen1.5-14B
-# model_name = 'Qwen1.5-14B-Chat'
+# Qwen1.5-14B-Chat
     
 # Qwen2-0.5B
 # model_name = 'Qwen2-0.5B-Instruct'
