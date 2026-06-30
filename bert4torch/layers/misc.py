@@ -302,7 +302,7 @@ class MixUp(nn.Module):
                 try:
                     layer_mix = random.randint(0, len(model.encoderLayer))
                 except:
-                    warnings.warn('LayerMix random failded')
+                    warnings.warn('LayerMix random failed')
                     layer_mix = 0
             else:
                 layer_mix = self.layer_mix
